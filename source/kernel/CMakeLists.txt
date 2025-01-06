@@ -7,9 +7,6 @@ project(${ProjectName})
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
-# Find the required Qt components
-find_package(Qt6 COMPONENTS Core Gui Widgets REQUIRED)
-
 # Header files
 set(HEADERS 
     TonatiuhKernel.h
@@ -166,7 +163,13 @@ set(RESOURCES resources.qrc)
 add_library(${ProjectName} SHARED ${SOURCES} ${HEADERS} ${RESOURCES})
 
 # Target-specific include directories
-target_include_directories(${ProjectName} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/.. ${CMAKE_CURRENT_SOURCE_DIR}/../libraries)
+target_include_directories(${ProjectName} PRIVATE 
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/..
+    ${CMAKE_CURRENT_SOURCE_DIR}/../libraries
+    ${COIN3D_INCLUDE_DIR}
+    ${SOQT_INCLUDE_DIR}
+)
 
 target_link_libraries(${ProjectName} PRIVATE ${COIN3D_LIBRARY} ${SOQT_LIBRARY} Qt6::Core Qt6::Gui Qt6::Widgets TonatiuhLibraries)
 

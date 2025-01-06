@@ -6,12 +6,11 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 # Include directories
-include_directories(${PROJECT_SOURCE_DIR}/..)
-include_directories(${PROJECT_SOURCE_DIR}/../libraries)
-include_directories(${PROJECT_SOURCE_DIR}/../kernel)
-
-# Assuming Coin3D and Qt6 are already found in the higher-level CMakeLists.txt
-# No need to find them again here
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/..)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../libraries)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../kernel)
+include_directories(${COIN3D_INCLUDE_DIR})
+include_directories(${SOQT_INCLUDE_DIR})
 
 # Add each plugin subdirectory
 add_subdirectory(air)

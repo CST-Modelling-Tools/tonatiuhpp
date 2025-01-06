@@ -7,9 +7,6 @@ project(${ProjectName} VERSION 0.1.8.16)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
-# Find Qt6 components
-find_package(Qt6 COMPONENTS Concurrent Qml PrintSupport Gui Network REQUIRED)
-
 # Header files
 set(HEADERS
     calculator/CelestialWidget.h
@@ -177,7 +174,15 @@ set(RESOURCES resources.qrc)
 add_executable(${ProjectName} ${SOURCES} ${HEADERS} ${FORMS} ${RESOURCES})
 
 # Target-specific include directories
-target_include_directories(${ProjectName} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/.. ${CMAKE_CURRENT_SOURCE_DIR}/../libraries)
+target_include_directories(${ProjectName} PRIVATE 
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/..
+    ${CMAKE_CURRENT_SOURCE_DIR}/../libraries
+    ${COIN3D_INCLUDE_DIR}
+    ${SOQT_INCLUDE_DIR}
+    $<TARGET_PROPERTY:TonatiuhLibraries,INTERFACE_INCLUDE_DIRECTORIES>
+    $<TARGET_PROPERTY:TonatiuhKernel,INTERFACE_INCLUDE_DIRECTORIES>
+)
 
 # Target-specific compile definitions
 target_compile_definitions(${ProjectName} PRIVATE APP_VERSION="0.1.8.16")

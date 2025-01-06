@@ -7,9 +7,6 @@ project(${ProjectName})
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
-# Find the required Qt components
-find_package(Qt6 COMPONENTS PrintSupport REQUIRED)
-
 # Header files
 set(HEADERS 
     TonatiuhLibraries.h 
@@ -86,10 +83,18 @@ set(SOURCES
 add_library(${ProjectName} SHARED ${SOURCES} ${HEADERS} ${UI_HEADERS})
 
 # Target-specific include directories
-target_include_directories(${ProjectName} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/..)
+target_include_directories(${ProjectName} PRIVATE 
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/..
+    ${COIN3D_INCLUDE_DIR}
+)
 
-# Link libraries
-target_link_libraries(${PROJECT_NAME} PRIVATE ${COIN3D_LIBRARY} Qt6::PrintSupport)
+# Link inherited libraries, including Eigen
+target_link_libraries(${ProjectName}
+    PRIVATE ${COIN3D_LIBRARY}
+    PRIVATE Qt6::PrintSupport
+    PRIVATE Eigen3::Eigen
+)
 
 # Add compile definitions if necessary
 target_compile_definitions(${PROJECT_NAME} PRIVATE TONATIUH_LIBRARIES_EXPORT SunPath_EXPORT)
