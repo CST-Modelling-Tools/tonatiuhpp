@@ -4,16 +4,18 @@
 #include "libraries/math/gcf.h"
 
 
-//SO_SFIELD_SOURCE(TSFDoubleUnit, double, double)
+SO_SFIELD_SOURCE(TSFDoubleUnit, double, double)
 //SO_SFIELD_CONSTRUCTOR_SOURCE(_class_);
-SO_SFIELD_VALUE_SOURCE(TSFDoubleUnit, double, double)
-SO_SFIELD_REQUIRED_SOURCE(TSFDoubleUnit)
+//SO_SFIELD_VALUE_SOURCE(TSFDoubleUnit, double, double)
+//SO_SFIELD_REQUIRED_SOURCE(TSFDoubleUnit)
+
 
 void TSFDoubleUnit::initClass(void)
 {
     SO_SFIELD_INIT_CLASS(TSFDoubleUnit, SoSField);
 }
 
+/*
 TSFDoubleUnit::TSFDoubleUnit()
 {
     unit = Default;
@@ -23,6 +25,7 @@ TSFDoubleUnit::~TSFDoubleUnit()
 {
 
 }
+*/
 
 SbBool TSFDoubleUnit::readValue(SoInput* in)
 {

@@ -1,9 +1,10 @@
 cmake_minimum_required(VERSION 3.28)
+
+# Define project
 set(ProjectName TonatiuhKernel)
+project(${ProjectName} VERSION 1.0.0)
 
-project(${ProjectName})
-
-# Set the C++ standard
+# C++ Standard
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
@@ -163,19 +164,36 @@ set(RESOURCES resources.qrc)
 add_library(${ProjectName} SHARED ${SOURCES} ${HEADERS} ${RESOURCES})
 
 # Target-specific include directories
-target_include_directories(${ProjectName} PRIVATE 
-    ${CMAKE_CURRENT_SOURCE_DIR}
-    ${CMAKE_CURRENT_SOURCE_DIR}/..
-    ${CMAKE_CURRENT_SOURCE_DIR}/../libraries
-    ${COIN3D_INCLUDE_DIR}
-    ${SOQT_INCLUDE_DIR}
+target_include_directories(${ProjectName} 
+    PRIVATE 
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}/..
+        ${CMAKE_CURRENT_SOURCE_DIR}/../libraries
+        ${COIN3D_INCLUDE_DIR}
+        ${SOQT_INCLUDE_DIR}
 )
 
-target_link_libraries(${ProjectName} PRIVATE ${COIN3D_LIBRARY} ${SOQT_LIBRARY} Qt6::Core Qt6::Gui Qt6::Widgets TonatiuhLibraries)
+# Link dependencies
+target_link_libraries(${ProjectName} PRIVATE 
+    ${COIN3D_LIBRARY}
+    ${SOQT_LIBRARY}
+    Qt6::Core
+    Qt6::Gui
+    Qt6::Widgets
+    TonatiuhLibraries
+)
 
+# Add platform-specific libraries
 if(WIN32)
     target_link_libraries(${ProjectName} PRIVATE opengl32)
 endif()
 
 # Add compile definitions if necessary
 target_compile_definitions(${ProjectName} PRIVATE TONATIUH_KERNEL_EXPORT)
+
+# Add install rules for all targets
+install(TARGETS ${ProjectName}
+    RUNTIME DESTINATION "${GLOBAL_INSTALL_BIN_DIR}"
+    LIBRARY DESTINATION "${GLOBAL_INSTALL_BIN_DIR}"
+    ARCHIVE DESTINATION "${GLOBAL_INSTALL_BIN_DIR}"
+)

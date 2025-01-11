@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.28)
-set(ProjectName SunPath)
 
+# Project configuration
+set(ProjectName SunPath)
 project(${ProjectName})
 
 # Set the C++ standard
@@ -75,7 +76,11 @@ set(SOURCES
 add_library(${ProjectName} SHARED ${SOURCES} ${HEADERS})
 
 # Target-specific include directories
-target_include_directories(${ProjectName} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/..)
+target_include_directories(${ProjectName}
+    PRIVATE 
+        ${CMAKE_CURRENT_SOURCE_DIR} 
+         ${CMAKE_CURRENT_SOURCE_DIR}/..
+)
 
 target_link_libraries(${ProjectName} 
     PRIVATE 
@@ -92,13 +97,14 @@ target_link_libraries(${ProjectName}
 # Add compile definitions if necessary
 target_compile_definitions(${ProjectName} PRIVATE SunPath_EXPORT)
 
-# Specify the installation rules
-install(TARGETS ${ProjectName} 
-    LIBRARY DESTINATION "${CMAKE_INSTALL_PREFIX}/lib"
-    RUNTIME DESTINATION "${CMAKE_INSTALL_PREFIX}/lib"
+install(TARGETS ${ProjectName}
+    LIBRARY DESTINATION "${CMAKE_INSTALL_PREFIX}/bin"
+    RUNTIME DESTINATION "${CMAKE_INSTALL_PREFIX}/bin"
 )
 
-foreach(header IN LISTS HEADERS)
-    get_filename_component(header_path ${header} DIRECTORY)
-    install(FILES ${header} DESTINATION "${CMAKE_INSTALL_PREFIX}/include/SunPath/${header_path}")
-endforeach()
+# Add install rules for all targets
+install(TARGETS ${ProjectName}
+    RUNTIME DESTINATION "${GLOBAL_INSTALL_BIN_DIR}"
+    LIBRARY DESTINATION "${GLOBAL_INSTALL_BIN_DIR}"
+    ARCHIVE DESTINATION "${GLOBAL_INSTALL_BIN_DIR}"
+)

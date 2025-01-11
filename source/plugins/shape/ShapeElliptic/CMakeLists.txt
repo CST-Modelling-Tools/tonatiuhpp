@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 3.28)
-project(ShapeElliptic)
+
+set(ProjectName ShapeElliptic)
+project(${ProjectName} VERSION 0.1.8.16)
 
 # Set the C++ standard
 set(CMAKE_CXX_STANDARD 20)
@@ -38,3 +40,10 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
 
 # Find the required Qt components
 find_package(Qt6 COMPONENTS Core Gui Widgets REQUIRED)
+
+# Add install rules for all targets
+install(TARGETS ${ProjectName}
+    RUNTIME DESTINATION "${GLOBAL_INSTALL_BIN_DIR}"
+    LIBRARY DESTINATION "${GLOBAL_INSTALL_BIN_DIR}"
+    ARCHIVE DESTINATION "${GLOBAL_INSTALL_BIN_DIR}"
+)

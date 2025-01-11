@@ -7,45 +7,45 @@ project(${ProjectName})
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
-#Header files
+# Header and Source files
 set(HEADERS
     SunGaussian.h
 )
-
-# Source files
 set(SOURCES 
     SunGaussian.cpp
 )
-
-# Resource files, if any
 set(RESOURCES resources.qrc)
 
-# Add the plugin as a library
+# Add the plugin as a shared library
 add_library(${ProjectName} SHARED ${HEADERS} ${SOURCES} ${RESOURCES})
 
-# Specify include directories for this target
+# Include directories
 target_include_directories(${ProjectName} PRIVATE 
     ${CMAKE_CURRENT_SOURCE_DIR} 
     ${CMAKE_CURRENT_SOURCE_DIR}/.. 
     ${CMAKE_CURRENT_SOURCE_DIR}/../../libraries 
     ${CMAKE_CURRENT_SOURCE_DIR}/../../kernel
 )
-# Add compile definitions
-target_compile_definitions(${ProjectName} PRIVATE TONATIUH_KERNEL_EXPORT)
 
-# Link libraries
+# Link Libraries
 target_link_libraries(${ProjectName} PRIVATE 
+    ${COIN3D_LIBRARY} 
+    ${SOQT_LIBRARY}
     Qt6::Core 
     Qt6::Gui 
     Qt6::Widgets 
     TonatiuhKernel
-    # Assuming COIN3D_LIBRARY and SOQT_LIBRARY are set in the top-level CMakeLists.txt
-    ${COIN3D_LIBRARY}
-    ${SOQT_LIBRARY}
 )
 
-# Specify the installation rules
-#install(TARGETS ${ProjectName} 
-#    LIBRARY DESTINATION "${CMAKE_INSTALL_PREFIX}/bin/plugins/sun"
-#    RUNTIME DESTINATION "${CMAKE_INSTALL_PREFIX}/bin/plugins/sun"
-#)
+# Specify the plugin output directory
+set_target_properties(${ProjectName} PROPERTIES
+    LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/plugins/sun
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/plugins/sun
+)
+
+# Add install rules for all targets
+install(TARGETS ${ProjectName}
+    RUNTIME DESTINATION "${GLOBAL_INSTALL_BIN_DIR}"
+    LIBRARY DESTINATION "${GLOBAL_INSTALL_BIN_DIR}"
+    ARCHIVE DESTINATION "${GLOBAL_INSTALL_BIN_DIR}"
+)

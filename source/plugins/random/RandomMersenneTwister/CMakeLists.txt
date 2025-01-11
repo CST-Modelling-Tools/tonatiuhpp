@@ -1,49 +1,49 @@
 cmake_minimum_required(VERSION 3.28)
-project(RandomMersenneTwister)
+set(ProjectName RandomMersenneTwister)
+
+project(${ProjectName})
 
 # Set the C++ standard
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
-# Assuming the necessary Qt and Coin3D libraries are found in the top-level CMakeLists.txt
-# This reduces redundancy and ensures consistency across the build system
-
-# Include directories, ensure compatibility with platform specifics
-if(APPLE)
-    include_directories(
-        /usr/local/include
-        /usr/local/include/Inventor
-    )
-elseif(UNIX AND NOT APPLE) # Linux settings
-    include_directories(
-        /usr/include
-        /usr/include/Inventor
-    )
-endif()
-
-#Header files
+# Header and Source files
 set(HEADERS
     RandomMersenneTwister.h
 )
-
-# Source files
 set(SOURCES 
     RandomMersenneTwister.cpp
 )
 
-# Add the plugin as a library
-add_library(RandomMersenneTwister SHARED ${HEADERS} ${SOURCES} ${RESOURCES})
+# Add the plugin as a shared library
+add_library(${ProjectName} SHARED ${HEADERS} ${SOURCES})
 
-# Utilize globally configured libraries and components
+# Include directories using global variables
+target_include_directories(${PROJECT_NAME} PRIVATE 
+    ${CMAKE_CURRENT_SOURCE_DIR} 
+    ${CMAKE_CURRENT_SOURCE_DIR}/.. 
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../kernel
+)
+
+# Link libraries using global variables
 target_link_libraries(${PROJECT_NAME} PRIVATE 
     ${COIN3D_LIBRARY} 
-    ${SOQT_LIBRARY} 
+    ${SOQT_LIBRARY}
     Qt6::Core 
     Qt6::Gui 
     Qt6::Widgets
-    TonatiuhLibraries
     TonatiuhKernel
 )
 
-# Find the required Qt components
-find_package(Qt6 COMPONENTS Core Gui Widgets REQUIRED)
+# Set plugin output directory
+set_target_properties(${PROJECT_NAME} PROPERTIES
+    LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/plugins/random
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/plugins/random
+)
+
+# Add install rules for all targets
+install(TARGETS ${ProjectName}
+    RUNTIME DESTINATION "${GLOBAL_INSTALL_BIN_DIR}"
+    LIBRARY DESTINATION "${GLOBAL_INSTALL_BIN_DIR}"
+    ARCHIVE DESTINATION "${GLOBAL_INSTALL_BIN_DIR}"
+)

@@ -1,7 +1,8 @@
 cmake_minimum_required(VERSION 3.28)
-set(ProjectName TonatiuhLibraries)
 
-project(${ProjectName})
+# Project name and version
+set(ProjectName TonatiuhLibraries)
+project(${ProjectName} VERSION 1.0.0)
 
 # Set the C++ standard
 set(CMAKE_CXX_STANDARD 20)
@@ -79,22 +80,30 @@ set(SOURCES
     sun/sunpos.cpp
 )
 
-# Create the library
-add_library(${ProjectName} SHARED ${SOURCES} ${HEADERS} ${UI_HEADERS})
+# Define library target
+add_library(${ProjectName} SHARED ${SOURCES} ${HEADERS})
 
-# Target-specific include directories
-target_include_directories(${ProjectName} PRIVATE 
-    ${CMAKE_CURRENT_SOURCE_DIR}
-    ${CMAKE_CURRENT_SOURCE_DIR}/..
-    ${COIN3D_INCLUDE_DIR}
+# Include directories for the target
+target_include_directories(${ProjectName} 
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}/..
+        ${COIN3D_INCLUDE_DIR}
 )
 
 # Link inherited libraries, including Eigen
-target_link_libraries(${ProjectName}
-    PRIVATE ${COIN3D_LIBRARY}
-    PRIVATE Qt6::PrintSupport
-    PRIVATE Eigen3::Eigen
+target_link_libraries(${ProjectName} PRIVATE
+    ${COIN3D_LIBRARY}
+    Qt6::PrintSupport
+    Eigen3::Eigen
 )
 
 # Add compile definitions if necessary
 target_compile_definitions(${PROJECT_NAME} PRIVATE TONATIUH_LIBRARIES_EXPORT SunPath_EXPORT)
+
+# Add install rules for all targets
+install(TARGETS ${ProjectName}
+    RUNTIME DESTINATION "${GLOBAL_INSTALL_BIN_DIR}"
+    LIBRARY DESTINATION "${GLOBAL_INSTALL_BIN_DIR}"
+    ARCHIVE DESTINATION "${GLOBAL_INSTALL_BIN_DIR}"
+)

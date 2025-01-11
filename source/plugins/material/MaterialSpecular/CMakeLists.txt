@@ -1,21 +1,16 @@
 cmake_minimum_required(VERSION 3.28)
-project(MaterialSpecular)
+set(ProjectName MaterialSpecular)
+
+project(${ProjectName})
 
 # Set the C++ standard
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
-# Assuming the necessary Qt and Coin3D libraries are found in the top-level CMakeLists.txt
-
-# Include directories, assuming relative paths will be inherited from top-level
-include_directories(${CMAKE_CURRENT_SOURCE_DIR})
-
-# Header files
+# Header and Source files
 set(HEADERS
     MaterialSpecular.h
 )
-
-# Source files
 set(SOURCES 
     MaterialSpecular.cpp
 )
@@ -23,12 +18,20 @@ set(SOURCES
 # Resource files, if any
 set(RESOURCES resources.qrc)
 
-# Add the plugin as a library
+# Add the plugin as a shared library
 add_library(${PROJECT_NAME} SHARED ${HEADERS} ${SOURCES} ${RESOURCES})
 
-# Link libraries using globally defined variables and target links
-target_link_libraries(${PROJECT_NAME} PRIVATE 
-    ${COIN3D_LIBRARY}
+# Include directories (explicitly specified)
+target_include_directories(${ProjectName} PRIVATE 
+    ${CMAKE_CURRENT_SOURCE_DIR} 
+    ${CMAKE_CURRENT_SOURCE_DIR}/.. 
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../kernel
+)
+
+# Link libraries using global variables
+target_link_libraries(${PROJECT_NAME} PRIVATE
+    ${COIN3D_LIBRARY} 
+    ${SOQT_LIBRARY} 
     Qt6::Core 
     Qt6::Gui 
     Qt6::Widgets 
@@ -36,5 +39,15 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     TonatiuhKernel
 )
 
-# Find the required Qt components
-find_package(Qt6 COMPONENTS Core Gui Widgets REQUIRED)
+# Set plugin output directory
+set_target_properties(${PROJECT_NAME} PROPERTIES
+    LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/plugins/material
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/plugins/material
+)
+
+# Add install rules for all targets
+install(TARGETS ${ProjectName}
+    RUNTIME DESTINATION "${GLOBAL_INSTALL_BIN_DIR}"
+    LIBRARY DESTINATION "${GLOBAL_INSTALL_BIN_DIR}"
+    ARCHIVE DESTINATION "${GLOBAL_INSTALL_BIN_DIR}"
+)

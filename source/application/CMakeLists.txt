@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.28)
-set(ProjectName Tonatiuh++)
 
+set(ProjectName Tonatiuh++)
 project(${ProjectName} VERSION 0.1.8.16)
 
 # Set the C++ standard
@@ -188,7 +188,16 @@ target_include_directories(${ProjectName} PRIVATE
 target_compile_definitions(${ProjectName} PRIVATE APP_VERSION="0.1.8.16")
 
 # Link libraries
-target_link_libraries(${ProjectName} PRIVATE ${COIN3D_LIBRARY} ${SOQT_LIBRARY} Qt6::Concurrent Qt6::Qml Qt6::PrintSupport Qt6::Gui Qt6::Network TonatiuhLibraries TonatiuhKernel)
+target_link_libraries(${ProjectName} 
+    PRIVATE ${COIN3D_LIBRARY} 
+        ${SOQT_LIBRARY} 
+        Qt6::Concurrent 
+        Qt6::Qml 
+        Qt6::PrintSupport 
+        Qt6::Gui Qt6::Network 
+        TonatiuhLibraries 
+        TonatiuhKernel
+)
 
 # Platform-specific configurations
 if(WIN32)
@@ -196,8 +205,9 @@ if(WIN32)
     # Additional Windows-specific configurations
 endif()
 
-# Post-build command to run install
-# add_custom_command(TARGET ${ProjectName} POST_BUILD
-#    COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target install
-#    COMMENT "Running post-build installation step"
-#)
+# Add install rules for all targets
+install(TARGETS ${ProjectName}
+    RUNTIME DESTINATION "${GLOBAL_INSTALL_BIN_DIR}"
+    LIBRARY DESTINATION "${GLOBAL_INSTALL_BIN_DIR}"
+    ARCHIVE DESTINATION "${GLOBAL_INSTALL_BIN_DIR}"
+)
