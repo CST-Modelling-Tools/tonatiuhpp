@@ -88,20 +88,40 @@ add_subdirectory(plugins)
 if(DEFINED ENV{TonatiuhXXInstallDir})
     set(CMAKE_INSTALL_PREFIX $ENV{TonatiuhXXInstallDir} CACHE PATH "Installation directory" FORCE)
 else()
-    set(CMAKE_INSTALL_PREFIX "C:/TonatiuhXX" CACHE PATH "Installation directory" FORCE)
+    set(CMAKE_INSTALL_PREFIX "C:/Tonatiuh++" CACHE PATH "Installation directory" FORCE)
 endif()
 
 message(STATUS "Installation directory: ${CMAKE_INSTALL_PREFIX}")
 
 # Set global installation rules
 set(GLOBAL_INSTALL_BIN_DIR "${CMAKE_INSTALL_PREFIX}/bin")
-set(GLOBAL_INSTALL_INCLUDE_DIR "${CMAKE_INSTALL_PREFIX}/include")
+set(GLOBAL_INSTALL_EXAMPLES_DIR "${CMAKE_INSTALL_PREFIX}/examples")
+set(GLOBAL_INSTALL_HELP_DIR "${CMAKE_INSTALL_PREFIX}/help")
+set(GLOBAL_INSTALL_RESOURCES_DIR "${CMAKE_INSTALL_PREFIX}/resources")
+
 
 # Add install rules for all targets
 install(TARGETS ${ProjectName}
     RUNTIME DESTINATION "${GLOBAL_INSTALL_BIN_DIR}"
     LIBRARY DESTINATION "${GLOBAL_INSTALL_BIN_DIR}"
     ARCHIVE DESTINATION "${GLOBAL_INSTALL_BIN_DIR}"
+)
+
+# Install examples folder
+install(DIRECTORY ${CMAKE_SOURCE_DIR}/../examples/
+    DESTINATION "${GLOBAL_INSTALL_EXAMPLES_DIR}"
+    FILES_MATCHING PATTERN "*.*"  # Match all files
+)
+
+# Install help folder
+install(DIRECTORY ${CMAKE_SOURCE_DIR}/../help/
+    DESTINATION "${GLOBAL_INSTALL_HELP_DIR}"
+    FILES_MATCHING PATTERN "*.*"  # Match all files
+)
+# Install resources folder
+install(DIRECTORY ${CMAKE_SOURCE_DIR}/../resources/
+    DESTINATION "${GLOBAL_INSTALL_RESOURCES_DIR}"
+    FILES_MATCHING PATTERN "*.*"  # Match all files
 )
 
 # ----------------------------
