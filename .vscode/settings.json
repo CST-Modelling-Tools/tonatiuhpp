@@ -1,0 +1,17 @@
+{
+  // Path to your main CMakeLists.txt
+  "cmake.sourceDirectory": "C:/OpenSource/TonatiuhXX/source",
+
+  // --- Add runtime environment for debugging or running from VS Code ---
+  "cmake.debugConfig": {
+    "cwd": "${workspaceFolder}/build/application/Release",
+    "env": {
+      // Extend PATH so the debugger finds Coin, SoQt, and Qt DLLs
+      "PATH": "${env:PATH};${workspaceFolder}\\third_party\\_install\\bin;C:\\Qt\\6.9.3\\msvc2022_64\\bin"
+    }
+  },
+
+  // Optional: automatically select Release config when opening workspace
+  "cmake.buildDirectory": "${workspaceFolder}/build",
+  "cmake.buildType": "Release"
+}

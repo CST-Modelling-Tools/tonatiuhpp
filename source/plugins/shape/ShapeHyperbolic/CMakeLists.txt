@@ -30,7 +30,7 @@ add_library(${PROJECT_NAME} SHARED ${HEADERS} ${SOURCES} ${RESOURCES})
 
 # Link libraries using globally defined variables and target links
 target_link_libraries(${PROJECT_NAME} PRIVATE 
-    ${COIN3D_LIBRARY} 
+    Coin::Coin
     Qt6::Core 
     Qt6::Gui 
     Qt6::Widgets 

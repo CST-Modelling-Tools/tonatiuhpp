@@ -92,10 +92,11 @@ target_include_directories(${ProjectName}
 )
 
 # Link inherited libraries, including Eigen
-target_link_libraries(${ProjectName} PRIVATE
-    ${COIN3D_LIBRARY}
-    Qt6::PrintSupport
-    Eigen3::Eigen
+target_link_libraries(${ProjectName}
+    PRIVATE
+        Coin::Coin
+        Qt6::PrintSupport
+        Eigen3::Eigen
 )
 
 # Add compile definitions if necessary

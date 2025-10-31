@@ -1,0 +1,107 @@
+deps:
+  # 1) Qt6 – presence check only; we don't build Qt here.
+  - name: Qt6
+    kind: check
+    verify:
+      compile_check:
+        include_lines:
+          - "#include <QtCore/QtGlobal>"
+        code: |
+          int main() {
+            (void)QT_VERSION; // prove headers are usable
+            return 0;
+          }
+
+  # 2) Eigen – presence check (header-only)
+  - name: Eigen3
+    kind: check
+    verify:
+      compile_check:
+        include_lines:
+          - "#include <Eigen/Core>"
+        code: |
+          #include <cassert>
+          int main() {
+            Eigen::Matrix3f m = Eigen::Matrix3f::Identity();
+            assert(m(0,0) == 1.0f);
+            return 0;
+          }
+
+  # 3) simage – we build it; image I/O for Coin
+  - name: simage
+    kind: cmake
+    repo: https://github.com/coin3d/simage.git
+    cmake_options:
+      # Build a lean DLL on Windows; avoid optional audio deps
+      - -DBUILD_SHARED_LIBS=ON
+      - -DSIMAGE_USE_GDIPLUS=ON
+      - -DSIMAGE_LIBSNDFILE_SUPPORT=OFF
+      - -DSIMAGE_OGGVORBIS_SUPPORT=OFF
+      - -DSIMAGE_BUILD_EXAMPLES=OFF
+      - -DSIMAGE_BUILD_TESTS=OFF
+      - -DSIMAGE_BUILD_DOCUMENTATION=OFF
+    verify:
+      header: include/simage.h
+      lib_name: simage1           # installed import lib/DLL base name on Windows
+      compile_check:
+        defines:
+          - SIMAGE_DLL            # using the DLL import library on Windows
+        include_lines:
+          - "#include <simage.h>"
+        code: |
+          int main() {
+            int major = 0, minor = 0, patch = 0;
+            /* simage_version fills out the version numbers. */
+            simage_version(&major, &minor, &patch);
+            (void)major; (void)minor; (void)patch;
+            return 0;
+          }
+
+  # 4) Coin – your fork
+  - name: Coin4TonatiuhXX
+    kind: cmake
+    repo: https://github.com/CST-Modelling-Tools/Coin4TonatiuhXX.git
+    cmake_options:
+      - -DCOIN_BUILD_DOCUMENTATION=OFF
+      - -DCOIN_BUILD_EXAMPLES=OFF
+      - -DCOIN_BUILD_TESTS=OFF
+    verify:
+      header: include/Inventor/SoDB.h
+      lib_name: Coin
+      compile_check:
+        include_lines:
+          - "#include <Inventor/SoDB.h>"
+        code: |
+          int main() { SoDB::init(); return 0; }
+
+  # 5) SoQt – GUI glue for Coin + Qt6
+  - name: SoQt
+    kind: cmake
+    repo: https://github.com/coin3d/soqt.git
+    cmake_options:
+      - -DSOQT_BUILD_DOCUMENTATION=OFF
+      - -DSOQT_BUILD_EXAMPLES=OFF
+      - -DSOQT_BUILD_TESTS=OFF
+      - -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+    verify:
+      header: include/Inventor/Qt/SoQt.h
+      lib_name: SoQt
+      compile_check:
+        defines:
+          - SOQT_DLL
+        include_lines:
+          - "#include <Inventor/SoDB.h>"
+          - "#include <Inventor/Qt/SoQt.h>"
+        link_libs:
+          - Qt6Core
+          - Qt6Gui
+          - Qt6Widgets
+          - Qt6OpenGL
+          - Qt6OpenGLWidgets
+        code: |
+          int main(int argc, char** argv) {
+            SoDB::init();
+            auto* w = SoQt::init(argc, argv, argv[0]);
+            (void)w;
+            return 0;
+          }

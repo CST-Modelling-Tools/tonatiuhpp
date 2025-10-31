@@ -29,8 +29,8 @@ target_include_directories(${ProjectName} PRIVATE
 
 # Link Libraries
 target_link_libraries(${ProjectName} PRIVATE 
-    ${COIN3D_LIBRARY} 
-    ${SOQT_LIBRARY}
+    Coin::Coin
+    SoQt::SoQt
     Qt6::Core 
     Qt6::Gui 
     Qt6::Widgets 

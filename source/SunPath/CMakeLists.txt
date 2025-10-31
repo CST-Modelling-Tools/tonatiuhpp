@@ -4,12 +4,12 @@ cmake_minimum_required(VERSION 3.28)
 set(ProjectName SunPath)
 project(${ProjectName})
 
-# Set the C++ standard
+# C++ standard
 set(CMAKE_CXX_STANDARD 20)
-set(CMAKE_CXX_STANDARD_REQUIRED True)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Header files
-set(HEADERS 
+# Headers
+set(HEADERS
     calculators/MB/sunpos.h
     calculators/NREL/spa.h
     calculators/RG/Sun_position_algorithms.h
@@ -41,8 +41,8 @@ set(HEADERS
     SunPath.h
 )
 
-# Source files
-set(SOURCES 
+# Sources
+set(SOURCES
     calculators/MB/SunPos.cpp
     calculators/MB/SunPos2.cpp
     calculators/NREL/spa.cpp
@@ -72,39 +72,37 @@ set(SOURCES
     samplers/TimeSampler.cpp
 )
 
-# Create the library
+# Shared library
 add_library(${ProjectName} SHARED ${SOURCES} ${HEADERS})
 
-# Target-specific include directories
+# Includes
 target_include_directories(${ProjectName}
-    PRIVATE 
-        ${CMAKE_CURRENT_SOURCE_DIR} 
-         ${CMAKE_CURRENT_SOURCE_DIR}/..
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}/..
 )
 
-target_link_libraries(${ProjectName} 
-    PRIVATE 
-    Qt6::Core
-    Qt6::Gui
-    Qt6::Widgets
-    Qt6::PrintSupport
-    Qt6::Qml
-    Eigen3::Eigen
-    ${COIN3D_LIBRARY}
-    ${SOQT_LIBRARY}
+# Link deps (use imported targets)
+target_link_libraries(${ProjectName}
+    PRIVATE
+        Qt6::Core
+        Qt6::Gui
+        Qt6::Widgets
+        Qt6::PrintSupport
+        Qt6::Qml
+        Eigen3::Eigen
+        Coin::Coin
+        SoQt::SoQt
 )
 
-# Add compile definitions if necessary
+# Export macro (keep your existing name if that’s what your headers expect)
 target_compile_definitions(${ProjectName} PRIVATE SunPath_EXPORT)
 
+# ---- Install ----
+# Use ONLY the top-level destinations to keep everything consistent.
+# (Top-level defines GLOBAL_INSTALL_BIN_DIR; if you add a LIB dir later, adjust ARCHIVE there.)
 install(TARGETS ${ProjectName}
-    LIBRARY DESTINATION "${CMAKE_INSTALL_PREFIX}/bin"
-    RUNTIME DESTINATION "${CMAKE_INSTALL_PREFIX}/bin"
-)
-
-# Add install rules for all targets
-install(TARGETS ${ProjectName}
-    RUNTIME DESTINATION "${GLOBAL_INSTALL_BIN_DIR}"
-    LIBRARY DESTINATION "${GLOBAL_INSTALL_BIN_DIR}"
-    ARCHIVE DESTINATION "${GLOBAL_INSTALL_BIN_DIR}"
+    RUNTIME DESTINATION "${GLOBAL_INSTALL_BIN_DIR}"  # .dll/.exe on Windows
+    LIBRARY DESTINATION "${GLOBAL_INSTALL_BIN_DIR}"  # .so/.dylib/.dll
+    ARCHIVE DESTINATION "${GLOBAL_INSTALL_BIN_DIR}"  # .lib/.a
 )

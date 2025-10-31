@@ -1,13 +1,16 @@
 cmake_minimum_required(VERSION 3.28)
 
-set(ProjectName Tonatiuh++)
+# Logical target name may include '+'; we'll give the on-disk exe a simpler name.
+set(ProjectName TonatiuhXX)
 project(${ProjectName} VERSION 0.1.8.16)
 
-# Set the C++ standard
+# C++ standard (global is already set, but harmless here)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
-# Header files
+# ----------------------------
+# Headers
+# ----------------------------
 set(HEADERS
     calculator/CelestialWidget.h
     calculator/HorizontalWidget.h
@@ -76,9 +79,10 @@ set(HEADERS
     widgets/SunDialog.h
 )
 
-# Source files
+# ----------------------------
+# Sources
+# ----------------------------
 set(SOURCES
-    calculator/CelestialWidget.cpp
     calculator/CelestialWidget.cpp
     calculator/HorizontalWidget.cpp
     calculator/Image.cpp
@@ -147,7 +151,9 @@ set(SOURCES
     widgets/SunDialog.cpp
 )
 
-# UI files
+# ----------------------------
+# UI + Resources
+# ----------------------------
 set(FORMS
     calculator/SunCalculatorDialog.ui
     run/FluxAnalysisDialog.ui
@@ -167,14 +173,18 @@ set(FORMS
     widgets/SunDialog.ui
 )
 
-# Resources
 set(RESOURCES resources.qrc)
 
-# Create the Executable
+# ----------------------------
+# Executable
+# ----------------------------
 add_executable(${ProjectName} ${SOURCES} ${HEADERS} ${FORMS} ${RESOURCES})
 
-# Target-specific include directories
-target_include_directories(${ProjectName} PRIVATE 
+# Optional: make the produced filename "TonatiuhXX.exe"
+set_target_properties(${ProjectName} PROPERTIES OUTPUT_NAME "TonatiuhXX")
+
+# Include dirs specific to this target
+target_include_directories(${ProjectName} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/..
     ${CMAKE_CURRENT_SOURCE_DIR}/../libraries
@@ -184,30 +194,57 @@ target_include_directories(${ProjectName} PRIVATE
     $<TARGET_PROPERTY:TonatiuhKernel,INTERFACE_INCLUDE_DIRECTORIES>
 )
 
-# Target-specific compile definitions
+# Compile defs
 target_compile_definitions(${ProjectName} PRIVATE APP_VERSION="0.1.8.16")
 
 # Link libraries
-target_link_libraries(${ProjectName} 
-    PRIVATE ${COIN3D_LIBRARY} 
-        ${SOQT_LIBRARY} 
-        Qt6::Concurrent 
-        Qt6::Qml 
-        Qt6::PrintSupport 
-        Qt6::Gui Qt6::Network 
-        TonatiuhLibraries 
+target_link_libraries(${ProjectName}
+    PRIVATE
+        Coin::Coin
+        SoQt::SoQt
+        Qt6::Concurrent
+        Qt6::Qml
+        Qt6::PrintSupport
+        Qt6::Gui
+        Qt6::Network
+        TonatiuhLibraries
         TonatiuhKernel
 )
 
-# Platform-specific configurations
+# Windows-specific OpenGL lib
 if(WIN32)
     target_link_libraries(${ProjectName} PRIVATE opengl32)
-    # Additional Windows-specific configurations
 endif()
 
-# Add install rules for all targets
+# ----------------------------
+# 🔧 Windows runtime deployment (DLLs + plugins)
+# ----------------------------
+# Call the helper defined in the top-level *after* the executable is created.
+if(WIN32)
+  if(COMMAND tonatiuh_setup_windows_runtime)
+    tonatiuh_setup_windows_runtime(${ProjectName})
+  else()
+    # Fallback: copy third_party DLLs and set PATH so local runs work.
+    set(_thirdparty_bin "${CMAKE_CURRENT_LIST_DIR}/../../third_party/_install/bin")
+    add_custom_command(TARGET ${ProjectName} POST_BUILD
+      COMMAND "${CMAKE_COMMAND}" -E echo "Copying third_party DLLs into build output (fallback)…"
+      COMMAND "${CMAKE_COMMAND}" -E copy_directory
+              "${_thirdparty_bin}"
+              "$<TARGET_FILE_DIR:${ProjectName}>"
+      VERBATIM)
+
+    if(MSVC)
+      set(_dbg_path "PATH=${_thirdparty_bin};%PATH%")
+      set_property(TARGET ${ProjectName} PROPERTY VS_DEBUGGER_ENVIRONMENT "${_dbg_path}")
+    endif()
+  endif()
+endif()
+
+# ----------------------------
+# Install rules
+# ----------------------------
 install(TARGETS ${ProjectName}
-    RUNTIME DESTINATION "${GLOBAL_INSTALL_BIN_DIR}"
-    LIBRARY DESTINATION "${GLOBAL_INSTALL_BIN_DIR}"
-    ARCHIVE DESTINATION "${GLOBAL_INSTALL_BIN_DIR}"
+  RUNTIME DESTINATION "${GLOBAL_INSTALL_BIN_DIR}"
+  LIBRARY DESTINATION "${GLOBAL_INSTALL_BIN_DIR}"
+  ARCHIVE DESTINATION "${GLOBAL_INSTALL_BIN_DIR}"
 )

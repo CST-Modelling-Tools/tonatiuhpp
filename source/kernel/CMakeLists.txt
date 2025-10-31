@@ -174,14 +174,16 @@ target_include_directories(${ProjectName}
 )
 
 # Link dependencies
-target_link_libraries(${ProjectName} PRIVATE 
-    ${COIN3D_LIBRARY}
-    ${SOQT_LIBRARY}
-    Qt6::Core
-    Qt6::Gui
-    Qt6::Widgets
-    TonatiuhLibraries
+target_link_libraries(${ProjectName}
+    PRIVATE
+        Coin::Coin
+        SoQt::SoQt
+        Qt6::Core
+        Qt6::Gui
+        Qt6::Widgets
+        TonatiuhLibraries
 )
+
 
 # Add platform-specific libraries
 if(WIN32)

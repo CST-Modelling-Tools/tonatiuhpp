@@ -1,5 +1,122 @@
-/build/
-.DS_Store
-.vscode
-.vs
+# ============================
+# TonatiuhXX — .gitignore
+# ============================
 
+# --- OS / Editor cruft ---
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.idea/
+.cache/
+
+# --- VS Code (keep project settings/extensions) ---
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+
+# --- Python venvs ---
+.venv/
+venv/
+env/
+
+# --- Top-level build/install dirs (if present) ---
+/build/
+/build-*/
+/_out/
+/bin/
+/lib/
+
+# --- Build dirs anywhere (nested unit tests, examples, etc.) ---
+[Bb]uild/
+[Bb]uild-*/
+**/[Bb]uild/**
+
+# --- CMake generated files (anywhere) ---
+**/CMakeFiles/**
+**/CMakeCache.txt
+**/cmake_install.cmake
+**/CTestTestfile.cmake
+**/install_manifest.txt
+**/Makefile
+**/*.dir/
+**/compile_commands.json
+/CMakeFiles/
+/CMakeCache.txt
+/compile_commands.json
+
+# --- Qt build artifacts ---
+# Per-build cache
+.qt/
+**/.qt/**
+
+# Auto-generated sources
+*.moc
+moc_*.cpp
+qrc_*.cpp
+ui_*.h
+*.qmlc
+*.jsc
+
+# Qt deploy helper files (show up under build/.qt)
+**/QtDeploySupport-*.cmake
+**/QtDeployTargets-*.cmake
+
+# --- Visual Studio / MSBuild outputs (anywhere) ---
+**/*.sln
+**/*.vcxproj
+**/*.vcxproj.filters
+**/*.vcxproj.user
+**/*.obj
+**/*.tlog
+**/*.pdb
+**/*.idb
+**/*.ipdb
+**/*.iobj
+**/*.lastbuildstate
+**/*.recipe
+
+# --- Binaries & libraries (anywhere) ---
+**/*.exe
+**/*.dll
+**/*.lib
+**/*.exp
+**/*.o
+**/*.a
+**/*.so
+**/*.dylib
+**/*.dSYM/
+
+# --- Archives / installers ---
+*.zip
+*.7z
+*.tar
+*.tar.gz
+*.pkg
+*.msi
+*.exe~
+
+# --- Logs / temps ---
+*.log
+*.tmp
+*.bak
+*.old
+*.orig
+*.user
+*.db
+*.db-wal
+*.db-shm
+
+# --- Third-party builder outputs ---
+third_party/_build/
+third_party/_install/
+third_party/*/.ok
+# If you mirror whole repos under _build/src, ignore their VCS/docs/extras:
+third_party/*/src/*/.git
+third_party/*/src/*/.github/
+third_party/*/src/*/docs/
+third_party/*/src/*/examples/
+third_party/*/src/*/tests/
+
+# --- Auto-written hints (from build_deps.py) ---
+cmake/LocalDepsHints.cmake
