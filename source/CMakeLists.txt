@@ -289,3 +289,22 @@ message(STATUS "Dependencies:")
 message(STATUS "  Eigen3: ${_EIGEN_PRINT}")
 message(STATUS "  Coin3D: ${COIN3D_INCLUDE_DIR}")
 message(STATUS "  SoQt:   ${SOQT_INCLUDE_DIR}")
+
+# ----------------------------
+# 🧩 Export runtime PATH hints for VSCode or launch.json
+# ----------------------------
+if(WIN32)
+  set(_thirdparty_bin "${CMAKE_CURRENT_LIST_DIR}/../third_party/_install/bin")
+
+  # Discover Qt bin dir
+  set(_qt_bin "")
+  get_target_property(_qt_qmake Qt6::qmake IMPORTED_LOCATION)
+  if(_qt_qmake)
+    get_filename_component(_qt_bin "${_qt_qmake}" DIRECTORY)
+  endif()
+
+  # Save both paths to a helper file VS Code can read
+  set(_env_file "${CMAKE_BINARY_DIR}/runtime_path_env.txt")
+  file(WRITE "${_env_file}" "PATH=${_thirdparty_bin};${_qt_bin};%PATH%\n")
+  message(STATUS "Wrote runtime env file: ${_env_file}")
+endif()
