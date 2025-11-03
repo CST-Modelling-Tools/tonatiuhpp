@@ -738,15 +738,18 @@ def cmd_doctor():
     # cmake
     cmake = shutil.which("cmake")
     if cmake:
-        out = subprocess.check_output([cmake, "--version"], text=True).splitlines()[0].strip()
-        ok(out + " (OK ≥ 3.20)")
+        try:
+            first = subprocess.check_output([cmake, "--version"], text=True).splitlines()[0].strip()
+            ok(first + " (OK ≥ 3.20)")
+        except Exception:
+            warn("cmake found but failed to run --version")
     else:
         warn("cmake not found")
 
     # python
     ok(f"Python {platform.python_version()} (OK ≥ 3.9)")
 
-    # prefix writable
+    # install prefix writable?
     try:
         (PREFIX / ".probe").write_text("ok", encoding="utf-8")
         (PREFIX / ".probe").unlink(missing_ok=True)
@@ -754,23 +757,25 @@ def cmd_doctor():
     except Exception:
         warn(f"Install prefix NOT writable: {PREFIX}")
 
-    # inside cmd_doctor()
+    # ----- Qt bin (from LocalDepsHints.cmake if present) -----
     qt_bin = _read_local_hints_qt_bin()
-    if qt_bin:
-        print(f"  ✔ windeployqt: {Path(qt_bin) / 'windeployqt.exe'}")
-    else:
-        # fall back to typical locations or just warn; we don’t want to crash
-        print("  ⚠ Qt bin not found via LocalDepsHints.cmake (ok if not generated yet)")
-
-    # windeployqt (Windows only)
     if platform.system() == "Windows":
-        wdq = shutil.which("windeployqt") or (os.path.join(qt_bin, "windeployqt.exe") if qt_bin else None)
-        if wdq and os.path.isfile(wdq):
-            ok(f"windeployqt: {wdq}")
+        if qt_bin and os.path.isfile(os.path.join(qt_bin, "windeployqt.exe")):
+            ok(f"windeployqt: {os.path.join(qt_bin, 'windeployqt.exe')}")
         else:
-            warn("windeployqt not found in PATH/effective Qt bin")
+            # try PATH
+            wdq = shutil.which("windeployqt")
+            if wdq:
+                ok(f"windeployqt: {wdq}")
+            else:
+                warn("windeployqt not found (needed only for Windows packaging)")
+    else:
+        if qt_bin and os.path.isdir(qt_bin):
+            ok(f"Qt bin (hints): {qt_bin}")
+        else:
+            warn("Qt bin not found via LocalDepsHints.cmake (ok if not generated yet)")
 
-    # MSVC
+    # ----- MSVC & Windows SDK (Windows only) -----
     if platform.system() == "Windows":
         cc = shutil.which("cl")
         if cc:
@@ -778,28 +783,53 @@ def cmd_doctor():
         else:
             warn("MSVC cl.exe not found on PATH")
 
-        # Windows SDK libs (quick probe)
         sdk = _probe_sdk_lib_paths()
         if sdk:
             ok(f"Windows SDK libs detected: {sdk[0]} …")
         else:
             warn("Windows SDK libraries not detected")
 
-    # Eigen
-    ei = [p for p in get_cmake_prefix_paths(os.environ.copy()) if os.path.isdir(os.path.join(p, "Eigen")) or os.path.isdir(os.path.join(p, "include", "eigen3"))]
+    # ----- Eigen detection -----
+    prefixes = get_cmake_prefix_paths(os.environ.copy())
+    ei = [p for p in prefixes
+          if os.path.isdir(os.path.join(p, "Eigen")) or
+             os.path.isdir(os.path.join(p, "include", "eigen3")) or
+             os.path.isdir(os.path.join(p, "eigen3", "Eigen"))]
     if ei:
-        ok(f"Eigen include root: {ei[0]}")
+        # Prefer pure include roots if present
+        cand = None
+        for p in ei:
+            if os.path.isdir(os.path.join(p, "include", "eigen3")):
+                cand = os.path.join(p, "include", "eigen3")
+                break
+            if os.path.isdir(os.path.join(p, "eigen3", "Eigen")):
+                cand = os.path.join(p, "eigen3")
+                break
+        ok(f"Eigen include root: {cand or ei[0]}")
     else:
         warn("Eigen not detected in prefixes")
 
-    # simage runtime
-    simdll = PREFIX / "bin" / ("simage1.dll" if platform.system() == "Windows" else "libsimage.so")
-    if simdll.exists():
-        ok(f"simage runtime present: {simdll}")
+    # ----- simage runtime detection (platform-aware) -----
+    found = None
+    if platform.system() == "Windows":
+        cand = PREFIX / "bin" / "simage1.dll"
+        if cand.exists():
+            found = cand
+    elif platform.system() == "Darwin":
+        # Prefer versioned first, then any dylib
+        dylibs = sorted((PREFIX / "lib").glob("libsimage*.dylib"))
+        found = dylibs[0] if dylibs else None
+    else:
+        # Linux: look for any libsimage.so*
+        so_files = sorted((PREFIX / "lib").glob("libsimage.so*"))
+        found = so_files[0] if so_files else None
+
+    if found:
+        ok(f"simage runtime present: {found}")
     else:
         warn("simage runtime not present (optional for image I/O)")
 
-    # PATH lengths: global vs effective (NEW)
+    # ----- PATH lengths (global vs effective) -----
     global_len = len(os.environ.get("PATH", ""))
     effective = _effective_project_path(os.environ.copy())
     effective_len = len(effective)
@@ -807,7 +837,7 @@ def cmd_doctor():
     print(f"  Global PATH length   : {global_len} chars")
     print(f"  Effective PATH length: {effective_len} chars")
 
-    # Warn ONLY on the effective PATH; threshold is generous
+    # Warn ONLY on the effective PATH; threshold generous
     threshold = 4096 if platform.system() == "Windows" else 8192
     if effective_len > threshold:
         warn(f"Effective PATH is long (> {threshold}). Consider trimming.")
