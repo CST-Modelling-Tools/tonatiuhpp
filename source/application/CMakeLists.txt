@@ -180,8 +180,16 @@ set(RESOURCES resources.qrc)
 # ----------------------------
 add_executable(${ProjectName} ${SOURCES} ${HEADERS} ${FORMS} ${RESOURCES})
 
-# Optional: make the produced filename "TonatiuhXX.exe"
-set_target_properties(${ProjectName} PROPERTIES OUTPUT_NAME "TonatiuhXX")
+# Optional: make the produced filename "TonatiuhXX"
+set_target_properties(${ProjectName} PROPERTIES
+    OUTPUT_NAME "TonatiuhXX"
+    # Ensure installed binary knows where to find our libs:
+    #   $ORIGIN       -> ~/TonatiuhXX/bin
+    #   $ORIGIN/../lib -> ~/TonatiuhXX/lib
+    INSTALL_RPATH "$ORIGIN;$ORIGIN/../${CMAKE_INSTALL_LIBDIR}"
+    BUILD_RPATH   "$ORIGIN;$ORIGIN/../${CMAKE_INSTALL_LIBDIR}"
+    BUILD_WITH_INSTALL_RPATH OFF
+)
 
 # Include dirs specific to this target
 target_include_directories(${ProjectName} PRIVATE

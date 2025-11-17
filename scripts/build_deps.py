@@ -267,20 +267,30 @@ def resolve_lib_paths(lib_basenames: list[str], prefixes: list[str]) -> list[str
     exts    = exts_win if is_win else (exts_macos if is_mac else exts_lin)
 
     results = []
+    multiarch_lib_subdirs = [
+        "lib",
+        "lib64",
+        "lib/x86_64-linux-gnu",
+        "lib/aarch64-linux-gnu",
+        "lib/arm-linux-gnueabihf",
+    ]
     for base in lib_basenames or []:
         found = None
         for p in prefixes:
-            libdir = os.path.join(p, "lib")
-            if not os.path.isdir(libdir):
-                continue
-            candidates = []
-            if is_win:
-                candidates = [os.path.join(libdir, f"{base}{ext}") for ext in exts]
-            else:
-                candidates = [os.path.join(libdir, f"lib{base}{ext}") for ext in exts]
-            for cand in candidates:
-                if os.path.exists(cand):
-                    found = cand
+            for sub in multiarch_lib_subdirs:
+                libdir = os.path.join(p, sub)
+                if not os.path.isdir(libdir):
+                    continue
+                candidates = []
+                if is_win:
+                    candidates = [os.path.join(libdir, f"{base}{ext}") for ext in exts]
+                else:
+                    candidates = [os.path.join(libdir, f"lib{base}{ext}") for ext in exts]
+                for cand in candidates:
+                    if os.path.exists(cand):
+                        found = cand
+                        break
+                if found:
                     break
             if found:
                 break
@@ -498,20 +508,62 @@ def compile_check(dep: dict):
         run(cmd, cwd=str(work), env=env)
 
     else:
+        # --- Non-Windows (Linux/macOS) compile path with rpaths + runtime loader env ---
         cmd = [cc, "-std=c++17"]
         for d in cc_defs:
             cmd.append(f"-D{d}")
+
         cmd += [str(src), f"-I{include_dir}", f"-L{lib_dir}"]
+
+        # Add include/lib paths discovered from prefixes (Qt/Eigen/etc.)
         add_extra_includes_and_libs_from_prefixes(cmd, prefixes, msvc=False)
+
+        # Collect runtime library directories so the probe can find .so/.dylib at run time
+        runtime_lib_dirs = set()
+        runtime_lib_dirs.add(str(lib_dir))  # our local third_party/_install/lib
+
+        # Any prefix/lib directories (Qt, Coin, SoQt, etc.)
+        for p in prefixes:
+            pr_lib = Path(p) / "lib"
+            if pr_lib.is_dir():
+                runtime_lib_dirs.add(str(pr_lib))
+
+        # If we resolved specific library files, add their parent dirs too
+        if link_lib:
+            runtime_lib_dirs.add(str(Path(link_lib).parent))
+        for p in extra_lib_paths:
+            runtime_lib_dirs.add(str(Path(p).parent))
+
+        # Embed rpath entries so the probe is self-sufficient
+        for rdir in sorted(runtime_lib_dirs):
+            cmd.extend(["-Wl,-rpath," + rdir])
+
+        # Output
         cmd += ["-o", str(exe)]
+
+        # Link the actual libs we found/resolved
         if link_lib:
             cmd.append(str(link_lib))
         for p in extra_lib_paths:
             cmd.append(p)
+
+        # Build
         run(cmd, cwd=str(work), env=env)
 
     print(f"[compile-check] run:      {exe}")
-    run([str(exe)], cwd=str(work), env=env)
+
+    # Ensure runtime loader can see our lib folders (in addition to rpaths)
+    env_run = env.copy()
+    if platform.system() == "Darwin":
+        ld_var = "DYLD_LIBRARY_PATH"
+    else:
+        ld_var = "LD_LIBRARY_PATH"
+
+    existing = env_run.get(ld_var, "")
+    rt_paths = os.pathsep.join(sorted(runtime_lib_dirs)) if 'runtime_lib_dirs' in locals() else ""
+    env_run[ld_var] = (rt_paths + (os.pathsep + existing if existing else "")) if rt_paths else existing
+
+    run([str(exe)], cwd=str(work), env=env_run)
     print("[compile-check] OK")
 
 def get_cmake_prefix_paths(env: dict) -> list[str]:
@@ -568,9 +620,16 @@ def add_extra_includes_and_libs_from_prefixes(cmd_list: list[str], prefixes: lis
     libpaths: list[str] = []
     qt_modules = ["QtCore", "QtGui", "QtWidgets", "QtOpenGL", "QtOpenGLWidgets"]
 
+    multiarch_lib_subdirs = [
+        "lib",
+        "lib64",
+        "lib/x86_64-linux-gnu",
+        "lib/aarch64-linux-gnu",
+        "lib/arm-linux-gnueabihf",
+    ]
     for p in prefixes:
         inc_root = os.path.join(p, "include")
-        lib_root = os.path.join(p, "lib")
+        lib_roots = [os.path.join(p, sub) for sub in multiarch_lib_subdirs]
 
         if os.path.isdir(inc_root):
             includes.append(inc_root)
@@ -589,8 +648,9 @@ def add_extra_includes_and_libs_from_prefixes(cmd_list: list[str], prefixes: lis
         if os.path.isdir(os.path.join(p, "eigen3", "Eigen")) and os.path.isfile(os.path.join(p, "eigen3", "Eigen", "Core")):
             includes.append(os.path.join(p, "eigen3"))
 
-        if os.path.isdir(lib_root):
-            libpaths.append(lib_root)
+        for lr in lib_roots:
+            if os.path.isdir(lr):
+                libpaths.append(lr)
 
     def _dedup(seq: list[str]) -> list[str]:
         seen = set()
@@ -629,18 +689,34 @@ def add_extra_includes_and_libs_from_prefixes(cmd_list: list[str], prefixes: lis
 
 def verify_install(dep: dict) -> None:
     v = dep.get("verify", {}) or {}
+
+    # Header check
     header = v.get("header")
     if header:
         p = PREFIX / header
         if not p.exists():
             raise RuntimeError(f"Verification failed: header not found: {p}")
 
-    lib_base = v.get("lib_name")
-    if lib_base:
-        matches = find_lib_files(lib_base)
-        if not matches:
-            raise RuntimeError(f"Verification failed: library '{lib_base}' not found under {PREFIX/'lib'}")
+    # Library check (accept string or list of candidates)
+    lib_spec = v.get("lib_name")
+    candidates = []
+    if isinstance(lib_spec, str):
+        candidates = [lib_spec]
+    elif isinstance(lib_spec, (list, tuple)):
+        candidates = list(lib_spec)
 
+    if candidates:
+        for base in candidates:
+            matches = find_lib_files(base)
+            if matches:
+                break
+        else:
+            raise RuntimeError(
+                f"Verification failed: none of the libraries {candidates!r} "
+                f"found under {PREFIX/'lib'}"
+            )
+
+    # Optional compile check
     if v.get("compile_check"):
         compile_check(dep)
 

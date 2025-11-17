@@ -1,32 +1,16 @@
 {
-  // Point CMake at your top-level CMakeLists.txt
-  "cmake.sourceDirectory": "C:/OpenSource/TonatiuhXX/source",
+  // Where the top-level CMakeLists.txt is located
+  "cmake.sourceDirectory": "${workspaceFolder}/source",
 
-  // Build folder + default config
-  "cmake.buildDirectory": "${workspaceFolder}/build",
-  "cmake.buildType": "Release",
-  "cmake.generator": "Visual Studio 17 2022",
+  // Use the CMakePresets.json file for configure/build
+  "cmake.useCMakePresets": true,
+
+  // Automatically run "cmake --preset <auto-chosen>" when opening the folder
   "cmake.configureOnOpen": true,
-  "cmake.buildArgs": [],
-  "cmake.buildToolArgs": [],
-  "cmake.copyCompileCommands": true,
 
-  // Show the full VS Code task picker on Ctrl+Shift+B (not just CMake tasks)
-  "cmake.showBuildTasks": false,
-
-  // CMake Tools' F5/Debug: clean working dir + minimal PATH for runtime DLLs
-  "cmake.debugConfig": {
-    "cwd": "${workspaceFolder}/build/application/Release",
-    "env": {
-      "PATH": "${workspaceFolder}\\third_party\\_install\\bin;${config:tonatiuh.qtBin};${env:PATH}"
-    }
-  },
-
-  // Integrated Terminal: keep PATH modest; append existing PATH last
-  "terminal.integrated.env.windows": {
-    "PATH": "C:\\Windows\\System32;C:\\Windows;${workspaceFolder}\\third_party\\_install\\bin;${config:tonatiuh.qtBin};${env:PATH}"
-  },
-
-  // Project-level tweakable variable for Qt location (used above)
-  "tonatiuh.qtBin": "C:\\Qt\\6.9.3\\msvc2022_64\\bin"
+  // Optional: default per-user install prefix (used by your CMakeLists.txt if not overridden)
+  // This keeps installs user-local and works on any machine.
+  "cmake.configureEnvironment": {
+    "TonatiuhXXInstallDir": "${env:HOME}/TonatiuhXX"
+  }
 }

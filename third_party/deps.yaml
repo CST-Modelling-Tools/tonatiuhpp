@@ -5,12 +5,16 @@ deps:
     verify:
       compile_check:
         include_lines:
+          - "#include <QtCore/QCoreApplication>"
           - "#include <QtCore/QtGlobal>"
         code: |
-          int main() {
+          int main(int argc, char** argv) {
+            QCoreApplication app(argc, argv);
             (void)QT_VERSION; // prove headers are usable
             return 0;
           }
+        link_libs:
+          - Qt6Core
 
   # 2) Eigen – presence check (header-only)
   - name: Eigen3
@@ -42,7 +46,7 @@ deps:
       - -DSIMAGE_BUILD_DOCUMENTATION=OFF
     verify:
       header: include/simage.h
-      lib_name: simage1           # installed import lib/DLL base name on Windows
+      lib_name: ["simage1", "simage"]           # installed import lib/DLL base name on Windows
       compile_check:
         defines:
           - SIMAGE_DLL            # using the DLL import library on Windows
@@ -78,6 +82,7 @@ deps:
   - name: SoQt
     kind: cmake
     repo: https://github.com/coin3d/soqt.git
+    tag: master
     cmake_options:
       - -DSOQT_BUILD_DOCUMENTATION=OFF
       - -DSOQT_BUILD_EXAMPLES=OFF
@@ -87,12 +92,12 @@ deps:
       header: include/Inventor/Qt/SoQt.h
       lib_name: SoQt
       compile_check:
-        defines:
-          - SOQT_DLL
+        defines: [SOQT_DLL]
         include_lines:
           - "#include <Inventor/SoDB.h>"
           - "#include <Inventor/Qt/SoQt.h>"
         link_libs:
+          - Coin
           - Qt6Core
           - Qt6Gui
           - Qt6Widgets

@@ -1,31 +1,45 @@
 # ----------------------------
 # 🔧 General Build Configuration
 # ----------------------------
-cmake_minimum_required(VERSION 3.28)
-
-# --- Compatibility shim for older package config files (e.g., Coin-4.0.1) ---
-if(NOT DEFINED CMAKE_POLICY_VERSION_MINIMUM)
-  set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
-endif()
-if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.27)
-  set(CMAKE_POLICY_VERSION "3.10...${CMAKE_MAJOR_VERSION}.${CMAKE_MINOR_VERSION}")
-endif()
-
-cmake_policy(SET CMP0074 NEW)  # Respect <Package>_ROOT variables if provided.
-
+cmake_minimum_required(VERSION 3.20) # 3.20+ gives modern features; raise if you need
 project(TonatiuhXX VERSION 0.1.8.16 LANGUAGES CXX)
 
 # Name of the main GUI target (used for install-time deployment; logical target name)
 set(MAIN_APP_TARGET "TonatiuhXX" CACHE STRING "Main GUI executable target name")
 
-set(CMAKE_CXX_STANDARD 20)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF)
+# Options
+option(TONATIUHXX_BUNDLE_RUNTIME "Bundle Qt/Coin runtime libs on install (Linux/Windows)" ON)
 
-# Only set CMAKE_BUILD_TYPE for single-config generators (e.g., Ninja, Makefiles)
+# On Linux, force it ON in the cache so presets / old caches can't accidentally disable it
+if(UNIX AND NOT APPLE)
+  set(TONATIUHXX_BUNDLE_RUNTIME ON CACHE BOOL "Bundle Qt/Coin runtime libs on install (Linux/Windows)" FORCE)
+endif()
+
+# Standard install dirs (no hard-coded 'bin', 'lib', etc.)
+include(GNUInstallDirs)
+
+# Set default install prefix only when CMake would use its own default
+# (i.e., not provided by the user or a toolchain preset)
+if(UNIX AND NOT APPLE)
+  if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
+    if(DEFINED ENV{TonatiuhXXInstallDir} AND NOT "$ENV{TonatiuhXXInstallDir}" STREQUAL "")
+      # Honor the per-user install dir coming from VS Code
+      set(CMAKE_INSTALL_PREFIX "$ENV{TonatiuhXXInstallDir}" CACHE PATH "Install prefix" FORCE)
+    else()
+      # Fallback if env is not set
+      set(CMAKE_INSTALL_PREFIX "$ENV{HOME}/TonatiuhXX" CACHE PATH "Install prefix" FORCE)
+    endif()
+  endif()
+endif()
+
+# Build type for single-config generators
 if(NOT DEFINED CMAKE_CONFIGURATION_TYPES AND NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
 endif()
+
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
@@ -33,9 +47,25 @@ set(CMAKE_AUTOUIC ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 # ----------------------------
+# 🔗 RPATH defaults (set BEFORE any targets are created)
+# ----------------------------
+if(UNIX AND NOT APPLE)
+  # Make binaries look in the install bin dir and ../lib at runtime
+  set(CMAKE_INSTALL_RPATH "$ORIGIN;$ORIGIN/../${CMAKE_INSTALL_LIBDIR}")
+  set(CMAKE_BUILD_RPATH   "$ORIGIN;$ORIGIN/../${CMAKE_INSTALL_LIBDIR}")
+  set(CMAKE_BUILD_WITH_INSTALL_RPATH OFF)
+  set(CMAKE_INSTALL_RPATH_USE_LINK_PATH OFF)
+elseif(APPLE)
+  set(CMAKE_INSTALL_RPATH "@loader_path;@loader_path/../${CMAKE_INSTALL_LIBDIR}")
+  set(CMAKE_BUILD_RPATH   "@loader_path;@loader_path/../${CMAKE_INSTALL_LIBDIR}")
+  set(CMAKE_BUILD_WITH_INSTALL_RPATH OFF)
+  set(CMAKE_INSTALL_RPATH_USE_LINK_PATH OFF)
+endif()
+
+# ----------------------------
 # 🧭 Prefix bootstrap (no CLI args needed)
 # ----------------------------
-# 1) Always add our locally installed deps (from the Python script)
+# 1) Add locally installed deps (from your third_party build)
 list(PREPEND CMAKE_PREFIX_PATH "${CMAKE_CURRENT_LIST_DIR}/../third_party/_install")
 
 # 2) Optionally include machine-local hints (auto-generated, gitignored)
@@ -45,20 +75,56 @@ if(EXISTS "${_LOCAL_HINTS}")
 endif()
 
 # ----------------------------
+# 🎯 Prefer config packages when available
+# ----------------------------
+set(CMAKE_FIND_PACKAGE_PREFER_CONFIG TRUE)
+
+# If LocalDepsHints.cmake defined Qt6_DIR, backfill component dirs
+if(DEFINED Qt6_DIR)
+  get_filename_component(_qt_libcmake "${Qt6_DIR}" DIRECTORY)     # …/lib/cmake
+  get_filename_component(_qt_lib     "${_qt_libcmake}" DIRECTORY) # …/lib
+  get_filename_component(_qt_prefix  "${_qt_lib}" DIRECTORY)      # <QtPrefix>
+  foreach(_qtcomp Core Gui Widgets OpenGL OpenGLWidgets PrintSupport Qml Concurrent DBus Network)
+    if(NOT DEFINED Qt6${_qtcomp}_DIR)
+      set(_cand "${_qt_prefix}/lib/cmake/Qt6${_qtcomp}")
+      if(EXISTS "${_cand}/Qt6${_qtcomp}Config.cmake")
+        set(Qt6${_qtcomp}_DIR "${_cand}" CACHE PATH "" FORCE)
+      endif()
+    endif()
+  endforeach()
+endif()
+
+# Coin/SoQt: if not given, try from third_party/_install
+foreach(_pkg Coin SoQt)
+  if(NOT DEFINED ${_pkg}_DIR)
+    file(GLOB _cand_dirs LIST_DIRECTORIES true
+      "${CMAKE_CURRENT_LIST_DIR}/../third_party/_install/lib/cmake/${_pkg}-*")
+    if(_cand_dirs)
+      list(SORT _cand_dirs ORDER DESCENDING)
+      list(GET _cand_dirs 0 _dir)
+      if(EXISTS "${_dir}")
+        set(${_pkg}_DIR "${_dir}" CACHE PATH "" FORCE)
+      endif()
+    endif()
+  endif()
+endforeach()
+
+# ----------------------------
 # 📚 Dependencies
 # ----------------------------
 find_package(Coin  REQUIRED CONFIG)
 find_package(SoQt  REQUIRED CONFIG)
-find_package(Qt6   REQUIRED COMPONENTS Core Gui Widgets PrintSupport Qml Concurrent)
+find_package(Qt6   REQUIRED COMPONENTS Core Gui Widgets PrintSupport Qml Concurrent DBus Network)
 
 # --- Eigen3 (robust: config -> module -> header-only fallback) ---
+# Allow user to point to headers
 if(DEFINED ENV{EIGEN3_ROOT} AND NOT DEFINED EIGEN3_INCLUDE_DIR)
   set(EIGEN3_INCLUDE_DIR "$ENV{EIGEN3_ROOT}" CACHE PATH "Eigen3 include root (must contain Eigen/Core)")
 endif()
 
 find_package(Eigen3 QUIET CONFIG)
 if(NOT Eigen3_FOUND)
-  find_package(Eigen3 QUIET)
+  find_package(Eigen3 QUIET) # module mode
 endif()
 
 if(NOT Eigen3_FOUND)
@@ -70,10 +136,8 @@ if(NOT Eigen3_FOUND)
         ${CMAKE_PREFIX_PATH}/include/eigen3
         ${CMAKE_PREFIX_PATH}/eigen3
       PATHS
-        "C:/eigen-3.4.1"
-        "C:/eigen3"
-        "/usr/include/eigen3"
-        "/usr/local/include/eigen3"
+        "/usr/include/eigen3" "/usr/local/include/eigen3"
+        "C:/eigen-3.4.1" "C:/eigen3"
     )
   endif()
 
@@ -114,129 +178,127 @@ add_subdirectory(application)
 add_subdirectory(plugins)
 
 # ----------------------------
-# 🪄 Windows runtime helper (definition only; call it in application/)
+# 🚚 Optional runtime bundling on Linux (OFF by default)
 # ----------------------------
-function(tonatiuh_setup_windows_runtime target_name)
-  if(NOT WIN32 OR NOT TARGET "${target_name}")
-    return()
-  endif()
-
-  # Where SoQt/Coin were installed by build_deps.py
-  set(_thirdparty_bin "${CMAKE_CURRENT_LIST_DIR}/../third_party/_install/bin")
-
-  # Try to discover Qt bin dir from imported Qt targets
-  set(_qt_bin "")
-  get_target_property(_qt_qmake Qt6::qmake IMPORTED_LOCATION)
-  if(_qt_qmake)
-    get_filename_component(_qt_bin "${_qt_qmake}" DIRECTORY)
-  else()
-    get_target_property(_qt_core_loc Qt6::Core IMPORTED_LOCATION)
-    if(_qt_core_loc)
-      get_filename_component(_qt_bin "${_qt_core_loc}" DIRECTORY)
+if(UNIX AND NOT APPLE AND TONATIUHXX_BUNDLE_RUNTIME)
+  # Discover Qt lib & plugin dirs at configure time from imported targets
+  set(_qt_lib_dir "")
+  set(_qt_plugins_dir "")
+  set(_qt_core_loc "")
+  foreach(prop IMPORTED_LOCATION_RELEASE IMPORTED_LOCATION_DEBUG IMPORTED_LOCATION)
+    if(NOT _qt_core_loc)
+      get_target_property(_qt_core_loc Qt6::Core ${prop})
     endif()
+  endforeach()
+  if(_qt_core_loc)
+    get_filename_component(_qt_lib_dir "${_qt_core_loc}" DIRECTORY)   # …/gcc_64/lib
+    get_filename_component(_qt_prefix  "${_qt_lib_dir}" DIRECTORY)    # …/gcc_64
+    set(_qt_plugins_dir "${_qt_prefix}/plugins")                      # …/gcc_64/plugins
   endif()
 
-  # 1) Copy SoQt/Coin (and any other third_party) DLLs next to the built exe
-  add_custom_command(TARGET "${target_name}" POST_BUILD
-    COMMAND "${CMAKE_COMMAND}" -E echo "Copying third_party DLLs into build output…"
-    COMMAND "${CMAKE_COMMAND}" -E copy_directory
-            "${_thirdparty_bin}"
-            "$<TARGET_FILE_DIR:${target_name}>"
-    VERBATIM)
-
-  # 2) Run windeployqt on the built exe to bring Qt DLLs & plugins into the build dir
-  if(_qt_bin)
-    find_program(WINDEPLOYQT_EXECUTABLE NAMES windeployqt HINTS "${_qt_bin}")
+  # Allow explicit overrides (optional but useful for users)
+  if(DEFINED TonatiuhQtLibDir AND EXISTS "${TonatiuhQtLibDir}")
+    set(_qt_lib_dir "${TonatiuhQtLibDir}")
   endif()
-  if(WINDEPLOYQT_EXECUTABLE)
-    add_custom_command(TARGET "${target_name}" POST_BUILD
-      COMMAND "${CMAKE_COMMAND}" -E echo "Running windeployqt for $<TARGET_FILE:${target_name}>…"
-      COMMAND "${WINDEPLOYQT_EXECUTABLE}" "$<TARGET_FILE:${target_name}>"
-              --no-translations --compiler-runtime --verbose 1
-      VERBATIM)
-  else()
-    message(WARNING
-      "windeployqt not found; build-tree runs may miss Qt DLLs/plugins. "
-      "Qt bin not detected: '${_qt_bin}'")
+  if(DEFINED TonatiuhQtPluginsDir AND EXISTS "${TonatiuhQtPluginsDir}")
+    set(_qt_plugins_dir "${TonatiuhQtPluginsDir}")
   endif()
 
-  # 3) Make F5/Debugging in Visual Studio/VS Code inherit correct PATH
-  if(MSVC)
-    set(_dbg_path "PATH=${_qt_bin};${_thirdparty_bin};%PATH%")
-    set_property(TARGET "${target_name}" PROPERTY VS_DEBUGGER_ENVIRONMENT "${_dbg_path}")
-  endif()
-endfunction()
+  # Our locally built third-party libs
+  set(_tp_lib "${CMAKE_CURRENT_LIST_DIR}/../third_party/_install/${CMAKE_INSTALL_LIBDIR}")
 
-# NOTE: Do NOT call tonatiuh_setup_windows_runtime() here. Call it
-#       inside application/CMakeLists.txt AFTER add_executable().
+  # Hand off to install-time script; inject values NOW via ${...}
+  install(CODE
+    "set(_installed_bindir \"${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR}\")
+     set(_installed_libdir \"${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}\")
+     file(MAKE_DIRECTORY \"\${_installed_libdir}\")
+     file(MAKE_DIRECTORY \"\${_installed_bindir}\")
+
+     set(_qt_lib_dir     \"${_qt_lib_dir}\")
+     set(_qt_plugins_dir \"${_qt_plugins_dir}\")
+     set(_tp_lib         \"${_tp_lib}\")
+
+     message(STATUS \"Bundling Qt/Coin runtime libs (Linux)\")
+
+     # ---- Copy the exact Qt libs we link against (follow symlink chains) ----
+     if(_qt_lib_dir AND EXISTS \"\${_qt_lib_dir}\")
+       set(_qt_needed
+         libQt6Core.so.6
+         libQt6Gui.so.6
+         libQt6Widgets.so.6
+         libQt6PrintSupport.so.6
+         libQt6OpenGL.so.6
+         libQt6Qml.so.6
+         libQt6Concurrent.so.6
+         libQt6DBus.so.6
+         libQt6Network.so.6
+         libQt6XcbQpa.so.6
+       )
+       file(GLOB _icu_needed \"\${_qt_lib_dir}/libicu*.so*\")
+       set(_qt_to_copy)
+       foreach(name IN LISTS _qt_needed)
+         if(EXISTS \"\${_qt_lib_dir}/\${name}\")
+           list(APPEND _qt_to_copy \"\${_qt_lib_dir}/\${name}\")
+         endif()
+       endforeach()
+       list(APPEND _qt_to_copy \${_icu_needed})
+       if(_qt_to_copy)
+         file(INSTALL
+           DESTINATION \"\${_installed_libdir}\"
+           TYPE FILE
+           FOLLOW_SYMLINK_CHAIN
+           FILES \${_qt_to_copy}
+         )
+       else()
+         message(WARNING \"No Qt libs found to copy in: \${_qt_lib_dir}\")
+       endif()
+     else()
+       message(STATUS \"Qt lib dir not set; skipping Qt lib copy\")
+     endif()
+
+     # ---- Copy Coin/SoQt/simage from our third_party prefix ----
+     if(_tp_lib AND EXISTS \"\${_tp_lib}\")
+       file(GLOB _tp_pick
+         \"\${_tp_lib}/libCoin.so*\"
+         \"\${_tp_lib}/libSoQt.so*\"
+         \"\${_tp_lib}/libsimage.so*\"
+       )
+       if(_tp_pick)
+         file(INSTALL
+           DESTINATION \"\${_installed_libdir}\"
+           TYPE FILE
+           FOLLOW_SYMLINK_CHAIN
+           FILES \${_tp_pick}
+         )
+       endif()
+     endif()
+
+     # ---- Copy essential Qt plugin folders into bin/ ----
+     if(_qt_plugins_dir AND EXISTS \"\${_qt_plugins_dir}\")
+       foreach(_subdir platforms xcbglintegrations imageformats)
+         if(EXISTS \"\${_qt_plugins_dir}/\${_subdir}\")
+           file(INSTALL
+             DESTINATION \"\${_installed_bindir}\"
+             TYPE DIRECTORY
+             USE_SOURCE_PERMISSIONS
+             FILES \"\${_qt_plugins_dir}/\${_subdir}\"
+           )
+         endif()
+       endforeach()
+       file(WRITE \"\${_installed_bindir}/qt.conf\" \"[Paths]\\nPlugins=.\\n\")
+     else()
+       message(STATUS \"Qt plugins directory not set; skipping plugin copy\")
+     endif()
+    ")
+endif()
 
 # ----------------------------
-# 📦 Installation
+# 🚚 Windows runtime deployment
 # ----------------------------
-if(DEFINED ENV{TonatiuhXXInstallDir})
-  set(CMAKE_INSTALL_PREFIX "$ENV{TonatiuhXXInstallDir}" CACHE PATH "Installation directory" FORCE)
-elseif(WIN32)
-  set(CMAKE_INSTALL_PREFIX "C:/TonatiuhXX" CACHE PATH "Installation directory" FORCE)
-else()
-  set(CMAKE_INSTALL_PREFIX "/opt/TonatiuhXX" CACHE PATH "Installation directory" FORCE)
-endif()
-
-message(STATUS "Installation directory: ${CMAKE_INSTALL_PREFIX}")
-
-set(GLOBAL_INSTALL_BIN_DIR       "${CMAKE_INSTALL_PREFIX}/bin")
-set(GLOBAL_INSTALL_INCLUDE_DIR   "${CMAKE_INSTALL_PREFIX}/include")
-set(GLOBAL_INSTALL_EXAMPLES_DIR  "${CMAKE_INSTALL_PREFIX}/examples")
-set(GLOBAL_INSTALL_HELP_DIR      "${CMAKE_INSTALL_PREFIX}/help")
-set(GLOBAL_INSTALL_RESOURCES_DIR "${CMAKE_INSTALL_PREFIX}/resources")
-
-# Install the main binary if a target named after the project exists (harmless if not).
-if(TARGET ${PROJECT_NAME})
-  install(TARGETS ${PROJECT_NAME}
-    RUNTIME DESTINATION "${GLOBAL_INSTALL_BIN_DIR}"
-    LIBRARY DESTINATION "${GLOBAL_INSTALL_BIN_DIR}"
-    ARCHIVE DESTINATION "${GLOBAL_INSTALL_BIN_DIR}"
-  )
-endif()
-
-# Optional resource installs (only if dirs exist one level above source)
-if(EXISTS "${CMAKE_SOURCE_DIR}/../examples")
-  install(DIRECTORY ${CMAKE_SOURCE_DIR}/../examples/
-    DESTINATION "${GLOBAL_INSTALL_EXAMPLES_DIR}"
-    FILES_MATCHING PATTERN "*.*"
-  )
-endif()
-
-if(EXISTS "${CMAKE_SOURCE_DIR}/../help")
-  install(DIRECTORY ${CMAKE_SOURCE_DIR}/../help/
-    DESTINATION "${GLOBAL_INSTALL_HELP_DIR}"
-    FILES_MATCHING PATTERN "*.*"
-  )
-endif()
-
-if(EXISTS "${CMAKE_SOURCE_DIR}/../resources")
-  install(DIRECTORY ${CMAKE_SOURCE_DIR}/../resources/
-    DESTINATION "${GLOBAL_INSTALL_RESOURCES_DIR}"
-    FILES_MATCHING PATTERN "*.*"
-  )
-endif()
-
-# ----------------------------
-# 🚚 Install-time deployment (Windows)
-# ----------------------------
-# RPATH for Unix/macOS
-if(UNIX AND NOT APPLE)
-  set(CMAKE_INSTALL_RPATH "$ORIGIN")
-  set(CMAKE_BUILD_WITH_INSTALL_RPATH OFF)
-endif()
-if(APPLE)
-  set(CMAKE_INSTALL_RPATH "@loader_path")
-  set(CMAKE_BUILD_WITH_INSTALL_RPATH OFF)
-endif()
-
-# Windows: copy Coin/SoQt DLLs and run windeployqt at install time
 if(WIN32)
+  # Put our third-party DLLs next to the exe on install (if you build them)
   install(DIRECTORY "${CMAKE_CURRENT_LIST_DIR}/../third_party/_install/bin/"
-          DESTINATION "${GLOBAL_INSTALL_BIN_DIR}"
+          DESTINATION "${CMAKE_INSTALL_BINDIR}"
           FILES_MATCHING PATTERN "*.dll")
 
   # Try to locate Qt bin dir via imported Qt targets.
@@ -252,12 +314,18 @@ if(WIN32)
   endif()
 
   find_program(WINDEPLOYQT_EXECUTABLE NAMES windeployqt HINTS "${_qt_bin}")
-  if(WINDEPLOYQT_EXECUTABLE)
-    set(_installed_exe "${GLOBAL_INSTALL_BIN_DIR}/$<TARGET_FILE_NAME:${MAIN_APP_TARGET}>")
+  if(WINDEPLOYQT_EXECUTABLE AND TONATIUHXX_BUNDLE_RUNTIME)
+    # In multi-config generators, MAIN_APP_TARGET may be suffixed; use generator expression
     install(CODE
-      "message(STATUS \"Running windeployqt on: ${_installed_exe}\")
+      "set(_installed_exe \"${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR}/${MAIN_APP_TARGET}$<IF:$<CONFIG:Debug>,d,>\")
+       message(STATUS \"Running windeployqt on: \${_installed_exe}\")
+       if(EXISTS \"\${_installed_exe}.exe\")
+         set(_exe \"\${_installed_exe}.exe\")
+       else()
+         set(_exe \"\${_installed_exe}\")
+       endif()
        execute_process(
-         COMMAND \"${WINDEPLOYQT_EXECUTABLE}\" \"${_installed_exe}\"
+         COMMAND \"${WINDEPLOYQT_EXECUTABLE}\" \"\${_exe}\"
                  --no-translations --compiler-runtime --verbose 1
          RESULT_VARIABLE _wdq_rv
          OUTPUT_VARIABLE _wdq_out
@@ -269,9 +337,81 @@ if(WIN32)
          message(STATUS \"windeployqt stderr: \${_wdq_err}\")
        endif()"
     )
-  else()
-    message(WARNING "windeployqt not found; Qt plugins may be missing at runtime.")
   endif()
+
+  # Export a small PATH helper for local debugging
+  set(_thirdparty_bin "${CMAKE_CURRENT_LIST_DIR}/../third_party/_install/bin")
+  set(_qt_bin_hint "${_qt_bin}")
+  set(_env_file "${CMAKE_BINARY_DIR}/runtime_path_env.txt")
+  file(WRITE "${_env_file}" "PATH=${_thirdparty_bin};${_qt_bin_hint};%PATH%\n")
+  message(STATUS "Wrote runtime env file: ${_env_file}")
+endif()
+
+# ----------------------------
+# 📁 Shared data install root
+# ----------------------------
+# Where non-binary data (examples, help, resources) will be installed.
+# This will usually be:
+#   <prefix>/share/TonatiuhXX
+set(GLOBAL_INSTALL_DATA_DIR
+    "${CMAKE_INSTALL_DATAROOTDIR}/${PROJECT_NAME}"
+    CACHE PATH "Install location for TonatiuhXX shared data"
+)
+
+# ----------------------------
+# 📦 Install examples, help, resources (at install prefix root)
+# ----------------------------
+# Expected layout at the repository root:
+#   <repo-root>/sources      (this CMakeLists.txt is here)
+#   <repo-root>/examples
+#   <repo-root>/help
+#   <repo-root>/resources
+#
+# After install (with CMAKE_INSTALL_PREFIX=/home/USER/TonatiuhXX), we want:
+#   /home/USER/TonatiuhXX/examples
+#   /home/USER/TonatiuhXX/help
+#   /home/USER/TonatiuhXX/resources
+
+set(_EXAMPLES_SRC  "${CMAKE_CURRENT_LIST_DIR}/../examples")
+set(_HELP_SRC      "${CMAKE_CURRENT_LIST_DIR}/../help")
+set(_RESOURCES_SRC "${CMAKE_CURRENT_LIST_DIR}/../resources")
+
+if(EXISTS "${_EXAMPLES_SRC}")
+  install(
+    DIRECTORY "${_EXAMPLES_SRC}/"
+    DESTINATION "examples"
+  )
+else()
+  message(STATUS "Examples directory not found: ${_EXAMPLES_SRC} (skipping install)")
+endif()
+
+if(EXISTS "${_HELP_SRC}")
+  install(
+    DIRECTORY "${_HELP_SRC}/"
+    DESTINATION "help"
+  )
+else()
+  message(STATUS "Help directory not found: ${_HELP_SRC} (skipping install)")
+endif()
+
+if(EXISTS "${_RESOURCES_SRC}")
+  install(
+    DIRECTORY "${_RESOURCES_SRC}/"
+    DESTINATION "resources"
+  )
+else()
+  message(STATUS "Resources directory not found: ${_RESOURCES_SRC} (skipping install)")
+endif()
+
+# ----------------------------
+# 🏁 Linux launcher script
+# ----------------------------
+if(UNIX AND NOT APPLE)
+  # Install the launcher script from <repo-root>/scripts
+  install(
+    PROGRAMS "${CMAKE_CURRENT_LIST_DIR}/../scripts/TonatiuhXX.sh"
+    DESTINATION "${CMAKE_INSTALL_BINDIR}"
+  )
 endif()
 
 # ----------------------------
@@ -289,22 +429,3 @@ message(STATUS "Dependencies:")
 message(STATUS "  Eigen3: ${_EIGEN_PRINT}")
 message(STATUS "  Coin3D: ${COIN3D_INCLUDE_DIR}")
 message(STATUS "  SoQt:   ${SOQT_INCLUDE_DIR}")
-
-# ----------------------------
-# 🧩 Export runtime PATH hints for VSCode or launch.json
-# ----------------------------
-if(WIN32)
-  set(_thirdparty_bin "${CMAKE_CURRENT_LIST_DIR}/../third_party/_install/bin")
-
-  # Discover Qt bin dir
-  set(_qt_bin "")
-  get_target_property(_qt_qmake Qt6::qmake IMPORTED_LOCATION)
-  if(_qt_qmake)
-    get_filename_component(_qt_bin "${_qt_qmake}" DIRECTORY)
-  endif()
-
-  # Save both paths to a helper file VS Code can read
-  set(_env_file "${CMAKE_BINARY_DIR}/runtime_path_env.txt")
-  file(WRITE "${_env_file}" "PATH=${_thirdparty_bin};${_qt_bin};%PATH%\n")
-  message(STATUS "Wrote runtime env file: ${_env_file}")
-endif()
