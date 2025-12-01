@@ -433,11 +433,11 @@ def compile_check(dep: dict):
     if not cc:
         raise RuntimeError("No C++ compiler found for compile_check (cl, c++, g++, or clang++).")
 
-    cc_opts   = (v.get("compile_check", {}) or {})
+    cc_opts    = (v.get("compile_check", {}) or {})
 
-    inc_lines = "\n".join(cc_opts.get("include_lines", []))
-    code      = cc_opts.get("code", "int main(){return 0;}")
-    cc_defs   = list(cc_opts.get("defines", []))
+    inc_lines  = "\n".join(cc_opts.get("include_lines", []))
+    code       = cc_opts.get("code", "int main(){return 0;}")
+    cc_defs    = list(cc_opts.get("defines", []))
     extra_libs = list((cc_opts.get("link_libs") or []))
 
     work = BUILD / dep["name"] / "probe"
@@ -481,6 +481,7 @@ def compile_check(dep: dict):
         print(f"[compile-check] linklib:  {link_lib}")
 
     if cc_name == "cl":
+        # --- MSVC compile path ---
         if "Hostx64\\x64" not in cc.replace("/", "\\"):
             raise RuntimeError("MSVC cl.exe is not x64. Please install VS 2022 Build Tools and try again.")
 
@@ -533,6 +534,24 @@ def compile_check(dep: dict):
             runtime_lib_dirs.add(str(Path(link_lib).parent))
         for p in extra_lib_paths:
             runtime_lib_dirs.add(str(Path(p).parent))
+
+        # --- SoQt-on-macOS special-case: link QtCore framework (for qt_version_tag_6_9) ---
+        if platform.system() == "Darwin" and dep.get("name") == "SoQt":
+            qt_framework_dirs = set()
+            # Look for QtCore.framework under the known prefixes' lib directories
+            for p in prefixes:
+                libpath = Path(p) / "lib"
+                if (libpath / "QtCore.framework").exists():
+                    qt_framework_dirs.add(str(libpath))
+
+            # Add -F search paths for frameworks
+            for fdir in sorted(qt_framework_dirs):
+                cmd.append(f"-F{fdir}")
+                # Also treat framework dirs as runtime search paths (harmless)
+                runtime_lib_dirs.add(fdir)
+
+            # Link just QtCore: this provides qt_version_tag_6_9
+            cmd.extend(["-framework", "QtCore"])
 
         # Embed rpath entries so the probe is self-sufficient
         for rdir in sorted(runtime_lib_dirs):
@@ -614,12 +633,37 @@ def get_cmake_prefix_paths(env: dict) -> list[str]:
             seen.add(p)
     return ordered
 
-def add_extra_includes_and_libs_from_prefixes(cmd_list: list[str], prefixes: list[str], msvc: bool):
+def add_extra_includes_and_libs_from_prefixes(cmd_list: list[str],
+                                              prefixes: list[str],
+                                              msvc: bool) -> None:
+    """
+    Look at a list of prefixes (e.g. entries from CMAKE_PREFIX_PATH) and
+    add reasonable -I/-L (or /I /LIBPATH:) flags to cmd_list.
+
+    - Works cross-platform.
+    - Special-cases Qt and Eigen includes.
+    - On macOS with Qt frameworks, it also:
+        * Adds -F<libdir> for framework roots.
+        * Adds -I<libdir>/<Something>.framework/Headers
+          so includes like <qobject.h> and <QtCore/qobjectdefs.h> resolve.
+    """
     import os
+    import sys
+
     includes: list[str] = []
     libpaths: list[str] = []
-    qt_modules = ["QtCore", "QtGui", "QtWidgets", "QtOpenGL", "QtOpenGLWidgets"]
+    framework_roots: list[str] = []  # macOS framework search roots (-F)
 
+    # Common Qt modules we care about when scanning "include/QtCore", etc.
+    qt_modules = [
+        "QtCore",
+        "QtGui",
+        "QtWidgets",
+        "QtOpenGL",
+        "QtOpenGLWidgets",
+    ]
+
+    # Typical library subdirs on Unix-like systems
     multiarch_lib_subdirs = [
         "lib",
         "lib64",
@@ -627,61 +671,105 @@ def add_extra_includes_and_libs_from_prefixes(cmd_list: list[str], prefixes: lis
         "lib/aarch64-linux-gnu",
         "lib/arm-linux-gnueabihf",
     ]
+
     for p in prefixes:
+        if not p:
+            continue
+
         inc_root = os.path.join(p, "include")
         lib_roots = [os.path.join(p, sub) for sub in multiarch_lib_subdirs]
 
+        # ----- Includes from include/ -----
         if os.path.isdir(inc_root):
+            # Base include root
             includes.append(inc_root)
-            if os.path.isdir(os.path.join(p, "lib", "cmake", "Qt6")):
-                for mod in qt_modules:
-                    mod_inc = os.path.join(inc_root, mod)
-                    if os.path.isdir(mod_inc):
-                        includes.append(mod_inc)
+
+            # Qt-style includes: <QtCore/...>, <QtGui/...>, etc
+            for mod in qt_modules:
+                mod_inc = os.path.join(inc_root, mod)
+                if os.path.isdir(mod_inc):
+                    includes.append(mod_inc)
+
+            # Eigen via include/eigen3/...
             eigen_inc = os.path.join(inc_root, "eigen3")
             if os.path.isdir(eigen_inc):
                 includes.append(eigen_inc)
 
-        if os.path.isdir(os.path.join(p, "Eigen")) and os.path.isfile(os.path.join(p, "Eigen", "Core")):
+        # Eigen installed directly as <prefix>/Eigen/Core
+        if (os.path.isdir(os.path.join(p, "Eigen"))
+                and os.path.isfile(os.path.join(p, "Eigen", "Core"))):
             includes.append(p)
 
-        if os.path.isdir(os.path.join(p, "eigen3", "Eigen")) and os.path.isfile(os.path.join(p, "eigen3", "Eigen", "Core")):
-            includes.append(os.path.join(p, "eigen3"))
+        # Eigen layout like <prefix>/eigen3/Eigen/Core
+        eigen3_root = os.path.join(p, "eigen3")
+        if (os.path.isdir(os.path.join(eigen3_root, "Eigen"))
+                and os.path.isfile(os.path.join(eigen3_root, "Eigen", "Core"))):
+            includes.append(eigen3_root)
 
+        # ----- Library paths & macOS framework headers -----
         for lr in lib_roots:
-            if os.path.isdir(lr):
-                libpaths.append(lr)
+            if not os.path.isdir(lr):
+                continue
 
-    def _dedup(seq: list[str]) -> list[str]:
+            libpaths.append(lr)
+
+            # On macOS (non-MSVC), look for *.framework in this lib dir.
+            # For each framework we:
+            #   - add its Headers dir to includes (for <qobject.h>, etc.)
+            #   - remember the lib dir as a framework root for -F.
+            if sys.platform == "darwin" and not msvc:
+                try:
+                    entries = os.listdir(lr)
+                except PermissionError:
+                    entries = []
+
+                has_framework = False
+                for name in entries:
+                    if not name.endswith(".framework"):
+                        continue
+                    has_framework = True
+                    fw_path = os.path.join(lr, name)
+                    headers_dir = os.path.join(fw_path, "Headers")
+                    if os.path.isdir(headers_dir):
+                        includes.append(headers_dir)
+
+                if has_framework:
+                    framework_roots.append(lr)
+
+    # Deduplicate while preserving order
+    def _dedupe(seq: list[str]) -> list[str]:
         seen = set()
-        out = []
+        out: list[str] = []
         for x in seq:
             if x not in seen:
-                out.append(x)
                 seen.add(x)
+                out.append(x)
         return out
 
-    includes = _dedup(includes)
-    libpaths = _dedup(libpaths)
+    includes = _dedupe(includes)
+    libpaths = _dedupe(libpaths)
+    framework_roots = _dedupe(framework_roots)
 
+    # ----- Inject flags into cmd_list -----
     if msvc:
-        try:
-            link_idx = cmd_list.index("/link")
-        except ValueError:
-            link_idx = len(cmd_list)
-            cmd_list.append("/link")
-
+        # MSVC style
         for inc in includes:
-            cmd_list.insert(link_idx, f"/I{inc}")
-            link_idx += 1
-
+            cmd_list.append(f"/I{inc}")
         for lp in libpaths:
-            cmd_list += [f"/LIBPATH:{lp}"]
+            cmd_list.append(f"/LIBPATH:{lp}")
+        # MSVC has no framework search flags, so nothing for framework_roots
     else:
+        # GCC/Clang style
         for inc in includes:
             cmd_list.append(f"-I{inc}")
         for lp in libpaths:
-            cmd_list.append(f"-L{lp}")
+            cmd_list.extend(["-L", lp])
+
+        # On macOS, also tell Clang where to look for frameworks.
+        # This is important for QtCore.framework, etc.
+        if framework_roots:
+            for fw_root in framework_roots:
+                cmd_list.append(f"-F{fw_root}")
 
 # ----------------------------
 # Install verification

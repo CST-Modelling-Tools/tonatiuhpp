@@ -180,18 +180,14 @@ set(RESOURCES resources.qrc)
 # ----------------------------
 add_executable(${ProjectName} ${SOURCES} ${HEADERS} ${FORMS} ${RESOURCES})
 
-# Optional: make the produced filename "TonatiuhXX"
+# Keep on-disk name as "TonatiuhXX"
 set_target_properties(${ProjectName} PROPERTIES
     OUTPUT_NAME "TonatiuhXX"
-    # Ensure installed binary knows where to find our libs:
-    #   $ORIGIN       -> ~/TonatiuhXX/bin
-    #   $ORIGIN/../lib -> ~/TonatiuhXX/lib
-    INSTALL_RPATH "$ORIGIN;$ORIGIN/../${CMAKE_INSTALL_LIBDIR}"
-    BUILD_RPATH   "$ORIGIN;$ORIGIN/../${CMAKE_INSTALL_LIBDIR}"
-    BUILD_WITH_INSTALL_RPATH OFF
 )
 
-# Include dirs specific to this target
+# ----------------------------
+# Include dirs for this target
+# ----------------------------
 target_include_directories(${ProjectName} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/..
@@ -202,18 +198,24 @@ target_include_directories(${ProjectName} PRIVATE
     $<TARGET_PROPERTY:TonatiuhKernel,INTERFACE_INCLUDE_DIRECTORIES>
 )
 
+# ----------------------------
 # Compile defs
+# ----------------------------
 target_compile_definitions(${ProjectName} PRIVATE APP_VERSION="0.1.8.16")
 
+# ----------------------------
 # Link libraries
+# ----------------------------
 target_link_libraries(${ProjectName}
     PRIVATE
         Coin::Coin
         SoQt::SoQt
-        Qt6::Concurrent
-        Qt6::Qml
-        Qt6::PrintSupport
+        Qt6::Core
         Qt6::Gui
+        Qt6::Widgets
+        Qt6::PrintSupport
+        Qt6::Qml
+        Qt6::Concurrent
         Qt6::Network
         TonatiuhLibraries
         TonatiuhKernel

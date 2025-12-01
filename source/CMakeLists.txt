@@ -1,6 +1,13 @@
 # ----------------------------
 # 🔧 General Build Configuration
 # ----------------------------
+# Allow old packages (Coin, SoQt, etc.) that still request ancient CMake versions.
+# This satisfies modern CMake by saying:
+# "Our project works with policies from at least 3.5 and up."
+if(NOT DEFINED CMAKE_POLICY_VERSION_MINIMUM)
+  set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
+endif()
+
 cmake_minimum_required(VERSION 3.20) # 3.20+ gives modern features; raise if you need
 project(TonatiuhXX VERSION 0.1.8.16 LANGUAGES CXX)
 
@@ -18,19 +25,38 @@ endif()
 # Standard install dirs (no hard-coded 'bin', 'lib', etc.)
 include(GNUInstallDirs)
 
-# Set default install prefix only when CMake would use its own default
-# (i.e., not provided by the user or a toolchain preset)
-if(UNIX AND NOT APPLE)
-  if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
-    if(DEFINED ENV{TonatiuhXXInstallDir} AND NOT "$ENV{TonatiuhXXInstallDir}" STREQUAL "")
-      # Honor the per-user install dir coming from VS Code
-      set(CMAKE_INSTALL_PREFIX "$ENV{TonatiuhXXInstallDir}" CACHE PATH "Install prefix" FORCE)
+# ------------------------------------------------------
+# 🌍 Default install prefix (ALL platforms)
+# ------------------------------------------------------
+# Only change it when CMake was about to use its own default:
+#  - /usr/local      on Unix-like
+#  - C:/Program Files/<project> on Windows
+if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
+  if(DEFINED ENV{TonatiuhXXInstallDir} AND NOT "$ENV{TonatiuhXXInstallDir}" STREQUAL "")
+    # 1) Explicit override from environment (works on all platforms)
+    set(CMAKE_INSTALL_PREFIX "$ENV{TonatiuhXXInstallDir}" CACHE PATH "Install prefix" FORCE)
+  elseif(WIN32)
+    # 2) Windows: avoid C:\Program Files\ (admin rights) -> use %USERPROFILE%/TonatiuhXX
+    if(DEFINED ENV{USERPROFILE} AND NOT "$ENV{USERPROFILE}" STREQUAL "")
+      file(TO_CMAKE_PATH "$ENV{USERPROFILE}" _home)
+      set(_default_prefix "${_home}/TonatiuhXX")
     else()
-      # Fallback if env is not set
+      # Fallback if USERPROFILE is somehow unset
+      set(_default_prefix "C:/Users/Default/TonatiuhXX")
+    endif()
+    set(CMAKE_INSTALL_PREFIX "${_default_prefix}" CACHE PATH "Install prefix" FORCE)
+  else()
+    # 3) Unix-like (Linux, macOS, etc.): use $HOME/TonatiuhXX
+    if(DEFINED ENV{HOME} AND NOT "$ENV{HOME}" STREQUAL "")
       set(CMAKE_INSTALL_PREFIX "$ENV{HOME}/TonatiuhXX" CACHE PATH "Install prefix" FORCE)
+    else()
+      # Very defensive fallback if HOME is missing
+      set(CMAKE_INSTALL_PREFIX "${CMAKE_BINARY_DIR}/TonatiuhXX-install" CACHE PATH "Install prefix" FORCE)
     endif()
   endif()
 endif()
+
+message(STATUS "Install prefix: ${CMAKE_INSTALL_PREFIX}")
 
 # Build type for single-config generators
 if(NOT DEFINED CMAKE_CONFIGURATION_TYPES AND NOT CMAKE_BUILD_TYPE)
@@ -50,14 +76,17 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 # 🔗 RPATH defaults (set BEFORE any targets are created)
 # ----------------------------
 if(UNIX AND NOT APPLE)
-  # Make binaries look in the install bin dir and ../lib at runtime
+  # Make binaries look in the install bin dir and ../lib at runtime (ELF)
   set(CMAKE_INSTALL_RPATH "$ORIGIN;$ORIGIN/../${CMAKE_INSTALL_LIBDIR}")
   set(CMAKE_BUILD_RPATH   "$ORIGIN;$ORIGIN/../${CMAKE_INSTALL_LIBDIR}")
   set(CMAKE_BUILD_WITH_INSTALL_RPATH OFF)
   set(CMAKE_INSTALL_RPATH_USE_LINK_PATH OFF)
 elseif(APPLE)
-  set(CMAKE_INSTALL_RPATH "@loader_path;@loader_path/../${CMAKE_INSTALL_LIBDIR}")
-  set(CMAKE_BUILD_RPATH   "@loader_path;@loader_path/../${CMAKE_INSTALL_LIBDIR}")
+  # Enable modern macOS rpaths; we will extend them after Qt/Coin are located.
+  set(CMAKE_MACOSX_RPATH ON)
+  # Start with empty; we'll append later.
+  set(CMAKE_BUILD_RPATH "")
+  set(CMAKE_INSTALL_RPATH "")
   set(CMAKE_BUILD_WITH_INSTALL_RPATH OFF)
   set(CMAKE_INSTALL_RPATH_USE_LINK_PATH OFF)
 endif()
@@ -157,6 +186,47 @@ endif()
 # For informative status output
 get_target_property(COIN3D_INCLUDE_DIR Coin::Coin INTERFACE_INCLUDE_DIRECTORIES)
 get_target_property(SOQT_INCLUDE_DIR   SoQt::SoQt   INTERFACE_INCLUDE_DIRECTORIES)
+
+# ----------------------------
+# 🍏 macOS: Global RPATHs (Qt, SoQt/Coin, and own libs)
+# ----------------------------
+if(APPLE)
+  # Base rpaths so the main exe and plugins can find our installed libs in <prefix>/lib
+  set(_extra_rpaths
+    "@executable_path/../${CMAKE_INSTALL_LIBDIR}"
+    "@loader_path/../${CMAKE_INSTALL_LIBDIR}"
+  )
+
+  # Qt lib dir from Qt6::Core (we want .../macos/lib)
+  get_target_property(_qt_core_location Qt6::Core LOCATION)
+  if(_qt_core_location)
+    # Example: /Applications/Qt/6.9.3/macos/lib/QtCore.framework/Versions/A/QtCore
+    get_filename_component(_qt_fw_ver_dir "${_qt_core_location}" DIRECTORY)        # .../QtCore.framework/Versions/A
+    get_filename_component(_qt_fw_dir     "${_qt_fw_ver_dir}/../.." REALPATH)      # .../QtCore.framework
+    get_filename_component(_qt_lib_root   "${_qt_fw_dir}/.." REALPATH)             # .../macos/lib
+    list(APPEND _extra_rpaths "${_qt_lib_root}")
+    message(STATUS "macOS RPATH: adding Qt lib dir: ${_qt_lib_root}")
+  endif()
+
+  # SoQt/Coin libs from third_party/_install/lib
+  set(_deps_lib_dir "${CMAKE_CURRENT_LIST_DIR}/../third_party/_install/${CMAKE_INSTALL_LIBDIR}")
+  if(EXISTS "${_deps_lib_dir}")
+    list(APPEND _extra_rpaths "${_deps_lib_dir}")
+    message(STATUS "macOS RPATH: adding third_party lib dir: ${_deps_lib_dir}")
+  endif()
+
+  list(REMOVE_DUPLICATES _extra_rpaths)
+
+  # Append to current RPATH lists (they may already contain values)
+  list(APPEND CMAKE_BUILD_RPATH   ${_extra_rpaths})
+  list(APPEND CMAKE_INSTALL_RPATH ${_extra_rpaths})
+
+  set(CMAKE_BUILD_WITH_INSTALL_RPATH OFF)
+  set(CMAKE_INSTALL_RPATH_USE_LINK_PATH OFF)
+
+  message(STATUS "macOS final BUILD_RPATH:   ${CMAKE_BUILD_RPATH}")
+  message(STATUS "macOS final INSTALL_RPATH: ${CMAKE_INSTALL_RPATH}")
+endif()
 
 # ----------------------------
 # 🛠️ Compiler Definitions

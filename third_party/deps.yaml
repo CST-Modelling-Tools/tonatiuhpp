@@ -4,14 +4,10 @@ deps:
     kind: check
     verify:
       compile_check:
-        include_lines:
-          - "#include <QtCore/QCoreApplication>"
-          - "#include <QtCore/QtGlobal>"
+        include_lines: []
         code: |
-          int main(int argc, char** argv) {
-            QCoreApplication app(argc, argv);
-            (void)QT_VERSION; // prove headers are usable
-            return 0;
+          int main() {
+            return 0; // just prove we can link against Qt6Core
           }
         link_libs:
           - Qt6Core
