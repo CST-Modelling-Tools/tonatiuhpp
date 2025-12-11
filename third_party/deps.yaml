@@ -27,7 +27,20 @@ deps:
             return 0;
           }
 
-  # 3) simage – we build it; image I/O for Coin
+  # 3) Boost – presence check (headers only; lets us give nicer errors early)
+  - name: Boost
+    kind: check
+    verify:
+      compile_check:
+        include_lines:
+          - "#include <boost/version.hpp>"
+        code: |
+          int main() {
+            (void)BOOST_LIB_VERSION;
+            return 0;
+          }
+
+  # 4) simage – we build it; image I/O for Coin
   - name: simage
     kind: cmake
     repo: https://github.com/coin3d/simage.git
@@ -48,6 +61,8 @@ deps:
           - SIMAGE_DLL            # using the DLL import library on Windows
         include_lines:
           - "#include <simage.h>"
+        link_libs:
+          - simage1               # force probe to link against simage1.lib on Windows
         code: |
           int main() {
             int major = 0, minor = 0, patch = 0;
@@ -57,7 +72,7 @@ deps:
             return 0;
           }
 
-  # 4) Coin – your fork
+  # 5) Coin – your fork
   - name: Coin4TonatiuhXX
     kind: cmake
     repo: https://github.com/CST-Modelling-Tools/Coin4TonatiuhXX.git
@@ -74,7 +89,7 @@ deps:
         code: |
           int main() { SoDB::init(); return 0; }
 
-  # 5) SoQt – GUI glue for Coin + Qt6
+  # 6) SoQt – GUI glue for Coin + Qt6
   - name: SoQt
     kind: cmake
     repo: https://github.com/coin3d/soqt.git

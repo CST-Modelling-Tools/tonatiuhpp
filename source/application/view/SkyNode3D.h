@@ -1,14 +1,12 @@
 #pragma once
 
-#include <Inventor/nodes/SoSubNode.h>
+#include <Inventor/nodes/SoSeparator.h>
 
-class SoSeparator;
+class SoTransform;
 class SoPerspectiveCamera;
-class QString;
 
-
-// a background which rotates with camera but does not move
-class SkyNode3D: public SoNode
+// Background sky node: big sphere + cardinal labels.
+class SkyNode3D : public SoSeparator
 {
     SO_NODE_HEADER(SkyNode3D);
 
@@ -16,24 +14,18 @@ public:
     static void initClass();
     SkyNode3D();
 
-    SoSeparator* getRoot() {return m_root;}
-    void GLRender(SoGLRenderAction* action);
+    // Old API compatibility: some code used getRoot()
+    SoSeparator* getRoot() { return this; }
+
+    // Currently a no-op. Kept for compatibility.
     void updateSkyCamera(SoPerspectiveCamera* camera);
 
 protected:
-    SoSeparator* m_root;
-    SoPerspectiveCamera* m_camera;
-
-protected:
-    ~SkyNode3D();
+    ~SkyNode3D() override;
 
     SoSeparator* makeSky();
     SoSeparator* makeLabels();
-    void makeLabelAE(SoSeparator* parent, double azimuth, double elevation, const QString& text);
 
-    // SoBase interface
-//public:
-//    void getBoundingBox(SoGetBoundingBoxAction* action);
+    // Root-level transform; currently unused but kept for future use.
+    SoTransform* m_skyTransform = nullptr;
 };
-
-
