@@ -79,8 +79,8 @@ int main(int argc, char** argv)
         fileIcon = ":/images/about/Tonatiuh.ico";
         filePixmap = ":/images/about/SplashScreen.png";
     } else {
-        fileIcon = ":/images/about/TonatiuhCy.ico";
-        filePixmap = ":/images/about/SplashScreenCy.png";
+        fileIcon = ":/images/about/Tonatiuh.ico";
+        filePixmap = ":/images/about/SplashScreen.png";
     }
     app.setWindowIcon(QIcon(fileIcon));
 

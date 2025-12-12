@@ -45,8 +45,8 @@ void AboutDialog::updateLabel()
         fileIcon = ":/images/about/Tonatiuh.ico";
         filePixmap = ":/images/about/SplashScreen.png";
     } else {
-        fileIcon = ":/images/about/TonatiuhCy.ico";
-        filePixmap = ":/images/about/SplashScreenCy.png";
+        fileIcon = ":/images/about/Tonatiuh.ico";
+        filePixmap = ":/images/about/SplashScreen.png";
     }
 
     qApp->setWindowIcon(QIcon(fileIcon));

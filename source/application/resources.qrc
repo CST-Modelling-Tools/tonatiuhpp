@@ -1,13 +1,10 @@
 <RCC>
     <qresource prefix="/">
         <file>images/about/SplashScreen.png</file>
-        <file>images/about/SplashScreenCy.png</file>
         <file>images/about/Tonatiuh.ico</file>
-        <file>images/about/TonatiuhCy.ico</file>
         <file>images/about/docs.png</file>
         <file>images/about/info.png</file>
-        <file>images/about/tnh.ico</file>
-        <file>images/about/tnhs.ico</file>
+
         <file>images/cursors/cursorOrbit.png</file>
         <file>images/cursors/cursorOrbitA.png</file>
         <file>images/cursors/cursorOrbitB.png</file>

@@ -2555,7 +2555,7 @@ void MainWindow::updateRecentFiles()
         if (!QFile::exists(iterator.next()))
             iterator.remove();
 
-    QIcon icon(":/images/about/tnh.ico");
+    QIcon icon(":/images/about/Tonatiuh.ico");
     QList<QAction*> actions = ui->menuFileRecent->actions();
     for (int n = 0; n < m_filesRecentMax; ++n) {
         if (n < m_filesRecent.count()) {

@@ -878,7 +878,7 @@ border:none;
   <action name="actionHelpExamples">
    <property name="icon">
     <iconset resource="../resources.qrc">
-     <normaloff>:/images/about/tnh.ico</normaloff>:/images/about/tnh.ico</iconset>
+     <normaloff>:/images/about/Tonatiuh.ico</normaloff>:/images/about/Tonatiuh</iconset>
    </property>
    <property name="text">
     <string>&amp;Examples..</string>
@@ -890,7 +890,7 @@ border:none;
   <action name="actionHelpScripts">
    <property name="icon">
     <iconset resource="../resources.qrc">
-     <normaloff>:/images/about/tnhs.ico</normaloff>:/images/about/tnhs.ico</iconset>
+     <normaloff>:/images/about/Tonatiuh.ico</normaloff>:/images/about/Tonatiuh.ico</iconset>
    </property>
    <property name="text">
     <string>&amp;Scripts...</string>
