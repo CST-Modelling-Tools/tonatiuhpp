@@ -9,17 +9,17 @@ if(NOT DEFINED CMAKE_POLICY_VERSION_MINIMUM)
 endif()
 
 cmake_minimum_required(VERSION 3.20) # 3.20+ gives modern features; raise if you need
-project(TonatiuhXX VERSION 0.1.8.16 LANGUAGES CXX)
+project(TonatiuhPP VERSION 0.1.8.16 LANGUAGES CXX)
 
 # Name of the main GUI target (used for install-time deployment; logical target name)
-set(MAIN_APP_TARGET "TonatiuhXX" CACHE STRING "Main GUI executable target name")
+set(MAIN_APP_TARGET "TonatiuhPP" CACHE STRING "Main GUI executable target name")
 
 # Options
-option(TONATIUHXX_BUNDLE_RUNTIME "Bundle Qt/Coin runtime libs on install (Linux/Windows)" ON)
+option(TONATIUHPP_BUNDLE_RUNTIME "Bundle Qt/Coin runtime libs on install (Linux/Windows)" ON)
 
 # On Linux, force it ON in the cache so presets / old caches can't accidentally disable it
 if(UNIX AND NOT APPLE)
-  set(TONATIUHXX_BUNDLE_RUNTIME ON CACHE BOOL "Bundle Qt/Coin runtime libs on install (Linux/Windows)" FORCE)
+  set(TONATIUHPP_BUNDLE_RUNTIME ON CACHE BOOL "Bundle Qt/Coin runtime libs on install (Linux/Windows)" FORCE)
 endif()
 
 # Standard install dirs (no hard-coded 'bin', 'lib', etc.)
@@ -32,26 +32,26 @@ include(GNUInstallDirs)
 #  - /usr/local      on Unix-like
 #  - C:/Program Files/<project> on Windows
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
-  if(DEFINED ENV{TonatiuhXXInstallDir} AND NOT "$ENV{TonatiuhXXInstallDir}" STREQUAL "")
+  if(DEFINED ENV{TonatiuhPPInstallDir} AND NOT "$ENV{TonatiuhPPInstallDir}" STREQUAL "")
     # 1) Explicit override from environment (works on all platforms)
-    set(CMAKE_INSTALL_PREFIX "$ENV{TonatiuhXXInstallDir}" CACHE PATH "Install prefix" FORCE)
+    set(CMAKE_INSTALL_PREFIX "$ENV{TonatiuhPPInstallDir}" CACHE PATH "Install prefix" FORCE)
   elseif(WIN32)
-    # 2) Windows: avoid C:\Program Files\ (admin rights) -> use %USERPROFILE%/TonatiuhXX
+    # 2) Windows: avoid C:\Program Files\ (admin rights) -> use %USERPROFILE%/tonatiuhpp
     if(DEFINED ENV{USERPROFILE} AND NOT "$ENV{USERPROFILE}" STREQUAL "")
       file(TO_CMAKE_PATH "$ENV{USERPROFILE}" _home)
-      set(_default_prefix "${_home}/TonatiuhXX")
+      set(_default_prefix "${_home}/tonatiuhpp")
     else()
       # Fallback if USERPROFILE is somehow unset
-      set(_default_prefix "C:/Users/Default/TonatiuhXX")
+      set(_default_prefix "C:/Users/Default/tonatiuhpp")
     endif()
     set(CMAKE_INSTALL_PREFIX "${_default_prefix}" CACHE PATH "Install prefix" FORCE)
   else()
-    # 3) Unix-like (Linux, macOS, etc.): use $HOME/TonatiuhXX
+    # 3) Unix-like (Linux, macOS, etc.): use $HOME/tonatiuhpp
     if(DEFINED ENV{HOME} AND NOT "$ENV{HOME}" STREQUAL "")
-      set(CMAKE_INSTALL_PREFIX "$ENV{HOME}/TonatiuhXX" CACHE PATH "Install prefix" FORCE)
+      set(CMAKE_INSTALL_PREFIX "$ENV{HOME}/tonatiuhpp" CACHE PATH "Install prefix" FORCE)
     else()
       # Very defensive fallback if HOME is missing
-      set(CMAKE_INSTALL_PREFIX "${CMAKE_BINARY_DIR}/TonatiuhXX-install" CACHE PATH "Install prefix" FORCE)
+      set(CMAKE_INSTALL_PREFIX "${CMAKE_BINARY_DIR}/tonatiuhpp-install" CACHE PATH "Install prefix" FORCE)
     endif()
   endif()
 endif()
@@ -250,7 +250,7 @@ add_subdirectory(plugins)
 # ----------------------------
 # 🚚 Optional runtime bundling on Linux (OFF by default)
 # ----------------------------
-if(UNIX AND NOT APPLE AND TONATIUHXX_BUNDLE_RUNTIME)
+if(UNIX AND NOT APPLE AND TONATIUHPP_BUNDLE_RUNTIME)
   # Discover Qt lib & plugin dirs at configure time from imported targets
   set(_qt_lib_dir "")
   set(_qt_plugins_dir "")
@@ -384,7 +384,7 @@ if(WIN32)
   endif()
 
   find_program(WINDEPLOYQT_EXECUTABLE NAMES windeployqt HINTS "${_qt_bin}")
-  if(WINDEPLOYQT_EXECUTABLE AND TONATIUHXX_BUNDLE_RUNTIME)
+  if(WINDEPLOYQT_EXECUTABLE AND TONATIUHPP_BUNDLE_RUNTIME)
     # In multi-config generators, MAIN_APP_TARGET may be suffixed; use generator expression
     install(CODE
       "set(_installed_exe \"${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR}/${MAIN_APP_TARGET}$<IF:$<CONFIG:Debug>,d,>\")
@@ -422,10 +422,10 @@ endif()
 # ----------------------------
 # Where non-binary data (examples, help, resources) will be installed.
 # This will usually be:
-#   <prefix>/share/TonatiuhXX
+#   <prefix>/share/tonatiuhpp
 set(GLOBAL_INSTALL_DATA_DIR
     "${CMAKE_INSTALL_DATAROOTDIR}/${PROJECT_NAME}"
-    CACHE PATH "Install location for TonatiuhXX shared data"
+    CACHE PATH "Install location for TonatiuhPP shared data"
 )
 
 # ----------------------------
@@ -437,10 +437,10 @@ set(GLOBAL_INSTALL_DATA_DIR
 #   <repo-root>/help
 #   <repo-root>/resources
 #
-# After install (with CMAKE_INSTALL_PREFIX=/home/USER/TonatiuhXX), we want:
-#   /home/USER/TonatiuhXX/examples
-#   /home/USER/TonatiuhXX/help
-#   /home/USER/TonatiuhXX/resources
+# After install (with CMAKE_INSTALL_PREFIX=/home/USER/tonatiuhpp), we want:
+#   /home/USER/tonatiuhpp/examples
+#   /home/USER/tonatiuhpp/help
+#   /home/USER/tonatiuhpp/resources
 
 set(_EXAMPLES_SRC  "${CMAKE_CURRENT_LIST_DIR}/../examples")
 set(_HELP_SRC      "${CMAKE_CURRENT_LIST_DIR}/../help")
@@ -479,7 +479,7 @@ endif()
 if(UNIX AND NOT APPLE)
   # Install the launcher script from <repo-root>/scripts
   install(
-    PROGRAMS "${CMAKE_CURRENT_LIST_DIR}/../scripts/TonatiuhXX.sh"
+    PROGRAMS "${CMAKE_CURRENT_LIST_DIR}/../scripts/tonatiuhpp.sh"
     DESTINATION "${CMAKE_INSTALL_BINDIR}"
   )
 endif()

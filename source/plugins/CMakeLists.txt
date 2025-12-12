@@ -57,7 +57,7 @@ add_subdirectory(sun)
 # If you add new plugins later, just append their CMake target names
 # to this list.
 
-set(TONATIUHXX_PLUGIN_TARGETS
+set(TONATIUHPP_PLUGIN_TARGETS
     AirMirval
     MaterialSpecular
     PhotonsFile
@@ -72,7 +72,7 @@ set(TONATIUHXX_PLUGIN_TARGETS
     SunGaussian
 )
 
-foreach(_tgt IN LISTS TONATIUHXX_PLUGIN_TARGETS)
+foreach(_tgt IN LISTS TONATIUHPP_PLUGIN_TARGETS)
     if(TARGET ${_tgt})
         message(STATUS "Installing Tonatiuh++ plugin target: ${_tgt}")
         install(

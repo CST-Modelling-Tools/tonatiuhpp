@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.28)
 
 # Logical target name may include '+'; we'll give the on-disk exe a simpler name.
-set(ProjectName TonatiuhXX)
+set(ProjectName tonatiuhpp)
 project(${ProjectName} VERSION 0.1.8.16)
 
 # C++ standard (global is already set, but harmless here)
@@ -180,9 +180,9 @@ set(RESOURCES resources.qrc)
 # ----------------------------
 add_executable(${ProjectName} ${SOURCES} ${HEADERS} ${FORMS} ${RESOURCES})
 
-# Keep on-disk name as "TonatiuhXX"
+# Keep on-disk name as "tonatiuhpp"
 set_target_properties(${ProjectName} PROPERTIES
-    OUTPUT_NAME "TonatiuhXX"
+    OUTPUT_NAME "tonatiuhpp"
 )
 
 # ----------------------------

@@ -11,6 +11,6 @@
   // Optional: default per-user install prefix (used by your CMakeLists.txt if not overridden)
   // This keeps installs user-local and works on any machine.
   "cmake.configureEnvironment": {
-    "TonatiuhXXInstallDir": "${env:HOME}/TonatiuhXX"
+    "TonatiuhPPInstallDir": "${env:HOME}/tonatiuhpp"
   }
 }
