@@ -73,9 +73,9 @@ deps:
           }
 
   # 5) Coin – your fork
-  - name: Coin4TonatiuhXX
+  - name: Coin4TonatiuhPP
     kind: cmake
-    repo: https://github.com/CST-Modelling-Tools/Coin4TonatiuhXX.git
+    repo: https://github.com/CST-Modelling-Tools/coin4tonatiuhpp.git
     cmake_options:
       - -DCOIN_BUILD_DOCUMENTATION=OFF
       - -DCOIN_BUILD_EXAMPLES=OFF

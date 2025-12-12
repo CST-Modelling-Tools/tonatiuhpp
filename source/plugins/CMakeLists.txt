@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.28)
 # 🎛 Project configuration
 # ----------------------------
 # This directory builds all Tonatiuh++ plugin libraries.
-set(ProjectName Tonatiuh++_Plugins)
+set(ProjectName TonatiuhPP_Plugins)
 project(${ProjectName})
 
 # C++ standard (redundant with top-level, but harmless)
