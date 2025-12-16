@@ -89,6 +89,69 @@ def find_lib_files(lib_base: str):
     matches.sort(key=lambda p: (p.suffix.lower() in [".dll"], str(p)))
     return matches
 
+def has_system_simage() -> bool:
+    """Return True if simage is available via the system package (libsimage-dev)."""
+    if platform.system() != "Linux":
+        return False
+    if shutil.which("pkg-config") is None:
+        return False
+    try:
+        subprocess.check_call(["pkg-config", "--exists", "simage"])
+        return True
+    except subprocess.CalledProcessError:
+        return False
+
+def system_simage_version() -> str | None:
+    """Return simage version from pkg-config, or None if not available."""
+    if not has_system_simage():
+        return None
+    try:
+        return subprocess.check_output(["pkg-config", "--modversion", "simage"], text=True).strip()
+    except Exception:
+        return None
+
+def _linux_multiarch_triplet() -> str | None:
+    if platform.system() != "Linux":
+        return None
+    try:
+        if shutil.which("dpkg-architecture"):
+            return subprocess.check_output(
+                ["dpkg-architecture", "-qDEB_HOST_MULTIARCH"], text=True
+            ).strip() or None
+    except Exception:
+        pass
+    return None
+
+
+def _linux_qt6_include_roots() -> list[str]:
+    """
+    Return likely Qt6 include roots on Ubuntu/Debian:
+      - /usr/include/<triplet>/qt6
+      - /usr/include/qt6
+    """
+    roots: list[str] = []
+    trip = _linux_multiarch_triplet()
+    if trip:
+        roots.append(f"/usr/include/{trip}/qt6")
+    roots.append("/usr/include/qt6")
+    return [r for r in roots if os.path.isdir(r)]
+
+
+def _linux_has_system_qt6() -> bool:
+    """
+    Detect if Qt6 is installed via system packages (CMake config present).
+    This is used only to decide whether to add Qt include dirs during probe builds.
+    """
+    if platform.system() != "Linux":
+        return False
+    candidates = [
+        "/usr/lib/x86_64-linux-gnu/cmake/Qt6",
+        "/usr/lib/aarch64-linux-gnu/cmake/Qt6",
+        "/usr/lib/cmake/Qt6",
+        "/usr/lib64/cmake/Qt6",
+        "/usr/lib/qt6/lib/cmake/Qt6",
+    ]
+    return any(os.path.isdir(p) for p in candidates)
 
 # ----------------------------
 # Root overrides + validation
@@ -905,6 +968,13 @@ def add_extra_includes_and_libs_from_prefixes(cmd_list: list[str],
     framework_roots: list[str] = []
 
     qt_modules = ["QtCore", "QtGui", "QtWidgets", "QtOpenGL", "QtOpenGLWidgets"]
+    # Ubuntu/Debian system Qt6 headers live in multiarch include dirs, and SoQt may do:
+    #   #include <qobject.h>
+    # which requires adding .../qt6/QtCore to the include search path.
+    linux_qt6_roots: list[str] = []
+    if platform.system() == "Linux" and _linux_has_system_qt6():
+        linux_qt6_roots = _linux_qt6_include_roots()
+
     multiarch_lib_subdirs = [
         "lib",
         "lib64",
@@ -966,6 +1036,17 @@ def add_extra_includes_and_libs_from_prefixes(cmd_list: list[str],
                         includes.append(headers_dir)
                 if has_framework:
                     framework_roots.append(lr)
+
+    if linux_qt6_roots:
+        for root in linux_qt6_roots:
+            # Base root (for "QtCore/..." style includes)
+            includes.append(root)
+
+            # Module dirs (for "<qobject.h>" and similar legacy includes)
+            for mod in qt_modules:
+                mod_dir = os.path.join(root, mod)
+                if os.path.isdir(mod_dir):
+                    includes.append(mod_dir)
 
     def _dedupe(seq: list[str]) -> list[str]:
         seen = set()
@@ -1060,6 +1141,23 @@ def _read_local_hints_qt_bin() -> str | None:
 
     return None
 
+def _find_qt6_moc():
+    # 1) PATH
+    p = shutil.which("moc")
+    if p:
+        return p
+
+    # 2) Standard Qt6 libexec locations (Ubuntu/Debian)
+    candidates = [
+        "/usr/lib/qt6/libexec/moc",
+        "/usr/lib/x86_64-linux-gnu/qt6/libexec/moc",
+    ]
+    for c in candidates:
+        if os.path.isfile(c) and os.access(c, os.X_OK):
+            return c
+
+    return None
+
 
 def _effective_project_path(env: dict) -> str:
     sys_dirs = [r"C:\Windows\System32", r"C:\Windows"] if platform.system() == "Windows" else ["/usr/bin", "/bin"]
@@ -1131,7 +1229,13 @@ def cmd_doctor():
         if qt_bin and os.path.isdir(qt_bin):
             ok(f"Qt bin (hints): {qt_bin}")
         else:
-            warn("Qt bin not found via LocalDepsHints.cmake (ok if not generated yet)")
+            # Fallback: system Qt (Ubuntu/Debian) typically provides tools in /usr/bin
+            qmake = shutil.which("qmake6") or shutil.which("qmake")
+            moc = _find_qt6_moc()
+            if moc:
+                ok(f"Qt moc: {moc}")
+            else:
+                warn("Qt moc not found (Qt meta-object compiler)")
 
     if platform.system() == "Windows":
         cc = shutil.which("cl")
@@ -1166,21 +1270,30 @@ def cmd_doctor():
         warn("Boost root not detected (set --boost-root / TONATIUH_BOOST_ROOT)")
 
     found = None
-    if platform.system() == "Windows":
-        cand = PREFIX / "bin" / "simage1.dll"
-        if cand.exists():
-            found = cand
-    elif platform.system() == "Darwin":
-        dylibs = sorted((PREFIX / "lib").glob("libsimage*.dylib"))
-        found = dylibs[0] if dylibs else None
+    # simage: prefer system package on Linux (libsimage-dev)
+    if platform.system() == "Linux" and has_system_simage():
+        ver = system_simage_version()
+        if ver:
+            ok(f"simage available from system via pkg-config (version {ver})")
+        else:
+            ok("simage available from system via pkg-config")
     else:
-        so_files = sorted((PREFIX / "lib").glob("libsimage.so*"))
-        found = so_files[0] if so_files else None
+        found = None
+        if platform.system() == "Windows":
+            cand = PREFIX / "bin" / "simage1.dll"
+            if cand.exists():
+                found = cand
+        elif platform.system() == "Darwin":
+            dylibs = sorted((PREFIX / "lib").glob("libsimage*.dylib"))
+            found = dylibs[0] if dylibs else None
+        else:
+            so_files = sorted((PREFIX / "lib").glob("libsimage.so*"))
+            found = so_files[0] if so_files else None
 
-    if found:
-        ok(f"simage runtime present: {found}")
-    else:
-        warn("simage runtime not present (optional for image I/O)")
+        if found:
+            ok(f"simage runtime present: {found}")
+        else:
+            warn("simage runtime not present (optional for image I/O)")
 
     global_len = len(os.environ.get("PATH", ""))
     effective = _effective_project_path(os.environ.copy())
@@ -1334,6 +1447,20 @@ def main():
     start = args.from_name is None
     for dep in deps:
         name = dep["name"]
+
+        # Linux: prefer system simage (libsimage-dev) to avoid giflib API/prototype mismatches
+        if platform.system() == "Linux" and name.lower() == "simage" and has_system_simage():
+            ver = system_simage_version()
+            msg = f"[deps] Using system simage (pkg-config simage {ver})" if ver else "[deps] Using system simage (pkg-config simage)"
+            print(msg + "; skipping local simage build.")
+
+            step_dir = BUILD / name
+            step_dir.mkdir(parents=True, exist_ok=True)
+            (step_dir / ".ok").write_text("ok", encoding="utf-8")
+
+            # Refresh hints (usually /usr is already included via Boost root detection)
+            write_local_hints(get_cmake_prefix_paths(os.environ.copy()))
+            continue
 
         if args.only and name != args.only:
             continue
