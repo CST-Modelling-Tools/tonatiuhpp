@@ -73,7 +73,7 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install pyyaml ninja
 
-      - name: Install Boost + Eigen + GIF (Ubuntu)
+      - name: Install Boost + Eigen + image codecs (Ubuntu)
         if: runner.os == 'Linux'
         shell: bash
         run: |
@@ -81,7 +81,9 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             libboost-dev \
             libeigen3-dev \
-            libgif-dev
+            libgif-dev \
+            libjpeg-dev \
+            ninja-build
 
       - name: Install Boost + Eigen (macOS)
         if: runner.os == 'macOS'
