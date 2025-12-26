@@ -46,10 +46,24 @@ USER_OVERRIDES: dict[str, str | None] = {"qt_root": None, "boost_root": None, "e
 # ----------------------------
 
 def run(cmd, cwd=None, env=None):
-    """Run a command with logging and error propagation."""
-    print("$", " ".join(map(str, cmd)))
-    subprocess.check_call(cmd, cwd=cwd, env=env or os.environ.copy())
-
+    env = env or os.environ.copy()
+    try:
+        # Capture output so we can print it on failure (GitHub Actions otherwise hides it sometimes)
+        p = subprocess.run(
+            cmd,
+            cwd=cwd,
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            check=True,
+        )
+        if p.stdout:
+            print(p.stdout, end="" if p.stdout.endswith("\n") else "\n")
+    except subprocess.CalledProcessError as e:
+        if e.stdout:
+            print(e.stdout, end="" if e.stdout.endswith("\n") else "\n")
+        raise
 
 def cmake_generator():
     if platform.system() == "Windows":
