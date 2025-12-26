@@ -842,49 +842,83 @@ def _default_system_prefixes() -> list[str]:
 
     return out
 
-
 def get_cmake_prefix_paths(env: dict) -> list[str]:
     """
-    Compute prefixes for:
+    Compute *prefixes* for dependency discovery.
+
+    Included (in order):
       - our local third_party/_install
-      - environment CMAKE_PREFIX_PATH
-      - detected Qt prefix
-      - Boost root
-      - system prefixes (/usr, /usr/local, /opt/homebrew) for discovery
-    IMPORTANT: do NOT add /usr/include/eigen3 or other raw include dirs here.
+      - Qt prefix (from TONATIUH_QT_ROOT / Qt6_DIR / CMAKE_PREFIX_PATH / auto-detect)
+      - Boost root (normalized to an actual prefix when possible)
+      - environment CMAKE_PREFIX_PATH entries (prefixes only)
+      - system prefixes (/usr/local, /usr, /opt/homebrew)
+      - optional user --eigen-root (if it is a real prefix)
+
+    IMPORTANT:
+      - Never add raw include directories like /usr/include/eigen3 here.
+      - Prefer prefix roots (the thing that contains include/ and lib/).
     """
-    prefixes: list[str] = [str(PREFIX)]
+    prefixes: list[str] = []
 
-    raw = env.get("CMAKE_PREFIX_PATH", "") or ""
-    parts = [p for p in raw.replace(";", os.pathsep).split(os.pathsep) if p]
-    prefixes += parts
-
-    prefixes += _default_system_prefixes()
-
-    detected_qt = _qt_prefixes_from_env(env)
-    if not detected_qt:
-        detected_qt = _detect_qt_prefixes()
-    for p in detected_qt:
+    def _add(p: str | None) -> None:
+        if not p:
+            return
+        p = os.path.normpath(p)
         if p and p not in prefixes:
             prefixes.append(p)
 
+    # 0) Always start with our install prefix
+    _add(str(PREFIX))
+
+    # 1) Qt prefix (highest-priority "external" prefix)
+    # Prefer explicit override / env var set by CI: TONATIUH_QT_ROOT
+    qt_root = USER_OVERRIDES.get("qt_root") or env.get("TONATIUH_QT_ROOT") or env.get("QT_ROOT_DIR")
+    if qt_root and _qt6_dir_from_prefix(qt_root):
+        _add(qt_root)
+    else:
+        detected_qt = _qt_prefixes_from_env(env)
+        if not detected_qt:
+            detected_qt = _detect_qt_prefixes()
+        for p in detected_qt:
+            _add(p)
+
+    # 2) Boost "prefix"
+    # _probe_boost_root may return either a prefix (/usr, C:\boost_*) or an include dir (vcpkg .../include).
+    # Normalize include-dir inputs back to the vcpkg prefix when possible.
     boost_root = _probe_boost_root(env)
-    if boost_root and boost_root not in prefixes:
-        prefixes.append(boost_root)
+    if boost_root:
+        br = os.path.normpath(boost_root)
+        # vcpkg layout: <prefix>/include/boost/version.hpp
+        if br.lower().endswith(os.path.normpath("include").lower()):
+            cand_prefix = os.path.dirname(br)
+            if os.path.isdir(os.path.join(cand_prefix, "include")):
+                br = cand_prefix
+        _add(br)
 
-    if USER_OVERRIDES.get("eigen_root"):
-        er = USER_OVERRIDES["eigen_root"]
-        if er and er not in prefixes:
-            prefixes.append(er)
+    # 3) Environment CMAKE_PREFIX_PATH entries
+    raw = env.get("CMAKE_PREFIX_PATH", "") or ""
+    for p in [p for p in raw.replace(";", os.pathsep).split(os.pathsep) if p]:
+        # Skip common "bad" entries that are not prefixes
+        low = p.replace("\\", "/").lower()
+        if low.endswith("/include") or "/include/" in low:
+            continue
+        if low.endswith("/include/eigen3") or low.endswith("/eigen3"):
+            continue
+        _add(p)
 
-    seen = set()
-    ordered = []
-    for p in prefixes:
-        if p and p not in seen:
-            ordered.append(p)
-            seen.add(p)
-    return ordered
+    # 4) System prefixes
+    for p in _default_system_prefixes():
+        _add(p)
 
+    # 5) If user passed --eigen-root, add it ONLY if it is a real prefix (not just .../include/eigen3)
+    er = USER_OVERRIDES.get("eigen_root")
+    if er:
+        ern = os.path.normpath(er)
+        low = ern.replace("\\", "/").lower()
+        if not (low.endswith("/include/eigen3") or low.endswith("/include")):
+            _add(ern)
+
+    return prefixes
 
 # ----------------------------
 # Probe compilation helper flags
