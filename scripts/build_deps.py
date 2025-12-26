@@ -1583,7 +1583,7 @@ def build_cmake_git(dep: dict, config: str = "Release", native_flags: bool = Fal
         run(["cmake", "--build", str(bld_dir), "--config", config], env=env)
         run(["cmake", "--install", str(bld_dir), "--config", config], env=env)
     else:
-        run(["cmake", "--build", str(bld_dir)], env=env)
+        run(["cmake", "--build", str(bld_dir), "--verbose"], env=env)
         run(["cmake", "--install", str(bld_dir)], env=env)
 
     write_local_hints(get_cmake_prefix_paths(env), env=env)
