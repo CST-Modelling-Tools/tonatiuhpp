@@ -21,14 +21,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # Pin Python to avoid accidental "too-new" versions on runners
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
-      # Core build tooling (OS-specific)
-      - name: Install build tools (Ubuntu)
+      # -----------------------
+      # Build tooling + deps
+      # -----------------------
+      - name: Install build tools + deps (Ubuntu)
         if: runner.os == 'Linux'
         shell: bash
         run: |
@@ -39,6 +40,8 @@ jobs:
             ninja-build \
             pkg-config \
             git \
+            libeigen3-dev \
+            libboost-dev \
             libx11-dev \
             libxext-dev \
             libxrender-dev \
@@ -49,34 +52,23 @@ jobs:
             libxkbcommon-x11-dev \
             libgl1-mesa-dev
 
-      - name: Install build tools (macOS)
+      - name: Install build tools + deps (macOS)
         if: runner.os == 'macOS'
         shell: bash
         run: |
           brew update
-          brew install ninja cmake pkg-config
+          brew install ninja cmake pkg-config eigen boost
 
       - name: Install build tools (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
           choco install -y ninja cmake
-          # MSVC Build Tools are already available on windows-latest runners.
+          # MSVC is preinstalled on windows-latest.
 
-      # Eigen fallback for probe/build (keeps CI robust even if the runner image changes)
-      - name: Install Eigen (Ubuntu)
-        if: runner.os == 'Linux'
-        shell: bash
-        run: |
-          sudo apt-get install -y --no-install-recommends libeigen3-dev
-
-      - name: Install Eigen (macOS)
-        if: runner.os == 'macOS'
-        shell: bash
-        run: |
-          brew install eigen
-
-      # Qt: same mechanism everywhere (avoids Ubuntu package name differences)
+      # -----------------------
+      # Qt (same everywhere)
+      # -----------------------
       - name: Install Qt
         uses: jurplel/install-qt-action@v4
         with:
@@ -89,15 +81,21 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install pyyaml
 
-      # Make dependency install deterministic (especially for Eigen on macOS)
+      # Avoid ld warnings during "check" deps (Qt/Eigen/Boost) by ensuring these exist
+      - name: Prepare third_party install dirs
+        shell: bash
+        run: |
+          mkdir -p third_party/_install/include third_party/_install/lib third_party/_install/bin
+
       - name: Build third-party dependencies
         shell: bash
         env:
-          # install-qt-action sets Qt6_DIR and Qt install root; export paths explicitly for consistency.
+          # Help both build_deps.py compile-checks and later CMake find_package(Qt6...)
           Qt6_DIR: ${{ env.Qt6_DIR }}
-          CMAKE_PREFIX_PATH: ${{ env.Qt6_DIR && format('{0};{1}', env.Qt6_DIR, github.workspace) || github.workspace }}
+          CMAKE_PREFIX_PATH: ${{ env.CMAKE_PREFIX_PATH }}
         run: |
           rm -rf third_party/_build third_party/_install
+          mkdir -p third_party/_install/include third_party/_install/lib third_party/_install/bin
           python scripts/build_deps.py
 
       - name: Configure (CMake)
@@ -113,7 +111,6 @@ jobs:
         run: |
           cmake --build build --config Release --parallel
 
-      # Optional: upload build directory to inspect failures/binaries
       - name: Upload build artifacts
         if: always()
         uses: actions/upload-artifact@v4

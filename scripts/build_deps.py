@@ -536,7 +536,7 @@ def _brew_prefix(pkg: str) -> str | None:
 
 
 def detect_eigen_include_root(env: dict) -> str | None:
-    """
+    r"""
     Return an include root that makes `#include <Eigen/Core>` work.
     Priority:
       1) explicit override --eigen-root / TONATIUH_EIGEN_ROOT
