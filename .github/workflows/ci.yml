@@ -1,0 +1,100 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [ master ]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ ubuntu-22.04, macos-14 ]
+        build_type: [ Release ]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout (with submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install deps (Ubuntu)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt update
+          sudo apt install -y build-essential cmake git ninja-build pkg-config
+          sudo apt install -y \
+            qt6-base-dev qt6-base-dev-tools \
+            qt6-tools-dev qt6-tools-dev-tools \
+            qt6-wayland qt6-svg-dev qt6-5compat-dev
+          sudo apt install -y libeigen3-dev libboost-all-dev
+          sudo apt install -y \
+            libx11-dev libxt-dev libxext-dev libxmu-dev libxi-dev \
+            libgl1-mesa-dev libglu1-mesa-dev freeglut3-dev
+
+      - name: Install deps (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew update
+          brew install cmake git python ninja pkg-config qt@6
+
+      - name: Cache third_party install
+        uses: actions/cache@v4
+        with:
+          path: |
+            third_party/_install
+            third_party/_build
+            third_party/_src
+          key: deps-${{ runner.os }}-${{ hashFiles('scripts/**', 'build_deps.py', 'third_party/**', 'source/**/CMakeLists.txt', 'source/CMakeLists.txt', 'CMakeLists.txt') }}
+          restore-keys: |
+            deps-${{ runner.os }}-
+
+      - name: Build third-party deps (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          # Linux guide uses python3 build_deps.py (root) in the blog.
+          # Some repos also have scripts/build_deps.py, so handle both.
+          if [ -f build_deps.py ]; then
+            python3 build_deps.py
+          else
+            python3 scripts/build_deps.py
+          fi
+
+      - name: Build third-party deps (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          python3 -m venv .venv
+          source .venv/bin/activate
+          pip install --upgrade pip
+          pip install pyyaml
+          python scripts/build_deps.py
+
+      - name: Configure
+        run: |
+          cmake -S source -B build -G Ninja -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+
+      - name: Build
+        run: |
+          cmake --build build --parallel
+
+      - name: Install to staging dir
+        run: |
+          cmake --install build --prefix dist
+
+      - name: Upload install artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tonatiuhpp-${{ runner.os }}-${{ matrix.build_type }}
+          path: dist
