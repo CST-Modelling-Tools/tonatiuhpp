@@ -21,54 +21,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # Pin Python to avoid accidental "too-new" versions on runners
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
-      # -----------------------
-      # Build tooling + deps
-      # -----------------------
-      - name: Install build tools + deps (Ubuntu)
-        if: runner.os == 'Linux'
-        shell: bash
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            build-essential \
-            cmake \
-            ninja-build \
-            pkg-config \
-            git \
-            libeigen3-dev \
-            libboost-dev \
-            libx11-dev \
-            libxext-dev \
-            libxrender-dev \
-            libxrandr-dev \
-            libxi-dev \
-            libxfixes-dev \
-            libxkbcommon-dev \
-            libxkbcommon-x11-dev \
-            libgl1-mesa-dev
-
-      - name: Install build tools + deps (macOS)
-        if: runner.os == 'macOS'
-        shell: bash
-        run: |
-          brew update
-          brew install ninja cmake pkg-config eigen boost
-
-      - name: Install build tools (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          choco install -y ninja cmake
-          # MSVC is preinstalled on windows-latest.
-
-      # -----------------------
-      # Qt (same everywhere)
-      # -----------------------
+      # Qt: use same mechanism everywhere to reduce OS-specific packaging pain
       - name: Install Qt
         uses: jurplel/install-qt-action@v4
         with:
@@ -81,28 +40,57 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install pyyaml
 
-      # Avoid ld warnings during "check" deps (Qt/Eigen/Boost) by ensuring these exist
-      - name: Prepare third_party install dirs
+      # -------------------------
+      # System deps for checks
+      # -------------------------
+
+      - name: Install Boost + Eigen (Ubuntu)
+        if: runner.os == 'Linux'
         shell: bash
         run: |
-          mkdir -p third_party/_install/include third_party/_install/lib third_party/_install/bin
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libboost-dev \
+            libeigen3-dev \
+            ninja-build
+
+      - name: Install Boost + Eigen (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          brew update
+          brew install boost eigen ninja
+
+      # Windows: use vcpkg for header-only deps (boost-headers + eigen3)
+      - name: Set up vcpkg (Windows)
+        if: runner.os == 'Windows'
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgDirectory: ${{ github.workspace }}\vcpkg
+          runVcpkgInstall: true
+          vcpkgTriplet: x64-windows
+          vcpkgArguments: "boost-headers eigen3"
+
+      - name: Export Boost/Eigen roots (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $inc = "${{ github.workspace }}\vcpkg\installed\x64-windows\include"
+          "TONATIUH_BOOST_ROOT=$inc" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "TONATIUH_EIGEN_ROOT=$inc\eigen3" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      # -------------------------
+      # Build third-party deps
+      # -------------------------
 
       - name: Build third-party dependencies
         shell: bash
-        env:
-          # Help both build_deps.py compile-checks and later CMake find_package(Qt6...)
-          Qt6_DIR: ${{ env.Qt6_DIR }}
-          CMAKE_PREFIX_PATH: ${{ env.CMAKE_PREFIX_PATH }}
         run: |
           rm -rf third_party/_build third_party/_install
-          mkdir -p third_party/_install/include third_party/_install/lib third_party/_install/bin
           python scripts/build_deps.py
 
       - name: Configure (CMake)
         shell: bash
-        env:
-          Qt6_DIR: ${{ env.Qt6_DIR }}
-          CMAKE_PREFIX_PATH: ${{ env.CMAKE_PREFIX_PATH }}
         run: |
           cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
 
