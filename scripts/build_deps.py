@@ -462,6 +462,26 @@ def ensure_msvc_x64_env(env_in: dict) -> dict:
 
     return env
 
+def _qt6_to_framework_name(lib: str) -> str | None:
+    # Qt6Core -> QtCore, Qt6OpenGLWidgets -> QtOpenGLWidgets, etc.
+    if not lib.startswith("Qt6"):
+        return None
+    return "Qt" + lib[len("Qt6") :]
+
+def _find_qt_framework_dirs(prefixes: list[str]) -> list[str]:
+    out = []
+    for p in prefixes:
+        libdir = Path(p) / "lib"
+        if (libdir / "QtCore.framework").exists():
+            out.append(str(libdir))
+    # de-dupe
+    seen = set()
+    res = []
+    for x in out:
+        if x not in seen:
+            res.append(x)
+            seen.add(x)
+    return res
 
 def resolve_lib_paths(lib_basenames: list[str], prefixes: list[str]) -> list[str]:
     """
@@ -1011,7 +1031,7 @@ def compile_check(dep: dict):
     extra_libs = list((cc_opts.get("link_libs") or []))
 
     # Strip Windows-only defines on non-Windows probe builds.
-    # (This avoids SoQt/simage import/export macro mismatches on macOS/Linux.)
+    # (Avoid SoQt/simage import/export macro mismatches on macOS/Linux.)
     if platform.system() != "Windows" and cc_defs:
         cc_defs = [d for d in cc_defs if d not in ("SOQT_DLL", "SIMAGE_DLL")]
 
@@ -1038,7 +1058,28 @@ def compile_check(dep: dict):
         env["PATH"] = str(bin_dir) + os.pathsep + env.get("PATH", "")
 
     prefixes = get_cmake_prefix_paths(env)
-    extra_lib_paths = resolve_lib_paths(extra_libs, prefixes)
+
+    # macOS: Qt is typically frameworks (QtCore.framework etc), not libQt6Core.dylib.
+    # So we must NOT try to resolve "Qt6Core" as a dylib; instead we translate to -framework QtCore etc.
+    qt_fw_names: list[str] = []
+    extra_libs_for_path_resolve = list(extra_libs)
+    qt_framework_dirs: set[str] = set()
+
+    if platform.system() == "Darwin" and extra_libs:
+        non_qt6 = []
+        for L in extra_libs:
+            if isinstance(L, str) and L.startswith("Qt6"):
+                qt_fw_names.append("Qt" + L[len("Qt6"):])  # Qt6Core -> QtCore, etc.
+            else:
+                non_qt6.append(L)
+        extra_libs_for_path_resolve = non_qt6
+
+        for p in prefixes:
+            libpath = Path(p) / "lib"
+            if (libpath / "QtCore.framework").exists():
+                qt_framework_dirs.add(str(libpath))
+
+    extra_lib_paths = resolve_lib_paths(extra_libs_for_path_resolve, prefixes)
 
     if platform.system() == "Windows":
         for p in prefixes:
@@ -1054,6 +1095,8 @@ def compile_check(dep: dict):
         print(f"[compile-check] defines:  {', '.join(cc_defs)}")
     if link_lib:
         print(f"[compile-check] linklib:  {link_lib}")
+
+    runtime_lib_dirs: set[str] = set()
 
     if cc_name == "cl":
         cc_norm = cc.replace("/", "\\").lower()
@@ -1097,7 +1140,6 @@ def compile_check(dep: dict):
 
         add_extra_includes_and_libs_from_prefixes(cmd, prefixes, msvc=False, env=env)
 
-        runtime_lib_dirs = set()
         runtime_lib_dirs.add(str(lib_dir))
 
         for p in prefixes:
@@ -1110,17 +1152,15 @@ def compile_check(dep: dict):
         for p in extra_lib_paths:
             runtime_lib_dirs.add(str(Path(p).parent))
 
-        if platform.system() == "Darwin" and dep.get("name") == "SoQt":
-            qt_framework_dirs = set()
-            for p in prefixes:
-                libpath = Path(p) / "lib"
-                if (libpath / "QtCore.framework").exists():
-                    qt_framework_dirs.add(str(libpath))
+        # macOS: add Qt frameworks if requested by link_libs (Qt6Core -> -framework QtCore etc)
+        if platform.system() == "Darwin" and qt_fw_names:
             for fdir in sorted(qt_framework_dirs):
                 cmd.append(f"-F{fdir}")
                 runtime_lib_dirs.add(fdir)
-            cmd.extend(["-framework", "QtCore"])
+            for fw in qt_fw_names:
+                cmd.extend(["-framework", fw])
 
+        # rpaths
         for rdir in sorted(runtime_lib_dirs):
             cmd.extend(["-Wl,-rpath," + rdir])
 
@@ -1138,12 +1178,11 @@ def compile_check(dep: dict):
     env_run = env.copy()
     ld_var = "DYLD_LIBRARY_PATH" if platform.system() == "Darwin" else "LD_LIBRARY_PATH"
     existing = env_run.get(ld_var, "")
-    rt_paths = os.pathsep.join(sorted(runtime_lib_dirs)) if "runtime_lib_dirs" in locals() else ""
+    rt_paths = os.pathsep.join(sorted(runtime_lib_dirs)) if runtime_lib_dirs else ""
     env_run[ld_var] = (rt_paths + (os.pathsep + existing if existing else "")) if rt_paths else existing
 
     run([str(exe)], cwd=str(work), env=env_run)
     print("[compile-check] OK")
-
 
 # ----------------------------
 # Install verification
