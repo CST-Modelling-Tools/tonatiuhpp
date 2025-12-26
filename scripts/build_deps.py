@@ -1012,7 +1012,6 @@ def add_extra_includes_and_libs_from_prefixes(cmd_list: list[str],
             for fw_root in framework_roots:
                 cmd_list.append(f"-F{fw_root}")
 
-
 # ----------------------------
 # Verification (file + compile)
 # ----------------------------
@@ -1039,7 +1038,6 @@ def compile_check(dep: dict):
     work.mkdir(parents=True, exist_ok=True)
     src = work / "probe.cpp"
     exe = work / ("probe.exe" if platform.system() == "Windows" else "probe")
-
     src.write_text(inc_lines + "\n" + code, encoding="utf-8")
 
     include_dir = PREFIX / "include"
@@ -1059,28 +1057,43 @@ def compile_check(dep: dict):
 
     prefixes = get_cmake_prefix_paths(env)
 
-    # macOS: Qt is typically frameworks (QtCore.framework etc), not libQt6Core.dylib.
-    # So we must NOT try to resolve "Qt6Core" as a dylib; instead we translate to -framework QtCore etc.
+    # ---------- macOS: handle Qt properly (frameworks on install-qt-action) ----------
     qt_fw_names: list[str] = []
     extra_libs_for_path_resolve = list(extra_libs)
     qt_framework_dirs: set[str] = set()
 
-    if platform.system() == "Darwin" and extra_libs:
-        non_qt6 = []
-        for L in extra_libs:
-            if isinstance(L, str) and L.startswith("Qt6"):
-                qt_fw_names.append("Qt" + L[len("Qt6"):])  # Qt6Core -> QtCore, etc.
-            else:
-                non_qt6.append(L)
-        extra_libs_for_path_resolve = non_qt6
+    def _add_qt_framework_dir_from_prefix(prefix: str) -> None:
+        if not prefix:
+            return
+        libp = Path(prefix) / "lib"
+        if (libp / "QtCore.framework").exists():
+            qt_framework_dirs.add(str(libp))
 
+    if platform.system() == "Darwin":
+        # 1) from known prefixes
         for p in prefixes:
-            libpath = Path(p) / "lib"
-            if (libpath / "QtCore.framework").exists():
-                qt_framework_dirs.add(str(libpath))
+            _add_qt_framework_dir_from_prefix(p)
 
+        # 2) from install-qt-action envs
+        for k in ("QT_ROOT_DIR", "QTDIR", "Qt_ROOT_DIR", "Qt6_ROOT", "Qt6_ROOT_DIR"):
+            val = env.get(k)
+            if val:
+                _add_qt_framework_dir_from_prefix(val)
+
+        # Translate Qt6* logical libs into -framework Qt*
+        if extra_libs:
+            non_qt6 = []
+            for L in extra_libs:
+                if isinstance(L, str) and L.startswith("Qt6"):
+                    qt_fw_names.append("Qt" + L[len("Qt6"):])  # Qt6Core -> QtCore, etc.
+                else:
+                    non_qt6.append(L)
+            extra_libs_for_path_resolve = non_qt6
+
+    # Resolve non-Qt libraries to absolute paths (Qt on macOS is handled as frameworks)
     extra_lib_paths = resolve_lib_paths(extra_libs_for_path_resolve, prefixes)
 
+    # Windows: also add all prefix bin/ to PATH so probe can run
     if platform.system() == "Windows":
         for p in prefixes:
             bindir = os.path.join(p, "bin")
@@ -1112,16 +1125,19 @@ def compile_check(dep: dict):
         for d in cc_defs:
             cmd.append(f"/D{d}")
 
-        cmd.append(f"/I{include_dir}")
+        # Only add our PREFIX include if it exists (Qt/Eigen/Boost may be system-provided)
+        if include_dir.is_dir():
+            cmd.append(f"/I{include_dir}")
 
         add_extra_includes_and_libs_from_prefixes(cmd, prefixes, msvc=True, env=env)
 
-        cmd += [
-            str(src),
-            "/link",
-            f"/LIBPATH:{lib_dir}",
-            "/MACHINE:X64",
-        ]
+        cmd += [str(src), "/link"]
+
+        # Only add our PREFIX lib if it exists
+        if lib_dir.is_dir():
+            cmd.append(f"/LIBPATH:{lib_dir}")
+
+        cmd += ["/MACHINE:X64"]
 
         if link_lib:
             cmd.append(str(link_lib))
@@ -1136,11 +1152,19 @@ def compile_check(dep: dict):
         for d in cc_defs:
             cmd.append(f"-D{d}")
 
-        cmd += [str(src), f"-I{include_dir}", f"-L{lib_dir}"]
+        cmd.append(str(src))
+
+        # Only add our PREFIX include/lib if they exist
+        if include_dir.is_dir():
+            cmd.append(f"-I{include_dir}")
+        if lib_dir.is_dir():
+            cmd.extend(["-L", str(lib_dir)])
 
         add_extra_includes_and_libs_from_prefixes(cmd, prefixes, msvc=False, env=env)
 
-        runtime_lib_dirs.add(str(lib_dir))
+        # Runtime search paths (rpath / DYLD_LIBRARY_PATH)
+        if lib_dir.is_dir():
+            runtime_lib_dirs.add(str(lib_dir))
 
         for p in prefixes:
             pr_lib = Path(p) / "lib"
@@ -1152,15 +1176,24 @@ def compile_check(dep: dict):
         for p in extra_lib_paths:
             runtime_lib_dirs.add(str(Path(p).parent))
 
-        # macOS: add Qt frameworks if requested by link_libs (Qt6Core -> -framework QtCore etc)
+        # macOS: add Qt frameworks if requested
         if platform.system() == "Darwin" and qt_fw_names:
+            # If we still didn't find any framework dir, fail with a useful error
+            if not qt_framework_dirs:
+                raise RuntimeError(
+                    "Qt frameworks not found on macOS. "
+                    "Expected QtCore.framework under <QtPrefix>/lib.\n"
+                    "Tip: ensure install-qt-action ran, and QT_ROOT_DIR is set, or pass --qt-root."
+                )
+
             for fdir in sorted(qt_framework_dirs):
                 cmd.append(f"-F{fdir}")
                 runtime_lib_dirs.add(fdir)
+
             for fw in qt_fw_names:
                 cmd.extend(["-framework", fw])
 
-        # rpaths
+        # rpaths (macOS uses LC_RPATH; linux uses DT_RUNPATH/DT_RPATH)
         for rdir in sorted(runtime_lib_dirs):
             cmd.extend(["-Wl,-rpath," + rdir])
 
