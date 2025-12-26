@@ -85,6 +85,8 @@ jobs:
             libjpeg-dev \
             libpng-dev \
             libtiff-dev \
+            zlib1g-dev \
+            pkg-config \
             ninja-build
 
       - name: Install Boost + Eigen (macOS)
