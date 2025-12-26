@@ -8,7 +8,10 @@
 # - get_cmake_prefix_paths now adds sane system prefixes across OSes (/usr, /usr/local, /opt/homebrew) without
 #   forcing a specific Ubuntu version.
 #
-# NOTE: deps.yaml still treats Eigen as a presence check. This script makes that check reliable.
+# Additional CI hardening:
+# - Per-OS sanitization of CMake options (e.g. disable SIMAGE_USE_GDIPLUS on non-Windows).
+# - Never pass empty -DEigen3_DIR= (can confuse CMake).
+# - Probe compile-check: strip Windows-only defines (SOQT_DLL, SIMAGE_DLL) on non-Windows.
 
 import argparse
 import fnmatch
@@ -167,7 +170,7 @@ def _validate_qt_root(qt_root: str) -> str:
     if not os.path.isdir(qt6_dir):
         raise SystemExit(
             f"[error] --qt-root does not look like a Qt prefix (missing {qt6_dir}).\n"
-            f"        Expected something like: C:\\Qt\\6.x.x\\msvc2022_64"
+            r"        Expected something like: C:\Qt\6.x.x\msvc2022_64"
         )
     return qt_root
 
@@ -490,7 +493,6 @@ def resolve_lib_paths(lib_basenames: list[str], prefixes: list[str]) -> list[str
                     candidates = [
                         os.path.join(libdir, f"lib{base}.dylib"),
                         os.path.join(libdir, f"lib{base}.a"),
-                        # Qt on macOS is often frameworks under lib/
                         os.path.join(libdir, f"{base}.framework", "Versions", "A", base),
                         os.path.join(libdir, f"{base}.framework", base),
                     ]
@@ -499,7 +501,6 @@ def resolve_lib_paths(lib_basenames: list[str], prefixes: list[str]) -> list[str
                         os.path.join(libdir, f"lib{base}.so"),
                         os.path.join(libdir, f"lib{base}.a"),
                     ]
-                    # also accept versioned .so if present
                     candidates.extend(glob.glob(os.path.join(libdir, f"lib{base}.so.*")))
 
                 for cand in candidates:
@@ -544,13 +545,11 @@ def detect_eigen_include_root(env: dict) -> str | None:
       3) PREFIX installs: <_install>/include/eigen3 or <_install>/eigen3 or <_install>
       4) system/common: /usr/include/eigen3, /usr/local/include/eigen3
       5) macOS Homebrew: /opt/homebrew/include/eigen3, /opt/homebrew/opt/eigen/include/eigen3, brew --prefix eigen
-      6) Windows typical: C:\eigen-*\Eigen\Core etc. (root or include/eigen3)
+      6) Windows typical: C:\eigen-* (root or include/eigen3)
     """
-    # 1) explicit override
     if USER_OVERRIDES.get("eigen_root"):
         er = USER_OVERRIDES["eigen_root"]
         if er:
-            # normalize to actual include root
             if os.path.isfile(os.path.join(er, "Eigen", "Core")):
                 return er
             if os.path.isfile(os.path.join(er, "include", "eigen3", "Eigen", "Core")):
@@ -558,7 +557,6 @@ def detect_eigen_include_root(env: dict) -> str | None:
             if os.path.isfile(os.path.join(er, "eigen3", "Eigen", "Core")):
                 return os.path.join(er, "eigen3")
 
-    # 2) env hints
     for key in ("EIGEN3_INCLUDE_DIR", "EIGEN3_ROOT", "EIGEN_ROOT"):
         val = env.get(key)
         if val and os.path.isdir(val):
@@ -569,7 +567,6 @@ def detect_eigen_include_root(env: dict) -> str | None:
             if os.path.isfile(os.path.join(val, "eigen3", "Eigen", "Core")):
                 return os.path.join(val, "eigen3")
 
-    # 3) our PREFIX layouts
     cand = PREFIX / "include" / "eigen3"
     if (cand / "Eigen" / "Core").is_file():
         return str(cand)
@@ -580,12 +577,10 @@ def detect_eigen_include_root(env: dict) -> str | None:
     if (cand / "Eigen" / "Core").is_file():
         return str(cand)
 
-    # 4) system unix
     for p in ("/usr/include/eigen3", "/usr/local/include/eigen3"):
         if os.path.isfile(os.path.join(p, "Eigen", "Core")):
             return p
 
-    # 5) macOS Homebrew (Apple Silicon + Intel)
     if platform.system() == "Darwin":
         for p in (
             "/opt/homebrew/include/eigen3",
@@ -601,7 +596,6 @@ def detect_eigen_include_root(env: dict) -> str | None:
             if os.path.isfile(os.path.join(p, "Eigen", "Core")):
                 return p
 
-    # 6) Windows heuristics
     if platform.system() == "Windows":
         for pat in (r"C:\eigen-*", r"C:\eigen3", r"C:\local\eigen-*", r"C:\local\eigen3"):
             for base in glob.glob(pat):
@@ -633,7 +627,6 @@ def _detect_qt_prefixes() -> list[str]:
     Auto-detect Qt prefixes.
     Windows: only pick msvc*_64 (avoid msvc_arm64 when building x64).
     """
-    # Respect explicit override first
     if USER_OVERRIDES.get("qt_root"):
         return [USER_OVERRIDES["qt_root"]]  # type: ignore[return-value]
 
@@ -690,7 +683,6 @@ def _detect_qt_prefixes() -> list[str]:
 def _qt_prefixes_from_env(env: dict) -> list[str]:
     prefixes: list[str] = []
 
-    # Override wins
     if USER_OVERRIDES.get("qt_root"):
         return [USER_OVERRIDES["qt_root"]]  # type: ignore[return-value]
 
@@ -823,13 +815,11 @@ def _default_system_prefixes() -> list[str]:
             if os.path.isdir(p):
                 out.append(p)
 
-        # Homebrew prefix (Apple Silicon)
         if platform.system() == "Darwin":
             for p in ("/opt/homebrew", "/usr/local"):
                 if os.path.isdir(p) and p not in out:
                     out.append(p)
 
-    # Windows: no universal system prefix
     return out
 
 
@@ -849,10 +839,8 @@ def get_cmake_prefix_paths(env: dict) -> list[str]:
     parts = [p for p in raw.replace(";", os.pathsep).split(os.pathsep) if p]
     prefixes += parts
 
-    # System prefixes
     prefixes += _default_system_prefixes()
 
-    # Qt prefixes (override > env > autodetect)
     detected_qt = _qt_prefixes_from_env(env)
     if not detected_qt:
         detected_qt = _detect_qt_prefixes()
@@ -860,19 +848,15 @@ def get_cmake_prefix_paths(env: dict) -> list[str]:
         if p and p not in prefixes:
             prefixes.append(p)
 
-    # Boost root: add as prefix (helps headers & lib resolution)
     boost_root = _probe_boost_root(env)
     if boost_root and boost_root not in prefixes:
         prefixes.append(boost_root)
 
-    # If user passed --eigen-root and it is a real prefix (contains Eigen/Core), add it as a prefix too.
-    # (But we still compute a dedicated include root separately via detect_eigen_include_root.)
     if USER_OVERRIDES.get("eigen_root"):
         er = USER_OVERRIDES["eigen_root"]
         if er and er not in prefixes:
             prefixes.append(er)
 
-    # De-dupe preserving order
     seen = set()
     ordered = []
     for p in prefixes:
@@ -914,7 +898,6 @@ def add_extra_includes_and_libs_from_prefixes(cmd_list: list[str],
         "lib/arm-linux-gnueabihf",
     ]
 
-    # Always add an explicit Eigen include root if we can detect it.
     env2 = env or os.environ.copy()
     eigen_inc = detect_eigen_include_root(env2)
     if eigen_inc and os.path.isdir(eigen_inc):
@@ -942,7 +925,6 @@ def add_extra_includes_and_libs_from_prefixes(cmd_list: list[str],
             if os.path.isfile(os.path.join(inc_root, "boost", "version.hpp")):
                 includes.append(inc_root)
 
-        # Some Eigen layouts put Eigen/ at the prefix root
         if os.path.isfile(os.path.join(p, "Eigen", "Core")):
             includes.append(p)
 
@@ -1027,6 +1009,11 @@ def compile_check(dep: dict):
     code = cc_opts.get("code", "int main(){return 0;}")
     cc_defs = list(cc_opts.get("defines", []))
     extra_libs = list((cc_opts.get("link_libs") or []))
+
+    # Strip Windows-only defines on non-Windows probe builds.
+    # (This avoids SoQt/simage import/export macro mismatches on macOS/Linux.)
+    if platform.system() != "Windows" and cc_defs:
+        cc_defs = [d for d in cc_defs if d not in ("SOQT_DLL", "SIMAGE_DLL")]
 
     work = BUILD / dep["name"] / "probe"
     work.mkdir(parents=True, exist_ok=True)
@@ -1389,6 +1376,21 @@ def cmd_doctor():
 # Build step (CMake + Git)
 # ----------------------------
 
+def _sanitize_cmake_options(dep_name: str, cmake_options: list[str]) -> list[str]:
+    """
+    Remove/adjust options that are invalid on the current OS.
+    This keeps deps.yaml mostly platform-agnostic.
+    """
+    opts = list(cmake_options or [])
+    sysname = platform.system()
+
+    if dep_name.lower() == "simage" and sysname != "Windows":
+        # GDI+ is Windows-only; passing it breaks configure on Linux/macOS.
+        opts = [o for o in opts if not o.startswith("-DSIMAGE_USE_GDIPLUS=")]
+
+    return opts
+
+
 def build_cmake_git(dep: dict, config: str = "Release", native_flags: bool = False):
     name = dep["name"]
     step_dir = BUILD / name
@@ -1408,12 +1410,14 @@ def build_cmake_git(dep: dict, config: str = "Release", native_flags: bool = Fal
             run(["git", "checkout", dep["tag"]], cwd=str(src_dir))
 
     gen = cmake_generator()
+    cmake_opts = _sanitize_cmake_options(name, dep.get("cmake_options", []))
+
     cmake_cmd = [
         "cmake",
         "-S", str(src_dir),
         "-B", str(bld_dir),
         f"-DCMAKE_INSTALL_PREFIX={PREFIX}",
-    ] + gen + dep.get("cmake_options", [])
+    ] + gen + cmake_opts
 
     env = os.environ.copy()
     if platform.system() == "Windows":
@@ -1427,12 +1431,11 @@ def build_cmake_git(dep: dict, config: str = "Release", native_flags: bool = Fal
     else:
         print("[deps] Warning: Boost not detected automatically.", file=sys.stderr)
 
-    # Eigen (header-only): tell CMake where headers are if we can detect them
+    # Eigen (header-only): tell CMake where headers are if we can detect them.
+    # IMPORTANT: do not pass -DEigen3_DIR= (empty) — that can confuse CMake find logic.
     eigen_inc = detect_eigen_include_root(env)
     if eigen_inc:
-        # Many projects accept EIGEN3_INCLUDE_DIR as a hint
         cmake_cmd.append(f"-DEIGEN3_INCLUDE_DIR={eigen_inc}")
-        cmake_cmd.append(f"-DEigen3_DIR=")  # leave empty; avoid misleading config-dir usage
 
     cmake_cmd.append(f"-DCMAKE_BUILD_TYPE={config}")
 
@@ -1442,7 +1445,9 @@ def build_cmake_git(dep: dict, config: str = "Release", native_flags: bool = Fal
 
     # Qt6_DIR (optional but helpful)
     qt6_dir_env = env.get("Qt6_DIR") or env.get("QT6_DIR")
-    if not qt6_dir_env:
+    if qt6_dir_env and os.path.isdir(qt6_dir_env):
+        cmake_cmd.append(f"-DQt6_DIR={qt6_dir_env}")
+    else:
         if USER_OVERRIDES.get("qt_root"):
             q6 = _qt6_dir_from_prefix(USER_OVERRIDES["qt_root"])  # type: ignore[arg-type]
             if q6:
@@ -1498,9 +1503,9 @@ def main():
     ap.add_argument("--clean", action="store_true", help="Delete the dep's build directory before configuring")
     ap.add_argument("--doctor", action="store_true", help="Check env and print diagnostics")
 
-    ap.add_argument("--qt-root", help="Qt prefix root (e.g. C:\\Qt\\6.10.1\\msvc2022_64). Overrides auto-detect.")
-    ap.add_argument("--boost-root", help="Boost root containing boost/version.hpp (e.g. C:\\boost_1_89_0).")
-    ap.add_argument("--eigen-root", help="Eigen root (e.g. C:\\eigen-5.0.0 or a folder containing Eigen/Core).")
+    ap.add_argument("--qt-root", help=r"Qt prefix root (e.g. C:\Qt\6.10.1\msvc2022_64). Overrides auto-detect.")
+    ap.add_argument("--boost-root", help=r"Boost root containing boost/version.hpp (e.g. C:\boost_1_89_0).")
+    ap.add_argument("--eigen-root", help=r"Eigen root (e.g. C:\eigen-5.0.0 or a folder containing Eigen/Core).")
 
     args = ap.parse_args()
 

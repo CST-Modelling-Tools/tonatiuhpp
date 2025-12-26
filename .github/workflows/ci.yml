@@ -21,28 +21,32 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # Pin Python to avoid accidental "too-new" versions on runners
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
-      # Qt: use same mechanism everywhere to reduce OS-specific packaging pain
       - name: Install Qt
         uses: jurplel/install-qt-action@v4
         with:
           version: "6.6.3"
           cache: true
 
+      - name: Export Qt prefix (macOS/Linux)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          if [ -n "${Qt6_DIR:-}" ] && [ -d "${Qt6_DIR}" ]; then
+            QT_PREFIX="$(cd "${Qt6_DIR}/../../.." && pwd)"
+            echo "TONATIUH_QT_ROOT=${QT_PREFIX}" >> "$GITHUB_ENV"
+            echo "CMAKE_PREFIX_PATH=${QT_PREFIX}:${CMAKE_PREFIX_PATH:-}" >> "$GITHUB_ENV"
+          fi
+
       - name: Install Python deps
         shell: bash
         run: |
           python -m pip install --upgrade pip
           python -m pip install pyyaml
-
-      # -------------------------
-      # System deps for checks
-      # -------------------------
 
       - name: Install Boost + Eigen (Ubuntu)
         if: runner.os == 'Linux'
@@ -61,27 +65,17 @@ jobs:
           brew update
           brew install boost eigen ninja
 
-      # Windows: use vcpkg for header-only deps (boost-headers + eigen3)
-      - name: Set up vcpkg (Windows)
-        if: runner.os == 'Windows'
-        uses: lukka/run-vcpkg@v11
-        with:
-          vcpkgDirectory: ${{ github.workspace }}\vcpkg
-          runVcpkgInstall: true
-          vcpkgTriplet: x64-windows
-          vcpkgArguments: "boost-headers eigen3"
-
-      - name: Export Boost/Eigen roots (Windows)
+      - name: Install Boost headers + Eigen (Windows, vcpkg)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          $inc = "${{ github.workspace }}\vcpkg\installed\x64-windows\include"
+          git clone https://github.com/microsoft/vcpkg $env:GITHUB_WORKSPACE\vcpkg
+          & $env:GITHUB_WORKSPACE\vcpkg\bootstrap-vcpkg.bat
+          & $env:GITHUB_WORKSPACE\vcpkg\vcpkg.exe install boost-headers eigen3 --triplet x64-windows
+
+          $inc = "$env:GITHUB_WORKSPACE\vcpkg\installed\x64-windows\include"
           "TONATIUH_BOOST_ROOT=$inc" | Out-File -FilePath $env:GITHUB_ENV -Append
           "TONATIUH_EIGEN_ROOT=$inc\eigen3" | Out-File -FilePath $env:GITHUB_ENV -Append
-
-      # -------------------------
-      # Build third-party deps
-      # -------------------------
 
       - name: Build third-party dependencies
         shell: bash
