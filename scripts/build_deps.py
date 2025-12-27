@@ -1119,6 +1119,65 @@ def compile_check(dep: dict):
 
     prefixes = get_cmake_prefix_paths(env)
 
+    # ---- helpers for Qt runtime in headless CI (Linux runners have no DISPLAY) ----
+    def _looks_like_qt_probe() -> bool:
+        # If we include Qt headers or link Qt libs, assume this probe may load Qt plugins at runtime.
+        if "Qt" in inc_lines or "QApplication" in code or "QGuiApplication" in code:
+            return True
+        for L in extra_libs:
+            if isinstance(L, str) and (L.startswith("Qt6") or L.startswith("Qt")):
+                return True
+        if link_lib and "Qt" in str(link_lib):
+            return True
+        return False
+
+    def _add_qt_plugin_env(env_run: dict) -> None:
+        """
+        Try to locate Qt plugins/platforms under any known prefix and set:
+          - QT_PLUGIN_PATH
+          - QT_QPA_PLATFORM_PLUGIN_PATH
+        This helps when Qt is installed in a non-system prefix (e.g. install-qt-action).
+        """
+        # Respect explicit user settings
+        if env_run.get("QT_QPA_PLATFORM_PLUGIN_PATH") and env_run.get("QT_PLUGIN_PATH"):
+            return
+
+        candidate_prefixes: list[str] = []
+
+        # 1) include the computed prefixes first
+        candidate_prefixes += [p for p in prefixes if p]
+
+        # 2) common Qt env vars (install-qt-action / local installs)
+        for k in ("QT_ROOT_DIR", "QTDIR", "Qt_ROOT_DIR", "Qt6_ROOT", "Qt6_ROOT_DIR", "TONATIUH_QT_ROOT"):
+            val = env.get(k)
+            if val:
+                candidate_prefixes.append(val)
+
+        # De-dup while preserving order
+        seen = set()
+        ordered = []
+        for p in candidate_prefixes:
+            if p and p not in seen:
+                ordered.append(p)
+                seen.add(p)
+
+        for p in ordered:
+            pth = Path(p)
+            plugins = pth / "plugins"
+            platforms = plugins / "platforms"
+            if platforms.is_dir():
+                env_run.setdefault("QT_PLUGIN_PATH", str(plugins))
+                env_run.setdefault("QT_QPA_PLATFORM_PLUGIN_PATH", str(platforms))
+                return
+
+            # Some layouts put plugins under <prefix>/lib/qt6/plugins (less common)
+            plugins2 = pth / "lib" / "qt6" / "plugins"
+            platforms2 = plugins2 / "platforms"
+            if platforms2.is_dir():
+                env_run.setdefault("QT_PLUGIN_PATH", str(plugins2))
+                env_run.setdefault("QT_QPA_PLATFORM_PLUGIN_PATH", str(platforms2))
+                return
+
     # ---------- macOS: handle Qt properly (frameworks on install-qt-action) ----------
     qt_fw_names: list[str] = []
     extra_libs_for_path_resolve = list(extra_libs)
@@ -1137,7 +1196,7 @@ def compile_check(dep: dict):
             _add_qt_framework_dir_from_prefix(p)
 
         # 2) from install-qt-action envs
-        for k in ("QT_ROOT_DIR", "QTDIR", "Qt_ROOT_DIR", "Qt6_ROOT", "Qt6_ROOT_DIR"):
+        for k in ("QT_ROOT_DIR", "QTDIR", "Qt_ROOT_DIR", "Qt6_ROOT", "Qt6_ROOT_DIR", "TONATIUH_QT_ROOT"):
             val = env.get(k)
             if val:
                 _add_qt_framework_dir_from_prefix(val)
@@ -1275,6 +1334,16 @@ def compile_check(dep: dict):
     existing = env_run.get(ld_var, "")
     rt_paths = os.pathsep.join(sorted(runtime_lib_dirs)) if runtime_lib_dirs else ""
     env_run[ld_var] = (rt_paths + (os.pathsep + existing if existing else "")) if rt_paths else existing
+
+    # ---- FIX: headless Qt probes on Linux CI (no DISPLAY) ----
+    # This prevents crashes like:
+    #   qt.qpa.xcb: could not connect to display
+    #   Could not load the Qt platform plugin "xcb" ...
+    if platform.system() == "Linux" and _looks_like_qt_probe():
+        # Don't override if the user already chose a platform
+        env_run.setdefault("QT_QPA_PLATFORM", "offscreen")
+        # Help Qt find its plugins when using install-qt-action prefixes
+        _add_qt_plugin_env(env_run)
 
     run([str(exe)], cwd=str(work), env=env_run)
     print("[compile-check] OK")
