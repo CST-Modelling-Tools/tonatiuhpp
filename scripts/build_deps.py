@@ -100,29 +100,43 @@ def find_lib_files(lib_base: str):
     matches.sort(key=lambda p: (p.suffix.lower() in [".dll"], str(p)))
     return matches
 
-
 def has_system_simage() -> bool:
-    """Return True if simage is available via the system package (libsimage-dev)."""
-    if platform.system() != "Linux":
-        return False
-    if shutil.which("pkg-config") is None:
-        return False
-    try:
-        subprocess.check_call(["pkg-config", "--exists", "simage"])
-        return True
-    except subprocess.CalledProcessError:
-        return False
+    """
+    Return True if a usable system simage is available.
+    We prefer pkg-config, but also accept header presence as fallback.
+    """
+    import shutil
+    import subprocess
+    from pathlib import Path
 
+    pc = shutil.which("pkg-config")
+    if pc:
+        for name in ("simage", "simage1", "simage-1"):
+            r = subprocess.run([pc, "--exists", name])
+            if r.returncode == 0:
+                return True
+
+    # Fallback: headers present (covers some distros/layouts)
+    return (
+        Path("/usr/include/simage/simage.h").exists()
+        or Path("/usr/include/simage.h").exists()
+    )
 
 def system_simage_version() -> str | None:
-    """Return simage version from pkg-config, or None if not available."""
-    if not has_system_simage():
-        return None
-    try:
-        return subprocess.check_output(["pkg-config", "--modversion", "simage"], text=True).strip()
-    except Exception:
+    import shutil
+    import subprocess
+
+    pc = shutil.which("pkg-config")
+    if not pc:
         return None
 
+    for name in ("simage", "simage1", "simage-1"):
+        r = subprocess.run([pc, "--modversion", name], capture_output=True, text=True)
+        if r.returncode == 0:
+            v = (r.stdout or "").strip()
+            return v or None
+
+    return None
 
 def _linux_multiarch_triplet() -> str | None:
     if platform.system() != "Linux":
