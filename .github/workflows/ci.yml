@@ -82,6 +82,8 @@ jobs:
             libboost-dev \
             libeigen3-dev \
             libsimage-dev \
+            libgl1-mesa-dev \
+            libglu1-mesa-dev \
             pkg-config \
             ninja-build
 
