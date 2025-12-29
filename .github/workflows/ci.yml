@@ -117,11 +117,10 @@ jobs:
           "TONATIUH_BOOST_ROOT=$boostRoot" | Out-File -FilePath $env:GITHUB_ENV -Append
           "TONATIUH_EIGEN_ROOT=$prefix\include\eigen3" | Out-File -FilePath $env:GITHUB_ENV -Append
 
-          # Sanity checks
-          if (!(Test-Path "$boostRoot\boost\version.hpp")) {
-            throw "Boost headers missing: expected $boostRoot\boost\version.hpp"
-          }
+          # Sanity checks (use a file that always exists in boost headers)
+          if (!(Test-Path "$prefix\include\boost\config.hpp")) { throw "Boost headers missing (expected include\boost\config.hpp)" }
           if (!(Test-Path "$prefix\include\eigen3\Eigen\Core")) { throw "Eigen headers missing" }
+
 
       # ============================================================
       # NEW: Cache third_party/_build and third_party/_install
