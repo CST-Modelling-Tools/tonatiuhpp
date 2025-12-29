@@ -113,49 +113,53 @@ jobs:
           $inc    = Join-Path $prefix "include"
 
           # Eigen include (vcpkg)
-          $eigenInc = Join-Path $inc "eigen3"
+          $eigenInc  = Join-Path $inc "eigen3"
           $eigenCore = Join-Path $eigenInc "Eigen\Core"
           if (!(Test-Path $eigenCore)) {
             throw "Eigen headers missing: expected $eigenCore"
           }
 
-          # Boost include: handle BOTH layouts
-          # 1) classic: <inc>\boost\version.hpp (or config.hpp, etc.)
-          # 2) nested:  <inc>\boost\headers\boost\...  (your logs show include\boost\headers\ only)
-          $boostClassic = $inc
-          $boostNested  = Join-Path $inc "boost\headers"
-
-          $classic_has_headers_hpp = Test-Path (Join-Path $boostClassic "boost\headers.hpp")
-          $classic_has_version_hpp = Test-Path (Join-Path $boostClassic "boost\version.hpp")
-          $classic_has_config_hpp  = Test-Path (Join-Path $boostClassic "boost\config.hpp")
-          $nested_has_boost_dir    = Test-Path (Join-Path $boostNested  "boost")
+          # Boost include roots we accept:
+          #  A) classic: <inc> where <inc>\boost\<something>.hpp exists
+          #  B) vcpkg boost-headers layout observed on your runner: <inc>\boost\headers (flat header tree)
+          $boostClassicRoot = $inc
+          $boostHeadersRoot = Join-Path $inc "boost\headers"
 
           $boostRoot = $null
-          if ($classic_has_headers_hpp -or $classic_has_version_hpp -or $classic_has_config_hpp) {
-            $boostRoot = $boostClassic
-          }
-          elseif ($nested_has_boost_dir) {
-            $boostRoot = $boostNested
+
+          # Check classic: does <inc>\boost contain any .hpp?
+          $classicBoostDir = Join-Path $boostClassicRoot "boost"
+          if (Test-Path $classicBoostDir) {
+            $anyClassicHpp = Get-ChildItem -Path $classicBoostDir -Recurse -Filter *.hpp -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($anyClassicHpp) { $boostRoot = $boostClassicRoot }
           }
 
-          Write-Host "vcpkg prefix:  $prefix"
-          Write-Host "include root:  $inc"
-          Write-Host "boost classic: $boostClassic"
-          Write-Host "boost nested:  $boostNested"
-          Write-Host "classic headers.hpp: $classic_has_headers_hpp"
-          Write-Host "classic version.hpp: $classic_has_version_hpp"
-          Write-Host "classic config.hpp:  $classic_has_config_hpp"
-          Write-Host "nested has boost dir: $nested_has_boost_dir"
+          # Otherwise accept boost-headers layout: does <inc>\boost\headers contain any .hpp?
+          if (-not $boostRoot -and (Test-Path $boostHeadersRoot)) {
+            $anyHeadersHpp = Get-ChildItem -Path $boostHeadersRoot -Recurse -Filter *.hpp -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($anyHeadersHpp) { $boostRoot = $boostHeadersRoot }
+          }
+
+          Write-Host "vcpkg prefix:        $prefix"
+          Write-Host "vcpkg include:       $inc"
+          Write-Host "boost classic root:  $boostClassicRoot"
+          Write-Host "boost headers root:  $boostHeadersRoot"
+          Write-Host "eigen include:       $eigenInc"
 
           if (-not $boostRoot) {
             Write-Host "Debug listing of include\boost:"
-            $incBoost = Join-Path $inc "boost"
-            if (Test-Path $incBoost) {
-              Get-ChildItem $incBoost | Format-Table -AutoSize | Out-String | Write-Host
+            if (Test-Path (Join-Path $inc "boost")) {
+              Get-ChildItem (Join-Path $inc "boost") -Force | Format-Table -AutoSize | Out-String | Write-Host
             } else {
               Write-Host "(no include\boost directory)"
             }
-            throw "Could not determine Boost headers root from vcpkg layout"
+            Write-Host "Debug listing of include\boost\headers (top level):"
+            if (Test-Path $boostHeadersRoot) {
+              Get-ChildItem $boostHeadersRoot -Force | Select-Object -First 50 | Format-Table -AutoSize | Out-String | Write-Host
+            } else {
+              Write-Host "(no include\boost\headers directory)"
+            }
+            throw "Could not determine Boost headers root from vcpkg layout (no .hpp found)"
           }
 
           Write-Host "Selected Boost root: $boostRoot"
