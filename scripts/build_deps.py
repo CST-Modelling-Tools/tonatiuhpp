@@ -231,21 +231,33 @@ def _validate_boost_root(boost_root: str) -> str:
     if not os.path.isdir(boost_root):
         raise SystemExit(f"[error] --boost-root points to a non-existing directory: {boost_root}")
 
+    def has_any_hpp(dirpath: str) -> bool:
+        try:
+            for root, _, files in os.walk(dirpath):
+                for f in files:
+                    if f.endswith(".hpp") or f.endswith(".h"):
+                        return True
+        except OSError:
+            return False
+        return False
+
     candidates = [
-        os.path.join(boost_root, "boost", "version.hpp"),
-        os.path.join(boost_root, "boost", "boost", "version.hpp"),
-        os.path.join(boost_root, "include", "boost", "version.hpp"),
-        os.path.join(boost_root, "include", "boost", "boost", "version.hpp"),
+        os.path.join(boost_root, "boost"),
+        os.path.join(boost_root, "include", "boost"),
     ]
 
-    if not any(os.path.isfile(p) for p in candidates):
-        msg = "\n        ".join(candidates)
-        raise SystemExit(
-            "[error] --boost-root does not contain boost headers (tried):\n"
-            f"        {msg}"
-        )
+    for d in candidates:
+        if os.path.isdir(d) and has_any_hpp(d):
+            return boost_root
 
-    return boost_root
+    # Helpful diagnostics (don’t recurse too much)
+    tried = "\n        ".join(candidates)
+    raise SystemExit(
+        "[error] --boost-root does not appear to contain Boost headers.\n"
+        "        Expected a 'boost' include directory with at least one header file.\n"
+        f"        Tried:\n        {tried}"
+    )
+
 
 def _apply_overrides_from_env_and_args(args: argparse.Namespace) -> None:
     """
