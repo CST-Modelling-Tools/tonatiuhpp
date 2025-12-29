@@ -110,10 +110,29 @@ jobs:
           if (!(Test-Path "$prefix\include\boost\version.hpp")) { throw "Boost headers missing" }
           if (!(Test-Path "$prefix\include\eigen3\Eigen\Core")) { throw "Eigen headers missing" }
 
+      # ============================================================
+      # NEW: Cache third_party/_build and third_party/_install
+      # ============================================================
+      - name: Cache third_party deps
+        uses: actions/cache@v4
+        with:
+          path: |
+            third_party/_install
+            third_party/_build
+          key: deps-${{ runner.os }}-${{ hashFiles(
+            'scripts/build_deps.py',
+            'cmake/**',
+            'CMakeLists.txt',
+            '.github/workflows/ci.yml'
+          ) }}
+
+      # ============================================================
+      # CHANGED: Do NOT rm -rf these directories (it defeats caching)
+      # ============================================================
       - name: Build third-party dependencies
         shell: bash
         run: |
-          rm -rf third_party/_build third_party/_install
+          mkdir -p third_party/_build third_party/_install
           python scripts/build_deps.py
 
       - name: Configure (CMake)
