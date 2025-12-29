@@ -160,7 +160,8 @@ jobs:
           Write-Host "TONATIUH_BOOST_ROOT=$boostRoot"
 
           # -------------------------
-          # Eigen headers (zip -> C:\eigen-5.0.0\eigen-5.0.0\...)
+          # Eigen headers (zip -> C:\eigen-5.0.0)
+          # Robust to GitLab archive folder naming
           # -------------------------
           $eigenVersion = "5.0.0"
           $eigenRoot    = "C:\eigen-$eigenVersion"
@@ -168,19 +169,36 @@ jobs:
           $eigenUrl     = "https://gitlab.com/libeigen/eigen/-/archive/$eigenVersion/eigen-$eigenVersion.zip"
 
           if (Test-Path $eigenRoot) { Remove-Item -Recurse -Force $eigenRoot }
+          New-Item -ItemType Directory -Path $eigenRoot | Out-Null
 
           Write-Host "Downloading Eigen headers: $eigenUrl"
-          Invoke-WebRequest -Uri $eigenUrl -OutFile $eigenZip
-          Expand-Archive -Path $eigenZip -DestinationPath "C:\" -Force
+          Invoke-WebRequest -Uri $eigenUrl -OutFile $eigenZip -MaximumRedirection 10 -TimeoutSec 600
 
-          # zip expands to C:\eigen-<ver>\eigen-<ver>\...
-          $eigenInner = Join-Path $eigenRoot "eigen-$eigenVersion"
-          if (!(Test-Path (Join-Path $eigenInner "Eigen\Core"))) {
-            throw "Eigen headers missing: expected $(Join-Path $eigenInner 'Eigen\Core')"
+          # Extract into a temp folder first
+          $eigenExtract = Join-Path $env:RUNNER_TEMP "eigen_extract_$eigenVersion"
+          if (Test-Path $eigenExtract) { Remove-Item -Recurse -Force $eigenExtract }
+          Expand-Archive -Path $eigenZip -DestinationPath $eigenExtract -Force
+
+          # Find the directory that contains Eigen/Core
+          $eigenInner = Get-ChildItem -Path $eigenExtract -Directory -Recurse |
+            Where-Object { Test-Path (Join-Path $_.FullName "Eigen\Core") } |
+            Select-Object -First 1
+
+          if (-not $eigenInner) {
+            Write-Host "Debug listing of extracted Eigen archive (top level):"
+            Get-ChildItem -Path $eigenExtract | Format-Table -AutoSize | Out-String | Write-Host
+            throw "Eigen headers missing: could not locate Eigen\Core anywhere under $eigenExtract"
           }
 
-          "TONATIUH_EIGEN_ROOT=$eigenInner" | Out-File -FilePath $env:GITHUB_ENV -Append
-          Write-Host "TONATIUH_EIGEN_ROOT=$eigenInner"
+          # Copy the located Eigen root into the stable path C:\eigen-<ver>
+          Copy-Item -Path (Join-Path $eigenInner.FullName "*") -Destination $eigenRoot -Recurse -Force
+
+          if (!(Test-Path (Join-Path $eigenRoot "Eigen\Core"))) {
+            throw "Eigen headers missing after copy: expected $(Join-Path $eigenRoot 'Eigen\Core')"
+          }
+
+          "TONATIUH_EIGEN_ROOT=$eigenRoot" | Out-File -FilePath $env:GITHUB_ENV -Append
+          Write-Host "TONATIUH_EIGEN_ROOT=$eigenRoot"
 
       # Cache third_party outputs (Option 1)
       - name: Cache third_party deps
