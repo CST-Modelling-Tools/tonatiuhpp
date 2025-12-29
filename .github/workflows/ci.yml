@@ -110,17 +110,46 @@ jobs:
 
           # -------------------------
           # Boost headers (zip -> C:\boost_1_90_0)
+          # Use Boost official artifactory (more reliable than SourceForge in CI)
           # -------------------------
           $boostVersion = "1.90.0"
           $boostU       = "1_90_0"
           $boostRoot    = "C:\boost_$boostU"
           $boostZip     = "$env:RUNNER_TEMP\boost_$boostU.zip"
-          $boostUrl     = "https://sourceforge.net/projects/boost/files/boost/$boostVersion/boost_$boostU.zip/download"
+
+          # Prefer official Boost release host
+          $boostUrlPrimary = "https://boostorg.jfrog.io/artifactory/main/release/$boostVersion/source/boost_$boostU.zip"
+          # Fallback (rarely needed)
+          $boostUrlFallback = "https://archives.boost.io/release/$boostVersion/source/boost_$boostU.zip"
 
           if (Test-Path $boostRoot) { Remove-Item -Recurse -Force $boostRoot }
+          if (Test-Path $boostZip)  { Remove-Item -Force $boostZip }
 
-          Write-Host "Downloading Boost headers: $boostUrl"
-          Invoke-WebRequest -Uri $boostUrl -OutFile $boostZip -MaximumRedirection 10
+          function Download-File($url, $outFile) {
+            Write-Host "Downloading: $url"
+            Invoke-WebRequest -Uri $url -OutFile $outFile -MaximumRedirection 10 -TimeoutSec 600
+            if (!(Test-Path $outFile)) { throw "Download failed: $url (no output file)" }
+
+            # quick sanity: zip files start with 'PK'
+            $fs = [System.IO.File]::OpenRead($outFile)
+            try {
+              $b1 = $fs.ReadByte()
+              $b2 = $fs.ReadByte()
+              if ($b1 -ne 0x50 -or $b2 -ne 0x4B) {
+                throw "Downloaded file is not a ZIP (bad signature). URL may have returned HTML."
+              }
+            } finally {
+              $fs.Dispose()
+            }
+          }
+
+          try {
+            Download-File $boostUrlPrimary $boostZip
+          } catch {
+            Write-Host "Primary Boost URL failed: $($_.Exception.Message)"
+            Download-File $boostUrlFallback $boostZip
+          }
+
           Expand-Archive -Path $boostZip -DestinationPath "C:\" -Force
 
           if (!(Test-Path (Join-Path $boostRoot "boost\version.hpp"))) {
