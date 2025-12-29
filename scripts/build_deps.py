@@ -204,50 +204,46 @@ def _validate_qt_root(qt_root: str) -> str:
 
 def _validate_boost_root(boost_root: str) -> str:
     boost_root = _norm(boost_root)
-    root = Path(boost_root)
 
-    if not root.is_dir():
-        raise SystemExit(
-            f"[error] --boost-root points to a non-existing directory: {boost_root}"
-        )
+    if not os.path.isdir(boost_root):
+        raise SystemExit(f"[error] --boost-root points to a non-existing directory: {boost_root}")
 
-    # Accepted layouts:
-    # 1) <root>/boost/version.hpp                    (root is include/)
-    # 2) <root>/include/boost/version.hpp            (classic)
-    # 3) <root>/include/boost-*/boost/version.hpp    (vcpkg versioned)
-    # 4) <root>/include/boost_*/boost/version.hpp    (alt separator)
-    # 5) <root>/include/boost[0-9]*/boost/version.hpp (rare)
+    # Common layouts:
+    # 1) <root>/boost/version.hpp
+    # 2) <root>/include/boost/version.hpp
+    candidates = [
+        os.path.join(boost_root, "boost", "version.hpp"),
+        os.path.join(boost_root, "include", "boost", "version.hpp"),
+    ]
 
-    candidates: list[Path] = []
+    # vcpkg sometimes uses versioned include dirs, e.g.:
+    # <root>/include/boost-1_90/boost/version.hpp  (or boost-*/boost/version.hpp)
+    # We'll accept any include/boost*/boost/version.hpp
+    versioned_glob = os.path.join(boost_root, "include", "boost*", "boost", "version.hpp")
+    candidates.extend(glob.glob(versioned_glob))
 
-    # Case 1: boost_root is already an include dir
-    candidates.append(root / "boost" / "version.hpp")
+    # Also handle the case where the user passed ".../include" directly:
+    # <root>/boost/version.hpp and <root>/boost*/boost/version.hpp
+    include_versioned_glob = os.path.join(boost_root, "boost*", "boost", "version.hpp")
+    candidates.extend(glob.glob(include_versioned_glob))
 
-    # Case 2: boost_root is a prefix with include/
-    candidates.append(root / "include" / "boost" / "version.hpp")
-
-    # Cases 3-5: vcpkg / versioned layouts
-    inc = root / "include"
-    if inc.is_dir():
-        # Only look for *versioned* boost include dirs, not "boost" itself.
-        patterns = ("boost-*", "boost_*", "boost[0-9]*")
-        for pat in patterns:
-            for d in inc.glob(pat):
-                if not d.is_dir():
-                    continue
-                if d.name.lower() == "boost":
-                    continue  # avoid include/boost/boost/version.hpp
-                candidates.append(d / "boost" / "version.hpp")
+    # Normalize and de-dup
+    candidates = [os.path.normpath(p) for p in candidates]
+    seen = set()
+    candidates = [p for p in candidates if not (p in seen or seen.add(p))]
 
     for hdr in candidates:
-        if hdr.is_file():
+        if os.path.isfile(hdr):
             return boost_root
 
-    # Helpful diagnostics: show exactly what we looked for
+    # If we get here, nothing matched
     msg = "[error] --boost-root does not contain boost headers:\n"
-    for c in candidates:
-        msg += f"        missing {c}\n"
-    raise SystemExit(msg.rstrip())
+    for hdr in candidates[:10]:
+        msg += f"        missing {hdr}\n"
+    if len(candidates) > 10:
+        msg += f"        (and {len(candidates) - 10} more candidates)\n"
+    raise SystemExit(msg)
+
 
 def _validate_eigen_root(eigen_root: str) -> str:
     eigen_root = _norm(eigen_root)
