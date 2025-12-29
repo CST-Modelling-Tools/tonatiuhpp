@@ -109,50 +109,52 @@ jobs:
 
           & "$vcpkgRoot\vcpkg.exe" install boost-headers eigen3 --triplet x64-windows
 
-          $installedPrefix = Join-Path $vcpkgRoot "installed\x64-windows"
-          $installedInc    = Join-Path $installedPrefix "include"
+          $prefix = Join-Path $vcpkgRoot "installed\x64-windows"
+          $inc    = Join-Path $prefix "include"
 
-          # First try the "installed" include root (normal vcpkg expectation)
-          $boostIncCandidates = @(
-            $installedInc,
-            # Fallback: vcpkg staging area (this is where boost-headers actually is in your logs)
-            (Join-Path $vcpkgRoot "packages\boost-headers_x64-windows\include"),
-            (Join-Path $vcpkgRoot "packages\boost-headers_x64-windows-dbg\include")
-          )
-
-          $boostInc = $null
-          foreach ($c in $boostIncCandidates) {
-            if (Test-Path (Join-Path $c "boost\config.hpp")) { $boostInc = $c; break }
-            if (Test-Path (Join-Path $c "boost\version.hpp")) { $boostInc = $c; break }
+          # Eigen include (vcpkg)
+          $eigenInc = Join-Path $inc "eigen3"
+          if (!(Test-Path (Join-Path $eigenInc "Eigen\Core"))) {
+            throw "Eigen headers missing: expected $(Join-Path $eigenInc 'Eigen\Core')"
           }
 
-          if (-not $boostInc) {
-            Write-Host "Could not find Boost headers in expected places. Debug listing:"
-            foreach ($c in $boostIncCandidates) {
-              Write-Host "== Candidate: $c =="
-              if (Test-Path $c) {
-                if (Test-Path (Join-Path $c "boost")) {
-                  Get-ChildItem (Join-Path $c "boost") -ErrorAction SilentlyContinue | Select-Object -First 50 | Format-Table -AutoSize | Out-String | Write-Host
-                } else {
-                  Write-Host "(no boost\ directory)"
-                }
-              } else {
-                Write-Host "(path does not exist)"
-              }
+          # Boost include: handle BOTH layouts
+          # 1) classic: <inc>\boost\version.hpp
+          # 2) nested:  <inc>\boost\headers\boost\version.hpp  (your runner shows only boost\headers\ exists)
+          $boostClassic = $inc
+          $boostNested  = Join-Path $inc "boost\headers"
+
+          $boostRoot = $null
+          if (Test-Path (Join-Path $boostClassic "boost\headers.hpp") -or
+              Test-Path (Join-Path $boostClassic "boost\version.hpp") -or
+              Test-Path (Join-Path $boostClassic "boost\config.hpp")) {
+            $boostRoot = $boostClassic
+          }
+          elseif (Test-Path (Join-Path $boostNested "boost")) {
+            # We don't insist on version.hpp/config.hpp here because your install may not expose them at top level checks.
+            # We just need a root that contains a 'boost\' directory with headers inside.
+            $boostRoot = $boostNested
+          }
+
+          Write-Host "vcpkg prefix:  $prefix"
+          Write-Host "include root:  $inc"
+          Write-Host "boost classic: $boostClassic"
+          Write-Host "boost nested:  $boostNested"
+
+          if (-not $boostRoot) {
+            Write-Host "Debug listing of include\boost:"
+            if (Test-Path (Join-Path $inc "boost")) {
+              Get-ChildItem (Join-Path $inc "boost") | Format-Table -AutoSize | Out-String | Write-Host
+            } else {
+              Write-Host "(no include\boost directory)"
             }
-            throw "Boost headers not found (no boost\config.hpp or boost\version.hpp in any candidate include dir)"
+            throw "Could not determine Boost headers root from vcpkg layout"
           }
 
-          # Eigen from installed is fine
-          $eigenInc   = Join-Path $installedInc "eigen3"
-          $eigenProbe = Join-Path $eigenInc "Eigen\Core"
-          if (!(Test-Path $eigenProbe)) { throw "Eigen headers missing: $eigenProbe" }
+          Write-Host "Selected Boost root: $boostRoot"
+          Write-Host "Selected Eigen root: $eigenInc"
 
-          Write-Host "Selected Boost include dir: $boostInc"
-          Write-Host "Selected Eigen include dir: $eigenInc"
-
-          # IMPORTANT: TONATIUH_BOOST_ROOT must be an include root that contains a 'boost\' directory
-          "TONATIUH_BOOST_ROOT=$boostInc" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "TONATIUH_BOOST_ROOT=$boostRoot" | Out-File -FilePath $env:GITHUB_ENV -Append
           "TONATIUH_EIGEN_ROOT=$eigenInc" | Out-File -FilePath $env:GITHUB_ENV -Append
 
       # ============================================================
