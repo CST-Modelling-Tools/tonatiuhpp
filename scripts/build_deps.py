@@ -226,6 +226,26 @@ def _validate_eigen_root(eigen_root: str) -> str:
         )
     return eigen_root
 
+def _validate_boost_root(boost_root: str) -> str:
+    boost_root = _norm(boost_root)
+    if not os.path.isdir(boost_root):
+        raise SystemExit(f"[error] --boost-root points to a non-existing directory: {boost_root}")
+
+    candidates = [
+        os.path.join(boost_root, "boost", "version.hpp"),
+        os.path.join(boost_root, "boost", "boost", "version.hpp"),
+        os.path.join(boost_root, "include", "boost", "version.hpp"),
+        os.path.join(boost_root, "include", "boost", "boost", "version.hpp"),
+    ]
+
+    if not any(os.path.isfile(p) for p in candidates):
+        msg = "\n        ".join(candidates)
+        raise SystemExit(
+            "[error] --boost-root does not contain boost headers (tried):\n"
+            f"        {msg}"
+        )
+
+    return boost_root
 
 def _apply_overrides_from_env_and_args(args: argparse.Namespace) -> None:
     """

@@ -110,40 +110,55 @@ jobs:
           & "$vcpkgRoot\vcpkg.exe" install boost-headers eigen3 --triplet x64-windows
 
           $prefix = "$vcpkgRoot\installed\x64-windows"
+          $inc    = Join-Path $prefix "include"
 
-          # ---- NEW: detect where Boost headers actually are (boost/version.hpp) ----
-          $inc = Join-Path $prefix "include"
+          # Helper: find boost/version.hpp in common vcpkg layouts (no full recurse)
+          function Find-BoostIncludeRoot([string]$incDir) {
+            $candidates = @(
+              (Join-Path $incDir "boost\version.hpp"),
+              (Join-Path $incDir "boost\boost\version.hpp")
+            )
 
-          $boostIncludeRoot = $null
-
-          # Common case: ...\include\boost\version.hpp
-          if (Test-Path (Join-Path $inc "boost\version.hpp")) {
-            $boostIncludeRoot = $inc
-          } else {
-            # vcpkg sometimes uses versioned include dirs: ...\include\boost-*\boost\version.hpp
-            $hit = Get-ChildItem -Path $inc -Recurse -File -ErrorAction SilentlyContinue |
-              Where-Object { $_.FullName -match "\\boost\\version\.hpp$" } |
-              Select-Object -First 1
-
-            if ($null -ne $hit) {
-              # if hit is ...\include\boost-1_90\boost\version.hpp => include root is ...\include\boost-1_90
-              $boostIncludeRoot = $hit.Directory.Parent.FullName
+            foreach ($p in $candidates) {
+              if (Test-Path $p) {
+                # root is include dir (so include\boost\...)
+                return $incDir
+              }
             }
+
+            # Check versioned include dirs: include\boost-*\boost\version.hpp
+            $versioned = Get-ChildItem -Path $incDir -Directory -ErrorAction SilentlyContinue |
+              Where-Object { $_.Name -like "boost-*" }
+
+            foreach ($d in $versioned) {
+              $p = Join-Path $d.FullName "boost\version.hpp"
+              if (Test-Path $p) {
+                # root is the versioned dir itself
+                return $d.FullName
+              }
+            }
+
+            return $null
           }
 
-          if ($null -eq $boostIncludeRoot) {
-            throw "Boost headers not found under $inc (could not locate boost\version.hpp)"
+          $boostRoot = Find-BoostIncludeRoot $inc
+          if (-not $boostRoot) {
+            Write-Host "Directory listing for $inc to debug Boost layout:"
+            Get-ChildItem -Path $inc -Directory | Select-Object Name | Format-Table -AutoSize
+
+            throw "Boost headers not found under $inc (could not locate boost\version.hpp in expected vcpkg layouts)"
           }
 
-          "TONATIUH_BOOST_ROOT=$boostIncludeRoot" | Out-File -FilePath $env:GITHUB_ENV -Append
-          "TONATIUH_EIGEN_ROOT=$prefix\include\eigen3" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "TONATIUH_BOOST_ROOT=$boostRoot" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+          # Keep Eigen export as-is
+          "TONATIUH_EIGEN_ROOT=$inc\eigen3" | Out-File -FilePath $env:GITHUB_ENV -Append
 
           # Sanity checks
-          if (!(Test-Path (Join-Path $boostIncludeRoot "boost\version.hpp"))) { throw "Boost headers missing (boost\version.hpp not found)" }
-          if (!(Test-Path "$prefix\include\eigen3\Eigen\Core")) { throw "Eigen headers missing" }
-
-          Write-Host "Boost include root: $boostIncludeRoot"
-          Write-Host "Eigen include root: $prefix\include\eigen3"
+          if (!(Test-Path (Join-Path $boostRoot "boost\version.hpp")) -and !(Test-Path (Join-Path $boostRoot "boost\boost\version.hpp"))) {
+            throw "Boost root resolved to $boostRoot but version header still not found"
+          }
+          if (!(Test-Path "$inc\eigen3\Eigen\Core")) { throw "Eigen headers missing" }
 
       # ============================================================
       # NEW: Cache third_party/_build and third_party/_install
