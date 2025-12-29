@@ -164,8 +164,7 @@ jobs:
             'scripts/build_deps.py',
             'cmake/**',
             'CMakeLists.txt',
-            '.github/workflows/ci.yml'
-          ) }}
+            '.github/workflows/ci.yml') }}
 
       - name: Build third-party dependencies
         shell: bash
