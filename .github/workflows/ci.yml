@@ -109,17 +109,43 @@ jobs:
 
           & "$vcpkgRoot\vcpkg.exe" install boost-headers eigen3 --triplet x64-windows
 
-          $prefix = "$vcpkgRoot\installed\x64-windows"
+          $prefix = Join-Path $vcpkgRoot "installed\x64-windows"
           $inc    = Join-Path $prefix "include"
 
-          $boostInc = Join-Path $inc "boost\headers"
-          $eigenInc = Join-Path $inc "eigen3"
+          # vcpkg boost-headers currently places the real headers under:
+          #   <prefix>\include\boost\headers\boost\...
+          $boostHeadersRoot = Join-Path $inc "boost\headers"
+          $boostProbeHeader = Join-Path $boostHeadersRoot "boost\version.hpp"
 
-          if (!(Test-Path $boostInc)) { throw "Boost headers missing: $boostInc" }
-          if (!(Test-Path (Join-Path $eigenInc "Eigen\Core"))) { throw "Eigen headers missing" }
+          $eigenInc   = Join-Path $inc "eigen3"
+          $eigenProbe = Join-Path $eigenInc "Eigen\Core"
 
-          "TONATIUH_BOOST_ROOT=$boostInc" | Out-File -FilePath $env:GITHUB_ENV -Append
-          "TONATIUH_EIGEN_ROOT=$eigenInc" | Out-File -FilePath $env:GITHUB_ENV -Append
+          # Diagnostics to make CI logs self-explanatory
+          Write-Host "vcpkg prefix:        $prefix"
+          Write-Host "vcpkg include:       $inc"
+          Write-Host "boost headers root:  $boostHeadersRoot"
+          Write-Host "eigen include:       $eigenInc"
+
+          if (!(Test-Path $boostHeadersRoot)) { throw "Boost headers root missing: $boostHeadersRoot" }
+
+          # Some vcpkg revisions may reshuffle; accept either:
+          #  - <inc>\boost\version.hpp (classic)
+          #  - <inc>\boost\headers\boost\version.hpp (current observed)
+          $classicBoostHeader = Join-Path $inc "boost\version.hpp"
+          if (!(Test-Path $classicBoostHeader) -and !(Test-Path $boostProbeHeader)) {
+            Write-Host "Contents of $inc\boost:"
+            if (Test-Path (Join-Path $inc "boost")) { Get-ChildItem (Join-Path $inc "boost") | Select-Object -First 50 | Format-Table -AutoSize | Out-String | Write-Host }
+            throw "Boost header not found: expected either '$classicBoostHeader' or '$boostProbeHeader'"
+          }
+
+          if (!(Test-Path $eigenProbe)) { throw "Eigen headers missing: $eigenProbe" }
+
+          # IMPORTANT:
+          # Expose the include root as TONATIUH_BOOST_ROOT so build_deps.py can treat it like any other include-root.
+          # If Boost is nested (boost\headers\...), build_deps.py should be updated to detect this layout.
+          "TONATIUH_BOOST_ROOT=$inc"            | Out-File -FilePath $env:GITHUB_ENV -Append
+          "TONATIUH_BOOST_HEADERS_ROOT=$boostHeadersRoot" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "TONATIUH_EIGEN_ROOT=$eigenInc"       | Out-File -FilePath $env:GITHUB_ENV -Append
           
       # ============================================================
       # NEW: Cache third_party/_build and third_party/_install

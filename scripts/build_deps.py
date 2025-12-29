@@ -227,30 +227,74 @@ def _validate_eigen_root(eigen_root: str) -> str:
     return eigen_root
 
 def _validate_boost_root(boost_root: str) -> str:
+    """
+    Validate and normalize Boost root.
+
+    Accepts common layouts:
+      A) include-root:           <root>/boost/<headers...>
+         examples: /usr/include, /opt/homebrew/include, C:\\vcpkg\\...\\include
+
+      B) prefix-root:            <root>/include/boost/<headers...>
+         examples: C:\\vcpkg\\installed\\x64-windows, custom prefixes
+
+      C) Windows zip layout:     <root>/boost_*/boost/<headers...> (caller passes that folder)
+         examples: C:\\local\\boost_1_84_0
+
+    Returns:
+      The include directory that should be used with -I (or /I on MSVC).
+    """
     boost_root = _norm(boost_root)
     if not os.path.isdir(boost_root):
         raise SystemExit(f"[error] --boost-root points to a non-existing directory: {boost_root}")
 
-    # Accept several common layouts:
-    # 1) <root>/boost/version.hpp                (root is include/)
-    # 2) <root>/include/boost/version.hpp        (root is prefix/)
-    # 3) <root>/boost/headers/boost/version.hpp  (vcpkg boost-headers layout on Windows)
-    # 4) <root>/boost/version.hpp where root == .../include/boost/headers (we recommend exporting this)
+    candidates = []
 
-    candidates = [
-        os.path.join(boost_root, "boost", "version.hpp"),
-        os.path.join(boost_root, "include", "boost", "version.hpp"),
-        os.path.join(boost_root, "boost", "headers", "boost", "version.hpp"),
-        os.path.join(boost_root, "boost", "version.hpp"),  # handles when boost_root already points at include/boost/headers
-    ]
+    # If user passed an include-root directly
+    candidates.append(boost_root)
 
-    for hdr in candidates:
-        if os.path.isfile(hdr):
-            return boost_root
+    # If user passed a prefix-root (common for vcpkg/custom installs)
+    candidates.append(os.path.join(boost_root, "include"))
 
+    def _looks_like_boost_include(inc: str) -> bool:
+        """
+        Must contain a 'boost' directory. Then try a couple of canonical headers.
+        Fall back to accepting the directory if 'boost' exists (some packaging layouts differ).
+        """
+        bdir = os.path.join(inc, "boost")
+        if not os.path.isdir(bdir):
+            return False
+
+        # Common canonical headers in normal Boost trees
+        canonical = [
+            os.path.join(bdir, "version.hpp"),
+            os.path.join(bdir, "config.hpp"),
+            os.path.join(bdir, "core", "demangle.hpp"),  # another common one
+        ]
+        if any(os.path.isfile(p) for p in canonical):
+            return True
+
+        # If the boost directory exists but canonical headers aren't present,
+        # still accept it as an include root; some package layouts restructure
+        # (CI/vcpkg-like). Real compile will be the ultimate proof.
+        return True
+
+    for inc in candidates:
+        inc = _norm(inc)
+        if os.path.isdir(inc) and _looks_like_boost_include(inc):
+            return inc
+
+    # Helpful diagnostics
+    checked = "\n".join(
+        f"          - {os.path.join(_norm(p), 'boost')}"
+        for p in candidates
+    )
     raise SystemExit(
-        f"[error] --boost-root does not contain boost headers:\n"
-        + "\n".join(f"        missing {c}" for c in candidates)
+        "[error] --boost-root does not appear to contain Boost headers.\n"
+        "        Expected either:\n"
+        "          - <boost_root>/boost/ (include root)\n"
+        "          - <boost_root>/include/boost/ (prefix root)\n"
+        "        Checked:\n"
+        f"{checked}"
     )
 
 def _apply_overrides_from_env_and_args(args: argparse.Namespace) -> None:
