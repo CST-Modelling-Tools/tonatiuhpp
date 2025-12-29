@@ -67,6 +67,13 @@ jobs:
             echo "LD_LIBRARY_PATH=${QT_PREFIX}/lib:${LD_LIBRARY_PATH:-}" >> "$GITHUB_ENV"
           fi
 
+      # IMPORTANT on Windows: without a dev cmd, cl.exe may run but miss standard headers (crtdbg.h, etc.)
+      - name: Set up MSVC dev environment (Windows)
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
       - name: Install Python deps (+ Ninja)
         shell: bash
         run: |
@@ -94,49 +101,59 @@ jobs:
           brew update
           brew install boost eigen
 
-      - name: Install Boost + Eigen (Windows, vcpkg)
+      # Windows: follow the Tonatiuh++ blog approach: download + extract headers (fast, predictable)
+      - name: Install Boost + Eigen headers (Windows, download)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
 
-          # Use a short path to avoid Windows path-length issues in vcpkg builds
-          $vcpkgRoot = "C:\vcpkg"
-          if (Test-Path $vcpkgRoot) { Remove-Item -Recurse -Force $vcpkgRoot }
+          # -------------------------
+          # Boost headers (zip -> C:\boost_1_90_0)
+          # -------------------------
+          $boostVersion = "1.90.0"
+          $boostU       = "1_90_0"
+          $boostRoot    = "C:\boost_$boostU"
+          $boostZip     = "$env:RUNNER_TEMP\boost_$boostU.zip"
+          $boostUrl     = "https://sourceforge.net/projects/boost/files/boost/$boostVersion/boost_$boostU.zip/download"
 
-          git clone https://github.com/microsoft/vcpkg $vcpkgRoot
-          & "$vcpkgRoot\bootstrap-vcpkg.bat"
+          if (Test-Path $boostRoot) { Remove-Item -Recurse -Force $boostRoot }
 
-          # Install full Boost to guarantee headers land in installed\...\include\boost
-          & "$vcpkgRoot\vcpkg.exe" install boost eigen3 --triplet x64-windows
+          Write-Host "Downloading Boost headers: $boostUrl"
+          Invoke-WebRequest -Uri $boostUrl -OutFile $boostZip -MaximumRedirection 10
+          Expand-Archive -Path $boostZip -DestinationPath "C:\" -Force
 
-          $prefix = Join-Path $vcpkgRoot "installed\x64-windows"
-          $inc    = Join-Path $prefix "include"
-
-          # Sanity checks
-          if (!(Test-Path (Join-Path $inc "boost\version.hpp")) -and !(Test-Path (Join-Path $inc "boost\config.hpp"))) {
-            Write-Host "Directory listing for $inc\boost:"
-            if (Test-Path (Join-Path $inc "boost")) {
-              Get-ChildItem (Join-Path $inc "boost") -Force | Select-Object -First 50 | Format-Table -AutoSize | Out-String | Write-Host
-            }
-            throw "Boost headers missing under $inc\boost (expected version.hpp or config.hpp)"
+          if (!(Test-Path (Join-Path $boostRoot "boost\version.hpp"))) {
+            throw "Boost headers missing: expected $(Join-Path $boostRoot 'boost\version.hpp')"
           }
 
-          $eigenInc  = Join-Path $inc "eigen3"
-          if (!(Test-Path (Join-Path $eigenInc "Eigen\Core"))) {
-            throw "Eigen headers missing: expected $(Join-Path $eigenInc 'Eigen\Core')"
+          "TONATIUH_BOOST_ROOT=$boostRoot" | Out-File -FilePath $env:GITHUB_ENV -Append
+          Write-Host "TONATIUH_BOOST_ROOT=$boostRoot"
+
+          # -------------------------
+          # Eigen headers (zip -> C:\eigen-5.0.0\eigen-5.0.0\...)
+          # -------------------------
+          $eigenVersion = "5.0.0"
+          $eigenRoot    = "C:\eigen-$eigenVersion"
+          $eigenZip     = "$env:RUNNER_TEMP\eigen-$eigenVersion.zip"
+          $eigenUrl     = "https://gitlab.com/libeigen/eigen/-/archive/$eigenVersion/eigen-$eigenVersion.zip"
+
+          if (Test-Path $eigenRoot) { Remove-Item -Recurse -Force $eigenRoot }
+
+          Write-Host "Downloading Eigen headers: $eigenUrl"
+          Invoke-WebRequest -Uri $eigenUrl -OutFile $eigenZip
+          Expand-Archive -Path $eigenZip -DestinationPath "C:\" -Force
+
+          # zip expands to C:\eigen-<ver>\eigen-<ver>\...
+          $eigenInner = Join-Path $eigenRoot "eigen-$eigenVersion"
+          if (!(Test-Path (Join-Path $eigenInner "Eigen\Core"))) {
+            throw "Eigen headers missing: expected $(Join-Path $eigenInner 'Eigen\Core')"
           }
 
-          # IMPORTANT: For build_deps.py, BOOST_ROOT should be the *prefix* or include root that contains 'include\boost'
-          "TONATIUH_BOOST_ROOT=$prefix" | Out-File -FilePath $env:GITHUB_ENV -Append
-          "TONATIUH_EIGEN_ROOT=$eigenInc" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "TONATIUH_EIGEN_ROOT=$eigenInner" | Out-File -FilePath $env:GITHUB_ENV -Append
+          Write-Host "TONATIUH_EIGEN_ROOT=$eigenInner"
 
-          Write-Host "TONATIUH_BOOST_ROOT=$prefix"
-          Write-Host "TONATIUH_EIGEN_ROOT=$eigenInc"
-
-      # ============================================================
-      # NEW: Cache third_party/_build and third_party/_install
-      # ============================================================
+      # Cache third_party outputs (Option 1)
       - name: Cache third_party deps
         uses: actions/cache@v4
         with:
@@ -147,11 +164,9 @@ jobs:
             'scripts/build_deps.py',
             'cmake/**',
             'CMakeLists.txt',
-            '.github/workflows/ci.yml') }}
+            '.github/workflows/ci.yml'
+          ) }}
 
-      # ============================================================
-      # CHANGED: Do NOT rm -rf these directories (it defeats caching)
-      # ============================================================
       - name: Build third-party dependencies
         shell: bash
         run: |
