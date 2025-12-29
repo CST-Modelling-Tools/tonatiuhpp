@@ -212,34 +212,41 @@ def _validate_boost_root(boost_root: str) -> str:
         )
 
     # Accepted layouts:
-    # 1) <root>/boost/version.hpp
-    # 2) <root>/include/boost/version.hpp
-    # 3) <root>/include/boost-*/boost/version.hpp   (vcpkg, versioned)
-    # 4) <root> is already an include dir containing boost/version.hpp
+    # 1) <root>/boost/version.hpp                    (root is include/)
+    # 2) <root>/include/boost/version.hpp            (classic)
+    # 3) <root>/include/boost-*/boost/version.hpp    (vcpkg versioned)
+    # 4) <root>/include/boost_*/boost/version.hpp    (alt separator)
+    # 5) <root>/include/boost[0-9]*/boost/version.hpp (rare)
 
     candidates: list[Path] = []
 
-    # Case 1 & 4
+    # Case 1: boost_root is already an include dir
     candidates.append(root / "boost" / "version.hpp")
 
-    # Case 2
+    # Case 2: boost_root is a prefix with include/
     candidates.append(root / "include" / "boost" / "version.hpp")
 
-    # Case 3 (vcpkg / versioned boost)
+    # Cases 3-5: vcpkg / versioned layouts
     inc = root / "include"
     if inc.is_dir():
-        for d in inc.glob("boost*"):
-            candidates.append(d / "boost" / "version.hpp")
+        # Only look for *versioned* boost include dirs, not "boost" itself.
+        patterns = ("boost-*", "boost_*", "boost[0-9]*")
+        for pat in patterns:
+            for d in inc.glob(pat):
+                if not d.is_dir():
+                    continue
+                if d.name.lower() == "boost":
+                    continue  # avoid include/boost/boost/version.hpp
+                candidates.append(d / "boost" / "version.hpp")
 
     for hdr in candidates:
         if hdr.is_file():
-            return boost_root  # Valid Boost root
+            return boost_root
 
-    # If we get here, nothing matched
+    # Helpful diagnostics: show exactly what we looked for
     msg = "[error] --boost-root does not contain boost headers:\n"
     for c in candidates:
         msg += f"        missing {c}\n"
-
     raise SystemExit(msg.rstrip())
 
 def _validate_eigen_root(eigen_root: str) -> str:
