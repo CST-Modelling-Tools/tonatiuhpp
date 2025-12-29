@@ -111,29 +111,16 @@ jobs:
 
           $prefix = "$vcpkgRoot\installed\x64-windows"
           $inc    = Join-Path $prefix "include"
-          $boostDir = Join-Path $inc "boost"
 
-          if (!(Test-Path $boostDir)) {
-            throw "Boost include directory missing: $boostDir"
-          }
+          $boostInc = Join-Path $inc "boost\headers"
+          $eigenInc = Join-Path $inc "eigen3"
 
-          # Robust: require that boost contains at least one header
-          $anyHeader = Get-ChildItem -Path $boostDir -File -Recurse -Filter *.hpp -ErrorAction SilentlyContinue |
-            Select-Object -First 1
+          if (!(Test-Path $boostInc)) { throw "Boost headers missing: $boostInc" }
+          if (!(Test-Path (Join-Path $eigenInc "Eigen\Core"))) { throw "Eigen headers missing" }
 
-          if (-not $anyHeader) {
-            Write-Host "Directory listing for $inc to debug Boost layout:"
-            Get-ChildItem -Path $inc -Directory | Select-Object Name | Format-Table -AutoSize
-
-            Write-Host "Contents of $boostDir (first 50 entries):"
-            Get-ChildItem -Path $boostDir -ErrorAction SilentlyContinue | Select-Object -First 50 | Format-Table -AutoSize
-
-            throw "Boost directory exists but no .hpp headers were found under $boostDir"
-          }
-
-          "TONATIUH_BOOST_ROOT=$inc" | Out-File -FilePath $env:GITHUB_ENV -Append
-          "TONATIUH_EIGEN_ROOT=$inc\eigen3" | Out-File -FilePath $env:GITHUB_ENV -Append
-
+          "TONATIUH_BOOST_ROOT=$boostInc" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "TONATIUH_EIGEN_ROOT=$eigenInc" | Out-File -FilePath $env:GITHUB_ENV -Append
+          
       # ============================================================
       # NEW: Cache third_party/_build and third_party/_install
       # ============================================================

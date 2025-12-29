@@ -231,33 +231,27 @@ def _validate_boost_root(boost_root: str) -> str:
     if not os.path.isdir(boost_root):
         raise SystemExit(f"[error] --boost-root points to a non-existing directory: {boost_root}")
 
-    def has_any_hpp(dirpath: str) -> bool:
-        try:
-            for root, _, files in os.walk(dirpath):
-                for f in files:
-                    if f.endswith(".hpp") or f.endswith(".h"):
-                        return True
-        except OSError:
-            return False
-        return False
+    # Accept several common layouts:
+    # 1) <root>/boost/version.hpp                (root is include/)
+    # 2) <root>/include/boost/version.hpp        (root is prefix/)
+    # 3) <root>/boost/headers/boost/version.hpp  (vcpkg boost-headers layout on Windows)
+    # 4) <root>/boost/version.hpp where root == .../include/boost/headers (we recommend exporting this)
 
     candidates = [
-        os.path.join(boost_root, "boost"),
-        os.path.join(boost_root, "include", "boost"),
+        os.path.join(boost_root, "boost", "version.hpp"),
+        os.path.join(boost_root, "include", "boost", "version.hpp"),
+        os.path.join(boost_root, "boost", "headers", "boost", "version.hpp"),
+        os.path.join(boost_root, "boost", "version.hpp"),  # handles when boost_root already points at include/boost/headers
     ]
 
-    for d in candidates:
-        if os.path.isdir(d) and has_any_hpp(d):
+    for hdr in candidates:
+        if os.path.isfile(hdr):
             return boost_root
 
-    # Helpful diagnostics (don’t recurse too much)
-    tried = "\n        ".join(candidates)
     raise SystemExit(
-        "[error] --boost-root does not appear to contain Boost headers.\n"
-        "        Expected a 'boost' include directory with at least one header file.\n"
-        f"        Tried:\n        {tried}"
+        f"[error] --boost-root does not contain boost headers:\n"
+        + "\n".join(f"        missing {c}" for c in candidates)
     )
-
 
 def _apply_overrides_from_env_and_args(args: argparse.Namespace) -> None:
     """
