@@ -114,25 +114,27 @@ jobs:
 
           # Eigen include (vcpkg)
           $eigenInc = Join-Path $inc "eigen3"
-          if (!(Test-Path (Join-Path $eigenInc "Eigen\Core"))) {
-            throw "Eigen headers missing: expected $(Join-Path $eigenInc 'Eigen\Core')"
+          $eigenCore = Join-Path $eigenInc "Eigen\Core"
+          if (!(Test-Path $eigenCore)) {
+            throw "Eigen headers missing: expected $eigenCore"
           }
 
           # Boost include: handle BOTH layouts
-          # 1) classic: <inc>\boost\version.hpp
-          # 2) nested:  <inc>\boost\headers\boost\version.hpp  (your runner shows only boost\headers\ exists)
+          # 1) classic: <inc>\boost\version.hpp (or config.hpp, etc.)
+          # 2) nested:  <inc>\boost\headers\boost\...  (your logs show include\boost\headers\ only)
           $boostClassic = $inc
           $boostNested  = Join-Path $inc "boost\headers"
 
+          $classic_has_headers_hpp = Test-Path (Join-Path $boostClassic "boost\headers.hpp")
+          $classic_has_version_hpp = Test-Path (Join-Path $boostClassic "boost\version.hpp")
+          $classic_has_config_hpp  = Test-Path (Join-Path $boostClassic "boost\config.hpp")
+          $nested_has_boost_dir    = Test-Path (Join-Path $boostNested  "boost")
+
           $boostRoot = $null
-          if (Test-Path (Join-Path $boostClassic "boost\headers.hpp") -or
-              Test-Path (Join-Path $boostClassic "boost\version.hpp") -or
-              Test-Path (Join-Path $boostClassic "boost\config.hpp")) {
+          if ($classic_has_headers_hpp -or $classic_has_version_hpp -or $classic_has_config_hpp) {
             $boostRoot = $boostClassic
           }
-          elseif (Test-Path (Join-Path $boostNested "boost")) {
-            # We don't insist on version.hpp/config.hpp here because your install may not expose them at top level checks.
-            # We just need a root that contains a 'boost\' directory with headers inside.
+          elseif ($nested_has_boost_dir) {
             $boostRoot = $boostNested
           }
 
@@ -140,11 +142,16 @@ jobs:
           Write-Host "include root:  $inc"
           Write-Host "boost classic: $boostClassic"
           Write-Host "boost nested:  $boostNested"
+          Write-Host "classic headers.hpp: $classic_has_headers_hpp"
+          Write-Host "classic version.hpp: $classic_has_version_hpp"
+          Write-Host "classic config.hpp:  $classic_has_config_hpp"
+          Write-Host "nested has boost dir: $nested_has_boost_dir"
 
           if (-not $boostRoot) {
             Write-Host "Debug listing of include\boost:"
-            if (Test-Path (Join-Path $inc "boost")) {
-              Get-ChildItem (Join-Path $inc "boost") | Format-Table -AutoSize | Out-String | Write-Host
+            $incBoost = Join-Path $inc "boost"
+            if (Test-Path $incBoost) {
+              Get-ChildItem $incBoost | Format-Table -AutoSize | Out-String | Write-Host
             } else {
               Write-Host "(no include\boost directory)"
             }
