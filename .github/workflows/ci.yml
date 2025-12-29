@@ -111,16 +111,39 @@ jobs:
 
           $prefix = "$vcpkgRoot\installed\x64-windows"
 
-          # Point to the directory that actually contains "boost\version.hpp"
-          $boostRoot = "$prefix\include"
+          # ---- NEW: detect where Boost headers actually are (boost/version.hpp) ----
+          $inc = Join-Path $prefix "include"
 
-          "TONATIUH_BOOST_ROOT=$boostRoot" | Out-File -FilePath $env:GITHUB_ENV -Append
+          $boostIncludeRoot = $null
+
+          # Common case: ...\include\boost\version.hpp
+          if (Test-Path (Join-Path $inc "boost\version.hpp")) {
+            $boostIncludeRoot = $inc
+          } else {
+            # vcpkg sometimes uses versioned include dirs: ...\include\boost-*\boost\version.hpp
+            $hit = Get-ChildItem -Path $inc -Recurse -File -ErrorAction SilentlyContinue |
+              Where-Object { $_.FullName -match "\\boost\\version\.hpp$" } |
+              Select-Object -First 1
+
+            if ($null -ne $hit) {
+              # if hit is ...\include\boost-1_90\boost\version.hpp => include root is ...\include\boost-1_90
+              $boostIncludeRoot = $hit.Directory.Parent.FullName
+            }
+          }
+
+          if ($null -eq $boostIncludeRoot) {
+            throw "Boost headers not found under $inc (could not locate boost\version.hpp)"
+          }
+
+          "TONATIUH_BOOST_ROOT=$boostIncludeRoot" | Out-File -FilePath $env:GITHUB_ENV -Append
           "TONATIUH_EIGEN_ROOT=$prefix\include\eigen3" | Out-File -FilePath $env:GITHUB_ENV -Append
 
-          # Sanity checks (use a file that always exists in boost headers)
-          if (!(Test-Path "$prefix\include\boost\config.hpp")) { throw "Boost headers missing (expected include\boost\config.hpp)" }
+          # Sanity checks
+          if (!(Test-Path (Join-Path $boostIncludeRoot "boost\version.hpp"))) { throw "Boost headers missing (boost\version.hpp not found)" }
           if (!(Test-Path "$prefix\include\eigen3\Eigen\Core")) { throw "Eigen headers missing" }
 
+          Write-Host "Boost include root: $boostIncludeRoot"
+          Write-Host "Eigen include root: $prefix\include\eigen3"
 
       # ============================================================
       # NEW: Cache third_party/_build and third_party/_install
