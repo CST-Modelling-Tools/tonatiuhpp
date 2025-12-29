@@ -123,8 +123,7 @@ jobs:
             'scripts/build_deps.py',
             'cmake/**',
             'CMakeLists.txt',
-            '.github/workflows/ci.yml'
-          ) }}
+            '.github/workflows/ci.yml') }}
 
       # ============================================================
       # CHANGED: Do NOT rm -rf these directories (it defeats caching)
