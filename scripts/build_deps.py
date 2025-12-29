@@ -202,22 +202,45 @@ def _validate_qt_root(qt_root: str) -> str:
         )
     return qt_root
 
-
 def _validate_boost_root(boost_root: str) -> str:
     boost_root = _norm(boost_root)
-    hdr = os.path.join(boost_root, "boost", "version.hpp")
-    if not os.path.isdir(boost_root):
-        raise SystemExit(f"[error] --boost-root points to a non-existing directory: {boost_root}")
-    if not os.path.isfile(hdr):
-        hdr2 = os.path.join(boost_root, "include", "boost", "version.hpp")
-        if not os.path.isfile(hdr2):
-            raise SystemExit(
-                f"[error] --boost-root does not contain boost headers:\n"
-                f"        missing {hdr}\n"
-                f"        (also checked {hdr2})"
-            )
-    return boost_root
+    root = Path(boost_root)
 
+    if not root.is_dir():
+        raise SystemExit(
+            f"[error] --boost-root points to a non-existing directory: {boost_root}"
+        )
+
+    # Accepted layouts:
+    # 1) <root>/boost/version.hpp
+    # 2) <root>/include/boost/version.hpp
+    # 3) <root>/include/boost-*/boost/version.hpp   (vcpkg, versioned)
+    # 4) <root> is already an include dir containing boost/version.hpp
+
+    candidates: list[Path] = []
+
+    # Case 1 & 4
+    candidates.append(root / "boost" / "version.hpp")
+
+    # Case 2
+    candidates.append(root / "include" / "boost" / "version.hpp")
+
+    # Case 3 (vcpkg / versioned boost)
+    inc = root / "include"
+    if inc.is_dir():
+        for d in inc.glob("boost*"):
+            candidates.append(d / "boost" / "version.hpp")
+
+    for hdr in candidates:
+        if hdr.is_file():
+            return boost_root  # Valid Boost root
+
+    # If we get here, nothing matched
+    msg = "[error] --boost-root does not contain boost headers:\n"
+    for c in candidates:
+        msg += f"        missing {c}\n"
+
+    raise SystemExit(msg.rstrip())
 
 def _validate_eigen_root(eigen_root: str) -> str:
     eigen_root = _norm(eigen_root)
