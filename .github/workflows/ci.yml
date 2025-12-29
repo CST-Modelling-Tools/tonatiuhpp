@@ -94,7 +94,7 @@ jobs:
           brew update
           brew install boost eigen
 
-      - name: Install Boost headers + Eigen (Windows, vcpkg)
+      - name: Install Boost + Eigen (Windows, vcpkg)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
@@ -107,66 +107,32 @@ jobs:
           git clone https://github.com/microsoft/vcpkg $vcpkgRoot
           & "$vcpkgRoot\bootstrap-vcpkg.bat"
 
-          & "$vcpkgRoot\vcpkg.exe" install boost-headers eigen3 --triplet x64-windows
+          # Install full Boost to guarantee headers land in installed\...\include\boost
+          & "$vcpkgRoot\vcpkg.exe" install boost eigen3 --triplet x64-windows
 
           $prefix = Join-Path $vcpkgRoot "installed\x64-windows"
           $inc    = Join-Path $prefix "include"
 
-          # Eigen include (vcpkg)
-          $eigenInc  = Join-Path $inc "eigen3"
-          $eigenCore = Join-Path $eigenInc "Eigen\Core"
-          if (!(Test-Path $eigenCore)) {
-            throw "Eigen headers missing: expected $eigenCore"
-          }
-
-          # Boost include roots we accept:
-          #  A) classic: <inc> where <inc>\boost\<something>.hpp exists
-          #  B) vcpkg boost-headers layout observed on your runner: <inc>\boost\headers (flat header tree)
-          $boostClassicRoot = $inc
-          $boostHeadersRoot = Join-Path $inc "boost\headers"
-
-          $boostRoot = $null
-
-          # Check classic: does <inc>\boost contain any .hpp?
-          $classicBoostDir = Join-Path $boostClassicRoot "boost"
-          if (Test-Path $classicBoostDir) {
-            $anyClassicHpp = Get-ChildItem -Path $classicBoostDir -Recurse -Filter *.hpp -ErrorAction SilentlyContinue | Select-Object -First 1
-            if ($anyClassicHpp) { $boostRoot = $boostClassicRoot }
-          }
-
-          # Otherwise accept boost-headers layout: does <inc>\boost\headers contain any .hpp?
-          if (-not $boostRoot -and (Test-Path $boostHeadersRoot)) {
-            $anyHeadersHpp = Get-ChildItem -Path $boostHeadersRoot -Recurse -Filter *.hpp -ErrorAction SilentlyContinue | Select-Object -First 1
-            if ($anyHeadersHpp) { $boostRoot = $boostHeadersRoot }
-          }
-
-          Write-Host "vcpkg prefix:        $prefix"
-          Write-Host "vcpkg include:       $inc"
-          Write-Host "boost classic root:  $boostClassicRoot"
-          Write-Host "boost headers root:  $boostHeadersRoot"
-          Write-Host "eigen include:       $eigenInc"
-
-          if (-not $boostRoot) {
-            Write-Host "Debug listing of include\boost:"
+          # Sanity checks
+          if (!(Test-Path (Join-Path $inc "boost\version.hpp")) -and !(Test-Path (Join-Path $inc "boost\config.hpp"))) {
+            Write-Host "Directory listing for $inc\boost:"
             if (Test-Path (Join-Path $inc "boost")) {
-              Get-ChildItem (Join-Path $inc "boost") -Force | Format-Table -AutoSize | Out-String | Write-Host
-            } else {
-              Write-Host "(no include\boost directory)"
+              Get-ChildItem (Join-Path $inc "boost") -Force | Select-Object -First 50 | Format-Table -AutoSize | Out-String | Write-Host
             }
-            Write-Host "Debug listing of include\boost\headers (top level):"
-            if (Test-Path $boostHeadersRoot) {
-              Get-ChildItem $boostHeadersRoot -Force | Select-Object -First 50 | Format-Table -AutoSize | Out-String | Write-Host
-            } else {
-              Write-Host "(no include\boost\headers directory)"
-            }
-            throw "Could not determine Boost headers root from vcpkg layout (no .hpp found)"
+            throw "Boost headers missing under $inc\boost (expected version.hpp or config.hpp)"
           }
 
-          Write-Host "Selected Boost root: $boostRoot"
-          Write-Host "Selected Eigen root: $eigenInc"
+          $eigenInc  = Join-Path $inc "eigen3"
+          if (!(Test-Path (Join-Path $eigenInc "Eigen\Core"))) {
+            throw "Eigen headers missing: expected $(Join-Path $eigenInc 'Eigen\Core')"
+          }
 
-          "TONATIUH_BOOST_ROOT=$boostRoot" | Out-File -FilePath $env:GITHUB_ENV -Append
+          # IMPORTANT: For build_deps.py, BOOST_ROOT should be the *prefix* or include root that contains 'include\boost'
+          "TONATIUH_BOOST_ROOT=$prefix" | Out-File -FilePath $env:GITHUB_ENV -Append
           "TONATIUH_EIGEN_ROOT=$eigenInc" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+          Write-Host "TONATIUH_BOOST_ROOT=$prefix"
+          Write-Host "TONATIUH_EIGEN_ROOT=$eigenInc"
 
       # ============================================================
       # NEW: Cache third_party/_build and third_party/_install
