@@ -98,16 +98,23 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          git clone https://github.com/microsoft/vcpkg $env:GITHUB_WORKSPACE\vcpkg
-          & $env:GITHUB_WORKSPACE\vcpkg\bootstrap-vcpkg.bat
-          & $env:GITHUB_WORKSPACE\vcpkg\vcpkg.exe install boost-headers eigen3 --triplet x64-windows
+          $ErrorActionPreference = "Stop"
 
-          $prefix = "$env:GITHUB_WORKSPACE\vcpkg\installed\x64-windows"
+          # Use a short path to avoid Windows path-length issues in vcpkg builds
+          $vcpkgRoot = "C:\vcpkg"
+          if (Test-Path $vcpkgRoot) { Remove-Item -Recurse -Force $vcpkgRoot }
+
+          git clone https://github.com/microsoft/vcpkg $vcpkgRoot
+          & "$vcpkgRoot\bootstrap-vcpkg.bat"
+
+          & "$vcpkgRoot\vcpkg.exe" install boost-headers eigen3 --triplet x64-windows
+
+          $prefix = "$vcpkgRoot\installed\x64-windows"
           "TONATIUH_BOOST_ROOT=$prefix" | Out-File -FilePath $env:GITHUB_ENV -Append
           "TONATIUH_EIGEN_ROOT=$prefix\include\eigen3" | Out-File -FilePath $env:GITHUB_ENV -Append
 
-          # Optional: fail early with clearer diagnostics
-          if (!(Test-Path "$prefix\include\boost\version.hpp")) { throw "Boost headers missing" }
+          # Sanity checks (boost-headers doesn't guarantee boost/version.hpp)
+          if (!(Test-Path "$prefix\include\boost")) { throw "Boost headers missing (no include\boost directory)" }
           if (!(Test-Path "$prefix\include\eigen3\Eigen\Core")) { throw "Eigen headers missing" }
 
       # ============================================================
