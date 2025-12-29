@@ -110,11 +110,17 @@ jobs:
           & "$vcpkgRoot\vcpkg.exe" install boost-headers eigen3 --triplet x64-windows
 
           $prefix = "$vcpkgRoot\installed\x64-windows"
-          "TONATIUH_BOOST_ROOT=$prefix" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+          # Point to the directory that actually contains "boost\version.hpp"
+          $boostRoot = "$prefix\include"
+
+          "TONATIUH_BOOST_ROOT=$boostRoot" | Out-File -FilePath $env:GITHUB_ENV -Append
           "TONATIUH_EIGEN_ROOT=$prefix\include\eigen3" | Out-File -FilePath $env:GITHUB_ENV -Append
 
-          # Sanity checks (boost-headers doesn't guarantee boost/version.hpp)
-          if (!(Test-Path "$prefix\include\boost")) { throw "Boost headers missing (no include\boost directory)" }
+          # Sanity checks
+          if (!(Test-Path "$boostRoot\boost\version.hpp")) {
+            throw "Boost headers missing: expected $boostRoot\boost\version.hpp"
+          }
           if (!(Test-Path "$prefix\include\eigen3\Eigen\Core")) { throw "Eigen headers missing" }
 
       # ============================================================
