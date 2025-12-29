@@ -109,44 +109,52 @@ jobs:
 
           & "$vcpkgRoot\vcpkg.exe" install boost-headers eigen3 --triplet x64-windows
 
-          $prefix = Join-Path $vcpkgRoot "installed\x64-windows"
-          $inc    = Join-Path $prefix "include"
+          $installedPrefix = Join-Path $vcpkgRoot "installed\x64-windows"
+          $installedInc    = Join-Path $installedPrefix "include"
 
-          # vcpkg boost-headers currently places the real headers under:
-          #   <prefix>\include\boost\headers\boost\...
-          $boostHeadersRoot = Join-Path $inc "boost\headers"
-          $boostProbeHeader = Join-Path $boostHeadersRoot "boost\version.hpp"
+          # First try the "installed" include root (normal vcpkg expectation)
+          $boostIncCandidates = @(
+            $installedInc,
+            # Fallback: vcpkg staging area (this is where boost-headers actually is in your logs)
+            (Join-Path $vcpkgRoot "packages\boost-headers_x64-windows\include"),
+            (Join-Path $vcpkgRoot "packages\boost-headers_x64-windows-dbg\include")
+          )
 
-          $eigenInc   = Join-Path $inc "eigen3"
-          $eigenProbe = Join-Path $eigenInc "Eigen\Core"
-
-          # Diagnostics to make CI logs self-explanatory
-          Write-Host "vcpkg prefix:        $prefix"
-          Write-Host "vcpkg include:       $inc"
-          Write-Host "boost headers root:  $boostHeadersRoot"
-          Write-Host "eigen include:       $eigenInc"
-
-          if (!(Test-Path $boostHeadersRoot)) { throw "Boost headers root missing: $boostHeadersRoot" }
-
-          # Some vcpkg revisions may reshuffle; accept either:
-          #  - <inc>\boost\version.hpp (classic)
-          #  - <inc>\boost\headers\boost\version.hpp (current observed)
-          $classicBoostHeader = Join-Path $inc "boost\version.hpp"
-          if (!(Test-Path $classicBoostHeader) -and !(Test-Path $boostProbeHeader)) {
-            Write-Host "Contents of $inc\boost:"
-            if (Test-Path (Join-Path $inc "boost")) { Get-ChildItem (Join-Path $inc "boost") | Select-Object -First 50 | Format-Table -AutoSize | Out-String | Write-Host }
-            throw "Boost header not found: expected either '$classicBoostHeader' or '$boostProbeHeader'"
+          $boostInc = $null
+          foreach ($c in $boostIncCandidates) {
+            if (Test-Path (Join-Path $c "boost\config.hpp")) { $boostInc = $c; break }
+            if (Test-Path (Join-Path $c "boost\version.hpp")) { $boostInc = $c; break }
           }
 
+          if (-not $boostInc) {
+            Write-Host "Could not find Boost headers in expected places. Debug listing:"
+            foreach ($c in $boostIncCandidates) {
+              Write-Host "== Candidate: $c =="
+              if (Test-Path $c) {
+                if (Test-Path (Join-Path $c "boost")) {
+                  Get-ChildItem (Join-Path $c "boost") -ErrorAction SilentlyContinue | Select-Object -First 50 | Format-Table -AutoSize | Out-String | Write-Host
+                } else {
+                  Write-Host "(no boost\ directory)"
+                }
+              } else {
+                Write-Host "(path does not exist)"
+              }
+            }
+            throw "Boost headers not found (no boost\config.hpp or boost\version.hpp in any candidate include dir)"
+          }
+
+          # Eigen from installed is fine
+          $eigenInc   = Join-Path $installedInc "eigen3"
+          $eigenProbe = Join-Path $eigenInc "Eigen\Core"
           if (!(Test-Path $eigenProbe)) { throw "Eigen headers missing: $eigenProbe" }
 
-          # IMPORTANT:
-          # Expose the include root as TONATIUH_BOOST_ROOT so build_deps.py can treat it like any other include-root.
-          # If Boost is nested (boost\headers\...), build_deps.py should be updated to detect this layout.
-          "TONATIUH_BOOST_ROOT=$inc"            | Out-File -FilePath $env:GITHUB_ENV -Append
-          "TONATIUH_BOOST_HEADERS_ROOT=$boostHeadersRoot" | Out-File -FilePath $env:GITHUB_ENV -Append
-          "TONATIUH_EIGEN_ROOT=$eigenInc"       | Out-File -FilePath $env:GITHUB_ENV -Append
-          
+          Write-Host "Selected Boost include dir: $boostInc"
+          Write-Host "Selected Eigen include dir: $eigenInc"
+
+          # IMPORTANT: TONATIUH_BOOST_ROOT must be an include root that contains a 'boost\' directory
+          "TONATIUH_BOOST_ROOT=$boostInc" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "TONATIUH_EIGEN_ROOT=$eigenInc" | Out-File -FilePath $env:GITHUB_ENV -Append
+
       # ============================================================
       # NEW: Cache third_party/_build and third_party/_install
       # ============================================================
