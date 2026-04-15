@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Installer>
+  <!-- Basic Qt Installer Framework metadata for Tonatiuh++. -->
+  <Name>Tonatiuh++</Name>
+  <Version>0.1.8.16</Version>
+  <Title>Tonatiuh++ Installer</Title>
+  <Publisher>Tonatiuh++ Project</Publisher>
+
+  <!-- Default target path mirrors current CMake install prefix behavior. -->
+  <StartMenuDirName>Tonatiuh++</StartMenuDirName>
+  <TargetDir>@HomeDir@/tonatiuhpp</TargetDir>
+
+  <!-- No remote repository configured yet; future release automation will add this. -->
+  <RemoteRepositories/>
+</Installer>

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Package>
+  <DisplayName>Tonatiuh++</DisplayName>
+  <Description>Qt-based solar raytracing application built with Tonatiuh++.</Description>
+  <Version>0.1.8.16</Version>
+  <Default>true</Default>
+  <!-- installscript.qs is omitted for now because no custom install steps are required yet. -->
+</Package>
