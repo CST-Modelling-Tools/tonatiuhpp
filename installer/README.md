@@ -6,12 +6,20 @@ Files:
 - `config/config.xml` — installer metadata and default install paths
 - `packages/com.tonatiuh.app/meta/package.xml` — package metadata for the application
 - `packages/com.tonatiuh.app/data/` — placeholder package payload directory
+- `prepare_ifw_payload.py` — script to stage CMake install output into package data
+- `create_installer.py` — script to generate Qt IFW installer from staged payload
 
 Notes:
 - No installer payload is populated yet.
 - No updater repository or update configuration is included yet.
 - Version values are currently hard-coded from `source/CMakeLists.txt` and should be automated later.
 - `installscript.qs` is intentionally omitted; no custom installer scripting is required in this initial skeleton.
+
+## Prerequisites
+
+- Qt Installer Framework installed and `binarycreator` in PATH or specified via `--binarycreator`
+- CMake build tree configured (e.g., `cmake -S source -B build`)
+- Python 3 for running the scripts
 
 ## Staging the package payload
 
@@ -31,3 +39,39 @@ This will:
 The script only allows the package data target under the intended Qt IFW package path, to avoid accidental staging elsewhere.
 
 The staged payload is then ready for later Qt IFW packaging.
+
+## Generating the installer locally
+
+After staging the payload, run the installer generation script.
+
+Examples:
+
+### Windows
+```bash
+python installer/create_installer.py --binarycreator "C:\Qt\Tools\QtInstallerFramework\4.6\bin\binarycreator.exe"
+```
+
+### macOS
+```bash
+python installer/create_installer.py --binarycreator "/opt/Qt/Tools/QtInstallerFramework/4.6/bin/binarycreator"
+```
+
+### Linux
+```bash
+python installer/create_installer.py --binarycreator "/opt/Qt/Tools/QtInstallerFramework/4.6/bin/binarycreator"
+```
+
+This will:
+- validate that the Qt IFW skeleton and staged payload exist
+- invoke `binarycreator` to generate the installer
+- place the output in `installer/output/` with a platform-specific extension (e.g., `.exe` on Windows, no extension on Unix)
+
+## What is intentionally not yet handled
+
+- Qt deployment tools (windeployqt, macdeployqt)
+- Dependency bundling
+- Updater repository configuration
+- Signing or notarization
+- CI/CD automation
+- Maintenance tool integration
+- OS-specific installer polish beyond binarycreator defaults
