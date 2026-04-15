@@ -120,3 +120,7 @@ third_party/*/src/*/tests/
 
 # --- Auto-written hints (from build_deps.py) ---
 cmake/LocalDepsHints.cmake
+
+installer/packages/com.tonatiuh.app/data/
+installer/output/
+build/install-staging/

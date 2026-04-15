@@ -44,6 +44,21 @@ def parse_args() -> argparse.Namespace:
         help="CMake executable to use.",
     )
     parser.add_argument(
+        "--windeployqt",
+        default=None,
+        help="Explicit path to windeployqt executable.",
+    )
+    parser.add_argument(
+        "--skip-build",
+        action="store_true",
+        help="Skip CMake build step and use an existing build tree.",
+    )
+    parser.add_argument(
+        "--skip-install",
+        action="store_true",
+        help="Skip CMake install step and use an existing staged install tree.",
+    )
+    parser.add_argument(
         "--verbose",
         action="store_true",
         help="Print detailed status messages.",
@@ -112,8 +127,14 @@ def find_staged_application(staging_dir: Path) -> tuple[Path, bool]:
     )
 
 
-def deploy_windows(staged_exe: Path, verbose: bool = False) -> None:
-    windeployqt = resolve_tool("windeployqt")
+def deploy_windows(staged_exe: Path, windeployqt_path: str | None = None, verbose: bool = False) -> None:
+    if windeployqt_path:
+        windeployqt = Path(windeployqt_path)
+        if not windeployqt.exists():
+            raise SystemExit(f"windeployqt not found at: {windeployqt}")
+    else:
+        windeployqt = resolve_tool("windeployqt")
+
     target_dir = staged_exe.parent
     cmd = [
         str(windeployqt),
@@ -123,7 +144,7 @@ def deploy_windows(staged_exe: Path, verbose: bool = False) -> None:
         str(staged_exe),
     ]
     if verbose:
-        cmd.append("--verbose")
+        cmd += ["--verbose", "1"]
     run_command(cmd, verbose=verbose)
 
 
@@ -176,6 +197,11 @@ def main() -> None:
             "Create the CMake build tree first, for example: `cmake -S source -B build`."
         )
 
+    if args.skip_install and not staging_dir.exists():
+        raise SystemExit(
+            f"Staging directory must exist when --skip-install is used: {staging_dir}"
+        )
+
     if not (package_data_dir == default_package_data_dir or default_package_data_dir in package_data_dir.parents):
         raise SystemExit(
             f"Package data directory must be the intended IFW data path or a subdirectory of it: {default_package_data_dir}"
@@ -189,24 +215,35 @@ def main() -> None:
     remove_path(package_data_dir, verbose=args.verbose)
     package_data_dir.mkdir(parents=True, exist_ok=True)
 
-    remove_path(staging_dir, verbose=args.verbose)
-    staging_dir.mkdir(parents=True, exist_ok=True)
+    if not args.skip_install:
+        remove_path(staging_dir, verbose=args.verbose)
+        staging_dir.mkdir(parents=True, exist_ok=True)
+    elif not staging_dir.exists():
+        raise SystemExit(
+            f"Staging directory must exist when --skip-install is used: {staging_dir}"
+        )
 
-    build_command = [args.cmake, "--build", str(build_dir)]
-    if args.config:
-        build_command += ["--config", args.config]
-    run_command(build_command, verbose=args.verbose)
+    if not args.skip_build:
+        build_command = [args.cmake, "--build", str(build_dir)]
+        if args.config:
+            build_command += ["--config", args.config]
+        run_command(build_command, verbose=args.verbose)
+    elif args.verbose:
+        print("Skipping build step as requested.")
 
-    install_command = [args.cmake, "--install", str(build_dir), "--prefix", str(staging_dir)]
-    if args.config:
-        install_command += ["--config", args.config]
-    run_command(install_command, verbose=args.verbose)
+    if not args.skip_install:
+        install_command = [args.cmake, "--install", str(build_dir), "--prefix", str(staging_dir)]
+        if args.config:
+            install_command += ["--config", args.config]
+        run_command(install_command, verbose=args.verbose)
+    elif args.verbose:
+        print("Skipping install step as requested; using existing staging tree.")
 
     staged_target, is_bundle = find_staged_application(staging_dir)
     if sys.platform.startswith("win"):
         if args.verbose:
             print(f"Deploying Qt runtime on Windows for {staged_target}")
-        deploy_windows(staged_target, verbose=args.verbose)
+        deploy_windows(staged_target, args.windeployqt, verbose=args.verbose)
     elif sys.platform == "darwin":
         if not is_bundle:
             raise SystemExit(

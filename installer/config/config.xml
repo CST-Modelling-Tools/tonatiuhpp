@@ -7,7 +7,6 @@
   <Publisher>Tonatiuh++ Project</Publisher>
 
   <!-- Default target path mirrors current CMake install prefix behavior. -->
-  <StartMenuDirName>Tonatiuh++</StartMenuDirName>
   <TargetDir>@HomeDir@/tonatiuhpp</TargetDir>
 
   <!-- No remote repository configured yet; future release automation will add this. -->
