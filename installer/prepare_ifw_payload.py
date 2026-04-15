@@ -4,6 +4,7 @@
 import argparse
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 
@@ -56,6 +57,16 @@ def run_command(cmd: list[str], verbose: bool = False) -> None:
     subprocess.run(cmd, check=True)
 
 
+def resolve_tool(tool_name: str) -> Path:
+    candidate = Path(tool_name)
+    if candidate.exists():
+        return candidate.resolve()
+    resolved = shutil.which(tool_name)
+    if resolved:
+        return Path(resolved).resolve()
+    raise SystemExit(f"Required tool not found: {tool_name}")
+
+
 def remove_path(path: Path, verbose: bool = False) -> None:
     if not path.exists():
         return
@@ -75,6 +86,79 @@ def copy_tree(src: Path, dst: Path, verbose: bool = False) -> None:
     if verbose:
         print(f"Copying staged install tree: {src} -> {dst}")
     shutil.copytree(src, dst, symlinks=True)
+
+
+def find_staged_application(staging_dir: Path) -> tuple[Path, bool]:
+    # Search recursively for TonatiuhPP.app bundle
+    for app_bundle in staging_dir.rglob("TonatiuhPP.app"):
+        if app_bundle.is_dir():
+            return app_bundle, True
+
+    bin_dir = staging_dir / "bin"
+    candidates = [
+        bin_dir / "tonatiuhpp.exe",
+        bin_dir / "TonatiuhPP.exe",
+        bin_dir / "tonatiuhpp",
+        bin_dir / "TonatiuhPP",
+    ]
+
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate, False
+
+    raise SystemExit(
+        f"Staged Tonatiuh++ executable not found in {staging_dir}.\n"
+        "Ensure the CMake install step produced the application under staging/bin/ or as TonatiuhPP.app."
+    )
+
+
+def deploy_windows(staged_exe: Path, verbose: bool = False) -> None:
+    windeployqt = resolve_tool("windeployqt")
+    target_dir = staged_exe.parent
+    cmd = [
+        str(windeployqt),
+        "--dir",
+        str(target_dir),
+        "--no-translations",
+        str(staged_exe),
+    ]
+    if verbose:
+        cmd.append("--verbose")
+    run_command(cmd, verbose=verbose)
+
+
+def deploy_macos(app_bundle: Path, verbose: bool = False) -> None:
+    macdeployqt = resolve_tool("macdeployqt")
+    cmd = [str(macdeployqt), str(app_bundle)]
+    if verbose:
+        cmd.append("-verbose=1")
+    run_command(cmd, verbose=verbose)
+
+
+def verify_linux_bundling(staging_dir: Path, verbose: bool = False) -> None:
+    lib_dir = staging_dir / "lib"
+    platforms_dir = staging_dir / "bin" / "platforms"
+    qt_lib_found = False
+    if lib_dir.exists():
+        for item in lib_dir.iterdir():
+            if item.name.startswith("libQt6"):
+                qt_lib_found = True
+                break
+
+    if not qt_lib_found:
+        raise SystemExit(
+            "Linux staging did not include bundled Qt runtime libraries.\n"
+            "Ensure Linux Qt deployment is enabled in the CMake install step and rerun the staging script."
+        )
+
+    if not platforms_dir.exists():
+        raise SystemExit(
+            "Linux staging did not include Qt platform plugins.\n"
+            "Ensure Linux Qt deployment is enabled in the CMake install step and rerun the staging script."
+        )
+
+    if verbose:
+        print("Linux Qt runtime deployment appears present in staging.")
 
 
 def main() -> None:
@@ -117,6 +201,25 @@ def main() -> None:
     if args.config:
         install_command += ["--config", args.config]
     run_command(install_command, verbose=args.verbose)
+
+    staged_target, is_bundle = find_staged_application(staging_dir)
+    if sys.platform.startswith("win"):
+        if args.verbose:
+            print(f"Deploying Qt runtime on Windows for {staged_target}")
+        deploy_windows(staged_target, verbose=args.verbose)
+    elif sys.platform == "darwin":
+        if not is_bundle:
+            raise SystemExit(
+                "macOS runtime deployment requires a .app bundle."
+                " Current staging did not produce TonatiuhPP.app."
+            )
+        if args.verbose:
+            print(f"Deploying Qt runtime on macOS for {staged_target}")
+        deploy_macos(staged_target, verbose=args.verbose)
+    else:
+        if args.verbose:
+            print("Verifying Linux Qt runtime bundling in staged output")
+        verify_linux_bundling(staging_dir, verbose=args.verbose)
 
     copy_tree(staging_dir, package_data_dir, verbose=args.verbose)
 

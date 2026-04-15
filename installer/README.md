@@ -6,7 +6,7 @@ Files:
 - `config/config.xml` — installer metadata and default install paths
 - `packages/com.tonatiuh.app/meta/package.xml` — package metadata for the application
 - `packages/com.tonatiuh.app/data/` — placeholder package payload directory
-- `prepare_ifw_payload.py` — script to stage CMake install output into package data
+- `prepare_ifw_payload.py` — script to stage CMake install output into package data and deploy Qt runtime
 - `create_installer.py` — script to generate Qt IFW installer from staged payload
 
 Notes:
@@ -18,12 +18,15 @@ Notes:
 ## Prerequisites
 
 - Qt Installer Framework installed and `binarycreator` in PATH or specified via `--binarycreator`
+- Qt deployment tools available on PATH for runtime staging:
+  - Windows: `windeployqt`
+  - macOS: `macdeployqt` (supported only for `.app` bundle builds)
 - CMake build tree configured (e.g., `cmake -S source -B build`)
 - Python 3 for running the scripts
 
 ## Staging the package payload
 
-Run the helper script to stage CMake install output into the Qt IFW package data tree.
+Run the helper script to stage CMake install output into the Qt IFW package data tree and deploy Qt runtime dependencies.
 
 Example:
 
@@ -34,9 +37,12 @@ python installer/prepare_ifw_payload.py --build-dir build --config Release
 This will:
 - build the project from `build/`
 - install into `build/install-staging/`
+- apply Qt runtime deployment on Windows and macOS when supported
 - copy the staged tree into `installer/packages/com.tonatiuh.app/data/`
 
 The script only allows the package data target under the intended Qt IFW package path, to avoid accidental staging elsewhere.
+
+On Linux, the staging step validates that Qt runtime libraries and platform plugins are present in the staged tree.
 
 The staged payload is then ready for later Qt IFW packaging.
 
@@ -68,10 +74,9 @@ This will:
 
 ## What is intentionally not yet handled
 
-- Qt deployment tools (windeployqt, macdeployqt)
-- Dependency bundling
-- Updater repository configuration
-- Signing or notarization
+- dependency bundling beyond Qt runtime deployment
+- updater repository configuration
+- signing or notarization
 - CI/CD automation
-- Maintenance tool integration
+- maintenance tool integration
 - OS-specific installer polish beyond binarycreator defaults
