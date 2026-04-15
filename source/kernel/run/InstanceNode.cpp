@@ -2,6 +2,10 @@
 
 #include <iostream>
 
+#include <QDataStream>
+#include <QtAlgorithms>
+#include <QtGlobal>
+
 #include <Inventor/nodes/SoNode.h>
 #include <Inventor/actions/SoGetBoundingBoxAction.h>
 
@@ -13,15 +17,14 @@
 #include "libraries/math/3D/Ray.h"
 #include "libraries/math/3D/Transform.h"
 #include "scene/TShapeKit.h"
-#include "shape//DifferentialGeometry.h"
+#include "shape/DifferentialGeometry.h"
 #include "sun/SunKit.h"
 #include "trackers/TrackerArmature.h"
 
-
-InstanceNode::InstanceNode(SoNode* node):
-    m_node(node), m_parent(0)
+InstanceNode::InstanceNode(SoNode* node)
+    : m_node(node)
+    , m_parent(nullptr)
 {
-
 }
 
 InstanceNode::~InstanceNode()
@@ -37,6 +40,7 @@ void InstanceNode::addChild(InstanceNode* child)
     children << child;
     child->m_parent = this;
 }
+
 /**
  * Inserts the \a instanceChild node as child number \a row.
  **/
@@ -57,9 +61,13 @@ void InstanceNode::replaceChild(int row, InstanceNode* child)
 
 bool InstanceNode::operator==(const InstanceNode& other)
 {
-    return
-        m_node == other.m_node &&
-        m_parent->m_node == other.m_parent->m_node;
+    if (m_node != other.m_node) return false;
+
+    // Root-safe comparison
+    if (m_parent == nullptr && other.m_parent == nullptr) return true;
+    if (m_parent == nullptr || other.m_parent == nullptr) return false;
+
+    return m_parent->m_node == other.m_parent->m_node;
 }
 
 QString InstanceNode::getURL() const
@@ -79,7 +87,7 @@ void InstanceNode::Print(int level) const
               << " children " << std::endl;
 
     for (InstanceNode* child : children)
-        child->Print(level++);
+        child->Print(level + 1); // was level++
 }
 
 bool InstanceNode::intersect(const Ray& rayIn, Random& rand, bool& isFront, InstanceNode*& instance, Ray& rayOut)
@@ -92,7 +100,7 @@ bool InstanceNode::intersect(const Ray& rayIn, Random& rand, bool& isFront, Inst
     if (instance1 != this)
         return instance1->intersect(rayIn, rand, isFront, instance, rayOut);
 
-//    if (TShapeKit* kit = dynamic_cast<TShapeKit*>(m_node)) // slower
+    // if (TShapeKit* kit = dynamic_cast<TShapeKit*>(m_node)) // slower
     if (m_node->getTypeId() == TShapeKit::getClassTypeId()) // faster
     {
         TShapeKit* kit = (TShapeKit*) m_node;
@@ -109,6 +117,7 @@ bool InstanceNode::intersect(const Ray& rayIn, Random& rand, bool& isFront, Inst
         double tHit = 0.;
         DifferentialGeometry dg;
         if (!shape->intersect(rayLocal, &tHit, &dg, profile)) return false;
+
         rayIn.tMax = tHit;
         isFront = dg.isFront;
         instance = this;
@@ -124,6 +133,7 @@ bool InstanceNode::intersect(const Ray& rayIn, Random& rand, bool& isFront, Inst
     {
         bool hasRayOut = false;
         double t = rayIn.tMax;
+
         for (InstanceNode* instanceChild : children)
         {
             Ray rayOutChild;
@@ -141,6 +151,7 @@ bool InstanceNode::intersect(const Ray& rayIn, Random& rand, bool& isFront, Inst
         }
         return hasRayOut;
     }
+
     return false;
 }
 
@@ -161,8 +172,7 @@ void InstanceNode::updateTree(const Transform& tParent)
     if (TSeparatorKit* separatorKit = dynamic_cast<TSeparatorKit*>(m_node))
     {
         TTransform* t = SO_GET_PART(separatorKit, "transform", TTransform);
-//        SoTransform* t = (SoTransform*) separatorKit->getPart("transform", true);
-        m_transform = tParent*tgf::makeTransform(t);
+        m_transform = tParent * tgf::makeTransform(t);
 
         Box3D box;
         for (InstanceNode* child : children)
@@ -177,7 +187,7 @@ void InstanceNode::updateTree(const Transform& tParent)
         TShapeKit* kit = (TShapeKit*) m_node;
 
         if (TTransform* t = (TTransform*) shapeKit->getPart("transform", false))
-            m_transform = tParent*tgf::makeTransform(t);
+            m_transform = tParent * tgf::makeTransform(t);
         else
             m_transform = tParent;
 
@@ -187,7 +197,7 @@ void InstanceNode::updateTree(const Transform& tParent)
     }
 }
 
-void InstanceNode::collectShapeTransforms(QStringList disabledNodes, QVector<QPair<TShapeKit*, Transform> >& shapes)
+void InstanceNode::collectShapeTransforms(QStringList disabledNodes, QVector<QPair<TShapeKit*, Transform>>& shapes)
 {
     if (disabledNodes.contains(getURL())) return;
 
@@ -202,16 +212,26 @@ void InstanceNode::collectShapeTransforms(QStringList disabledNodes, QVector<QPa
     }
 }
 
-/*
+// -----------------------------------------------------------------------------
+// QDataStream operators
+// NOTE: operator>> must take a NON-CONST reference.
+// Also ensure your InstanceNode.h declares these with the same signatures.
+// -----------------------------------------------------------------------------
+
 QDataStream& operator<<(QDataStream& s, const InstanceNode& node)
 {
-    s << node.getNode();
+    // Minimal serialization placeholder.
+    // Replace with whatever you actually want to serialize.
+    s << node.getURL();
     return s;
 }
 
-QDataStream& operator>>(QDataStream& s, const InstanceNode& node)
+QDataStream& operator>>(QDataStream& s, InstanceNode& node)
 {
-    s >> node;
+    // Minimal deserialization placeholder.
+    // This exists mainly so the symbol is available to the linker.
+    QString dummy;
+    s >> dummy;
+    Q_UNUSED(node);
     return s;
 }
-*/

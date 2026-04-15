@@ -1,20 +1,17 @@
 #!/usr/bin/env python3
 # Tonatiuh++ dependency builder (incremental)
-# - Builds dependencies defined in third_party/deps.yaml
-# - Installs under third_party/_install
-# - Verifies with header/lib checks and an optional compile-check
-# - Skips already-verified deps via .ok markers (use --force to rebuild)
-# - Windows: forces x64 generator and ensures MSVC x64 env (via VsDevCmd if available,
-#             otherwise by deriving VC/SDK lib/include paths)
-# - Writes cmake/LocalDepsHints.cmake with discovered prefixes (Qt, Eigen, Boost, _install)
-# - Doctor shows global vs effective PATH and warns only on effective PATH
 #
-# IMPROVEMENTS (requested):
-# - Add explicit overrides for Qt/Boost/Eigen roots (CLI + env), keeping auto-detect fallback.
-# - Fix Eigen detection to support non-3.x layouts (e.g. C:\eigen-5.0.0).
-# - Make VsDevCmd discovery work for newer VS versions (not hardcoded to 2022 paths).
-# - Avoid adding ARM64 Qt prefixes when targeting x64 (Windows).
-# - Improve validation and error messages for overridden roots.
+# Key fixes included:
+# - Eigen detection is now robust on macOS (Homebrew /opt/homebrew include roots, brew --prefix eigen).
+# - CMAKE_PREFIX_PATH is no longer polluted with raw include directories (e.g. /usr/include/eigen3).
+# - LocalDepsHints.cmake writes EIGEN3_INCLUDE_DIR separately and keeps CMAKE_PREFIX_PATH as real prefixes only.
+# - get_cmake_prefix_paths now adds sane system prefixes across OSes (/usr, /usr/local, /opt/homebrew) without
+#   forcing a specific Ubuntu version.
+#
+# Additional CI hardening:
+# - Per-OS sanitization of CMake options (e.g. disable SIMAGE_USE_GDIPLUS on non-Windows).
+# - Never pass empty -DEigen3_DIR= (can confuse CMake).
+# - Probe compile-check: strip Windows-only defines (SOQT_DLL, SIMAGE_DLL) on non-Windows.
 
 import argparse
 import fnmatch
@@ -49,10 +46,24 @@ USER_OVERRIDES: dict[str, str | None] = {"qt_root": None, "boost_root": None, "e
 # ----------------------------
 
 def run(cmd, cwd=None, env=None):
-    """Run a command with logging and error propagation."""
-    print("$", " ".join(map(str, cmd)))
-    subprocess.check_call(cmd, cwd=cwd, env=env or os.environ.copy())
-
+    env = env or os.environ.copy()
+    try:
+        # Capture output so we can print it on failure (GitHub Actions otherwise hides it sometimes)
+        p = subprocess.run(
+            cmd,
+            cwd=cwd,
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            check=True,
+        )
+        if p.stdout:
+            print(p.stdout, end="" if p.stdout.endswith("\n") else "\n")
+    except subprocess.CalledProcessError as e:
+        if e.stdout:
+            print(e.stdout, end="" if e.stdout.endswith("\n") else "\n")
+        raise
 
 def cmake_generator():
     if platform.system() == "Windows":
@@ -89,6 +100,87 @@ def find_lib_files(lib_base: str):
     matches.sort(key=lambda p: (p.suffix.lower() in [".dll"], str(p)))
     return matches
 
+def has_system_simage() -> bool:
+    """
+    Return True if a usable system simage is available.
+    We prefer pkg-config, but also accept header presence as fallback.
+    """
+    import shutil
+    import subprocess
+    from pathlib import Path
+
+    pc = shutil.which("pkg-config")
+    if pc:
+        for name in ("simage", "simage1", "simage-1"):
+            r = subprocess.run([pc, "--exists", name])
+            if r.returncode == 0:
+                return True
+
+    # Fallback: headers present (covers some distros/layouts)
+    return (
+        Path("/usr/include/simage/simage.h").exists()
+        or Path("/usr/include/simage.h").exists()
+    )
+
+def system_simage_version() -> str | None:
+    import shutil
+    import subprocess
+
+    pc = shutil.which("pkg-config")
+    if not pc:
+        return None
+
+    for name in ("simage", "simage1", "simage-1"):
+        r = subprocess.run([pc, "--modversion", name], capture_output=True, text=True)
+        if r.returncode == 0:
+            v = (r.stdout or "").strip()
+            return v or None
+
+    return None
+
+def _linux_multiarch_triplet() -> str | None:
+    if platform.system() != "Linux":
+        return None
+    try:
+        if shutil.which("dpkg-architecture"):
+            return subprocess.check_output(
+                ["dpkg-architecture", "-qDEB_HOST_MULTIARCH"], text=True
+            ).strip() or None
+    except Exception:
+        pass
+    return None
+
+
+def _linux_qt6_include_roots() -> list[str]:
+    """
+    Return likely Qt6 include roots on Ubuntu/Debian:
+      - /usr/include/<triplet>/qt6
+      - /usr/include/qt6
+    """
+    roots: list[str] = []
+    trip = _linux_multiarch_triplet()
+    if trip:
+        roots.append(f"/usr/include/{trip}/qt6")
+    roots.append("/usr/include/qt6")
+    return [r for r in roots if os.path.isdir(r)]
+
+
+def _linux_has_system_qt6() -> bool:
+    """
+    Detect if Qt6 is installed via system packages (CMake config present).
+    Used only to decide whether to add Qt include dirs during probe builds.
+    """
+    if platform.system() != "Linux":
+        return False
+    candidates = [
+        "/usr/lib/x86_64-linux-gnu/cmake/Qt6",
+        "/usr/lib/aarch64-linux-gnu/cmake/Qt6",
+        "/usr/lib/cmake/Qt6",
+        "/usr/lib64/cmake/Qt6",
+        "/usr/lib/qt6/lib/cmake/Qt6",
+    ]
+    return any(os.path.isdir(p) for p in candidates)
+
 
 # ----------------------------
 # Root overrides + validation
@@ -106,27 +198,9 @@ def _validate_qt_root(qt_root: str) -> str:
     if not os.path.isdir(qt6_dir):
         raise SystemExit(
             f"[error] --qt-root does not look like a Qt prefix (missing {qt6_dir}).\n"
-            f"        Expected something like: C:\\Qt\\6.x.x\\msvc2022_64"
+            r"        Expected something like: C:\Qt\6.x.x\msvc2022_64"
         )
     return qt_root
-
-
-def _validate_boost_root(boost_root: str) -> str:
-    boost_root = _norm(boost_root)
-    hdr = os.path.join(boost_root, "boost", "version.hpp")
-    if not os.path.isdir(boost_root):
-        raise SystemExit(f"[error] --boost-root points to a non-existing directory: {boost_root}")
-    if not os.path.isfile(hdr):
-        # Some installs might be /usr with include/boost/..., but on Windows we expect headers at root.
-        hdr2 = os.path.join(boost_root, "include", "boost", "version.hpp")
-        if not os.path.isfile(hdr2):
-            raise SystemExit(
-                f"[error] --boost-root does not contain boost headers:\n"
-                f"        missing {hdr}\n"
-                f"        (also checked {hdr2})"
-            )
-    return boost_root
-
 
 def _validate_eigen_root(eigen_root: str) -> str:
     eigen_root = _norm(eigen_root)
@@ -152,6 +226,76 @@ def _validate_eigen_root(eigen_root: str) -> str:
         )
     return eigen_root
 
+def _validate_boost_root(boost_root: str) -> str:
+    """
+    Validate and normalize Boost root.
+
+    Accepts common layouts:
+      A) include-root:           <root>/boost/<headers...>
+         examples: /usr/include, /opt/homebrew/include, C:\\vcpkg\\...\\include
+
+      B) prefix-root:            <root>/include/boost/<headers...>
+         examples: C:\\vcpkg\\installed\\x64-windows, custom prefixes
+
+      C) Windows zip layout:     <root>/boost_*/boost/<headers...> (caller passes that folder)
+         examples: C:\\local\\boost_1_84_0
+
+    Returns:
+      The include directory that should be used with -I (or /I on MSVC).
+    """
+    boost_root = _norm(boost_root)
+    if not os.path.isdir(boost_root):
+        raise SystemExit(f"[error] --boost-root points to a non-existing directory: {boost_root}")
+
+    candidates = []
+
+    # If user passed an include-root directly
+    candidates.append(boost_root)
+
+    # If user passed a prefix-root (common for vcpkg/custom installs)
+    candidates.append(os.path.join(boost_root, "include"))
+
+    def _looks_like_boost_include(inc: str) -> bool:
+        """
+        Must contain a 'boost' directory. Then try a couple of canonical headers.
+        Fall back to accepting the directory if 'boost' exists (some packaging layouts differ).
+        """
+        bdir = os.path.join(inc, "boost")
+        if not os.path.isdir(bdir):
+            return False
+
+        # Common canonical headers in normal Boost trees
+        canonical = [
+            os.path.join(bdir, "version.hpp"),
+            os.path.join(bdir, "config.hpp"),
+            os.path.join(bdir, "core", "demangle.hpp"),  # another common one
+        ]
+        if any(os.path.isfile(p) for p in canonical):
+            return True
+
+        # If the boost directory exists but canonical headers aren't present,
+        # still accept it as an include root; some package layouts restructure
+        # (CI/vcpkg-like). Real compile will be the ultimate proof.
+        return True
+
+    for inc in candidates:
+        inc = _norm(inc)
+        if os.path.isdir(inc) and _looks_like_boost_include(inc):
+            return inc
+
+    # Helpful diagnostics
+    checked = "\n".join(
+        f"          - {os.path.join(_norm(p), 'boost')}"
+        for p in candidates
+    )
+    raise SystemExit(
+        "[error] --boost-root does not appear to contain Boost headers.\n"
+        "        Expected either:\n"
+        "          - <boost_root>/boost/ (include root)\n"
+        "          - <boost_root>/include/boost/ (prefix root)\n"
+        "        Checked:\n"
+        f"{checked}"
+    )
 
 def _apply_overrides_from_env_and_args(args: argparse.Namespace) -> None:
     """
@@ -186,12 +330,10 @@ def choose_cxx():
     - Others: try c++/g++/clang++ in that order.
     """
     if platform.system() == "Windows":
-        # Prefer whatever cl.exe is active in the current dev shell
         cl = shutil.which("cl")
         if cl:
             return ("cl", cl)
 
-        # Fallback: try vswhere to find an installed MSVC toolchain
         cl_from_vs = _find_cl_via_vswhere()
         if cl_from_vs:
             return ("cl", cl_from_vs)
@@ -242,7 +384,6 @@ def _find_vsdevcmd():
         if os.path.exists(cand):
             return cand
 
-    # Fallback: scan a few common locations (do NOT hardcode a specific year)
     candidates = []
     for base in [r"C:\Program Files\Microsoft Visual Studio", r"C:\Program Files (x86)\Microsoft Visual Studio"]:
         if not os.path.isdir(base):
@@ -270,7 +411,10 @@ def _find_cl_via_vswhere() -> str | None:
     vc_tools_root = os.path.join(inst, "VC", "Tools", "MSVC")
     if not os.path.isdir(vc_tools_root):
         return None
-    versions = sorted([d for d in os.listdir(vc_tools_root) if os.path.isdir(os.path.join(vc_tools_root, d))], reverse=True)
+    versions = sorted(
+        [d for d in os.listdir(vc_tools_root) if os.path.isdir(os.path.join(vc_tools_root, d))],
+        reverse=True
+    )
     for ver in versions:
         cand = os.path.join(vc_tools_root, ver, "bin", "Hostx64", "x64", "cl.exe")
         if os.path.exists(cand):
@@ -287,9 +431,7 @@ def _join_paths(paths):
 
 
 def _probe_sdk_lib_paths():
-    """
-    Try to locate Windows 10/11 SDK lib dirs (ucrt/um x64). Return list of LIB paths (may be empty).
-    """
+    """Try to locate Windows 10/11 SDK lib dirs (ucrt/um x64). Return list of LIB paths (may be empty)."""
     roots = [
         r"C:\Program Files (x86)\Windows Kits\10\Lib",
         r"C:\Program Files\Windows Kits\10\Lib",
@@ -331,12 +473,7 @@ def _derive_vc_include_lib_from_cl(cl_path: str):
 
 
 def load_msvc_env_x64(env_in: dict) -> dict:
-    """
-    Load VS (MSVC) x64 dev environment by invoking VsDevCmd.bat -arch=x64 -host_arch=x64 (if available),
-    capture its environment via `set`, and merge into env_in. Otherwise return env_in unchanged.
-
-    NOTE: We do NOT print a scary error if VsDevCmd is missing; we just fall back.
-    """
+    """Load VS (MSVC) x64 dev environment via VsDevCmd if available."""
     if platform.system() != "Windows":
         return env_in.copy()
 
@@ -344,7 +481,6 @@ def load_msvc_env_x64(env_in: dict) -> dict:
     if not vsdev:
         return env_in.copy()
 
-    # Important: quote correctly for cmd.exe
     cmd = [
         "cmd.exe", "/s", "/c",
         f"\"\"{vsdev}\" -arch=x64 -host_arch=x64 >nul && set\""
@@ -363,21 +499,13 @@ def load_msvc_env_x64(env_in: dict) -> dict:
 
 
 def ensure_msvc_x64_env(env_in: dict) -> dict:
-    r"""
-    Ensure MSVC environment variables point to x64 toolchain/libs.
-    Strategy:
-      1) Try VsDevCmd -arch=x64 -host_arch=x64 (if available).
-      2) Sanitize LIB/PATH/INCLUDE to prefer x64 and drop x86 entries.
-      3) If CRT libs still missing, derive VC/SDK lib/include paths and prepend them.
-    """
+    """Ensure MSVC environment points to x64 toolchain/libs."""
     env = env_in.copy()
     if platform.system() != "Windows":
         return env
 
-    # 1) Try to import full VS x64 env
     env = load_msvc_env_x64(env)
 
-    # 2) Prefer x64 over x86 in LIB/PATH/INCLUDE
     def prefer_x64(paths):
         x64 = []
         neutral = []
@@ -396,7 +524,6 @@ def ensure_msvc_x64_env(env_in: dict) -> dict:
         if vals:
             env[key] = _join_paths(prefer_x64(vals))
 
-    # 3) If LIB still lacks VC/SDK x64 libs, derive and prepend
     cc_name, cc_path = choose_cxx()
     if cc_name == "cl" and cc_path:
         vc_inc, vc_lib = _derive_vc_include_lib_from_cl(cc_path)
@@ -416,19 +543,34 @@ def ensure_msvc_x64_env(env_in: dict) -> dict:
 
     return env
 
+def _qt6_to_framework_name(lib: str) -> str | None:
+    # Qt6Core -> QtCore, Qt6OpenGLWidgets -> QtOpenGLWidgets, etc.
+    if not lib.startswith("Qt6"):
+        return None
+    return "Qt" + lib[len("Qt6") :]
+
+def _find_qt_framework_dirs(prefixes: list[str]) -> list[str]:
+    out = []
+    for p in prefixes:
+        libdir = Path(p) / "lib"
+        if (libdir / "QtCore.framework").exists():
+            out.append(str(libdir))
+    # de-dupe
+    seen = set()
+    res = []
+    for x in out:
+        if x not in seen:
+            res.append(x)
+            seen.add(x)
+    return res
 
 def resolve_lib_paths(lib_basenames: list[str], prefixes: list[str]) -> list[str]:
     """
     Given library base names like ["Qt6Core","Qt6Gui"], return absolute paths
-    to library files by searching <prefix>/lib across all prefixes.
+    to library files by searching <prefix>/{lib,lib64,lib/<multiarch>} across prefixes.
     """
-    exts_win = [".lib", ".dll"]
-    exts_macos = [".dylib", ".a"]
-    exts_lin = [".so", ".so.6", ".a"]
-
     is_win = platform.system() == "Windows"
     is_mac = platform.system() == "Darwin"
-    exts = exts_win if is_win else (exts_macos if is_mac else exts_lin)
 
     results = []
     multiarch_lib_subdirs = [
@@ -445,10 +587,23 @@ def resolve_lib_paths(lib_basenames: list[str], prefixes: list[str]) -> list[str
                 libdir = os.path.join(p, sub)
                 if not os.path.isdir(libdir):
                     continue
+
                 if is_win:
-                    candidates = [os.path.join(libdir, f"{base}{ext}") for ext in exts]
+                    candidates = [os.path.join(libdir, f"{base}.lib"), os.path.join(libdir, f"{base}.dll")]
+                elif is_mac:
+                    candidates = [
+                        os.path.join(libdir, f"lib{base}.dylib"),
+                        os.path.join(libdir, f"lib{base}.a"),
+                        os.path.join(libdir, f"{base}.framework", "Versions", "A", base),
+                        os.path.join(libdir, f"{base}.framework", base),
+                    ]
                 else:
-                    candidates = [os.path.join(libdir, f"lib{base}{ext}") for ext in exts]
+                    candidates = [
+                        os.path.join(libdir, f"lib{base}.so"),
+                        os.path.join(libdir, f"lib{base}.a"),
+                    ]
+                    candidates.extend(glob.glob(os.path.join(libdir, f"lib{base}.so.*")))
+
                 for cand in candidates:
                     if os.path.exists(cand):
                         found = cand
@@ -460,6 +615,99 @@ def resolve_lib_paths(lib_basenames: list[str], prefixes: list[str]) -> list[str
         if found:
             results.append(found)
     return results
+
+
+# ----------------------------
+# Eigen detection (robust)
+# ----------------------------
+
+def _brew_prefix(pkg: str) -> str | None:
+    """
+    Best-effort: return `brew --prefix <pkg>` if brew exists, else None.
+    """
+    if platform.system() != "Darwin":
+        return None
+    brew = shutil.which("brew")
+    if not brew:
+        return None
+    try:
+        out = subprocess.check_output([brew, "--prefix", pkg], text=True).strip()
+        return out or None
+    except Exception:
+        return None
+
+
+def detect_eigen_include_root(env: dict) -> str | None:
+    r"""
+    Return an include root that makes `#include <Eigen/Core>` work.
+    Priority:
+      1) explicit override --eigen-root / TONATIUH_EIGEN_ROOT
+      2) EIGEN3_INCLUDE_DIR / EIGEN3_ROOT (env) if valid
+      3) PREFIX installs: <_install>/include/eigen3 or <_install>/eigen3 or <_install>
+      4) system/common: /usr/include/eigen3, /usr/local/include/eigen3
+      5) macOS Homebrew: /opt/homebrew/include/eigen3, /opt/homebrew/opt/eigen/include/eigen3, brew --prefix eigen
+      6) Windows typical: C:\eigen-* (root or include/eigen3)
+    """
+    if USER_OVERRIDES.get("eigen_root"):
+        er = USER_OVERRIDES["eigen_root"]
+        if er:
+            if os.path.isfile(os.path.join(er, "Eigen", "Core")):
+                return er
+            if os.path.isfile(os.path.join(er, "include", "eigen3", "Eigen", "Core")):
+                return os.path.join(er, "include", "eigen3")
+            if os.path.isfile(os.path.join(er, "eigen3", "Eigen", "Core")):
+                return os.path.join(er, "eigen3")
+
+    for key in ("EIGEN3_INCLUDE_DIR", "EIGEN3_ROOT", "EIGEN_ROOT"):
+        val = env.get(key)
+        if val and os.path.isdir(val):
+            if os.path.isfile(os.path.join(val, "Eigen", "Core")):
+                return val
+            if os.path.isfile(os.path.join(val, "include", "eigen3", "Eigen", "Core")):
+                return os.path.join(val, "include", "eigen3")
+            if os.path.isfile(os.path.join(val, "eigen3", "Eigen", "Core")):
+                return os.path.join(val, "eigen3")
+
+    cand = PREFIX / "include" / "eigen3"
+    if (cand / "Eigen" / "Core").is_file():
+        return str(cand)
+    cand = PREFIX / "eigen3"
+    if (cand / "Eigen" / "Core").is_file():
+        return str(cand)
+    cand = PREFIX
+    if (cand / "Eigen" / "Core").is_file():
+        return str(cand)
+
+    for p in ("/usr/include/eigen3", "/usr/local/include/eigen3"):
+        if os.path.isfile(os.path.join(p, "Eigen", "Core")):
+            return p
+
+    if platform.system() == "Darwin":
+        for p in (
+            "/opt/homebrew/include/eigen3",
+            "/opt/homebrew/opt/eigen/include/eigen3",
+            "/usr/local/include/eigen3",
+            "/usr/local/opt/eigen/include/eigen3",
+        ):
+            if os.path.isfile(os.path.join(p, "Eigen", "Core")):
+                return p
+        bp = _brew_prefix("eigen")
+        if bp:
+            p = os.path.join(bp, "include", "eigen3")
+            if os.path.isfile(os.path.join(p, "Eigen", "Core")):
+                return p
+
+    if platform.system() == "Windows":
+        for pat in (r"C:\eigen-*", r"C:\eigen3", r"C:\local\eigen-*", r"C:\local\eigen3"):
+            for base in glob.glob(pat):
+                if os.path.isfile(os.path.join(base, "Eigen", "Core")):
+                    return base
+                if os.path.isfile(os.path.join(base, "include", "eigen3", "Eigen", "Core")):
+                    return os.path.join(base, "include", "eigen3")
+                if os.path.isfile(os.path.join(base, "eigen3", "Eigen", "Core")):
+                    return os.path.join(base, "eigen3")
+
+    return None
 
 
 # ----------------------------
@@ -480,12 +728,10 @@ def _detect_qt_prefixes() -> list[str]:
     Auto-detect Qt prefixes.
     Windows: only pick msvc*_64 (avoid msvc_arm64 when building x64).
     """
-    found: list[str] = []
-
-    # 1) Respect explicit override first
     if USER_OVERRIDES.get("qt_root"):
         return [USER_OVERRIDES["qt_root"]]  # type: ignore[return-value]
 
+    found: list[str] = []
     try:
         if platform.system() == "Windows":
             roots = [r"C:\Qt"]
@@ -497,13 +743,11 @@ def _detect_qt_prefixes() -> list[str]:
             for pat in patterns:
                 candidates += glob.glob(pat)
 
-            # Filter: must contain Qt6 config, and prefer x64 kits
             candidates = [c for c in candidates if _qt6_dir_from_prefix(c)]
             candidates = [c for c in candidates if "arm64" not in c.lower()]
 
             def ver_key(p):
-                parts = Path(p).parts
-                for part in parts:
+                for part in Path(p).parts:
                     if part.startswith("6."):
                         try:
                             return tuple(int(x) for x in part.split(".") if x.isdigit())
@@ -522,8 +766,7 @@ def _detect_qt_prefixes() -> list[str]:
                 candidates = [c for c in candidates if _qt6_dir_from_prefix(c)]
 
                 def ver_key(p):
-                    parts = Path(p).parts
-                    for part in parts:
+                    for part in Path(p).parts:
                         if part.startswith("6."):
                             try:
                                 return tuple(int(x) for x in part.split(".") if x.isdigit())
@@ -541,7 +784,6 @@ def _detect_qt_prefixes() -> list[str]:
 def _qt_prefixes_from_env(env: dict) -> list[str]:
     prefixes: list[str] = []
 
-    # 1) Override wins
     if USER_OVERRIDES.get("qt_root"):
         return [USER_OVERRIDES["qt_root"]]  # type: ignore[return-value]
 
@@ -559,7 +801,6 @@ def _qt_prefixes_from_env(env: dict) -> list[str]:
         except Exception:
             pass
 
-    # De-dupe
     seen = set()
     out = []
     for p in prefixes:
@@ -569,38 +810,15 @@ def _qt_prefixes_from_env(env: dict) -> list[str]:
     return out
 
 
-def _derive_eigen_include_from_prefixes(prefixes: list[str]) -> str | None:
-    """
-    Return an include root that makes <Eigen/Core> work.
-    Accepted layouts:
-      - <p>/Eigen/Core
-      - <p>/include/eigen3/Eigen/Core  -> return <p>/include/eigen3
-      - <p>/eigen3/Eigen/Core          -> return <p>/eigen3
-    """
-    for p in prefixes:
-        if os.path.isfile(os.path.join(p, "Eigen", "Core")):
-            return p
-        inc_eigen3 = os.path.join(p, "include", "eigen3", "Eigen", "Core")
-        if os.path.isfile(inc_eigen3):
-            return os.path.join(p, "include", "eigen3")
-        if os.path.isfile(os.path.join(p, "eigen3", "Eigen", "Core")):
-            return os.path.join(p, "eigen3")
-    return None
-
-
 def _probe_boost_root(env: dict) -> str | None:
     """
     Try to find a usable Boost root:
       1) Explicit override (CLI/env)
       2) Respect BOOST_ROOT / Boost_ROOT if set and valid.
       3) Otherwise, look in a few common locations.
-    Returns a path or None.
     """
-    # 1) override
     if USER_OVERRIDES.get("boost_root"):
         return USER_OVERRIDES["boost_root"]
-
-    import glob as _glob
 
     for key in ("BOOST_ROOT", "Boost_ROOT"):
         val = env.get(key)
@@ -615,7 +833,7 @@ def _probe_boost_root(env: dict) -> str | None:
     if platform.system() == "Windows":
         candidates = []
         for pat in (r"C:\boost_1_*", r"C:\local\boost_1_*"):
-            candidates.extend(_glob.glob(pat))
+            candidates.extend(glob.glob(pat))
         valid = [c for c in candidates if (Path(c) / "boost" / "version.hpp").exists()]
         if valid:
             def ver_key(p: str):
@@ -631,7 +849,12 @@ def _probe_boost_root(env: dict) -> str | None:
     return None
 
 
-def write_local_hints(prefixes: list[str]) -> None:
+def write_local_hints(prefixes: list[str], env: dict | None = None) -> None:
+    """
+    Write cmake/LocalDepsHints.cmake.
+    IMPORTANT: CMAKE_PREFIX_PATH must contain real *prefixes*, not include directories.
+    Eigen include is written via EIGEN3_INCLUDE_DIR.
+    """
     cmake_dir = ROOT / "cmake"
     cmake_dir.mkdir(parents=True, exist_ok=True)
     hints_path = cmake_dir / "LocalDepsHints.cmake"
@@ -651,11 +874,12 @@ def write_local_hints(prefixes: list[str]) -> None:
             qt6_dir = _normalize_to_cmake_path(q)
             break
 
-    eigen_inc = _derive_eigen_include_from_prefixes(prefixes)
+    env2 = env or os.environ.copy()
+    eigen_inc = detect_eigen_include_root(env2)
     if eigen_inc:
         eigen_inc = _normalize_to_cmake_path(eigen_inc)
 
-    boost_root = _probe_boost_root(os.environ.copy())
+    boost_root = _probe_boost_root(env2)
     if boost_root:
         boost_root = _normalize_to_cmake_path(boost_root)
 
@@ -678,222 +902,113 @@ def write_local_hints(prefixes: list[str]) -> None:
 
 
 # ----------------------------
-# Verification (file + compile)
+# Prefix discovery (important)
 # ----------------------------
 
-def compile_check(dep: dict):
-    v = dep.get("verify", {}) or {}
-    cc_name, cc = choose_cxx()
-    if not cc:
-        raise RuntimeError("No C++ compiler found for compile_check (cl, c++, g++, or clang++).")
+def _default_system_prefixes() -> list[str]:
+    """
+    Return sensible system prefixes per OS (prefixes only, not include dirs).
+    This is how we stay Ubuntu-version-agnostic.
+    """
+    out: list[str] = []
+    if platform.system() in ("Linux", "Darwin"):
+        for p in ("/usr/local", "/usr"):
+            if os.path.isdir(p):
+                out.append(p)
 
-    cc_opts = (v.get("compile_check", {}) or {})
+        if platform.system() == "Darwin":
+            for p in ("/opt/homebrew", "/usr/local"):
+                if os.path.isdir(p) and p not in out:
+                    out.append(p)
 
-    inc_lines = "\n".join(cc_opts.get("include_lines", []))
-    code = cc_opts.get("code", "int main(){return 0;}")
-    cc_defs = list(cc_opts.get("defines", []))
-    extra_libs = list((cc_opts.get("link_libs") or []))
-
-    work = BUILD / dep["name"] / "probe"
-    work.mkdir(parents=True, exist_ok=True)
-    src = work / "probe.cpp"
-    exe = work / ("probe.exe" if platform.system() == "Windows" else "probe")
-
-    src.write_text(inc_lines + "\n" + code, encoding="utf-8")
-
-    include_dir = PREFIX / "include"
-    lib_dir = PREFIX / "lib"
-    bin_dir = PREFIX / "bin"
-
-    lib_base = v.get("lib_name")
-    lib_files = find_lib_files(lib_base) if lib_base else []
-    if lib_base and not lib_files:
-        raise RuntimeError(f"compile_check: could not locate any library matching '{lib_base}' under {lib_dir}")
-    link_lib = lib_files[0] if lib_files else None
-
-    env = os.environ.copy()
-    if platform.system() == "Windows":
-        env = ensure_msvc_x64_env(env)
-        env["PATH"] = str(bin_dir) + os.pathsep + env.get("PATH", "")
-
-    prefixes = get_cmake_prefix_paths(env)
-    extra_lib_paths = resolve_lib_paths(extra_libs, prefixes)
-
-    if platform.system() == "Windows":
-        for p in prefixes:
-            bindir = os.path.join(p, "bin")
-            if os.path.isdir(bindir):
-                env["PATH"] = bindir + os.pathsep + env.get("PATH", "")
-
-    print(f"[compile-check] compiler: {cc} (name={cc_name})")
-    print(f"[compile-check] source:   {src}")
-    print(f"[compile-check] include:  {include_dir}")
-    print(f"[compile-check] libdir:   {lib_dir}")
-    if cc_defs:
-        print(f"[compile-check] defines:  {', '.join(cc_defs)}")
-    if link_lib:
-        print(f"[compile-check] linklib:  {link_lib}")
-
-    if cc_name == "cl":
-        cc_norm = cc.replace("/", "\\").lower()
-        # Best-effort check; allow if cl was found on PATH (dev shell).
-        if "hostx64\\x64" not in cc_norm and "hostx64\\x86" in cc_norm:
-            raise RuntimeError("MSVC cl.exe appears to be x86. Use an x64 Native Tools prompt.")
-
-        cmd = [
-            cc, "/nologo", "/EHsc",
-            "/std:c++17",
-            "/Zc:__cplusplus",
-            "/permissive-",
-        ]
-        for d in cc_defs:
-            cmd.append(f"/D{d}")
-
-        cmd.append(f"/I{include_dir}")
-
-        add_extra_includes_and_libs_from_prefixes(cmd, prefixes, msvc=True)
-
-        cmd += [
-            str(src),
-            "/link",
-            f"/LIBPATH:{lib_dir}",
-            "/MACHINE:X64",
-        ]
-
-        if link_lib:
-            cmd.append(str(link_lib))
-        for p in extra_lib_paths:
-            cmd.append(p)
-
-        cmd += [f"/OUT:{exe}"]
-        run(cmd, cwd=str(work), env=env)
-
-    else:
-        cmd = [cc, "-std=c++17"]
-        for d in cc_defs:
-            cmd.append(f"-D{d}")
-
-        cmd += [str(src), f"-I{include_dir}", f"-L{lib_dir}"]
-
-        add_extra_includes_and_libs_from_prefixes(cmd, prefixes, msvc=False)
-
-        runtime_lib_dirs = set()
-        runtime_lib_dirs.add(str(lib_dir))
-
-        for p in prefixes:
-            pr_lib = Path(p) / "lib"
-            if pr_lib.is_dir():
-                runtime_lib_dirs.add(str(pr_lib))
-
-        if link_lib:
-            runtime_lib_dirs.add(str(Path(link_lib).parent))
-        for p in extra_lib_paths:
-            runtime_lib_dirs.add(str(Path(p).parent))
-
-        if platform.system() == "Darwin" and dep.get("name") == "SoQt":
-            qt_framework_dirs = set()
-            for p in prefixes:
-                libpath = Path(p) / "lib"
-                if (libpath / "QtCore.framework").exists():
-                    qt_framework_dirs.add(str(libpath))
-            for fdir in sorted(qt_framework_dirs):
-                cmd.append(f"-F{fdir}")
-                runtime_lib_dirs.add(fdir)
-            cmd.extend(["-framework", "QtCore"])
-
-        for rdir in sorted(runtime_lib_dirs):
-            cmd.extend(["-Wl,-rpath," + rdir])
-
-        cmd += ["-o", str(exe)]
-
-        if link_lib:
-            cmd.append(str(link_lib))
-        for p in extra_lib_paths:
-            cmd.append(p)
-
-        run(cmd, cwd=str(work), env=env)
-
-    print(f"[compile-check] run:      {exe}")
-
-    env_run = env.copy()
-    if platform.system() == "Darwin":
-        ld_var = "DYLD_LIBRARY_PATH"
-    else:
-        ld_var = "LD_LIBRARY_PATH"
-
-    existing = env_run.get(ld_var, "")
-    rt_paths = os.pathsep.join(sorted(runtime_lib_dirs)) if "runtime_lib_dirs" in locals() else ""
-    env_run[ld_var] = (rt_paths + (os.pathsep + existing if existing else "")) if rt_paths else existing
-
-    run([str(exe)], cwd=str(work), env=env_run)
-    print("[compile-check] OK")
-
+    return out
 
 def get_cmake_prefix_paths(env: dict) -> list[str]:
-    prefixes: list[str] = [str(PREFIX)]
+    """
+    Compute *prefixes* for dependency discovery.
 
-    raw = env.get("CMAKE_PREFIX_PATH", "") or ""
-    parts = [p for p in raw.replace(";", os.pathsep).split(os.pathsep) if p]
-    prefixes += parts
+    Included (in order):
+      - our local third_party/_install
+      - Qt prefix (from TONATIUH_QT_ROOT / Qt6_DIR / CMAKE_PREFIX_PATH / auto-detect)
+      - Boost root (normalized to an actual prefix when possible)
+      - environment CMAKE_PREFIX_PATH entries (prefixes only)
+      - system prefixes (/usr/local, /usr, /opt/homebrew)
+      - optional user --eigen-root (if it is a real prefix)
 
-    # Qt prefixes (override > env > autodetect)
-    detected_qt = _qt_prefixes_from_env(env)
-    if not detected_qt:
-        detected_qt = _detect_qt_prefixes()
-    for p in detected_qt:
-        if p not in prefixes:
+    IMPORTANT:
+      - Never add raw include directories like /usr/include/eigen3 here.
+      - Prefer prefix roots (the thing that contains include/ and lib/).
+    """
+    prefixes: list[str] = []
+
+    def _add(p: str | None) -> None:
+        if not p:
+            return
+        p = os.path.normpath(p)
+        if p and p not in prefixes:
             prefixes.append(p)
 
-    # Eigen:
-    #  1) explicit override
-    if USER_OVERRIDES.get("eigen_root"):
-        er = USER_OVERRIDES["eigen_root"]
-        if er and er not in prefixes:
-            prefixes.append(er)
+    # 0) Always start with our install prefix
+    _add(str(PREFIX))
+
+    # 1) Qt prefix (highest-priority "external" prefix)
+    # Prefer explicit override / env var set by CI: TONATIUH_QT_ROOT
+    qt_root = USER_OVERRIDES.get("qt_root") or env.get("TONATIUH_QT_ROOT") or env.get("QT_ROOT_DIR")
+    if qt_root and _qt6_dir_from_prefix(qt_root):
+        _add(qt_root)
     else:
-        #  2) common patterns (support eigen-5.* etc)
-        eigen_candidates = [
-            r"C:\eigen-*",
-            r"C:\eigen3",
-            os.path.expanduser("~/eigen-*"),
-            "/usr/include/eigen3",
-            "/usr/local/include/eigen3",
-        ]
-        for pattern in eigen_candidates:
-            for path in glob.glob(pattern):
-                if not os.path.isdir(path):
-                    continue
-                if os.path.isfile(os.path.join(path, "Eigen", "Core")):
-                    if path not in prefixes:
-                        prefixes.append(path)
-                    continue
-                if os.path.isfile(os.path.join(path, "include", "eigen3", "Eigen", "Core")):
-                    if path not in prefixes:
-                        prefixes.append(path)
-                    continue
-                if os.path.isfile(os.path.join(path, "eigen3", "Eigen", "Core")):
-                    p2 = os.path.join(path, "eigen3")
-                    if p2 not in prefixes:
-                        prefixes.append(p2)
+        detected_qt = _qt_prefixes_from_env(env)
+        if not detected_qt:
+            detected_qt = _detect_qt_prefixes()
+        for p in detected_qt:
+            _add(p)
 
-    # Boost root as an extra prefix so compile-checks can see its headers
+    # 2) Boost "prefix"
+    # _probe_boost_root may return either a prefix (/usr, C:\boost_*) or an include dir (vcpkg .../include).
+    # Normalize include-dir inputs back to the vcpkg prefix when possible.
     boost_root = _probe_boost_root(env)
-    if boost_root and boost_root not in prefixes:
-        prefixes.append(boost_root)
+    if boost_root:
+        br = os.path.normpath(boost_root)
+        # vcpkg layout: <prefix>/include/boost/version.hpp
+        if br.lower().endswith(os.path.normpath("include").lower()):
+            cand_prefix = os.path.dirname(br)
+            if os.path.isdir(os.path.join(cand_prefix, "include")):
+                br = cand_prefix
+        _add(br)
 
-    # De-dupe preserving order
-    seen = set()
-    ordered = []
-    for p in prefixes:
-        if p not in seen:
-            ordered.append(p)
-            seen.add(p)
-    return ordered
+    # 3) Environment CMAKE_PREFIX_PATH entries
+    raw = env.get("CMAKE_PREFIX_PATH", "") or ""
+    for p in [p for p in raw.replace(";", os.pathsep).split(os.pathsep) if p]:
+        # Skip common "bad" entries that are not prefixes
+        low = p.replace("\\", "/").lower()
+        if low.endswith("/include") or "/include/" in low:
+            continue
+        if low.endswith("/include/eigen3") or low.endswith("/eigen3"):
+            continue
+        _add(p)
 
+    # 4) System prefixes
+    for p in _default_system_prefixes():
+        _add(p)
+
+    # 5) If user passed --eigen-root, add it ONLY if it is a real prefix (not just .../include/eigen3)
+    er = USER_OVERRIDES.get("eigen_root")
+    if er:
+        ern = os.path.normpath(er)
+        low = ern.replace("\\", "/").lower()
+        if not (low.endswith("/include/eigen3") or low.endswith("/include")):
+            _add(ern)
+
+    return prefixes
+
+# ----------------------------
+# Probe compilation helper flags
+# ----------------------------
 
 def add_extra_includes_and_libs_from_prefixes(cmd_list: list[str],
                                              prefixes: list[str],
-                                             msvc: bool) -> None:
+                                             msvc: bool,
+                                             env: dict | None = None) -> None:
     """
     Add reasonable -I/-L (or /I /LIBPATH:) flags based on prefixes.
 
@@ -905,6 +1020,11 @@ def add_extra_includes_and_libs_from_prefixes(cmd_list: list[str],
     framework_roots: list[str] = []
 
     qt_modules = ["QtCore", "QtGui", "QtWidgets", "QtOpenGL", "QtOpenGLWidgets"]
+
+    linux_qt6_roots: list[str] = []
+    if platform.system() == "Linux" and _linux_has_system_qt6():
+        linux_qt6_roots = _linux_qt6_include_roots()
+
     multiarch_lib_subdirs = [
         "lib",
         "lib64",
@@ -912,6 +1032,11 @@ def add_extra_includes_and_libs_from_prefixes(cmd_list: list[str],
         "lib/aarch64-linux-gnu",
         "lib/arm-linux-gnueabihf",
     ]
+
+    env2 = env or os.environ.copy()
+    eigen_inc = detect_eigen_include_root(env2)
+    if eigen_inc and os.path.isdir(eigen_inc):
+        includes.append(eigen_inc)
 
     for p in prefixes:
         if not p:
@@ -928,9 +1053,9 @@ def add_extra_includes_and_libs_from_prefixes(cmd_list: list[str],
                 if os.path.isdir(mod_inc):
                     includes.append(mod_inc)
 
-            eigen_inc = os.path.join(inc_root, "eigen3")
-            if os.path.isdir(eigen_inc):
-                includes.append(eigen_inc)
+            eigen3_inc = os.path.join(inc_root, "eigen3")
+            if os.path.isdir(eigen3_inc):
+                includes.append(eigen3_inc)
 
             if os.path.isfile(os.path.join(inc_root, "boost", "version.hpp")):
                 includes.append(inc_root)
@@ -967,6 +1092,14 @@ def add_extra_includes_and_libs_from_prefixes(cmd_list: list[str],
                 if has_framework:
                     framework_roots.append(lr)
 
+    if linux_qt6_roots:
+        for root in linux_qt6_roots:
+            includes.append(root)
+            for mod in qt_modules:
+                mod_dir = os.path.join(root, mod)
+                if os.path.isdir(mod_dir):
+                    includes.append(mod_dir)
+
     def _dedupe(seq: list[str]) -> list[str]:
         seen = set()
         out: list[str] = []
@@ -994,6 +1127,279 @@ def add_extra_includes_and_libs_from_prefixes(cmd_list: list[str],
             for fw_root in framework_roots:
                 cmd_list.append(f"-F{fw_root}")
 
+# ----------------------------
+# Verification (file + compile)
+# ----------------------------
+
+def compile_check(dep: dict):
+    v = dep.get("verify", {}) or {}
+    cc_name, cc = choose_cxx()
+    if not cc:
+        raise RuntimeError("No C++ compiler found for compile_check (cl, c++, g++, or clang++).")
+
+    cc_opts = (v.get("compile_check", {}) or {})
+
+    inc_lines = "\n".join(cc_opts.get("include_lines", []))
+    code = cc_opts.get("code", "int main(){return 0;}")
+    cc_defs = list(cc_opts.get("defines", []))
+    extra_libs = list((cc_opts.get("link_libs") or []))
+
+    # Strip Windows-only defines on non-Windows probe builds.
+    # (Avoid SoQt/simage import/export macro mismatches on macOS/Linux.)
+    if platform.system() != "Windows" and cc_defs:
+        cc_defs = [d for d in cc_defs if d not in ("SOQT_DLL", "SIMAGE_DLL")]
+
+    work = BUILD / dep["name"] / "probe"
+    work.mkdir(parents=True, exist_ok=True)
+    src = work / "probe.cpp"
+    exe = work / ("probe.exe" if platform.system() == "Windows" else "probe")
+    src.write_text(inc_lines + "\n" + code, encoding="utf-8")
+
+    include_dir = PREFIX / "include"
+    lib_dir = PREFIX / "lib"
+    bin_dir = PREFIX / "bin"
+
+    lib_base = v.get("lib_name")
+    lib_files = find_lib_files(lib_base) if lib_base else []
+    if lib_base and not lib_files:
+        raise RuntimeError(f"compile_check: could not locate any library matching '{lib_base}' under {lib_dir}")
+    link_lib = lib_files[0] if lib_files else None
+
+    env = os.environ.copy()
+    if platform.system() == "Windows":
+        env = ensure_msvc_x64_env(env)
+        env["PATH"] = str(bin_dir) + os.pathsep + env.get("PATH", "")
+
+    prefixes = get_cmake_prefix_paths(env)
+
+    # ---- helpers for Qt runtime in headless CI (Linux runners have no DISPLAY) ----
+    def _looks_like_qt_probe() -> bool:
+        # If we include Qt headers or link Qt libs, assume this probe may load Qt plugins at runtime.
+        if "Qt" in inc_lines or "QApplication" in code or "QGuiApplication" in code:
+            return True
+        for L in extra_libs:
+            if isinstance(L, str) and (L.startswith("Qt6") or L.startswith("Qt")):
+                return True
+        if link_lib and "Qt" in str(link_lib):
+            return True
+        return False
+
+    def _add_qt_plugin_env(env_run: dict) -> None:
+        """
+        Try to locate Qt plugins/platforms under any known prefix and set:
+          - QT_PLUGIN_PATH
+          - QT_QPA_PLATFORM_PLUGIN_PATH
+        This helps when Qt is installed in a non-system prefix (e.g. install-qt-action).
+        """
+        # Respect explicit user settings
+        if env_run.get("QT_QPA_PLATFORM_PLUGIN_PATH") and env_run.get("QT_PLUGIN_PATH"):
+            return
+
+        candidate_prefixes: list[str] = []
+
+        # 1) include the computed prefixes first
+        candidate_prefixes += [p for p in prefixes if p]
+
+        # 2) common Qt env vars (install-qt-action / local installs)
+        for k in ("QT_ROOT_DIR", "QTDIR", "Qt_ROOT_DIR", "Qt6_ROOT", "Qt6_ROOT_DIR", "TONATIUH_QT_ROOT"):
+            val = env.get(k)
+            if val:
+                candidate_prefixes.append(val)
+
+        # De-dup while preserving order
+        seen = set()
+        ordered = []
+        for p in candidate_prefixes:
+            if p and p not in seen:
+                ordered.append(p)
+                seen.add(p)
+
+        for p in ordered:
+            pth = Path(p)
+            plugins = pth / "plugins"
+            platforms = plugins / "platforms"
+            if platforms.is_dir():
+                env_run.setdefault("QT_PLUGIN_PATH", str(plugins))
+                env_run.setdefault("QT_QPA_PLATFORM_PLUGIN_PATH", str(platforms))
+                return
+
+            # Some layouts put plugins under <prefix>/lib/qt6/plugins (less common)
+            plugins2 = pth / "lib" / "qt6" / "plugins"
+            platforms2 = plugins2 / "platforms"
+            if platforms2.is_dir():
+                env_run.setdefault("QT_PLUGIN_PATH", str(plugins2))
+                env_run.setdefault("QT_QPA_PLATFORM_PLUGIN_PATH", str(platforms2))
+                return
+
+    # ---------- macOS: handle Qt properly (frameworks on install-qt-action) ----------
+    qt_fw_names: list[str] = []
+    extra_libs_for_path_resolve = list(extra_libs)
+    qt_framework_dirs: set[str] = set()
+
+    def _add_qt_framework_dir_from_prefix(prefix: str) -> None:
+        if not prefix:
+            return
+        libp = Path(prefix) / "lib"
+        if (libp / "QtCore.framework").exists():
+            qt_framework_dirs.add(str(libp))
+
+    if platform.system() == "Darwin":
+        # 1) from known prefixes
+        for p in prefixes:
+            _add_qt_framework_dir_from_prefix(p)
+
+        # 2) from install-qt-action envs
+        for k in ("QT_ROOT_DIR", "QTDIR", "Qt_ROOT_DIR", "Qt6_ROOT", "Qt6_ROOT_DIR", "TONATIUH_QT_ROOT"):
+            val = env.get(k)
+            if val:
+                _add_qt_framework_dir_from_prefix(val)
+
+        # Translate Qt6* logical libs into -framework Qt*
+        if extra_libs:
+            non_qt6 = []
+            for L in extra_libs:
+                if isinstance(L, str) and L.startswith("Qt6"):
+                    qt_fw_names.append("Qt" + L[len("Qt6"):])  # Qt6Core -> QtCore, etc.
+                else:
+                    non_qt6.append(L)
+            extra_libs_for_path_resolve = non_qt6
+
+    # Resolve non-Qt libraries to absolute paths (Qt on macOS is handled as frameworks)
+    extra_lib_paths = resolve_lib_paths(extra_libs_for_path_resolve, prefixes)
+
+    # Windows: also add all prefix bin/ to PATH so probe can run
+    if platform.system() == "Windows":
+        for p in prefixes:
+            bindir = os.path.join(p, "bin")
+            if os.path.isdir(bindir):
+                env["PATH"] = bindir + os.pathsep + env.get("PATH", "")
+
+    print(f"[compile-check] compiler: {cc} (name={cc_name})")
+    print(f"[compile-check] source:   {src}")
+    print(f"[compile-check] include:  {include_dir}")
+    print(f"[compile-check] libdir:   {lib_dir}")
+    if cc_defs:
+        print(f"[compile-check] defines:  {', '.join(cc_defs)}")
+    if link_lib:
+        print(f"[compile-check] linklib:  {link_lib}")
+
+    runtime_lib_dirs: set[str] = set()
+
+    if cc_name == "cl":
+        cc_norm = cc.replace("/", "\\").lower()
+        if "hostx64\\x64" not in cc_norm and "hostx64\\x86" in cc_norm:
+            raise RuntimeError("MSVC cl.exe appears to be x86. Use an x64 Native Tools prompt.")
+
+        cmd = [
+            cc, "/nologo", "/EHsc",
+            "/std:c++17",
+            "/Zc:__cplusplus",
+            "/permissive-",
+        ]
+        for d in cc_defs:
+            cmd.append(f"/D{d}")
+
+        # Only add our PREFIX include if it exists (Qt/Eigen/Boost may be system-provided)
+        if include_dir.is_dir():
+            cmd.append(f"/I{include_dir}")
+
+        add_extra_includes_and_libs_from_prefixes(cmd, prefixes, msvc=True, env=env)
+
+        cmd += [str(src), "/link"]
+
+        # Only add our PREFIX lib if it exists
+        if lib_dir.is_dir():
+            cmd.append(f"/LIBPATH:{lib_dir}")
+
+        cmd += ["/MACHINE:X64"]
+
+        if link_lib:
+            cmd.append(str(link_lib))
+        for p in extra_lib_paths:
+            cmd.append(p)
+
+        cmd += [f"/OUT:{exe}"]
+        run(cmd, cwd=str(work), env=env)
+
+    else:
+        cmd = [cc, "-std=c++17"]
+        for d in cc_defs:
+            cmd.append(f"-D{d}")
+
+        cmd.append(str(src))
+
+        # Only add our PREFIX include/lib if they exist
+        if include_dir.is_dir():
+            cmd.append(f"-I{include_dir}")
+        if lib_dir.is_dir():
+            cmd.extend(["-L", str(lib_dir)])
+
+        add_extra_includes_and_libs_from_prefixes(cmd, prefixes, msvc=False, env=env)
+
+        # Runtime search paths (rpath / DYLD_LIBRARY_PATH)
+        if lib_dir.is_dir():
+            runtime_lib_dirs.add(str(lib_dir))
+
+        for p in prefixes:
+            pr_lib = Path(p) / "lib"
+            if pr_lib.is_dir():
+                runtime_lib_dirs.add(str(pr_lib))
+
+        if link_lib:
+            runtime_lib_dirs.add(str(Path(link_lib).parent))
+        for p in extra_lib_paths:
+            runtime_lib_dirs.add(str(Path(p).parent))
+
+        # macOS: add Qt frameworks if requested
+        if platform.system() == "Darwin" and qt_fw_names:
+            # If we still didn't find any framework dir, fail with a useful error
+            if not qt_framework_dirs:
+                raise RuntimeError(
+                    "Qt frameworks not found on macOS. "
+                    "Expected QtCore.framework under <QtPrefix>/lib.\n"
+                    "Tip: ensure install-qt-action ran, and QT_ROOT_DIR is set, or pass --qt-root."
+                )
+
+            for fdir in sorted(qt_framework_dirs):
+                cmd.append(f"-F{fdir}")
+                runtime_lib_dirs.add(fdir)
+
+            for fw in qt_fw_names:
+                cmd.extend(["-framework", fw])
+
+        # rpaths (macOS uses LC_RPATH; linux uses DT_RUNPATH/DT_RPATH)
+        for rdir in sorted(runtime_lib_dirs):
+            cmd.extend(["-Wl,-rpath," + rdir])
+
+        cmd += ["-o", str(exe)]
+
+        if link_lib:
+            cmd.append(str(link_lib))
+        for p in extra_lib_paths:
+            cmd.append(p)
+
+        run(cmd, cwd=str(work), env=env)
+
+    print(f"[compile-check] run:      {exe}")
+
+    env_run = env.copy()
+    ld_var = "DYLD_LIBRARY_PATH" if platform.system() == "Darwin" else "LD_LIBRARY_PATH"
+    existing = env_run.get(ld_var, "")
+    rt_paths = os.pathsep.join(sorted(runtime_lib_dirs)) if runtime_lib_dirs else ""
+    env_run[ld_var] = (rt_paths + (os.pathsep + existing if existing else "")) if rt_paths else existing
+
+    # ---- FIX: headless Qt probes on Linux CI (no DISPLAY) ----
+    # This prevents crashes like:
+    #   qt.qpa.xcb: could not connect to display
+    #   Could not load the Qt platform plugin "xcb" ...
+    if platform.system() == "Linux" and _looks_like_qt_probe():
+        # Don't override if the user already chose a platform
+        env_run.setdefault("QT_QPA_PLATFORM", "offscreen")
+        # Help Qt find its plugins when using install-qt-action prefixes
+        _add_qt_plugin_env(env_run)
+
+    run([str(exe)], cwd=str(work), env=env_run)
+    print("[compile-check] OK")
 
 # ----------------------------
 # Install verification
@@ -1058,6 +1464,20 @@ def _read_local_hints_qt_bin() -> str | None:
                 if cand.exists():
                     return str(cand)
 
+    return None
+
+
+def _find_qt6_moc():
+    p = shutil.which("moc")
+    if p:
+        return p
+    candidates = [
+        "/usr/lib/qt6/libexec/moc",
+        "/usr/lib/x86_64-linux-gnu/qt6/libexec/moc",
+    ]
+    for c in candidates:
+        if os.path.isfile(c) and os.access(c, os.X_OK):
+            return c
     return None
 
 
@@ -1131,7 +1551,11 @@ def cmd_doctor():
         if qt_bin and os.path.isdir(qt_bin):
             ok(f"Qt bin (hints): {qt_bin}")
         else:
-            warn("Qt bin not found via LocalDepsHints.cmake (ok if not generated yet)")
+            moc = _find_qt6_moc()
+            if moc:
+                ok(f"Qt moc: {moc}")
+            else:
+                warn("Qt moc not found (Qt meta-object compiler)")
 
     if platform.system() == "Windows":
         cc = shutil.which("cl")
@@ -1152,35 +1576,44 @@ def cmd_doctor():
         else:
             warn("Windows SDK libraries not detected")
 
-    prefixes = get_cmake_prefix_paths(os.environ.copy())
-    eigen_inc = _derive_eigen_include_from_prefixes(prefixes)
+    env = os.environ.copy()
+    prefixes = get_cmake_prefix_paths(env)
+
+    eigen_inc = detect_eigen_include_root(env)
     if eigen_inc:
         ok(f"Eigen include root: {eigen_inc}")
     else:
-        warn("Eigen not detected in prefixes (set --eigen-root or TONATIUH_EIGEN_ROOT)")
+        warn("Eigen not detected (set --eigen-root or install eigen headers)")
 
-    boost_root = _probe_boost_root(os.environ.copy())
+    boost_root = _probe_boost_root(env)
     if boost_root:
         ok(f"Boost root: {boost_root}")
     else:
         warn("Boost root not detected (set --boost-root / TONATIUH_BOOST_ROOT)")
 
-    found = None
-    if platform.system() == "Windows":
-        cand = PREFIX / "bin" / "simage1.dll"
-        if cand.exists():
-            found = cand
-    elif platform.system() == "Darwin":
-        dylibs = sorted((PREFIX / "lib").glob("libsimage*.dylib"))
-        found = dylibs[0] if dylibs else None
+    if platform.system() == "Linux" and has_system_simage():
+        ver = system_simage_version()
+        if ver:
+            ok(f"simage available from system via pkg-config (version {ver})")
+        else:
+            ok("simage available from system via pkg-config")
     else:
-        so_files = sorted((PREFIX / "lib").glob("libsimage.so*"))
-        found = so_files[0] if so_files else None
+        found = None
+        if platform.system() == "Windows":
+            cand = PREFIX / "bin" / "simage1.dll"
+            if cand.exists():
+                found = cand
+        elif platform.system() == "Darwin":
+            dylibs = sorted((PREFIX / "lib").glob("libsimage*.dylib"))
+            found = dylibs[0] if dylibs else None
+        else:
+            so_files = sorted((PREFIX / "lib").glob("libsimage.so*"))
+            found = so_files[0] if so_files else None
 
-    if found:
-        ok(f"simage runtime present: {found}")
-    else:
-        warn("simage runtime not present (optional for image I/O)")
+        if found:
+            ok(f"simage runtime present: {found}")
+        else:
+            warn("simage runtime not present (optional for image I/O)")
 
     global_len = len(os.environ.get("PATH", ""))
     effective = _effective_project_path(os.environ.copy())
@@ -1198,6 +1631,21 @@ def cmd_doctor():
 # ----------------------------
 # Build step (CMake + Git)
 # ----------------------------
+
+def _sanitize_cmake_options(dep_name: str, cmake_options: list[str]) -> list[str]:
+    """
+    Remove/adjust options that are invalid on the current OS.
+    This keeps deps.yaml mostly platform-agnostic.
+    """
+    opts = list(cmake_options or [])
+    sysname = platform.system()
+
+    if dep_name.lower() == "simage" and sysname != "Windows":
+        # GDI+ is Windows-only; passing it breaks configure on Linux/macOS.
+        opts = [o for o in opts if not o.startswith("-DSIMAGE_USE_GDIPLUS=")]
+
+    return opts
+
 
 def build_cmake_git(dep: dict, config: str = "Release", native_flags: bool = False):
     name = dep["name"]
@@ -1218,12 +1666,14 @@ def build_cmake_git(dep: dict, config: str = "Release", native_flags: bool = Fal
             run(["git", "checkout", dep["tag"]], cwd=str(src_dir))
 
     gen = cmake_generator()
+    cmake_opts = _sanitize_cmake_options(name, dep.get("cmake_options", []))
+
     cmake_cmd = [
         "cmake",
         "-S", str(src_dir),
         "-B", str(bld_dir),
         f"-DCMAKE_INSTALL_PREFIX={PREFIX}",
-    ] + gen + dep.get("cmake_options", [])
+    ] + gen + cmake_opts
 
     env = os.environ.copy()
     if platform.system() == "Windows":
@@ -1237,6 +1687,12 @@ def build_cmake_git(dep: dict, config: str = "Release", native_flags: bool = Fal
     else:
         print("[deps] Warning: Boost not detected automatically.", file=sys.stderr)
 
+    # Eigen (header-only): tell CMake where headers are if we can detect them.
+    # IMPORTANT: do not pass -DEigen3_DIR= (empty) — that can confuse CMake find logic.
+    eigen_inc = detect_eigen_include_root(env)
+    if eigen_inc:
+        cmake_cmd.append(f"-DEIGEN3_INCLUDE_DIR={eigen_inc}")
+
     cmake_cmd.append(f"-DCMAKE_BUILD_TYPE={config}")
 
     cmake_prefixes = get_cmake_prefix_paths(env)
@@ -1245,7 +1701,9 @@ def build_cmake_git(dep: dict, config: str = "Release", native_flags: bool = Fal
 
     # Qt6_DIR (optional but helpful)
     qt6_dir_env = env.get("Qt6_DIR") or env.get("QT6_DIR")
-    if not qt6_dir_env:
+    if qt6_dir_env and os.path.isdir(qt6_dir_env):
+        cmake_cmd.append(f"-DQt6_DIR={qt6_dir_env}")
+    else:
         if USER_OVERRIDES.get("qt_root"):
             q6 = _qt6_dir_from_prefix(USER_OVERRIDES["qt_root"])  # type: ignore[arg-type]
             if q6:
@@ -1275,10 +1733,10 @@ def build_cmake_git(dep: dict, config: str = "Release", native_flags: bool = Fal
         run(["cmake", "--build", str(bld_dir), "--config", config], env=env)
         run(["cmake", "--install", str(bld_dir), "--config", config], env=env)
     else:
-        run(["cmake", "--build", str(bld_dir)], env=env)
+        run(["cmake", "--build", str(bld_dir), "--verbose"], env=env)
         run(["cmake", "--install", str(bld_dir)], env=env)
 
-    write_local_hints(get_cmake_prefix_paths(env))
+    write_local_hints(get_cmake_prefix_paths(env), env=env)
     verify_install(dep)
     ok_marker.write_text("ok", encoding="utf-8")
 
@@ -1301,10 +1759,9 @@ def main():
     ap.add_argument("--clean", action="store_true", help="Delete the dep's build directory before configuring")
     ap.add_argument("--doctor", action="store_true", help="Check env and print diagnostics")
 
-    # NEW: explicit roots (predictable, but optional)
-    ap.add_argument("--qt-root", help="Qt prefix root (e.g. C:\\Qt\\6.10.1\\msvc2022_64). Overrides auto-detect.")
-    ap.add_argument("--boost-root", help="Boost root containing boost/version.hpp (e.g. C:\\boost_1_89_0).")
-    ap.add_argument("--eigen-root", help="Eigen root (e.g. C:\\eigen-5.0.0 or a folder containing Eigen/Core).")
+    ap.add_argument("--qt-root", help=r"Qt prefix root (e.g. C:\Qt\6.10.1\msvc2022_64). Overrides auto-detect.")
+    ap.add_argument("--boost-root", help=r"Boost root containing boost/version.hpp (e.g. C:\boost_1_89_0).")
+    ap.add_argument("--eigen-root", help=r"Eigen root (e.g. C:\eigen-5.0.0 or a folder containing Eigen/Core).")
 
     args = ap.parse_args()
 
@@ -1319,7 +1776,8 @@ def main():
         print("Manifest not found at third_party/deps.yaml", file=sys.stderr)
         sys.exit(1)
 
-    write_local_hints(get_cmake_prefix_paths(os.environ.copy()))
+    env = os.environ.copy()
+    write_local_hints(get_cmake_prefix_paths(env), env=env)
 
     spec = yaml.safe_load(manifest.read_text(encoding="utf-8")) or {}
     deps = spec.get("deps", [])
@@ -1334,6 +1792,19 @@ def main():
     start = args.from_name is None
     for dep in deps:
         name = dep["name"]
+
+        # Linux: prefer system simage (libsimage-dev) to avoid giflib API/prototype mismatches
+        if platform.system() == "Linux" and name.lower() == "simage" and has_system_simage():
+            ver = system_simage_version()
+            msg = f"[deps] Using system simage (pkg-config simage {ver})" if ver else "[deps] Using system simage (pkg-config simage)"
+            print(msg + "; skipping local simage build.")
+
+            step_dir = BUILD / name
+            step_dir.mkdir(parents=True, exist_ok=True)
+            (step_dir / ".ok").write_text("ok", encoding="utf-8")
+
+            write_local_hints(get_cmake_prefix_paths(os.environ.copy()), env=os.environ.copy())
+            continue
 
         if args.only and name != args.only:
             continue
@@ -1367,11 +1838,12 @@ def main():
             step_dir = BUILD / name
             step_dir.mkdir(parents=True, exist_ok=True)
             (step_dir / ".ok").write_text("ok", encoding="utf-8")
-            write_local_hints(get_cmake_prefix_paths(os.environ.copy()))
+            write_local_hints(get_cmake_prefix_paths(os.environ.copy()), env=os.environ.copy())
             print(f"=== [{name}] OK (presence verified) ===")
             continue
 
         raise SystemExit(f"Unsupported dep kind '{kind}' for {name} in this script.")
+
 
 if __name__ == "__main__":
     main()
