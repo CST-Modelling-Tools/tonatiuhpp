@@ -359,6 +359,17 @@ if(UNIX AND NOT APPLE AND TONATIUHPP_BUNDLE_RUNTIME)
              USE_SOURCE_PERMISSIONS
              FILES \"\${_qt_plugins_dir}/\${_subdir}\"
            )
+
+           # Make copied Qt plugins resolve bundled Qt libs from <prefix>/lib.
+           file(GLOB _installed_plugins
+             \"\${_installed_bindir}/\${_subdir}/*.so*\"
+           )
+           foreach(_plugin IN LISTS _installed_plugins)
+             file(RPATH_SET
+               FILE \"\${_plugin}\"
+               NEW_RPATH \"\\$ORIGIN/../../${CMAKE_INSTALL_LIBDIR}\"
+             )
+           endforeach()
          endif()
        endforeach()
        file(WRITE \"\${_installed_bindir}/qt.conf\" \"[Paths]\\nPlugins=.\\n\")
@@ -477,6 +488,16 @@ if(EXISTS "${_RESOURCES_SRC}")
   )
 else()
   message(STATUS "Resources directory not found: ${_RESOURCES_SRC} (skipping install)")
+endif()
+
+# ----------------------------
+# Linux launcher script
+# ----------------------------
+if(UNIX AND NOT APPLE)
+  install(
+    PROGRAMS "${CMAKE_CURRENT_LIST_DIR}/../scripts/tonatiuhpp.sh"
+    DESTINATION "${CMAKE_INSTALL_BINDIR}"
+  )
 endif()
 
 # ----------------------------
