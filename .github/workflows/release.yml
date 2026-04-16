@@ -77,8 +77,186 @@ jobs:
           name: asset-${{ runner.os }}
           path: tonatiuhpp-${{ runner.os }}.tar.gz
 
+  build-windows-installer:
+    runs-on: windows-2022
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: lukka/get-cmake@latest
+
+      - name: Install Qt + Qt IFW
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: "6.10.1"
+          arch: "win64_msvc2022_64"
+          tools: "tools_ifw"
+          cache: true
+
+      - name: Set up MSVC dev environment
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Resolve Qt tool paths
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          $qtRoot = $env:QT_ROOT_DIR
+          if (-not $qtRoot -and $env:Qt6_DIR) {
+            $qtRoot = [System.IO.Path]::GetFullPath((Join-Path $env:Qt6_DIR "..\..\.."))
+          }
+
+          if (-not $qtRoot) {
+            throw "Neither QT_ROOT_DIR nor Qt6_DIR is set after install-qt-action."
+          }
+
+          $windeployqt = (Get-Command windeployqt -ErrorAction Stop).Source
+          $binarycreator = (Get-Command binarycreator -ErrorAction Stop).Source
+
+          "TONATIUH_QT_ROOT=$qtRoot" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "Qt6_DIR=$qtRoot\lib\cmake\Qt6" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "WINDEPLOYQT_PATH=$windeployqt" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "BINARYCREATOR_PATH=$binarycreator" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Install Python deps (+ Ninja)
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pyyaml ninja
+
+      - name: Install Boost + Eigen headers (Windows, download)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          $boostVersion = "1.90.0"
+          $boostU = "1_90_0"
+          $boostRoot = "C:\boost_$boostU"
+          $boostZip = "$env:RUNNER_TEMP\boost_$boostU.zip"
+          $boostUrlPrimary = "https://boostorg.jfrog.io/artifactory/main/release/$boostVersion/source/boost_$boostU.zip"
+          $boostUrlFallback = "https://archives.boost.io/release/$boostVersion/source/boost_$boostU.zip"
+
+          if (Test-Path $boostRoot) { Remove-Item -Recurse -Force $boostRoot }
+          if (Test-Path $boostZip) { Remove-Item -Force $boostZip }
+
+          function Download-File($url, $outFile) {
+            Write-Host "Downloading: $url"
+            Invoke-WebRequest -Uri $url -OutFile $outFile -MaximumRedirection 10 -TimeoutSec 600
+            if (!(Test-Path $outFile)) { throw "Download failed: $url (no output file)" }
+
+            $fs = [System.IO.File]::OpenRead($outFile)
+            try {
+              $b1 = $fs.ReadByte()
+              $b2 = $fs.ReadByte()
+              if ($b1 -ne 0x50 -or $b2 -ne 0x4B) {
+                throw "Downloaded file is not a ZIP (bad signature). URL may have returned HTML."
+              }
+            } finally {
+              $fs.Dispose()
+            }
+          }
+
+          try {
+            Download-File $boostUrlPrimary $boostZip
+          } catch {
+            Write-Host "Primary Boost URL failed: $($_.Exception.Message)"
+            Download-File $boostUrlFallback $boostZip
+          }
+
+          Expand-Archive -Path $boostZip -DestinationPath "C:\" -Force
+
+          if (!(Test-Path (Join-Path $boostRoot "boost\version.hpp"))) {
+            throw "Boost headers missing: expected $(Join-Path $boostRoot 'boost\version.hpp')"
+          }
+
+          "TONATIUH_BOOST_ROOT=$boostRoot" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+          $eigenVersion = "5.0.0"
+          $eigenRoot = "C:\eigen-$eigenVersion"
+          $eigenZip = "$env:RUNNER_TEMP\eigen-$eigenVersion.zip"
+          $eigenUrl = "https://gitlab.com/libeigen/eigen/-/archive/$eigenVersion/eigen-$eigenVersion.zip"
+
+          if (Test-Path $eigenRoot) { Remove-Item -Recurse -Force $eigenRoot }
+          New-Item -ItemType Directory -Path $eigenRoot | Out-Null
+
+          Invoke-WebRequest -Uri $eigenUrl -OutFile $eigenZip -MaximumRedirection 10 -TimeoutSec 600
+
+          $eigenExtract = Join-Path $env:RUNNER_TEMP "eigen_extract_$eigenVersion"
+          if (Test-Path $eigenExtract) { Remove-Item -Recurse -Force $eigenExtract }
+          Expand-Archive -Path $eigenZip -DestinationPath $eigenExtract -Force
+
+          $eigenInner = Get-ChildItem -Path $eigenExtract -Directory -Recurse |
+            Where-Object { Test-Path (Join-Path $_.FullName "Eigen\Core") } |
+            Select-Object -First 1
+
+          if (-not $eigenInner) {
+            throw "Eigen headers missing: could not locate Eigen\Core anywhere under $eigenExtract"
+          }
+
+          Copy-Item -Path (Join-Path $eigenInner.FullName "*") -Destination $eigenRoot -Recurse -Force
+
+          if (!(Test-Path (Join-Path $eigenRoot "Eigen\Core"))) {
+            throw "Eigen headers missing after copy: expected $(Join-Path $eigenRoot 'Eigen\Core')"
+          }
+
+          "TONATIUH_EIGEN_ROOT=$eigenRoot" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Cache third-party deps
+        uses: actions/cache@v4
+        with:
+          path: |
+            third_party/_install
+            third_party/_build
+          key: release-deps-windows-${{ hashFiles(
+            'scripts/build_deps.py',
+            'third_party/deps.yaml',
+            'cmake/**',
+            'source/CMakeLists.txt',
+            '.github/workflows/release.yml') }}
+
+      - name: Build third-party dependencies
+        shell: bash
+        run: |
+          mkdir -p third_party/_build third_party/_install
+          python scripts/build_deps.py
+
+      - name: Configure Tonatiuh++
+        shell: pwsh
+        run: |
+          cmake -S source -B build -G "Visual Studio 17 2022" -A x64
+
+      - name: Build Tonatiuh++ Release
+        shell: pwsh
+        run: |
+          cmake --build build --config Release --parallel
+
+      - name: Stage Qt IFW payload
+        shell: pwsh
+        run: |
+          py installer/prepare_ifw_payload.py --build-dir build --config Release --skip-build --windeployqt "$env:WINDEPLOYQT_PATH"
+
+      - name: Generate Windows installer
+        shell: pwsh
+        run: |
+          py installer/create_installer.py --binarycreator "$env:BINARYCREATOR_PATH" --output-name "TonatiuhPP-${{ github.ref_name }}-windows-x64"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: asset-windows
+          path: installer/output/TonatiuhPP-${{ github.ref_name }}-windows-x64.exe
+
   publish:
-    needs: build-and-package
+    needs:
+      - build-and-package
+      - build-windows-installer
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/download-artifact@v4

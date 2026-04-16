@@ -77,6 +77,15 @@ This will:
 - dependency bundling beyond Qt runtime deployment
 - updater repository configuration
 - signing or notarization
-- CI/CD automation
+- non-Windows IFW CI/CD automation
 - maintenance tool integration
 - OS-specific installer polish beyond binarycreator defaults
+
+## GitHub Actions usage
+
+The Windows release workflow in `.github/workflows/release.yml` reuses the local validated packaging path directly:
+- configure and build Tonatiuh++ with the Visual Studio generator
+- run `prepare_ifw_payload.py` with an explicit `windeployqt` path
+- run `create_installer.py` with an explicit `binarycreator` path
+
+Linux and macOS release jobs remain archive-based in the current release workflow.
