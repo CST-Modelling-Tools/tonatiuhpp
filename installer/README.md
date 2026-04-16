@@ -12,7 +12,8 @@ Files:
 Notes:
 - No installer payload is populated yet.
 - No updater repository or update configuration is included yet.
-- Version values are currently hard-coded from `source/CMakeLists.txt` and should be automated later.
+- The IFW `Version` fields are rendered from `project(TonatiuhPP VERSION ...)` in `source/CMakeLists.txt` when `create_installer.py` runs.
+- `ReleaseDate` remains explicit in package metadata because Qt IFW requires a concrete date value.
 - `installscript.qs` is intentionally omitted; no custom installer scripting is required in this initial skeleton.
 
 ## Prerequisites

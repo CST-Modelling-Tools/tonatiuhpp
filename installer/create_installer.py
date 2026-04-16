@@ -4,7 +4,10 @@
 import argparse
 import shutil
 import subprocess
+import tempfile
 from pathlib import Path
+
+from sync_ifw_metadata import read_project_version, render_version_template
 
 
 def parse_args() -> argparse.Namespace:
@@ -13,7 +16,7 @@ def parse_args() -> argparse.Namespace:
     default_config_xml = installer_dir / "config" / "config.xml"
     default_packages_dir = installer_dir / "packages"
     default_output_dir = installer_dir / "output"
-    default_output_name = "TonatiuhPP-Installer"
+    default_output_name = f"TonatiuhPP-{read_project_version(repo_root)}-Installer"
 
     parser = argparse.ArgumentParser(
         description="Generate Qt IFW installer for Tonatiuh++."
@@ -85,34 +88,64 @@ def resolve_binarycreator(binarycreator: str) -> Path:
     raise SystemExit(f"binarycreator not found: {binarycreator}")
 
 
+def render_ifw_metadata(
+    config_xml_template: Path, packages_dir_template: Path, verbose: bool = False
+) -> tuple[tempfile.TemporaryDirectory[str], Path, Path, str]:
+    version = read_project_version(Path(__file__).resolve().parents[1])
+    temp_dir = tempfile.TemporaryDirectory(prefix="tonatiuhpp-ifw-")
+    temp_root = Path(temp_dir.name)
+    rendered_config_xml = temp_root / "config" / "config.xml"
+    rendered_packages_dir = temp_root / "packages"
+
+    if verbose:
+        print(f"Rendering Qt IFW metadata for Tonatiuh++ version {version}")
+
+    render_version_template(config_xml_template, rendered_config_xml, version)
+    shutil.copytree(packages_dir_template, rendered_packages_dir)
+    render_version_template(
+        packages_dir_template / "com.tonatiuh.app" / "meta" / "package.xml",
+        rendered_packages_dir / "com.tonatiuh.app" / "meta" / "package.xml",
+        version,
+    )
+
+    return temp_dir, rendered_config_xml, rendered_packages_dir, version
+
+
 def main() -> None:
     args = parse_args()
-    config_xml = Path(args.config_xml).resolve()
-    packages_dir = Path(args.packages_dir).resolve()
+    config_xml_template = Path(args.config_xml).resolve()
+    packages_dir_template = Path(args.packages_dir).resolve()
     output_dir = Path(args.output_dir).resolve()
     binarycreator = resolve_binarycreator(args.binarycreator)
+    temp_dir, config_xml, packages_dir, project_version = render_ifw_metadata(
+        config_xml_template, packages_dir_template, verbose=args.verbose
+    )
 
-    validate_installer_skeleton(config_xml, packages_dir)
+    try:
+        validate_installer_skeleton(config_xml, packages_dir)
 
-    output_dir.mkdir(parents=True, exist_ok=True)
+        output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Determine output file path; let binarycreator add platform-specific extension
-    output_file = output_dir / args.output_name
+        # Determine output file path; let binarycreator add platform-specific extension
+        output_file = output_dir / args.output_name
 
-    cmd = [
-        str(binarycreator),
-        "--config", str(config_xml),
-        "--packages", str(packages_dir),
-        str(output_file),
-    ]
+        cmd = [
+            str(binarycreator),
+            "--config", str(config_xml),
+            "--packages", str(packages_dir),
+            str(output_file),
+        ]
 
-    if args.verbose:
-        print(f"Generating installer: {output_file}")
-    run_command(cmd, verbose=args.verbose)
+        if args.verbose:
+            print(f"Generating installer for project version {project_version}: {output_file}")
+        run_command(cmd, verbose=args.verbose)
 
-    print("Qt IFW installer generated successfully.")
-    print(f"Output directory: {output_dir}")
-    print(f"Installer file: {output_file} (with platform-specific extension)")
+        print("Qt IFW installer generated successfully.")
+        print(f"Project version: {project_version}")
+        print(f"Output directory: {output_dir}")
+        print(f"Installer file: {output_file} (with platform-specific extension)")
+    finally:
+        temp_dir.cleanup()
 
 
 if __name__ == "__main__":

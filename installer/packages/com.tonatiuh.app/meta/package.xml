@@ -2,7 +2,8 @@
 <Package>
   <DisplayName>Tonatiuh++</DisplayName>
   <Description>Qt-based solar raytracing application built with Tonatiuh++.</Description>
-  <Version>0.1.8.16</Version>
+  <!-- Rendered from source/CMakeLists.txt by installer/create_installer.py. -->
+  <Version>@TONATIUHPP_VERSION@</Version>
   <ReleaseDate>2026-04-16</ReleaseDate>
   <Default>true</Default>
   <!-- installscript.qs is omitted for now because no custom install steps are required yet. -->

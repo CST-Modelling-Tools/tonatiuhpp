@@ -126,6 +126,14 @@ jobs:
           "WINDEPLOYQT_PATH=$windeployqt" | Out-File -FilePath $env:GITHUB_ENV -Append
           "BINARYCREATOR_PATH=$binarycreator" | Out-File -FilePath $env:GITHUB_ENV -Append
 
+      - name: Resolve project version
+        id: project_version
+        shell: pwsh
+        run: |
+          $version = py installer/sync_ifw_metadata.py --check-tag "${{ github.ref_name }}" --print-version
+          "TONATIUHPP_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
       - name: Install Python deps (+ Ninja)
         shell: bash
         run: |
@@ -246,12 +254,12 @@ jobs:
       - name: Generate Windows installer
         shell: pwsh
         run: |
-          py installer/create_installer.py --binarycreator "$env:BINARYCREATOR_PATH" --output-name "TonatiuhPP-${{ github.ref_name }}-windows-x64"
+          py installer/create_installer.py --binarycreator "$env:BINARYCREATOR_PATH" --output-name "TonatiuhPP-$env:TONATIUHPP_VERSION-windows-x64"
 
       - uses: actions/upload-artifact@v4
         with:
           name: asset-windows
-          path: installer/output/TonatiuhPP-${{ github.ref_name }}-windows-x64.exe
+          path: installer/output/TonatiuhPP-${{ steps.project_version.outputs.version }}-windows-x64.exe
 
   publish:
     needs:
