@@ -25,6 +25,12 @@ endif()
 # Standard install dirs (no hard-coded 'bin', 'lib', etc.)
 include(GNUInstallDirs)
 
+# Keep legacy subdirectory install rules aligned with GNUInstallDirs.
+set(GLOBAL_INSTALL_BIN_DIR
+    "${CMAKE_INSTALL_BINDIR}"
+    CACHE PATH "Install location for TonatiuhPP binaries"
+)
+
 # ------------------------------------------------------
 # 🌍 Default install prefix (ALL platforms)
 # ------------------------------------------------------
@@ -471,17 +477,6 @@ if(EXISTS "${_RESOURCES_SRC}")
   )
 else()
   message(STATUS "Resources directory not found: ${_RESOURCES_SRC} (skipping install)")
-endif()
-
-# ----------------------------
-# 🏁 Linux launcher script
-# ----------------------------
-if(UNIX AND NOT APPLE)
-  # Install the launcher script from <repo-root>/scripts
-  install(
-    PROGRAMS "${CMAKE_CURRENT_LIST_DIR}/../scripts/tonatiuhpp.sh"
-    DESTINATION "${CMAKE_INSTALL_BINDIR}"
-  )
 endif()
 
 # ----------------------------
