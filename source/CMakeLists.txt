@@ -285,8 +285,8 @@ if(UNIX AND NOT APPLE AND TONATIUHPP_BUNDLE_RUNTIME)
 
   # Hand off to install-time script; inject values NOW via ${...}
   install(CODE
-    "set(_installed_bindir \"${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR}\")
-     set(_installed_libdir \"${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}\")
+    "set(_installed_bindir \"\${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR}\")
+     set(_installed_libdir \"\${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}\")
      file(MAKE_DIRECTORY \"\${_installed_libdir}\")
      file(MAKE_DIRECTORY \"\${_installed_bindir}\")
 
