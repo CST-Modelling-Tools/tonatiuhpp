@@ -22,6 +22,7 @@
 #include <QPushButton>
 #include <QDebug>
 #include <QShortcut>
+#include <QUrl>
 
 #include <Inventor/nodes/SoPerspectiveCamera.h>
 #include <Inventor/actions/SoGetBoundingBoxAction.h>
@@ -99,6 +100,18 @@
 #include "UndoView.h"
 #include "kernel/scene/GridNode.h"
 
+namespace {
+QString appBundleDataPath(const QString& relativePath)
+{
+    QDir dir(QCoreApplication::applicationDirPath());
+#ifdef Q_OS_MACOS
+    return dir.absoluteFilePath("../Resources/" + relativePath);
+#else
+    return dir.absoluteFilePath("../" + relativePath);
+#endif
+}
+}
+
 void startManipulator(void* data, SoDragger* dragger)
 {
     MainWindow* w = static_cast<MainWindow*>(data);
@@ -162,8 +175,7 @@ MainWindow::MainWindow(QString fileName, CustomSplashScreen* splash, QWidget* pa
     dir.cd("plugins");
     m_pluginManager->load(dir);
 
-    QDir dirApp(QCoreApplication::applicationDirPath());
-    QStringList paths = {dirApp.absoluteFilePath("../resources")};
+    QStringList paths = {appBundleDataPath("resources")};
     QDir::setSearchPaths("resources", paths);
 
     if (splash) splash->setMessage("Creating views");
@@ -636,9 +648,8 @@ void MainWindow::on_actionHelpExamples_triggered()
 
     if (!OkToContinue()) return;
 
-    QDir dir = QCoreApplication::applicationDirPath();
     QString fileName = QFileDialog::getOpenFileName(
-        this, "Open File", dir.filePath("../examples"),
+        this, "Open File", appBundleDataPath("examples"),
         "All files (*);;"
         "Tonatiuh++ projects (*.tnhpp);;"
         "Tonatiuh++ scripts (*.tnhpps)"
@@ -652,9 +663,8 @@ void MainWindow::on_actionHelpExamples_triggered()
 
 void MainWindow::on_actionHelpScripts_triggered()
 {
-    QDir dir = QCoreApplication::applicationDirPath();
     QString fileName = QFileDialog::getOpenFileName(
-        this, "Open File", dir.filePath("../examples/scripts"),
+        this, "Open File", appBundleDataPath("examples/scripts"),
         "Tonatiuh script files (*.tnhpps);; All files (*)"
     );
     if (fileName.isEmpty()) return;
@@ -2769,7 +2779,7 @@ double findInterception(QString surface, uint rays, MainWindow* mw)
 #include <QDesktopServices>
 void MainWindow::on_actionHelpDocumentation_triggered()
 {
-    QDesktopServices::openUrl(QUrl("file:///" + qApp->applicationDirPath() + "/../help/html/index.html"));
+    QDesktopServices::openUrl(QUrl::fromLocalFile(appBundleDataPath("help/html/index.html")));
 //    HelpDialog dialog(this);
 //    dialog.exec();
 }

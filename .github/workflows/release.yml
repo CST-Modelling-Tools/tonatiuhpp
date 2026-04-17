@@ -140,7 +140,12 @@ jobs:
           fi
 
           FRAMEWORKS_DIR="${APP_BUNDLE}/Contents/Frameworks"
+          MACOS_DIR="${APP_BUNDLE}/Contents/MacOS"
+          APP_RESOURCES_DIR="${APP_BUNDLE}/Contents/Resources"
+          APP_PLUGINS_DIR="${MACOS_DIR}/plugins"
           mkdir -p "${FRAMEWORKS_DIR}"
+          mkdir -p "${APP_RESOURCES_DIR}"
+          mkdir -p "${APP_PLUGINS_DIR}"
 
           PRIVATE_DYLIBS=()
           while IFS= read -r dylib; do
@@ -200,7 +205,29 @@ jobs:
           rewrite_private_refs "${APP_EXEC}"
           for dylib in "${PRIVATE_DYLIBS[@]}"; do
             rewrite_private_refs "${FRAMEWORKS_DIR}/${dylib}"
+            rm -f "dist/bin/${dylib}"
           done
+
+          for plugin in dist/bin/*.dylib; do
+            [ -f "${plugin}" ] || continue
+            base="$(basename "${plugin}")"
+            dst="${APP_PLUGINS_DIR}/${base}"
+            mv "${plugin}" "${dst}"
+            chmod u+w "${dst}"
+            ensure_rpath "${dst}" "@loader_path/../../Frameworks"
+            rewrite_private_refs "${dst}"
+          done
+
+          for data_dir in examples help resources; do
+            if [ -d "dist/${data_dir}" ]; then
+              rm -rf "${APP_RESOURCES_DIR}/${data_dir}"
+              mv "dist/${data_dir}" "${APP_RESOURCES_DIR}/${data_dir}"
+            fi
+          done
+
+          if [ -d dist/bin ] && [ -z "$(find dist/bin -mindepth 1 -print -quit)" ]; then
+            rmdir dist/bin
+          fi
 
       - name: Pack
         shell: bash

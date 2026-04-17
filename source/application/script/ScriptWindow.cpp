@@ -29,6 +29,18 @@ Q_DECLARE_METATYPE(QVector<QVariant>)
 #include <QQmlEngine>
 #include <QDebug>
 
+namespace {
+QString appBundleDataPath(const QString& relativePath)
+{
+    QDir dir(QCoreApplication::applicationDirPath());
+#ifdef Q_OS_MACOS
+    return dir.absoluteFilePath("../Resources/" + relativePath);
+#else
+    return dir.absoluteFilePath("../" + relativePath);
+#endif
+}
+}
+
 QString timeString()
 {
     return QString("[%1] ").arg(QDateTime::currentDateTime().toString("hh:mm:ss"));
@@ -381,9 +393,8 @@ void ScriptWindow::on_actionExamples_triggered()
 {
     if (!isReady()) return;
 
-    QDir dir(QCoreApplication::applicationDirPath());
     QString fileName = QFileDialog::getOpenFileName(
-        this, "Open File", dir.filePath("../examples/scripts"),
+        this, "Open File", appBundleDataPath("examples/scripts"),
         "Tonatiuh script file (*.tnhpps)"
     );
     if (fileName.isEmpty()) return;
