@@ -142,7 +142,11 @@ jobs:
           FRAMEWORKS_DIR="${APP_BUNDLE}/Contents/Frameworks"
           mkdir -p "${FRAMEWORKS_DIR}"
 
-          mapfile -t PRIVATE_DYLIBS < <(
+          PRIVATE_DYLIBS=()
+          while IFS= read -r dylib; do
+            [ -n "${dylib}" ] || continue
+            PRIVATE_DYLIBS+=("${dylib}")
+          done < <(
             otool -L "${APP_EXEC}" | tail -n +2 | awk '{print $1}' | while read -r dep; do
               base="$(basename "${dep}")"
               if [[ "${base}" == libTonatiuh*.dylib && -f "dist/bin/${base}" ]]; then
