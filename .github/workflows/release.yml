@@ -124,12 +124,13 @@ jobs:
         run: |
           set -euo pipefail
 
-          APP_BUNDLE="$(find dist -maxdepth 2 -type d -name 'TonatiuhPP.app' -print -quit)"
+          APP_BUNDLE="$(find dist -type d -name '*.app' -print -quit)"
           if [ -z "${APP_BUNDLE}" ]; then
-            echo "TonatiuhPP.app not found in dist after install" >&2
+            echo "No .app bundle found in dist after install" >&2
             exit 1
           fi
 
+          echo "Using app bundle: ${APP_BUNDLE}"
           macdeployqt "${APP_BUNDLE}" -verbose=1
 
       - name: Pack
