@@ -178,11 +178,16 @@ set(RESOURCES resources.qrc)
 # ----------------------------
 # Executable
 # ----------------------------
-add_executable(${ProjectName} ${SOURCES} ${HEADERS} ${FORMS} ${RESOURCES})
+if(APPLE)
+    add_executable(${ProjectName} MACOSX_BUNDLE ${SOURCES} ${HEADERS} ${FORMS} ${RESOURCES})
+else()
+    add_executable(${ProjectName} ${SOURCES} ${HEADERS} ${FORMS} ${RESOURCES})
+endif()
 
 # Keep on-disk name as "tonatiuhpp"
 set_target_properties(${ProjectName} PROPERTIES
     OUTPUT_NAME "tonatiuhpp"
+    MACOSX_BUNDLE_BUNDLE_NAME "TonatiuhPP"
 )
 
 # ----------------------------
@@ -254,6 +259,7 @@ endif()
 # Install rules
 # ----------------------------
 install(TARGETS ${ProjectName}
+  BUNDLE DESTINATION "."
   RUNTIME DESTINATION "${GLOBAL_INSTALL_BIN_DIR}"
   LIBRARY DESTINATION "${GLOBAL_INSTALL_BIN_DIR}"
   ARCHIVE DESTINATION "${GLOBAL_INSTALL_BIN_DIR}"

@@ -118,6 +118,20 @@ jobs:
           cmake --build build --config Release --parallel
           cmake --install build --prefix dist
 
+      - name: Deploy Qt frameworks (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          APP_BUNDLE="$(find dist -maxdepth 2 -type d -name 'TonatiuhPP.app' -print -quit)"
+          if [ -z "${APP_BUNDLE}" ]; then
+            echo "TonatiuhPP.app not found in dist after install" >&2
+            exit 1
+          fi
+
+          macdeployqt "${APP_BUNDLE}" -verbose=1
+
       - name: Pack
         shell: bash
         run: |
