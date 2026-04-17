@@ -133,6 +133,71 @@ jobs:
           echo "Using app bundle: ${APP_BUNDLE}"
           macdeployqt "${APP_BUNDLE}" -verbose=1
 
+          APP_EXEC="$(find "${APP_BUNDLE}/Contents/MacOS" -type f -perm -111 -print -quit)"
+          if [ -z "${APP_EXEC}" ]; then
+            echo "No executable found inside app bundle: ${APP_BUNDLE}" >&2
+            exit 1
+          fi
+
+          FRAMEWORKS_DIR="${APP_BUNDLE}/Contents/Frameworks"
+          mkdir -p "${FRAMEWORKS_DIR}"
+
+          mapfile -t PRIVATE_DYLIBS < <(
+            otool -L "${APP_EXEC}" | tail -n +2 | awk '{print $1}' | while read -r dep; do
+              base="$(basename "${dep}")"
+              if [[ "${base}" == libTonatiuh*.dylib && -f "dist/bin/${base}" ]]; then
+                echo "${base}"
+              fi
+            done | sort -u
+          )
+
+          if [ "${#PRIVATE_DYLIBS[@]}" -eq 0 ]; then
+            echo "No Tonatiuh private dylibs referenced by ${APP_EXEC}" >&2
+            exit 1
+          fi
+
+          echo "Bundling private dylibs:"
+          printf '  %s\n' "${PRIVATE_DYLIBS[@]}"
+
+          ensure_rpath() {
+            local file="$1"
+            local rpath="$2"
+            if ! otool -l "${file}" | awk '
+              $1 == "cmd" && $2 == "LC_RPATH" { in_rpath=1; next }
+              in_rpath && $1 == "path" { print $2; in_rpath=0 }
+            ' | grep -Fxq "${rpath}"; then
+              install_name_tool -add_rpath "${rpath}" "${file}"
+            fi
+          }
+
+          rewrite_private_refs() {
+            local file="$1"
+            while read -r dep; do
+              [ -n "${dep}" ] || continue
+              local base
+              base="$(basename "${dep}")"
+              if [[ " ${PRIVATE_DYLIBS[*]} " == *" ${base} "* ]]; then
+                install_name_tool -change "${dep}" "@rpath/${base}" "${file}"
+              fi
+            done < <(otool -L "${file}" | tail -n +2 | awk '{print $1}')
+          }
+
+          ensure_rpath "${APP_EXEC}" "@executable_path/../Frameworks"
+
+          for dylib in "${PRIVATE_DYLIBS[@]}"; do
+            src="dist/bin/${dylib}"
+            dst="${FRAMEWORKS_DIR}/${dylib}"
+            cp -f "${src}" "${dst}"
+            chmod u+w "${dst}"
+            install_name_tool -id "@rpath/${dylib}" "${dst}"
+            ensure_rpath "${dst}" "@loader_path"
+          done
+
+          rewrite_private_refs "${APP_EXEC}"
+          for dylib in "${PRIVATE_DYLIBS[@]}"; do
+            rewrite_private_refs "${FRAMEWORKS_DIR}/${dylib}"
+          done
+
       - name: Pack
         shell: bash
         run: |
