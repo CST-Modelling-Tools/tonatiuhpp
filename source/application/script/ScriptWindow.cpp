@@ -10,6 +10,7 @@
 #include <QMessageBox>
 #include <QSettings>
 #include <QFileDialog>
+#include <QStandardPaths>
 #include <QTextStream>
 
 Q_DECLARE_METATYPE(QVector<QVariant>)
@@ -38,6 +39,42 @@ QString appBundleDataPath(const QString& relativePath)
 #else
     return dir.absoluteFilePath("../" + relativePath);
 #endif
+}
+
+QString existingDirectoryOrFallback(const QString& preferredPath, const QString& fallbackPath = QString())
+{
+    QFileInfo preferredInfo(preferredPath);
+    if (preferredInfo.exists()) {
+        if (preferredInfo.isDir()) return preferredInfo.absoluteFilePath();
+        return preferredInfo.absolutePath();
+    }
+
+    QFileInfo fallbackInfo(fallbackPath);
+    if (fallbackInfo.exists()) {
+        if (fallbackInfo.isDir()) return fallbackInfo.absoluteFilePath();
+        return fallbackInfo.absolutePath();
+    }
+
+    QString docsDir = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
+    if (!docsDir.isEmpty() && QDir(docsDir).exists())
+        return docsDir;
+
+    return QDir::homePath();
+}
+
+QString openFileWithDirectory(QWidget* parent,
+                              const QString& title,
+                              const QString& initialDirectory,
+                              const QString& filter)
+{
+    QFileDialog dialog(parent, title);
+    dialog.setAcceptMode(QFileDialog::AcceptOpen);
+    dialog.setFileMode(QFileDialog::ExistingFile);
+    dialog.setNameFilter(filter);
+    dialog.setDirectory(existingDirectoryOrFallback(initialDirectory));
+    if (dialog.exec() != QDialog::Accepted || dialog.selectedFiles().isEmpty())
+        return QString();
+    return dialog.selectedFiles().first();
 }
 }
 
@@ -158,7 +195,7 @@ void ScriptWindow::fileOpen(QString fileName)
         QSettings settings("Tonatiuh", "Cyprus");
         QString dirName = settings.value("dirProjects", "").toString();
 
-        fileName = QFileDialog::getOpenFileName(
+        fileName = openFileWithDirectory(
             this, "Open File", dirName,
             "Tonatiuh script file (*.tnhpps)"
         );
@@ -393,7 +430,7 @@ void ScriptWindow::on_actionExamples_triggered()
 {
     if (!isReady()) return;
 
-    QString fileName = QFileDialog::getOpenFileName(
+    QString fileName = openFileWithDirectory(
         this, "Open File", appBundleDataPath("examples/scripts"),
         "Tonatiuh script file (*.tnhpps)"
     );
