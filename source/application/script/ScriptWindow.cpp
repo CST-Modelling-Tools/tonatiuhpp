@@ -72,6 +72,27 @@ QString openFileWithDirectory(QWidget* parent,
     dialog.setFileMode(QFileDialog::ExistingFile);
     dialog.setNameFilter(filter);
     dialog.setDirectory(existingDirectoryOrFallback(initialDirectory));
+#ifdef Q_OS_MACOS
+    dialog.setOption(QFileDialog::DontUseNativeDialog, true);
+#endif
+    if (dialog.exec() != QDialog::Accepted || dialog.selectedFiles().isEmpty())
+        return QString();
+    return dialog.selectedFiles().first();
+}
+
+QString saveFileWithDirectory(QWidget* parent,
+                              const QString& title,
+                              const QString& initialDirectory,
+                              const QString& filter)
+{
+    QFileDialog dialog(parent, title);
+    dialog.setAcceptMode(QFileDialog::AcceptSave);
+    dialog.setFileMode(QFileDialog::AnyFile);
+    dialog.setNameFilter(filter);
+    dialog.setDirectory(existingDirectoryOrFallback(initialDirectory));
+#ifdef Q_OS_MACOS
+    dialog.setOption(QFileDialog::DontUseNativeDialog, true);
+#endif
     if (dialog.exec() != QDialog::Accepted || dialog.selectedFiles().isEmpty())
         return QString();
     return dialog.selectedFiles().first();
@@ -246,7 +267,7 @@ bool ScriptWindow::fileSaveAs(QString fileName)
         QSettings settings("Tonatiuh", "Cyprus");
         QString dirName = settings.value("dirProjects", "").toString();
 
-        fileName = QFileDialog::getSaveFileName(
+        fileName = saveFileWithDirectory(
             this, "Save File", dirName,
             "Tonatiuh script file (*.tnhpps)"
         );
