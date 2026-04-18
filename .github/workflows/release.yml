@@ -229,6 +229,31 @@ jobs:
             rmdir dist/bin
           fi
 
+      - name: Validate macOS app-bundle artifact
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          APP_BUNDLE_COUNT="$(find dist -mindepth 1 -maxdepth 1 -type d -name '*.app' | wc -l | tr -d ' ')"
+          if [ "${APP_BUNDLE_COUNT}" -ne 1 ]; then
+            echo "Expected exactly one top-level .app bundle in dist/, found ${APP_BUNDLE_COUNT}." >&2
+            find dist -mindepth 1 -maxdepth 1 -print >&2
+            exit 1
+          fi
+
+          APP_BUNDLE_PATH="$(find dist -mindepth 1 -maxdepth 1 -type d -name '*.app' -print | head -n 1)"
+          TOP_LEVEL_COUNT="$(find dist -mindepth 1 -maxdepth 1 | wc -l | tr -d ' ')"
+
+          if [ "${TOP_LEVEL_COUNT}" -ne 1 ]; then
+            echo "macOS artifact must contain only the app bundle at the top level." >&2
+            echo "Found top-level entries:" >&2
+            find dist -mindepth 1 -maxdepth 1 -print | sort >&2
+            exit 1
+          fi
+
+          echo "Validated macOS artifact: ${APP_BUNDLE_PATH}"
+
       - name: Pack
         shell: bash
         run: |
