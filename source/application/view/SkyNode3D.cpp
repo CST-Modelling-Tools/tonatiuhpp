@@ -213,10 +213,7 @@ SoSeparator* SkyNode3D::makeLabels()
     majorTickPoints.reserve((360 / 15) * 2);
     majorTickSizes.reserve(360 / 15);
 
-    // Only draw the visible East-North-West horizon arc.
-    // A full 360-degree text ring would show back-side labels through the sky
-    // because the sky is intentionally rendered as a background overlay.
-    for (int azimuthDeg = 270; azimuthDeg <= 450; azimuthDeg += 5)
+    for (int azimuthDeg = 0; azimuthDeg < 360; azimuthDeg += 5)
     {
         const bool isMajorTick = (azimuthDeg % 15) == 0;
         const int normalizedAzimuth = normalizeAzimuth(azimuthDeg);
@@ -287,7 +284,7 @@ SoSeparator* SkyNode3D::makeLabels()
         root->addChild(labelRoot);
     };
 
-    for (int azimuthDeg = 270; azimuthDeg <= 450; azimuthDeg += 15)
+    for (int azimuthDeg = 0; azimuthDeg < 360; azimuthDeg += 15)
     {
         const int normalizedAzimuth = normalizeAzimuth(azimuthDeg);
 
@@ -302,6 +299,9 @@ SoSeparator* SkyNode3D::makeLabels()
         case 270:
             addTextLabel(normalizedAzimuth, "W", kCardinalLabelRadius, kCardinalLabelHeight, kCardinalFontSize, SbColor(1.0f, 1.0f, 1.0f));
             break;
+        case 180:
+            addTextLabel(normalizedAzimuth, "S", kSouthLabelRadius, kSouthLabelHeight, kCardinalFontSize, SbColor(1.0f, 1.0f, 1.0f));
+            break;
         default:
             {
                 QByteArray angleText = QByteArray::number(normalizedAzimuth);
@@ -310,8 +310,6 @@ SoSeparator* SkyNode3D::makeLabels()
             break;
         }
     }
-
-    addTextLabel(180, "S", kSouthLabelRadius, kSouthLabelHeight, kCardinalFontSize, SbColor(1.0f, 1.0f, 1.0f));
 
     return root;
 }
