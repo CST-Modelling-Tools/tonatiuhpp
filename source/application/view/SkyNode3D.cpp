@@ -8,6 +8,7 @@
 #include <Inventor/nodes/SoDepthBuffer.h>
 #include <Inventor/nodes/SoFont.h>
 #include <Inventor/nodes/SoLightModel.h>
+#include <Inventor/nodes/SoLineSet.h>
 #include <Inventor/nodes/SoMaterial.h>
 #include <Inventor/nodes/SoMaterialBinding.h>
 #include <Inventor/nodes/SoPerspectiveCamera.h>
@@ -16,6 +17,7 @@
 #include <Inventor/nodes/SoText2.h>
 #include <Inventor/nodes/SoTransform.h>
 
+#include <QByteArray>
 #include <QColor>
 #include <QVector>
 #include <QVector3D>
@@ -25,9 +27,11 @@ SO_NODE_SOURCE(SkyNode3D)
 namespace
 {
     constexpr float kSkyRadius = 500.0f;
-    constexpr float kLabelRadius = 140.0f;
-    constexpr float kLabelHeight = 8.0f;
-    constexpr float kLabelShadowOffset = 4.0f;
+    constexpr float kScaleRadius = 180.0f;
+    constexpr float kTickBaseHeight = 0.0f;
+    constexpr float kTickShortHeight = 8.0f;
+    constexpr float kTickLongHeight = 14.0f;
+    constexpr float kLabelHeight = 22.0f;
 
     struct SkyGradient
     {
@@ -61,6 +65,23 @@ namespace
                 horizon.blue()  + (zenith.blue()  - horizon.blue())  * m.z());
         }
     };
+
+    SbVec3f pointOnHorizon(float azimuthDeg, float radius, float z)
+    {
+        const float azimuth = azimuthDeg * static_cast<float>(M_PI / 180.0);
+        return SbVec3f(
+            radius * std::sin(azimuth),
+            radius * std::cos(azimuth),
+            z);
+    }
+
+    int normalizeAzimuth(int azimuthDeg)
+    {
+        int normalized = azimuthDeg % 360;
+        if (normalized < 0)
+            normalized += 360;
+        return normalized;
+    }
 }
 
 void SkyNode3D::initClass()
@@ -95,8 +116,8 @@ void SkyNode3D::updateSkyCamera(SoPerspectiveCamera* camera)
     if (!camera || !m_skyTransform)
         return;
 
-    // Keep the sky centered on the viewer so the dome and compass remain visible
-    // without reviving the old custom GLRender path.
+    // Keep the sky centered on the viewer so the dome remains an environment
+    // background instead of ordinary world geometry.
     m_skyTransform->translation = camera->position.getValue();
 }
 
@@ -173,59 +194,86 @@ SoSeparator* SkyNode3D::makeLabels()
 {
     SoSeparator* root = new SoSeparator;
 
+    SoMaterial* tickMaterial = new SoMaterial;
+    tickMaterial->diffuseColor = SbColor(0.94f, 0.96f, 1.0f);
+    root->addChild(tickMaterial);
+
+    QVector<SbVec3f> tickPoints;
+    QVector<int> tickSizes;
+    tickPoints.reserve((360 / 5) * 2);
+    tickSizes.reserve(360 / 5);
+
+    // Only draw the visible East-North-West horizon arc.
+    // A full 360-degree text ring would show back-side labels through the sky
+    // because the sky is intentionally rendered as a background overlay.
+    for (int azimuthDeg = 270; azimuthDeg <= 450; azimuthDeg += 5)
+    {
+        const bool isMajorTick = (azimuthDeg % 15) == 0;
+        const int normalizedAzimuth = normalizeAzimuth(azimuthDeg);
+        const float tickHeight = isMajorTick ? kTickLongHeight : kTickShortHeight;
+        tickPoints << pointOnHorizon(static_cast<float>(normalizedAzimuth), kScaleRadius, kTickBaseHeight);
+        tickPoints << pointOnHorizon(static_cast<float>(normalizedAzimuth), kScaleRadius, tickHeight);
+        tickSizes << 2;
+    }
+
+    SoCoordinate3* tickCoordinates = new SoCoordinate3;
+    tickCoordinates->point.setValues(0, tickPoints.size(), tickPoints.constData());
+    root->addChild(tickCoordinates);
+
+    SoLineSet* tickLines = new SoLineSet;
+    tickLines->numVertices.setValues(0, tickSizes.size(), tickSizes.constData());
+    root->addChild(tickLines);
+
     SoFont* font = new SoFont;
     font->name = "Arial:Bold";
-    font->size = 18.0f;
+    font->size = 12.0f;
     root->addChild(font);
 
-    auto addLabelAt = [&](float x, float y, const char* text, const char* shortText)
+    SoMaterial* textMaterial = new SoMaterial;
+    textMaterial->diffuseColor = SbColor(1.0f, 1.0f, 1.0f);
+    root->addChild(textMaterial);
+
+    auto addTextLabel = [&](int azimuthDeg, const char* text)
     {
         SoSeparator* labelRoot = new SoSeparator;
 
-        auto addTextLayer = [&](const SbColor& color, const SbVec3f& offset, const char* value)
-        {
-            SoSeparator* layer = new SoSeparator;
+        SoTransform* transform = new SoTransform;
+        transform->translation = pointOnHorizon(static_cast<float>(azimuthDeg), kScaleRadius, kLabelHeight);
+        labelRoot->addChild(transform);
 
-            SoMaterial* material = new SoMaterial;
-            material->diffuseColor = color;
-            layer->addChild(material);
-
-            SoTransform* transform = new SoTransform;
-            transform->translation = offset;
-            layer->addChild(transform);
-
-            SoText2* textNode = new SoText2;
-            textNode->string.setValue(value);
-            textNode->justification = SoText2::CENTER;
-            layer->addChild(textNode);
-
-            labelRoot->addChild(layer);
-        };
-
-        SoTransform* placement = new SoTransform;
-        placement->translation = SbVec3f(x, y, kLabelHeight);
-        labelRoot->addChild(placement);
-
-        addTextLayer(SbColor(0.08f, 0.10f, 0.14f), SbVec3f(kLabelShadowOffset, -kLabelShadowOffset, 0.f), text);
-        addTextLayer(SbColor(1.f, 1.f, 1.f), SbVec3f(0.f, 0.f, 0.f), text);
-
-        SoTransform* shortPlacement = new SoTransform;
-        shortPlacement->translation = SbVec3f(0.f, -22.f, 0.f);
-        labelRoot->addChild(shortPlacement);
-
-        addTextLayer(SbColor(0.08f, 0.10f, 0.14f), SbVec3f(kLabelShadowOffset, -kLabelShadowOffset, 0.f), shortText);
-        addTextLayer(SbColor(0.92f, 0.96f, 1.f), SbVec3f(0.f, 0.f, 0.f), shortText);
+        SoText2* textNode = new SoText2;
+        textNode->string.setValue(text);
+        textNode->justification = SoText2::CENTER;
+        labelRoot->addChild(textNode);
 
         root->addChild(labelRoot);
     };
 
-    // Coordinate system:
-    //   +X -> East
-    //   +Y -> North
-    addLabelAt(0.f,           kLabelRadius,  "North", "N");
-    addLabelAt(kLabelRadius,  0.f,           "East",  "E");
-    addLabelAt(0.f,          -kLabelRadius,  "South", "S");
-    addLabelAt(-kLabelRadius, 0.f,           "West",  "W");
+    for (int azimuthDeg = 270; azimuthDeg <= 450; azimuthDeg += 15)
+    {
+        const int normalizedAzimuth = normalizeAzimuth(azimuthDeg);
+
+        switch (normalizedAzimuth)
+        {
+        case 0:
+            addTextLabel(normalizedAzimuth, "N");
+            break;
+        case 90:
+            addTextLabel(normalizedAzimuth, "E");
+            break;
+        case 270:
+            addTextLabel(normalizedAzimuth, "W");
+            break;
+        default:
+            {
+                QByteArray angleText = QByteArray::number(normalizedAzimuth);
+                addTextLabel(normalizedAzimuth, angleText.constData());
+            }
+            break;
+        }
+    }
+
+    addTextLabel(180, "S");
 
     return root;
 }
