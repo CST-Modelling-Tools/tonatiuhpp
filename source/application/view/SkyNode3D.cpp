@@ -6,6 +6,7 @@
 #include <Inventor/SbVec3f.h>
 #include <Inventor/nodes/SoCoordinate3.h>
 #include <Inventor/nodes/SoDepthBuffer.h>
+#include <Inventor/nodes/SoDrawStyle.h>
 #include <Inventor/nodes/SoFont.h>
 #include <Inventor/nodes/SoLightModel.h>
 #include <Inventor/nodes/SoLineSet.h>
@@ -29,9 +30,18 @@ namespace
     constexpr float kSkyRadius = 500.0f;
     constexpr float kScaleRadius = 180.0f;
     constexpr float kTickBaseHeight = 0.0f;
-    constexpr float kTickShortHeight = 8.0f;
-    constexpr float kTickLongHeight = 14.0f;
-    constexpr float kLabelHeight = 22.0f;
+    constexpr float kTickShortHeight = 3.5f;
+    constexpr float kTickLongHeight = 7.0f;
+    constexpr float kNumericLabelHeight = 11.0f;
+    constexpr float kCardinalLabelHeight = 16.0f;
+    constexpr float kSouthLabelHeight = 13.0f;
+    constexpr float kNumericLabelRadius = 181.5f;
+    constexpr float kCardinalLabelRadius = 183.5f;
+    constexpr float kSouthLabelRadius = 182.0f;
+    constexpr float kMinorTickLineWidth = 1.0f;
+    constexpr float kMajorTickLineWidth = 1.8f;
+    constexpr float kNumericFontSize = 16.0f;
+    constexpr float kCardinalFontSize = 21.0f;
 
     struct SkyGradient
     {
@@ -194,14 +204,14 @@ SoSeparator* SkyNode3D::makeLabels()
 {
     SoSeparator* root = new SoSeparator;
 
-    SoMaterial* tickMaterial = new SoMaterial;
-    tickMaterial->diffuseColor = SbColor(0.94f, 0.96f, 1.0f);
-    root->addChild(tickMaterial);
-
-    QVector<SbVec3f> tickPoints;
-    QVector<int> tickSizes;
-    tickPoints.reserve((360 / 5) * 2);
-    tickSizes.reserve(360 / 5);
+    QVector<SbVec3f> minorTickPoints;
+    QVector<int> minorTickSizes;
+    QVector<SbVec3f> majorTickPoints;
+    QVector<int> majorTickSizes;
+    minorTickPoints.reserve((360 / 5) * 2);
+    minorTickSizes.reserve(360 / 5);
+    majorTickPoints.reserve((360 / 15) * 2);
+    majorTickSizes.reserve(360 / 15);
 
     // Only draw the visible East-North-West horizon arc.
     // A full 360-degree text ring would show back-side labels through the sky
@@ -210,35 +220,63 @@ SoSeparator* SkyNode3D::makeLabels()
     {
         const bool isMajorTick = (azimuthDeg % 15) == 0;
         const int normalizedAzimuth = normalizeAzimuth(azimuthDeg);
+        QVector<SbVec3f>& tickPoints = isMajorTick ? majorTickPoints : minorTickPoints;
+        QVector<int>& tickSizes = isMajorTick ? majorTickSizes : minorTickSizes;
         const float tickHeight = isMajorTick ? kTickLongHeight : kTickShortHeight;
         tickPoints << pointOnHorizon(static_cast<float>(normalizedAzimuth), kScaleRadius, kTickBaseHeight);
         tickPoints << pointOnHorizon(static_cast<float>(normalizedAzimuth), kScaleRadius, tickHeight);
         tickSizes << 2;
     }
 
-    SoCoordinate3* tickCoordinates = new SoCoordinate3;
-    tickCoordinates->point.setValues(0, tickPoints.size(), tickPoints.constData());
-    root->addChild(tickCoordinates);
+    auto addTickSet = [&](const QVector<SbVec3f>& points,
+                          const QVector<int>& sizes,
+                          const SbColor& color,
+                          float lineWidth)
+    {
+        SoSeparator* tickRoot = new SoSeparator;
 
-    SoLineSet* tickLines = new SoLineSet;
-    tickLines->numVertices.setValues(0, tickSizes.size(), tickSizes.constData());
-    root->addChild(tickLines);
+        SoMaterial* tickMaterial = new SoMaterial;
+        tickMaterial->diffuseColor = color;
+        tickRoot->addChild(tickMaterial);
 
-    SoFont* font = new SoFont;
-    font->name = "Arial:Bold";
-    font->size = 12.0f;
-    root->addChild(font);
+        SoDrawStyle* drawStyle = new SoDrawStyle;
+        drawStyle->lineWidth = lineWidth;
+        tickRoot->addChild(drawStyle);
 
-    SoMaterial* textMaterial = new SoMaterial;
-    textMaterial->diffuseColor = SbColor(1.0f, 1.0f, 1.0f);
-    root->addChild(textMaterial);
+        SoCoordinate3* tickCoordinates = new SoCoordinate3;
+        tickCoordinates->point.setValues(0, points.size(), points.constData());
+        tickRoot->addChild(tickCoordinates);
 
-    auto addTextLabel = [&](int azimuthDeg, const char* text)
+        SoLineSet* tickLines = new SoLineSet;
+        tickLines->numVertices.setValues(0, sizes.size(), sizes.constData());
+        tickRoot->addChild(tickLines);
+
+        root->addChild(tickRoot);
+    };
+
+    addTickSet(minorTickPoints, minorTickSizes, SbColor(0.76f, 0.82f, 0.88f), kMinorTickLineWidth);
+    addTickSet(majorTickPoints, majorTickSizes, SbColor(0.96f, 0.98f, 1.0f), kMajorTickLineWidth);
+
+    auto addTextLabel = [&](int azimuthDeg,
+                            const char* text,
+                            float radius,
+                            float height,
+                            float fontSize,
+                            const SbColor& color)
     {
         SoSeparator* labelRoot = new SoSeparator;
 
+        SoMaterial* textMaterial = new SoMaterial;
+        textMaterial->diffuseColor = color;
+        labelRoot->addChild(textMaterial);
+
+        SoFont* font = new SoFont;
+        font->name = "Arial:Bold";
+        font->size = fontSize;
+        labelRoot->addChild(font);
+
         SoTransform* transform = new SoTransform;
-        transform->translation = pointOnHorizon(static_cast<float>(azimuthDeg), kScaleRadius, kLabelHeight);
+        transform->translation = pointOnHorizon(static_cast<float>(azimuthDeg), radius, height);
         labelRoot->addChild(transform);
 
         SoText2* textNode = new SoText2;
@@ -256,24 +294,24 @@ SoSeparator* SkyNode3D::makeLabels()
         switch (normalizedAzimuth)
         {
         case 0:
-            addTextLabel(normalizedAzimuth, "N");
+            addTextLabel(normalizedAzimuth, "N", kCardinalLabelRadius, kCardinalLabelHeight, kCardinalFontSize, SbColor(1.0f, 1.0f, 1.0f));
             break;
         case 90:
-            addTextLabel(normalizedAzimuth, "E");
+            addTextLabel(normalizedAzimuth, "E", kCardinalLabelRadius, kCardinalLabelHeight, kCardinalFontSize, SbColor(1.0f, 1.0f, 1.0f));
             break;
         case 270:
-            addTextLabel(normalizedAzimuth, "W");
+            addTextLabel(normalizedAzimuth, "W", kCardinalLabelRadius, kCardinalLabelHeight, kCardinalFontSize, SbColor(1.0f, 1.0f, 1.0f));
             break;
         default:
             {
                 QByteArray angleText = QByteArray::number(normalizedAzimuth);
-                addTextLabel(normalizedAzimuth, angleText.constData());
+                addTextLabel(normalizedAzimuth, angleText.constData(), kNumericLabelRadius, kNumericLabelHeight, kNumericFontSize, SbColor(0.92f, 0.95f, 0.98f));
             }
             break;
         }
     }
 
-    addTextLabel(180, "S");
+    addTextLabel(180, "S", kSouthLabelRadius, kSouthLabelHeight, kCardinalFontSize, SbColor(1.0f, 1.0f, 1.0f));
 
     return root;
 }
