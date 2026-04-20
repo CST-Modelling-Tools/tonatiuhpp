@@ -10,6 +10,8 @@ class SoQtExaminerViewer;
 //class ConstrainedViewer;
 class TSeparatorKit;
 class SoPerspectiveCamera;
+class SoNodeSensor;
+class SoSensor;
 //!  GraphicView class implements a 3D representation of items from a model.
 class QActionGroup;
 class TPerspectiveCamera;
@@ -30,6 +32,7 @@ public:
     SoCamera* getCamera() const;
     void showRays();
     void render();
+    void syncSkyCamera();
 
 public slots:
     void currentChanged(const QModelIndex& current, const QModelIndex& previous);
@@ -80,8 +83,11 @@ protected:
     void setCameraViewTemp(double azimuth, double elevation);
 
 private:
+    static void onViewerCameraChanged(void* data, SoSensor*);
+
     GraphicRoot* m_graphicRoot;
     SoQtExaminerViewer* m_viewer;
+    SoNodeSensor* m_viewerCameraSensor;
 
     QPoint m_mousePressed;
     Qt::KeyboardModifiers m_modifiersPressed;

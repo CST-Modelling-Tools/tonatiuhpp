@@ -10,6 +10,7 @@
 #include <Inventor/Qt/viewers/SoQtExaminerViewer.h>
 #include <Inventor/actions/SoGetMatrixAction.h>
 #include <Inventor/nodes/SoSelection.h>
+#include <Inventor/sensors/SoNodeSensor.h>
 //#include <Inventor/Qt/viewers/SoQtConstrainedViewer.h>
 
 
@@ -76,7 +77,8 @@
  */
 GraphicView::GraphicView(QWidget* parent):
     QFrame(parent),
-    m_graphicRoot(0)
+    m_graphicRoot(0),
+    m_viewerCameraSensor(nullptr)
 {
     QVBoxLayout* layout = new QVBoxLayout;
     layout->setContentsMargins(0, 0, 0, 0);
@@ -152,6 +154,7 @@ QFrame[inFocus=true] {
 
 GraphicView::~GraphicView()
 {
+    delete m_viewerCameraSensor;
     delete m_viewer;
     delete m_camera;
 }
@@ -167,6 +170,11 @@ void GraphicView::setSceneGraph(GraphicRoot* sceneGraphRoot)
     SoPerspectiveCamera* camera = (SoPerspectiveCamera*) m_viewer->getCamera();
 
     m_camera->setCamera(camera);
+
+    if (!m_viewerCameraSensor)
+        m_viewerCameraSensor = new SoNodeSensor(onViewerCameraChanged, this);
+    m_viewerCameraSensor->attach(camera);
+    syncSkyCamera();
 
     TCameraKit* cameraKit = (TCameraKit*) m_graphicRoot->getScene()->getPart("world.camera", true);
     cameraKit->setCamera(m_camera);
@@ -193,6 +201,23 @@ void GraphicView::showRays()
 void GraphicView::render()
 {
     m_viewer->render();
+}
+
+void GraphicView::syncSkyCamera()
+{
+    if (!m_graphicRoot || !m_camera || !m_camera->camera())
+        return;
+
+    m_graphicRoot->updateSkyCamera(m_camera->camera());
+}
+
+void GraphicView::onViewerCameraChanged(void* data, SoSensor*)
+{
+    GraphicView* view = static_cast<GraphicView*>(data);
+    if (!view)
+        return;
+
+    view->syncSkyCamera();
 }
 
 #include "tree/SceneTreeModel.h"
@@ -501,7 +526,7 @@ void GraphicView::resizeEvent(QResizeEvent* event)
     QSize size = event->size();
     int h = std::min(size.width(), size.height());
     m_camera->camera()->heightAngle = 30*gcf::degree*h/hMax;
-    m_graphicRoot->updateSkyCamera(m_camera->camera());
+    syncSkyCamera();
     m_camera->setWindowSize(size);
 }
 
