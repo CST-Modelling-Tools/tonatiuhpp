@@ -118,6 +118,30 @@ jobs:
           cmake --build build --config Release --parallel
           cmake --install build --prefix dist
 
+      - name: Validate Linux bundled runtime layout
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          test -x dist/bin/tonatiuhpp
+          test -x dist/bin/tonatiuhpp-bin
+          test -f dist/bin/qt.conf
+          test -d dist/bin/platforms
+          test -f dist/lib/libQt6Core.so.6
+
+          if ldd dist/bin/tonatiuhpp-bin | grep -E '/usr/.*/libQt6'; then
+            echo "Main Linux binary resolves Qt from the system instead of dist/lib." >&2
+            exit 1
+          fi
+
+          find dist/bin/platforms -maxdepth 1 -type f -name '*.so*' -print0 | while IFS= read -r -d '' plugin; do
+            if ldd "${plugin}" | grep -E '/usr/.*/libQt6'; then
+              echo "Qt platform plugin resolves Qt from the system: ${plugin}" >&2
+              exit 1
+            fi
+          done
+
       - name: Deploy Qt frameworks (macOS)
         if: runner.os == 'macOS'
         shell: bash

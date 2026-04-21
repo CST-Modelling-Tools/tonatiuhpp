@@ -494,9 +494,26 @@ endif()
 # Linux launcher script
 # ----------------------------
 if(UNIX AND NOT APPLE)
+  # Make the wrapper the default entrypoint in packaged Linux installs.
+  # The real ELF binary is renamed to tonatiuhpp-bin so launching Tonatiuh++
+  # from the archive always goes through the wrapper that exports the bundled
+  # lib/ directory via LD_LIBRARY_PATH.
+  install(CODE
+    "set(_installed_bin \"\${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR}/tonatiuhpp\")
+     set(_installed_real_bin \"\${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR}/tonatiuhpp-bin\")
+     if(EXISTS \"\${_installed_bin}\")
+       if(EXISTS \"\${_installed_real_bin}\")
+         file(REMOVE \"\${_installed_real_bin}\")
+       endif()
+       file(RENAME \"\${_installed_bin}\" \"\${_installed_real_bin}\")
+     else()
+       message(FATAL_ERROR \"Expected installed Linux executable not found: \${_installed_bin}\")
+     endif()")
+
   install(
     PROGRAMS "${CMAKE_CURRENT_LIST_DIR}/../scripts/tonatiuhpp.sh"
     DESTINATION "${CMAKE_INSTALL_BINDIR}"
+    RENAME "tonatiuhpp"
   )
 endif()
 

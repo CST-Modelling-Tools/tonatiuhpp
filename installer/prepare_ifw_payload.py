@@ -156,6 +156,27 @@ def deploy_macos(app_bundle: Path, verbose: bool = False) -> None:
     run_command(cmd, verbose=verbose)
 
 
+def prune_windows_payload(staging_dir: Path, verbose: bool = False) -> None:
+    removed_any = False
+
+    for import_lib in staging_dir.rglob("*.lib"):
+        remove_path(import_lib, verbose=verbose)
+        removed_any = True
+
+    qmltooling_dir = staging_dir / "bin" / "qmltooling"
+    if qmltooling_dir.exists():
+        remove_path(qmltooling_dir, verbose=verbose)
+        removed_any = True
+
+    qml_dir = staging_dir / "bin" / "qml"
+    if qml_dir.exists() and not any(qml_dir.iterdir()):
+        remove_path(qml_dir, verbose=verbose)
+        removed_any = True
+
+    if verbose and not removed_any:
+        print("No removable Windows payload artifacts were found.")
+
+
 def verify_linux_bundling(staging_dir: Path, verbose: bool = False) -> None:
     lib_dir = staging_dir / "lib"
     platforms_dir = staging_dir / "bin" / "platforms"
@@ -244,6 +265,9 @@ def main() -> None:
         if args.verbose:
             print(f"Deploying Qt runtime on Windows for {staged_target}")
         deploy_windows(staged_target, args.windeployqt, verbose=args.verbose)
+        if args.verbose:
+            print("Pruning Windows staging payload")
+        prune_windows_payload(staging_dir, verbose=args.verbose)
     elif sys.platform == "darwin":
         if not is_bundle:
             raise SystemExit(
