@@ -27,6 +27,7 @@
         <file>images/file/saveas.png</file>
         <file>images/map/position.png</file>
         <file>images/map/sun.png</file>
+        <file alias="images/sky/sun.png">../../resources/images/sun.png</file>
         <file>images/map/worldMap.bmp</file>
         <file>images/map/worldMapGray.bmp</file>
         <file>images/run/runFluxAnalysis.png</file>

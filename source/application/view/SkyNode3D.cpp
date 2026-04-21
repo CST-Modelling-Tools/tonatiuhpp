@@ -32,24 +32,29 @@ namespace
     constexpr float kRingInnerRadius = 177.5f;
     constexpr float kRingOuterRadius = 184.5f;
     constexpr float kTickBaseHeight = 0.8f;
+    constexpr float kTickFineHeight = 1.5f;
     constexpr float kTickShortHeight = 2.8f;
     constexpr float kTickLongHeight = 6.2f;
     constexpr float kTickCardinalHeight = 9.0f;
-    constexpr float kNumericLabelHeight = 11.0f;
-    constexpr float kCardinalLabelHeight = 16.0f;
-    constexpr float kIntercardinalLabelHeight = 13.0f;
-    constexpr float kSouthLabelHeight = 14.5f;
-    constexpr float kNumericLabelRadius = 180.5f;
-    constexpr float kCardinalLabelRadius = 183.8f;
-    constexpr float kIntercardinalLabelRadius = 182.2f;
-    constexpr float kSouthLabelRadius = 183.0f;
+    constexpr float kNumericLabelHeight = 6.9f;
+    constexpr float kCardinalLabelHeight = 9.8f;
+    constexpr float kIntercardinalLabelHeight = 8.1f;
+    constexpr float kSouthLabelHeight = 9.0f;
+    constexpr float kNumericLabelRadius = 180.08f;
+    constexpr float kCardinalLabelRadius = 180.2f;
+    constexpr float kIntercardinalLabelRadius = 180.15f;
+    constexpr float kSouthLabelRadius = 180.15f;
+    constexpr float kMinorNumericLabelRadius = 180.05f;
+    constexpr float kFineTickLineWidth = 0.8f;
     constexpr float kMinorTickLineWidth = 1.0f;
     constexpr float kMajorTickLineWidth = 1.6f;
     constexpr float kCardinalTickLineWidth = 2.2f;
     constexpr float kRingLineWidth = 1.2f;
+    constexpr float kMinorNumericLabelHeight = 4.1f;
     constexpr float kNumericFontSize = 16.0f;
     constexpr float kCardinalFontSize = 21.0f;
     constexpr float kIntercardinalFontSize = 13.5f;
+    constexpr float kMinorNumericFontSize = 12.5f;
 
     struct SkyGradient
     {
@@ -226,6 +231,8 @@ SoSeparator* SkyNode3D::makeLabels()
 
     QVector<SbVec3f> ringPoints;
     QVector<int> ringSizes;
+    QVector<SbVec3f> fineTickPoints;
+    QVector<int> fineTickSizes;
     QVector<SbVec3f> minorTickPoints;
     QVector<int> minorTickSizes;
     QVector<SbVec3f> majorTickPoints;
@@ -236,12 +243,12 @@ SoSeparator* SkyNode3D::makeLabels()
     appendRing(ringPoints, ringSizes, kRingInnerRadius, 0.2f, 96);
     appendRing(ringPoints, ringSizes, kRingOuterRadius, 1.2f, 96);
 
-    for (int azimuthDeg = 0; azimuthDeg < 360; azimuthDeg += 5)
+    for (int azimuthDeg = 0; azimuthDeg < 360; ++azimuthDeg)
     {
         const int normalizedAzimuth = normalizeAzimuth(azimuthDeg);
-        QVector<SbVec3f>* tickPoints = &minorTickPoints;
-        QVector<int>* tickSizes = &minorTickSizes;
-        float tickHeight = kTickShortHeight;
+        QVector<SbVec3f>* tickPoints = &fineTickPoints;
+        QVector<int>* tickSizes = &fineTickSizes;
+        float tickHeight = kTickFineHeight;
 
         if ((azimuthDeg % 90) == 0) {
             tickPoints = &cardinalTickPoints;
@@ -251,11 +258,15 @@ SoSeparator* SkyNode3D::makeLabels()
             tickPoints = &majorTickPoints;
             tickSizes = &majorTickSizes;
             tickHeight = kTickLongHeight;
+        } else if ((azimuthDeg % 5) == 0) {
+            tickPoints = &minorTickPoints;
+            tickSizes = &minorTickSizes;
+            tickHeight = kTickShortHeight;
         }
 
-        tickPoints << pointOnHorizon(static_cast<float>(normalizedAzimuth), kScaleRadius, kTickBaseHeight);
-        tickPoints << pointOnHorizon(static_cast<float>(normalizedAzimuth), kScaleRadius, tickHeight);
-        tickSizes << 2;
+        tickPoints->append(pointOnHorizon(static_cast<float>(normalizedAzimuth), kScaleRadius, kTickBaseHeight));
+        tickPoints->append(pointOnHorizon(static_cast<float>(normalizedAzimuth), kScaleRadius, tickHeight));
+        tickSizes->append(2);
     }
 
     auto addTickSet = [&](const QVector<SbVec3f>& points,
@@ -285,7 +296,8 @@ SoSeparator* SkyNode3D::makeLabels()
     };
 
     addTickSet(ringPoints, ringSizes, SbColor(0.72f, 0.80f, 0.88f), kRingLineWidth);
-    addTickSet(minorTickPoints, minorTickSizes, SbColor(0.76f, 0.82f, 0.88f), kMinorTickLineWidth);
+    addTickSet(fineTickPoints, fineTickSizes, SbColor(0.90f, 0.95f, 0.99f), kFineTickLineWidth);
+    addTickSet(minorTickPoints, minorTickSizes, SbColor(0.90f, 0.95f, 0.99f), kMinorTickLineWidth);
     addTickSet(majorTickPoints, majorTickSizes, SbColor(0.90f, 0.95f, 0.99f), kMajorTickLineWidth);
     addTickSet(cardinalTickPoints, cardinalTickSizes, SbColor(0.98f, 0.99f, 1.0f), kCardinalTickLineWidth);
 
@@ -335,7 +347,7 @@ SoSeparator* SkyNode3D::makeLabels()
     addIntercardinalLabel(225, "SW");
     addIntercardinalLabel(315, "NW");
 
-    for (int azimuthDeg = 0; azimuthDeg < 360; azimuthDeg += 15)
+    for (int azimuthDeg = 0; azimuthDeg < 360; azimuthDeg += 5)
     {
         const int normalizedAzimuth = normalizeAzimuth(azimuthDeg);
 
@@ -361,7 +373,14 @@ SoSeparator* SkyNode3D::makeLabels()
         default:
             {
                 QByteArray angleText = QByteArray::number(normalizedAzimuth);
-                addTextLabel(normalizedAzimuth, angleText.constData(), kNumericLabelRadius, kNumericLabelHeight, kNumericFontSize, SbColor(0.86f, 0.91f, 0.96f));
+                const bool isMajorTick = (normalizedAzimuth % 15) == 0;
+                addTextLabel(
+                    normalizedAzimuth,
+                    angleText.constData(),
+                    isMajorTick ? kNumericLabelRadius : kMinorNumericLabelRadius,
+                    isMajorTick ? kNumericLabelHeight : kMinorNumericLabelHeight,
+                    isMajorTick ? kNumericFontSize : kMinorNumericFontSize,
+                    SbColor(0.90f, 0.95f, 0.99f));
             }
             break;
         }
