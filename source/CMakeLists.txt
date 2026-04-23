@@ -9,7 +9,7 @@ if(NOT DEFINED CMAKE_POLICY_VERSION_MINIMUM)
 endif()
 
 cmake_minimum_required(VERSION 3.20) # 3.20+ gives modern features; raise if you need
-project(TonatiuhPP VERSION 0.1.8.16 LANGUAGES CXX)
+project(TonatiuhPP VERSION 0.1.8.17 LANGUAGES CXX)
 
 # Name of the main GUI target (used for install-time deployment; logical target name)
 set(MAIN_APP_TARGET "TonatiuhPP" CACHE STRING "Main GUI executable target name")
