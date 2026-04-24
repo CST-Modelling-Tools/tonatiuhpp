@@ -80,5 +80,12 @@ int main(int argc, char** argv)
     );
     check(!missingUrl.errorMessage().isEmpty(), "Expected missing html_url to set an error message");
 
+    UpdateReader insecureUrl;
+    check(
+        !insecureUrl.readGitHubRelease(R"({"tag_name":"v1.0.1","html_url":"http://github.com/CST-Modelling-Tools/tonatiuhpp/releases/tag/v1.0.1"})"),
+        "Expected non-HTTPS html_url to fail"
+    );
+    check(!insecureUrl.errorMessage().isEmpty(), "Expected non-HTTPS html_url to set an error message");
+
     return failures == 0 ? 0 : 1;
 }

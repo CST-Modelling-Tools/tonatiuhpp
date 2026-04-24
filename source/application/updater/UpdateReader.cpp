@@ -56,8 +56,8 @@ bool UpdateReader::readGitHubRelease(const QByteArray& data)
     }
 
     m_releaseUrl = QUrl(urlValue.toString().trimmed());
-    if (!m_releaseUrl.isValid() || (m_releaseUrl.scheme() != "https" && m_releaseUrl.scheme() != "http")) {
-        m_message = QString("GitHub release response contains an invalid html_url: %1").arg(urlValue.toString());
+    if (!m_releaseUrl.isValid() || m_releaseUrl.scheme() != "https") {
+        m_message = QString("GitHub release response contains an invalid or non-HTTPS html_url: %1").arg(urlValue.toString());
         return false;
     }
 
