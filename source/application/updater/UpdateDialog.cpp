@@ -11,7 +11,6 @@
 #include <QMessageBox>
 #include <QNetworkReply>
 #include <QNetworkRequest>
-#include <QProcess>
 #include <QPushButton>
 #include <QRegularExpression>
 #include <QStandardPaths>
@@ -190,6 +189,7 @@ void UpdateDialog::checkUpdates()
     m_partialDownloadPath.clear();
     m_downloadFileError.clear();
     m_verifiedInstallerPath.clear();
+    m_installerPathToStart.clear();
     ui->downloadButton->setText("Download Update");
     setChecking(true);
     showResult(QString("Checking for updates...\nInstalled version: %1").arg(qApp->applicationVersion()));
@@ -580,19 +580,6 @@ void UpdateDialog::startInstaller()
     if (m_verifiedInstallerPath.isEmpty())
         return;
 
-    if (!QProcess::startDetached(m_verifiedInstallerPath)) {
-        QMessageBox::warning(
-            this,
-            "Tonatiuh++ Updates",
-            QString("Could not start the installer:\n%1").arg(m_verifiedInstallerPath)
-        );
-        return;
-    }
-
-    QMessageBox::information(
-        this,
-        "Tonatiuh++ Updates",
-        "The installer has been started.\nTonatiuh++ will now close. If prompted, save your work before continuing in the installer."
-    );
-    QApplication::closeAllWindows();
+    m_installerPathToStart = m_verifiedInstallerPath;
+    accept();
 }

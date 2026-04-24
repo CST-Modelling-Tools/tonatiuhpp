@@ -11,6 +11,7 @@
 #include <QMessageBox>
 #include <QMutex>
 #include <QPluginLoader>
+#include <QProcess>
 #include <QProgressDialog>
 #include <QSettings>
 #include <QStandardPaths>
@@ -2858,4 +2859,23 @@ void MainWindow::on_action_Updates_triggered()
     UpdateDialog dialog(this);
     dialog.checkUpdates();
     dialog.exec();
+
+    QString installerPath = dialog.installerPathToStart();
+    if (installerPath.isEmpty())
+        return;
+
+    if (!OkToContinue())
+        return;
+
+    if (!QProcess::startDetached(installerPath)) {
+        QMessageBox::warning(
+            this,
+            "Tonatiuh++ Updates",
+            QString("Could not start the installer:\n%1").arg(installerPath)
+        );
+        return;
+    }
+
+    writeSettings();
+    qApp->quit();
 }

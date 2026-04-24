@@ -21,6 +21,7 @@ public:
     ~UpdateDialog();
 
     void checkUpdates();
+    QString installerPathToStart() const { return m_installerPathToStart; }
 
 private slots:
     void on_checkButton_pressed();
@@ -58,4 +59,5 @@ private:
     QString m_partialDownloadPath;
     QString m_downloadFileError;
     QString m_verifiedInstallerPath;
+    QString m_installerPathToStart;
 };
