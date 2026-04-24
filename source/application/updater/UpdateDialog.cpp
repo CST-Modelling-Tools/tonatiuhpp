@@ -535,7 +535,7 @@ void UpdateDialog::onDownloadReplyFinished()
 
     if (isRunnableInstaller(m_downloadPath)) {
         m_verifiedInstallerPath = m_downloadPath;
-        ui->downloadButton->setText("Start Installer");
+        ui->downloadButton->setText("Start Installer and Close");
     }
 
     m_downloadUrl = QUrl();
@@ -561,10 +561,10 @@ void UpdateDialog::offerInstallUpdate()
     installMessage.setIcon(QMessageBox::Information);
     installMessage.setText("The update package has been downloaded and verified.");
     installMessage.setInformativeText(
-        QString("Installer: %1\n\nDo you want to start the installer now?\nSave your work and close Tonatiuh++ before continuing in the installer.")
+        QString("Installer: %1\n\nDo you want to start the installer and close Tonatiuh++ now?\nIf there are unsaved changes, Tonatiuh++ will ask what to do before closing.")
             .arg(m_verifiedInstallerPath)
     );
-    QPushButton* installButton = installMessage.addButton("Start Installer", QMessageBox::AcceptRole);
+    QPushButton* installButton = installMessage.addButton("Start Installer and Close", QMessageBox::AcceptRole);
     installMessage.addButton("Later", QMessageBox::RejectRole);
     installMessage.setDefaultButton(installButton);
     installMessage.exec();
@@ -592,6 +592,7 @@ void UpdateDialog::startInstaller()
     QMessageBox::information(
         this,
         "Tonatiuh++ Updates",
-        "The installer has been started.\nSave your work and close Tonatiuh++ before continuing in the installer."
+        "The installer has been started.\nTonatiuh++ will now close. If prompted, save your work before continuing in the installer."
     );
+    QApplication::closeAllWindows();
 }
