@@ -281,13 +281,28 @@ jobs:
       - name: Pack
         shell: bash
         run: |
-          tar -czf tonatiuhpp-${{ runner.os }}.tar.gz -C dist .
+          asset="tonatiuhpp-${{ runner.os }}.tar.gz"
+          tar -czf "${asset}" -C dist .
+          python - "${asset}" <<'PY'
+          import hashlib
+          import pathlib
+          import sys
+
+          asset = pathlib.Path(sys.argv[1])
+          digest = hashlib.sha256()
+          with asset.open("rb") as handle:
+              for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                  digest.update(chunk)
+          asset.with_name(asset.name + ".sha256").write_text(f"{digest.hexdigest()}  {asset.name}\n", encoding="ascii")
+          PY
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: asset-${{ runner.os }}
-          path: tonatiuhpp-${{ runner.os }}.tar.gz
+          path: |
+            tonatiuhpp-${{ runner.os }}.tar.gz
+            tonatiuhpp-${{ runner.os }}.tar.gz.sha256
 
   build-windows-installer:
     runs-on: windows-2022
@@ -475,11 +490,22 @@ jobs:
         run: |
           py installer/create_installer.py --binarycreator "$env:BINARYCREATOR_PATH" --output-name "TonatiuhPP-$env:TONATIUHPP_VERSION-windows-x64"
 
+      - name: Generate Windows installer checksum
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $asset = "installer/output/TonatiuhPP-$env:TONATIUHPP_VERSION-windows-x64.exe"
+          $hash = (Get-FileHash -Algorithm SHA256 -Path $asset).Hash.ToLowerInvariant()
+          $assetName = [System.IO.Path]::GetFileName($asset)
+          [System.IO.File]::WriteAllText("$asset.sha256", "$hash  $assetName`n", [System.Text.Encoding]::ASCII)
+
       - name: Upload Windows installer artifact
         uses: actions/upload-artifact@v4
         with:
           name: asset-windows
-          path: installer/output/TonatiuhPP-${{ steps.project_version.outputs.version }}-windows-x64.exe
+          path: |
+            installer/output/TonatiuhPP-${{ steps.project_version.outputs.version }}-windows-x64.exe
+            installer/output/TonatiuhPP-${{ steps.project_version.outputs.version }}-windows-x64.exe.sha256
 
   publish:
     if: github.event_name != 'workflow_dispatch'
