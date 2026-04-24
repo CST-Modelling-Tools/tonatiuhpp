@@ -6,6 +6,7 @@
 #include <QCloseEvent>
 #include <QDir>
 #include <QFileDialog>
+#include <QFileInfo>
 #include <QFuture>
 #include <QFutureWatcher>
 #include <QMessageBox>
@@ -2863,6 +2864,16 @@ void MainWindow::on_action_Updates_triggered()
     QString installerPath = dialog.installerPathToStart();
     if (installerPath.isEmpty())
         return;
+
+    QFileInfo installerInfo(installerPath);
+    if (!installerInfo.exists() || !installerInfo.isFile()) {
+        QMessageBox::warning(
+            this,
+            "Tonatiuh++ Updates",
+            QString("The verified installer could not be found:\n%1").arg(installerPath)
+        );
+        return;
+    }
 
     if (!OkToContinue())
         return;
