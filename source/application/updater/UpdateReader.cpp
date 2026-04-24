@@ -80,7 +80,7 @@ UpdateReader::UpdateReader()
 {
     m_currentVersionText = QCoreApplication::applicationVersion();
     parseDottedVersion(m_currentVersionText, &m_currentVersion, &m_currentVersionError);
-    m_downloadAssetSize = -1;
+    m_installerAssetSize = -1;
 }
 
 bool UpdateReader::readGitHubRelease(const QByteArray& data)
@@ -90,9 +90,9 @@ bool UpdateReader::readGitHubRelease(const QByteArray& data)
     m_latestVersionText.clear();
     m_latestVersion = QVersionNumber();
     m_releaseUrl = QUrl();
-    m_downloadAssetName.clear();
-    m_downloadAssetUrl = QUrl();
-    m_downloadAssetSize = -1;
+    m_installerAssetName.clear();
+    m_installerAssetUrl = QUrl();
+    m_installerAssetSize = -1;
     m_checksumAssetName.clear();
     m_checksumAssetUrl = QUrl();
 
@@ -164,7 +164,7 @@ bool UpdateReader::readGitHubRelease(const QByteArray& data)
         }
 
         QString assetName = nameValue.toString().trimmed();
-        if (!m_downloadAssetName.isEmpty() || !isCurrentPlatformInstallerAsset(assetName, m_latestVersionText))
+        if (!m_installerAssetName.isEmpty() || !isCurrentPlatformInstallerAsset(assetName, m_latestVersionText))
             continue;
 
         QJsonValue downloadUrlValue = asset.value("browser_download_url");
@@ -180,23 +180,23 @@ bool UpdateReader::readGitHubRelease(const QByteArray& data)
             return false;
         }
 
-        m_downloadAssetName = assetName;
-        m_downloadAssetUrl = downloadUrl;
+        m_installerAssetName = assetName;
+        m_installerAssetUrl = downloadUrl;
 
         QJsonValue sizeValue = asset.value("size");
         if (!isValidGitHubAssetSize(sizeValue)) {
             m_message = QString("GitHub release asset \"%1\" contains an invalid size").arg(assetName);
             return false;
         }
-        m_downloadAssetSize = static_cast<qint64>(sizeValue.toDouble());
+        m_installerAssetSize = static_cast<qint64>(sizeValue.toDouble());
 
     }
 
-    if (!m_downloadAssetName.isEmpty()) {
+    if (!m_installerAssetName.isEmpty()) {
         for (const QJsonValue& assetValue : assets) {
             QJsonObject asset = assetValue.toObject();
             QString assetName = asset.value("name").toString().trimmed();
-            if (!isChecksumForDownloadAsset(assetName, m_downloadAssetName))
+            if (!isChecksumForDownloadAsset(assetName, m_installerAssetName))
                 continue;
 
             QJsonValue downloadUrlValue = asset.value("browser_download_url");

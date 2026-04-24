@@ -234,7 +234,7 @@ void UpdateDialog::onReleaseReplyFinished()
         return;
     }
 
-    if (!reader.hasDownloadAsset()) {
+    if (!reader.hasInstallerAsset()) {
         showResult(
             QString("Update available.\nInstalled version: %1\nLatest release: %2\n\nNo self-update installer was found for this platform.")
                 .arg(reader.currentVersionText(), reader.latestTagName())
@@ -251,22 +251,22 @@ void UpdateDialog::onReleaseReplyFinished()
     if (!reader.hasChecksumAsset()) {
         showResult(
             QString("Update available.\nInstalled version: %1\nLatest release: %2\nInstaller: %3\n\nNo checksum file was found for this installer, so it will not be downloaded.")
-                .arg(reader.currentVersionText(), reader.latestTagName(), reader.downloadAssetName())
+                .arg(reader.currentVersionText(), reader.latestTagName(), reader.installerAssetName())
         );
         QMessageBox::warning(
             this,
             "Tonatiuh++ Updates",
             QString("A newer Tonatiuh++ release is available, but its installer is missing a checksum file.\n\nInstaller: %1")
-                .arg(reader.downloadAssetName())
+                .arg(reader.installerAssetName())
         );
         return;
     }
 
-    m_downloadUrl = reader.downloadAssetUrl();
+    m_downloadUrl = reader.installerAssetUrl();
     m_checksumUrl = reader.checksumAssetUrl();
-    m_downloadAssetName = reader.downloadAssetName();
+    m_downloadAssetName = reader.installerAssetName();
     m_checksumAssetName = reader.checksumAssetName();
-    m_downloadAssetSize = reader.downloadAssetSize();
+    m_downloadAssetSize = reader.installerAssetSize();
     setChecking(false);
     showResult(
         QString("Update available.\nInstalled version: %1\nLatest release: %2\nInstaller: %3\nSize: %4")

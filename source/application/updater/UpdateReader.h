@@ -18,10 +18,10 @@ public:
     QString latestTagName() const { return m_latestTagName; }
     QString latestVersionText() const { return m_latestVersionText; }
     QUrl releaseUrl() const { return m_releaseUrl; }
-    QString downloadAssetName() const { return m_downloadAssetName; }
-    QUrl downloadAssetUrl() const { return m_downloadAssetUrl; }
-    qint64 downloadAssetSize() const { return m_downloadAssetSize; }
-    bool hasDownloadAsset() const { return m_downloadAssetUrl.isValid(); }
+    QString installerAssetName() const { return m_installerAssetName; }
+    QUrl installerAssetUrl() const { return m_installerAssetUrl; }
+    qint64 installerAssetSize() const { return m_installerAssetSize; }
+    bool hasInstallerAsset() const { return m_installerAssetUrl.isValid(); }
     QString checksumAssetName() const { return m_checksumAssetName; }
     QUrl checksumAssetUrl() const { return m_checksumAssetUrl; }
     bool hasChecksumAsset() const { return m_checksumAssetUrl.isValid(); }
@@ -43,9 +43,9 @@ private:
     QString m_latestVersionText;
     QVersionNumber m_latestVersion;
     QUrl m_releaseUrl;
-    QString m_downloadAssetName;
-    QUrl m_downloadAssetUrl;
-    qint64 m_downloadAssetSize;
+    QString m_installerAssetName;
+    QUrl m_installerAssetUrl;
+    qint64 m_installerAssetSize;
     QString m_checksumAssetName;
     QUrl m_checksumAssetUrl;
 };

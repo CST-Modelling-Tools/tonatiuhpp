@@ -120,13 +120,13 @@ int main(int argc, char** argv)
     );
     QString expectedAsset = expectedPlatformAssetName();
     if (!expectedAsset.isEmpty()) {
-        check(releaseWithAssets.hasDownloadAsset(), "Expected a download asset for the current platform");
-        check(releaseWithAssets.downloadAssetName() == expectedAsset, "Unexpected platform download asset name");
+        check(releaseWithAssets.hasInstallerAsset(), "Expected an installer asset for the current platform");
+        check(releaseWithAssets.installerAssetName() == expectedAsset, "Unexpected platform installer asset name");
         check(
-            releaseWithAssets.downloadAssetUrl() == QUrl(QString("https://github.com/CST-Modelling-Tools/tonatiuhpp/releases/download/v1.0.1/%1").arg(expectedAsset)),
-            "Unexpected platform download asset URL"
+            releaseWithAssets.installerAssetUrl() == QUrl(QString("https://github.com/CST-Modelling-Tools/tonatiuhpp/releases/download/v1.0.1/%1").arg(expectedAsset)),
+            "Unexpected platform installer asset URL"
         );
-        check(releaseWithAssets.downloadAssetSize() > 0, "Expected platform download asset size");
+        check(releaseWithAssets.installerAssetSize() > 0, "Expected platform installer asset size");
         check(releaseWithAssets.hasChecksumAsset(), "Expected a checksum asset for the current platform");
         check(releaseWithAssets.checksumAssetName() == QString("%1.sha256").arg(expectedAsset), "Unexpected platform checksum asset name");
         check(
@@ -134,7 +134,7 @@ int main(int argc, char** argv)
             "Unexpected platform checksum asset URL"
         );
     } else {
-        check(!releaseWithAssets.hasDownloadAsset(), "Expected no download asset on unsupported platforms");
+        check(!releaseWithAssets.hasInstallerAsset(), "Expected no installer asset on unsupported platforms");
         check(!releaseWithAssets.hasChecksumAsset(), "Expected no checksum asset on unsupported platforms");
     }
 
