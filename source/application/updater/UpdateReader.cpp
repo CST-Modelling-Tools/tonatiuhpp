@@ -127,7 +127,7 @@ bool UpdateReader::readGitHubRelease(const QByteArray& data)
         }
 
         QString assetName = nameValue.toString().trimmed();
-        if (!m_downloadAssetName.isEmpty() || !isCurrentPlatformInstallerAsset(assetName))
+        if (!m_downloadAssetName.isEmpty() || !isCurrentPlatformInstallerAsset(assetName, m_latestVersionText))
             continue;
 
         QJsonValue downloadUrlValue = asset.value("browser_download_url");
@@ -252,13 +252,22 @@ bool UpdateReader::parseSha256Checksum(const QByteArray& data, const QString& ex
     return true;
 }
 
-bool UpdateReader::isCurrentPlatformInstallerAsset(const QString& assetName)
+bool UpdateReader::isCurrentPlatformInstallerAsset(const QString& assetName, const QString& versionText)
 {
     QString name = assetName.trimmed().toLower();
+    QString version = normalizedVersionTag(versionText).toLower();
+    if (version.isEmpty())
+        return false;
+
 #if defined(Q_OS_WIN)
-    return name.startsWith("tonatiuhpp-") && name.contains("windows") && name.contains("x64") && name.endsWith(".exe");
+    return name.startsWith("tonatiuhpp-") &&
+        name.contains(QString("-%1-").arg(version)) &&
+        name.contains("windows") &&
+        name.contains("x64") &&
+        name.endsWith(".exe");
 #else
     Q_UNUSED(name);
+    Q_UNUSED(version);
     return false;
 #endif
 }

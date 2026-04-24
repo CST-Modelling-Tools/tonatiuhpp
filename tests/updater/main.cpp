@@ -85,8 +85,12 @@ int main(int argc, char** argv)
     checkInvalidChecksum("not-a-checksum  TonatiuhPP-1.0.1-windows-x64.exe\n", "TonatiuhPP-1.0.1-windows-x64.exe");
     checkInvalidChecksum(sampleHash + "  other-file.exe\n", "TonatiuhPP-1.0.1-windows-x64.exe");
 
-    check(!UpdateReader::isCurrentPlatformInstallerAsset("tonatiuhpp-Linux.tar.gz"), "Expected Linux archive to be ignored by the self-update asset matcher");
-    check(!UpdateReader::isCurrentPlatformInstallerAsset("tonatiuhpp-macOS.tar.gz"), "Expected macOS archive to be ignored by the self-update asset matcher");
+    check(!UpdateReader::isCurrentPlatformInstallerAsset("tonatiuhpp-Linux.tar.gz", "1.0.1"), "Expected Linux archive to be ignored by the self-update asset matcher");
+    check(!UpdateReader::isCurrentPlatformInstallerAsset("tonatiuhpp-macOS.tar.gz", "1.0.1"), "Expected macOS archive to be ignored by the self-update asset matcher");
+    check(!UpdateReader::isCurrentPlatformInstallerAsset("TonatiuhPP-1.0.0-windows-x64.exe", "1.0.1"), "Expected stale installer asset to be ignored");
+#if defined(Q_OS_WIN)
+    check(UpdateReader::isCurrentPlatformInstallerAsset("TonatiuhPP-1.0.1-windows-x64.exe", "v1.0.1"), "Expected matching Windows installer asset to be accepted");
+#endif
 
     UpdateReader newer;
     check(
@@ -106,6 +110,7 @@ int main(int argc, char** argv)
                 {"name":"tonatiuhpp-Linux.tar.gz.sha256","browser_download_url":"https://github.com/CST-Modelling-Tools/tonatiuhpp/releases/download/v1.0.1/tonatiuhpp-Linux.tar.gz.sha256","size":90},
                 {"name":"tonatiuhpp-macOS.tar.gz","browser_download_url":"https://github.com/CST-Modelling-Tools/tonatiuhpp/releases/download/v1.0.1/tonatiuhpp-macOS.tar.gz","size":102},
                 {"name":"tonatiuhpp-macOS.tar.gz.sha256","browser_download_url":"https://github.com/CST-Modelling-Tools/tonatiuhpp/releases/download/v1.0.1/tonatiuhpp-macOS.tar.gz.sha256","size":90},
+                {"name":"TonatiuhPP-1.0.0-windows-x64.exe","browser_download_url":"https://github.com/CST-Modelling-Tools/tonatiuhpp/releases/download/v1.0.1/TonatiuhPP-1.0.0-windows-x64.exe","size":99},
                 {"name":"TonatiuhPP-1.0.1-windows-x64.exe","browser_download_url":"https://github.com/CST-Modelling-Tools/tonatiuhpp/releases/download/v1.0.1/TonatiuhPP-1.0.1-windows-x64.exe","size":103},
                 {"name":"TonatiuhPP-1.0.1-windows-x64.exe.sha256","browser_download_url":"https://github.com/CST-Modelling-Tools/tonatiuhpp/releases/download/v1.0.1/TonatiuhPP-1.0.1-windows-x64.exe.sha256","size":90}
             ]
