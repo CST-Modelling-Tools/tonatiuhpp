@@ -1,7 +1,10 @@
 #pragma once
 
 #include <QDialog>
-#include "FileDownloader.h"
+#include <QNetworkAccessManager>
+#include <QUrl>
+
+class QNetworkReply;
 
 namespace Ui {
 class UpdateDialog;
@@ -19,18 +22,16 @@ public:
 
 private slots:
     void on_checkButton_pressed();
-    void onUpdates();
-
-    void onDownloaded();
-    void on_downloadButton_pressed();
-
-    void updateProgress(qint64 bytesReceived, qint64 bytesTotal);
+    void on_openReleaseButton_pressed();
+    void onReleaseReplyFinished();
 
 private:
-    Ui::UpdateDialog* ui;
-    QString m_update;
-    int m_size;
-    FileDownloader* m_downloaderU;
-    FileDownloader* m_downloaderF;
-};
+    void setChecking(bool checking);
+    void showResult(const QString& message);
+    void showFailure(const QString& message);
 
+    Ui::UpdateDialog* ui;
+    QNetworkAccessManager m_network;
+    QNetworkReply* m_reply;
+    QUrl m_releaseUrl;
+};

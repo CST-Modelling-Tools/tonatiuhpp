@@ -2,176 +2,150 @@
 #include "ui_UpdateDialog.h"
 
 #include "UpdateReader.h"
-#include <QStringList>
 
+#include <QApplication>
+#include <QDesktopServices>
+#include <QMessageBox>
+#include <QNetworkReply>
+#include <QNetworkRequest>
+
+namespace
+{
+const QUrl kLatestReleaseUrl("https://api.github.com/repos/CST-Modelling-Tools/tonatiuhpp/releases/latest");
+}
 
 UpdateDialog::UpdateDialog(QWidget* parent):
     QDialog(parent),
-    ui(new Ui::UpdateDialog)
+    ui(new Ui::UpdateDialog),
+    m_reply(nullptr)
 {
     ui->setupUi(this);
 
-//    m_serverPath = "file:///C:/Users/";
-//    m_serverPath = "https://scmt.cyi.ac.cy/bitbucket/projects/TNH/repos/updates/raw/nsis/";
-//    QString temp = "https://scmt.cyi.ac.cy/bitbucket/login?j_username=%1&j_password=%2&next=/projects/TNH/repos/updates/raw/nsis/";
-    QString temp = "https://scmt.cyi.ac.cy/bitbucket/login";
-    ui->serverEdit->setText(temp);
-    ui->serverEdit->setCursorPosition(0);
-    ui->userEdit->setText("updates.tonatiuh");
-    ui->passwordEdit->setText("gIZ5QS2WKqsA");
+    setWindowFlag(Qt::WindowContextHelpButtonHint, false);
 
-    ui->downloadButton->setEnabled(false);
-    ui->progressBar->hide();
-
-    m_downloaderF = 0;
+    ui->openReleaseButton->setEnabled(false);
+    showResult(QString("Installed version: %1").arg(qApp->applicationVersion()));
 
     ui->checkButton->setFocus();
 }
 
 UpdateDialog::~UpdateDialog()
 {
+    if (m_reply) {
+        disconnect(m_reply, nullptr, this, nullptr);
+        m_reply->abort();
+        m_reply->deleteLater();
+    }
+
     delete ui;
+}
+
+void UpdateDialog::checkUpdates()
+{
+    if (m_reply)
+        return;
+
+    m_releaseUrl = QUrl();
+    setChecking(true);
+    showResult(QString("Checking for updates...\nInstalled version: %1").arg(qApp->applicationVersion()));
+
+    QNetworkRequest request(kLatestReleaseUrl);
+    request.setRawHeader("Accept", "application/vnd.github+json");
+    request.setRawHeader("User-Agent", "TonatiuhPP");
+    request.setTransferTimeout(15000);
+
+    m_reply = m_network.get(request);
+    connect(m_reply, &QNetworkReply::finished, this, &UpdateDialog::onReleaseReplyFinished);
 }
 
 void UpdateDialog::on_checkButton_pressed()
 {
-    QString temp = ui->serverEdit->text();
-    temp += "updates.xml";
-
-    QByteArray postData;
-    if (!ui->userEdit->text().isEmpty()) {
-        postData.append(
-            QString("j_username=%1&j_password=%2&next=/projects/TNH/repos/updates/raw/nsis/%3").arg(
-                ui->userEdit->text(),
-                ui->passwordEdit->text(),
-                "updates.xml"
-        ).toUtf8());
-    }
-
-    QUrl url(temp);
-    m_downloaderU = new FileDownloader(url, postData, this);
-
-    connect(
-        m_downloaderU, SIGNAL(downloaded()),
-        this, SLOT(onUpdates())
-    );
-
-    ui->downloadButton->setEnabled(false);
-    ui->progressBar->hide();
+    checkUpdates();
 }
 
-void UpdateDialog::onUpdates()
+void UpdateDialog::on_openReleaseButton_pressed()
 {
-     // if TLS failed, check version of SSL (prints compiled version and in use)
-//    qDebug() << QSslSocket::supportsSsl() << QSslSocket::sslLibraryBuildVersionString() << QSslSocket::sslLibraryVersionString();
+    if (!m_releaseUrl.isValid())
+        return;
 
-    if (!m_downloaderU->status().isEmpty())
-    {
-        QString t = "Connection failed:\n" + m_downloaderU->status();
-        ui->resultText->setPlainText(t);
-        m_downloaderU->deleteLater();
+    if (!QDesktopServices::openUrl(m_releaseUrl)) {
+        QMessageBox::warning(
+            this,
+            "Tonatiuh++ Updates",
+            QString("Could not open the release page:\n%1").arg(m_releaseUrl.toString())
+        );
+    }
+}
+
+void UpdateDialog::onReleaseReplyFinished()
+{
+    QNetworkReply* reply = qobject_cast<QNetworkReply*>(sender());
+    if (!reply || reply != m_reply)
+        return;
+
+    QByteArray response = reply->readAll();
+    QNetworkReply::NetworkError networkError = reply->error();
+    QString errorText = reply->errorString();
+    QVariant status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute);
+    int statusCode = status.isValid() ? status.toInt() : 0;
+
+    reply->deleteLater();
+    m_reply = nullptr;
+    setChecking(false);
+
+    if (networkError != QNetworkReply::NoError) {
+        QString httpStatus = statusCode > 0 ? QString::number(statusCode) : "unavailable";
+        showFailure(QString("Update check failed.\nHTTP status: %1\nNetwork error: %2").arg(httpStatus, errorText));
         return;
     }
 
     UpdateReader reader;
-    if (!reader.checkUpdates(m_downloaderU->downloadedData()))
-    {
-        QString t = "Update failed:\n" + reader.m_message;
-        ui->resultText->setPlainText(t);
-        m_downloaderU->deleteLater();
+    if (!reader.currentVersionError().isEmpty()) {
+        showFailure(
+            QString("Installed application version is malformed.\nVersion: %1\nError: %2")
+                .arg(reader.currentVersionText(), reader.currentVersionError())
+        );
         return;
     }
-    QString info = QString("Date: %1\nFile: \"%2\"\nSize: %3 MB")
-            .arg(reader.m_date.toString("d MMM yyyy"))
-            .arg(reader.m_path)
-            .arg(reader.m_size/1e6, 0, 'f', 1);
-    if (!reader.isNewer())
-    {
-        QString t = QString("Last update\n") + info;
-        ui->resultText->setPlainText(t);
-        m_downloaderU->deleteLater();
+
+    if (!reader.readGitHubRelease(response)) {
+        showFailure(QString("Update check failed.\n%1").arg(reader.m_message));
         return;
     }
-    QString t = QString("New update\n") + info;
-    m_size = reader.m_size;
-    m_update = reader.m_path;
-    ui->resultText->setPlainText(t);
 
-    ui->downloadButton->setEnabled(true);
-
-    ui->progressBar->setRange(0, m_size);
-    ui->progressBar->show();
-    m_downloaderU->deleteLater();
-}
-
-void UpdateDialog::on_downloadButton_pressed()
-{
-    QString temp = ui->serverEdit->text();
-    QString temp2 = m_update;
-    temp2 = temp2.replace('+', "%2B");
-
-    if (m_downloaderF) {
-        disconnect(m_downloaderF, SIGNAL(downloaded()), 0, 0);
-        disconnect(m_downloaderF, SIGNAL(downloadProgress(qint64,qint64)), 0, 0);
-        m_downloaderF->abort();
+    if (!reader.isUpdateAvailable()) {
+        showResult(
+            QString("Tonatiuh++ is up to date.\nInstalled version: %1\nLatest release: %2")
+                .arg(reader.currentVersionText(), reader.latestTagName())
+        );
+        QMessageBox::information(this, "Tonatiuh++ Updates", "Tonatiuh++ is up to date.");
+        return;
     }
 
-    QByteArray postData;
-    if (!ui->userEdit->text().isEmpty()) {
-        postData.append(
-            QString("j_username=%1&j_password=%2&next=/projects/TNH/repos/updates/raw/nsis/%3").arg(
-                ui->userEdit->text(),
-                ui->passwordEdit->text(),
-                temp2
-            ).toUtf8());
-    } else {
-        temp += temp2;
-    }
-
-    QUrl url(temp);
-    m_downloaderF = new FileDownloader(url, postData, this); //? signals before ? async
-
-    connect(
-        m_downloaderF, SIGNAL(downloaded()),
-        this, SLOT(onDownloaded())
+    m_releaseUrl = reader.releaseUrl();
+    setChecking(false);
+    showResult(
+        QString("Update available.\nInstalled version: %1\nLatest release: %2\n\nOpen the GitHub release page to download it.")
+            .arg(reader.currentVersionText(), reader.latestTagName())
     );
-
-    connect(
-        m_downloaderF, SIGNAL(downloadProgress(qint64,qint64)),
-        this, SLOT(updateProgress(qint64,qint64))
-    );
+    QMessageBox::information(this, "Tonatiuh++ Updates", "A newer Tonatiuh++ release is available.");
 }
 
-void UpdateDialog::updateProgress(qint64 bytesReceived, qint64 /*bytesTotal*/)
+void UpdateDialog::setChecking(bool checking)
 {
-//    qDebug() << bytesReceived << " " << bytesTotal;
-//    ui->progressBar->setRange(0, m_size);
-    ui->progressBar->setValue(bytesReceived);
+    ui->checkButton->setEnabled(!checking);
+    ui->openReleaseButton->setEnabled(!checking && m_releaseUrl.isValid());
 }
 
-#include <QMessageBox>
-#include <QFile>
-#include <QStandardPaths>
-#include <QDir>
-#include <QProcess>
-#include <QMainWindow>
-
-void UpdateDialog::onDownloaded()
+void UpdateDialog::showResult(const QString& message)
 {
-//    QMessageBox::information(this, "Downloaded", "Finished");
-
-    QDir dir(QStandardPaths::writableLocation(QStandardPaths::DownloadLocation));
-
-    QFile file(dir.filePath(m_update));
-//    qDebug() << file.fileName();
-    if (file.open(QFile::WriteOnly)) {
-        file.write(m_downloaderF->downloadedData());
-        file.close();
-    }
-
-    m_downloaderF->deleteLater();
-    QProcess::startDetached(dir.filePath(m_update));
-    close();
-    ((QMainWindow*) parent())->close();
+    ui->resultText->setPlainText(message);
 }
 
+void UpdateDialog::showFailure(const QString& message)
+{
+    m_releaseUrl = QUrl();
+    setChecking(false);
+    showResult(message);
+    QMessageBox::warning(this, "Tonatiuh++ Updates", message);
+}
