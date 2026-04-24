@@ -30,7 +30,7 @@ public:
     static QString normalizedVersionTag(const QString& tag);
     static bool parseDottedVersion(const QString& versionText, QVersionNumber* version, QString* error = nullptr);
     static bool parseSha256Checksum(const QByteArray& data, const QString& expectedFileName, QByteArray* checksum, QString* error = nullptr);
-    static bool isCurrentPlatformDownloadAsset(const QString& assetName);
+    static bool isCurrentPlatformInstallerAsset(const QString& assetName);
 
 private:
     QString m_message;

@@ -85,8 +85,8 @@ int main(int argc, char** argv)
     checkInvalidChecksum("not-a-checksum  TonatiuhPP-1.0.1-windows-x64.exe\n", "TonatiuhPP-1.0.1-windows-x64.exe");
     checkInvalidChecksum(sampleHash + "  other-file.exe\n", "TonatiuhPP-1.0.1-windows-x64.exe");
 
-    check(!UpdateReader::isCurrentPlatformDownloadAsset("tonatiuhpp-Linux.tar.gz"), "Expected Linux archive to be ignored by the self-update asset matcher");
-    check(!UpdateReader::isCurrentPlatformDownloadAsset("tonatiuhpp-macOS.tar.gz"), "Expected macOS archive to be ignored by the self-update asset matcher");
+    check(!UpdateReader::isCurrentPlatformInstallerAsset("tonatiuhpp-Linux.tar.gz"), "Expected Linux archive to be ignored by the self-update asset matcher");
+    check(!UpdateReader::isCurrentPlatformInstallerAsset("tonatiuhpp-macOS.tar.gz"), "Expected macOS archive to be ignored by the self-update asset matcher");
 
     UpdateReader newer;
     check(

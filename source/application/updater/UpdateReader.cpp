@@ -127,7 +127,7 @@ bool UpdateReader::readGitHubRelease(const QByteArray& data)
         }
 
         QString assetName = nameValue.toString().trimmed();
-        if (!m_downloadAssetName.isEmpty() || !isCurrentPlatformDownloadAsset(assetName))
+        if (!m_downloadAssetName.isEmpty() || !isCurrentPlatformInstallerAsset(assetName))
             continue;
 
         QJsonValue downloadUrlValue = asset.value("browser_download_url");
@@ -252,7 +252,7 @@ bool UpdateReader::parseSha256Checksum(const QByteArray& data, const QString& ex
     return true;
 }
 
-bool UpdateReader::isCurrentPlatformDownloadAsset(const QString& assetName)
+bool UpdateReader::isCurrentPlatformInstallerAsset(const QString& assetName)
 {
     QString name = assetName.trimmed().toLower();
 #if defined(Q_OS_WIN)
