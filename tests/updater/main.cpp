@@ -188,6 +188,13 @@ int main(int argc, char** argv)
     );
     check(!wrongHostUrl.errorMessage().isEmpty(), "Expected non-GitHub html_url to set an error message");
 
+    UpdateReader wrongTagUrl;
+    check(
+        !wrongTagUrl.readGitHubRelease(R"({"tag_name":"v1.0.1","html_url":"https://github.com/CST-Modelling-Tools/tonatiuhpp/releases/tag/v1.0.0"})"),
+        "Expected mismatched html_url tag to fail"
+    );
+    check(!wrongTagUrl.errorMessage().isEmpty(), "Expected mismatched html_url tag to set an error message");
+
     if (!expectedAsset.isEmpty()) {
         UpdateReader badAssetUrl;
         QString badAssetJson = QString(R"({

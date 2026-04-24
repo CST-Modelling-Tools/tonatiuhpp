@@ -42,6 +42,22 @@ bool isExpectedGitHubReleaseAssetUrl(const QUrl& url, const QString& tagName, co
         url.fragment().isEmpty();
 }
 
+bool isExpectedGitHubReleasePageUrl(const QUrl& url, const QString& tagName)
+{
+    QString expectedTag = tagName.trimmed();
+    if (expectedTag.isEmpty())
+        return false;
+
+    QString expectedPath = QString("/CST-Modelling-Tools/tonatiuhpp/releases/tag/%1").arg(expectedTag);
+
+    return url.isValid() &&
+        url.scheme() == "https" &&
+        url.host().compare("github.com", Qt::CaseInsensitive) == 0 &&
+        url.path() == expectedPath &&
+        url.query().isEmpty() &&
+        url.fragment().isEmpty();
+}
+
 bool isChecksumForDownloadAsset(const QString& checksumAssetName, const QString& downloadAssetName)
 {
     return checksumAssetName.compare(QString("%1.sha256").arg(downloadAssetName), Qt::CaseInsensitive) == 0;
@@ -107,8 +123,7 @@ bool UpdateReader::readGitHubRelease(const QByteArray& data)
         m_message = QString("GitHub release response contains an invalid or non-HTTPS html_url: %1").arg(urlValue.toString());
         return false;
     }
-    if (m_releaseUrl.host().compare("github.com", Qt::CaseInsensitive) != 0 ||
-        !m_releaseUrl.path().startsWith("/CST-Modelling-Tools/tonatiuhpp/releases/", Qt::CaseInsensitive)) {
+    if (!isExpectedGitHubReleasePageUrl(m_releaseUrl, m_latestTagName)) {
         m_message = QString("GitHub release response contains an unexpected html_url: %1").arg(urlValue.toString());
         return false;
     }
