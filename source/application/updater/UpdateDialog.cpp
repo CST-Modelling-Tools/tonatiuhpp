@@ -189,6 +189,8 @@ void UpdateDialog::checkUpdates()
     m_downloadPath.clear();
     m_partialDownloadPath.clear();
     m_downloadFileError.clear();
+    m_verifiedInstallerPath.clear();
+    ui->downloadButton->setText("Download Update");
     setChecking(true);
     showResult(QString("Checking for updates...\nInstalled version: %1").arg(qApp->applicationVersion()));
 
@@ -310,13 +312,22 @@ void UpdateDialog::onReleaseReplyFinished()
 void UpdateDialog::setChecking(bool checking)
 {
     ui->checkButton->setEnabled(!checking && !m_checksumReply && !m_downloadReply);
-    ui->downloadButton->setEnabled(!checking && !m_checksumReply && !m_downloadReply && m_downloadUrl.isValid() && m_checksumUrl.isValid());
+    ui->downloadButton->setEnabled(
+        !checking &&
+        !m_checksumReply &&
+        !m_downloadReply &&
+        (!m_verifiedInstallerPath.isEmpty() || (m_downloadUrl.isValid() && m_checksumUrl.isValid()))
+    );
 }
 
 void UpdateDialog::setDownloading(bool downloading)
 {
     ui->checkButton->setEnabled(!downloading && !m_reply);
-    ui->downloadButton->setEnabled(!downloading && !m_reply && m_downloadUrl.isValid() && m_checksumUrl.isValid());
+    ui->downloadButton->setEnabled(
+        !downloading &&
+        !m_reply &&
+        (!m_verifiedInstallerPath.isEmpty() || (m_downloadUrl.isValid() && m_checksumUrl.isValid()))
+    );
 }
 
 void UpdateDialog::showResult(const QString& message)
@@ -333,6 +344,11 @@ void UpdateDialog::showFailure(const QString& message)
 
 void UpdateDialog::on_downloadButton_pressed()
 {
+    if (!m_verifiedInstallerPath.isEmpty()) {
+        startInstaller();
+        return;
+    }
+
     startDownload();
 }
 
@@ -359,6 +375,8 @@ void UpdateDialog::startDownload()
     m_partialDownloadPath = QString("%1.part").arg(m_downloadPath);
     m_downloadFileError.clear();
     m_expectedSha256.clear();
+    m_verifiedInstallerPath.clear();
+    ui->downloadButton->setText("Download Update");
 
     startChecksumDownload();
 }
@@ -515,17 +533,21 @@ void UpdateDialog::onDownloadReplyFinished()
         return;
     }
 
+    if (isRunnableInstaller(m_downloadPath)) {
+        m_verifiedInstallerPath = m_downloadPath;
+        ui->downloadButton->setText("Start Installer");
+    }
+
     m_downloadUrl = QUrl();
     m_checksumUrl = QUrl();
     setDownloading(false);
-
     showResult(QString("Update package downloaded and verified.\nPackage: %1\nFile: %2").arg(m_downloadAssetName, m_downloadPath));
     offerInstallUpdate();
 }
 
 void UpdateDialog::offerInstallUpdate()
 {
-    if (!isRunnableInstaller(m_downloadPath)) {
+    if (m_verifiedInstallerPath.isEmpty()) {
         QMessageBox::information(
             this,
             "Tonatiuh++ Updates",
@@ -540,7 +562,7 @@ void UpdateDialog::offerInstallUpdate()
     installMessage.setText("The update package has been downloaded and verified.");
     installMessage.setInformativeText(
         QString("Installer: %1\n\nDo you want to start the installer now?\nSave your work and close Tonatiuh++ before continuing in the installer.")
-            .arg(m_downloadPath)
+            .arg(m_verifiedInstallerPath)
     );
     QPushButton* installButton = installMessage.addButton("Start Installer", QMessageBox::AcceptRole);
     installMessage.addButton("Later", QMessageBox::RejectRole);
@@ -550,11 +572,19 @@ void UpdateDialog::offerInstallUpdate()
     if (installMessage.clickedButton() != installButton)
         return;
 
-    if (!QProcess::startDetached(m_downloadPath)) {
+    startInstaller();
+}
+
+void UpdateDialog::startInstaller()
+{
+    if (m_verifiedInstallerPath.isEmpty())
+        return;
+
+    if (!QProcess::startDetached(m_verifiedInstallerPath)) {
         QMessageBox::warning(
             this,
             "Tonatiuh++ Updates",
-            QString("Could not start the installer:\n%1").arg(m_downloadPath)
+            QString("Could not start the installer:\n%1").arg(m_verifiedInstallerPath)
         );
         return;
     }

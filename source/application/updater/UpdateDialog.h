@@ -40,6 +40,7 @@ private:
     void startChecksumDownload();
     void startPackageDownload();
     void offerInstallUpdate();
+    void startInstaller();
 
     Ui::UpdateDialog* ui;
     QNetworkAccessManager m_network;
@@ -56,4 +57,5 @@ private:
     QString m_downloadPath;
     QString m_partialDownloadPath;
     QString m_downloadFileError;
+    QString m_verifiedInstallerPath;
 };
