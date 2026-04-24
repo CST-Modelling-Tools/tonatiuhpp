@@ -37,12 +37,12 @@
       </spacer>
      </item>
      <item>
-      <widget class="QPushButton" name="openReleaseButton">
+      <widget class="QPushButton" name="downloadButton">
        <property name="enabled">
         <bool>false</bool>
        </property>
        <property name="text">
-        <string>Open Release Page</string>
+        <string>Download Update</string>
        </property>
       </widget>
      </item>
@@ -62,7 +62,7 @@
  </widget>
  <tabstops>
   <tabstop>checkButton</tabstop>
-  <tabstop>openReleaseButton</tabstop>
+  <tabstop>downloadButton</tabstop>
   <tabstop>resultText</tabstop>
  </tabstops>
  <resources/>

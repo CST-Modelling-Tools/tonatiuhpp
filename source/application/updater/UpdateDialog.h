@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QDialog>
+#include <QFile>
 #include <QNetworkAccessManager>
 #include <QUrl>
 
@@ -22,16 +23,28 @@ public:
 
 private slots:
     void on_checkButton_pressed();
-    void on_openReleaseButton_pressed();
+    void on_downloadButton_pressed();
     void onReleaseReplyFinished();
+    void onDownloadReadyRead();
+    void onDownloadProgress(qint64 bytesReceived, qint64 bytesTotal);
+    void onDownloadReplyFinished();
 
 private:
     void setChecking(bool checking);
+    void setDownloading(bool downloading);
     void showResult(const QString& message);
     void showFailure(const QString& message);
+    void startDownload();
 
     Ui::UpdateDialog* ui;
     QNetworkAccessManager m_network;
     QNetworkReply* m_reply;
-    QUrl m_releaseUrl;
+    QNetworkReply* m_downloadReply;
+    QUrl m_downloadUrl;
+    QString m_downloadAssetName;
+    qint64 m_downloadAssetSize;
+    QFile m_downloadFile;
+    QString m_downloadPath;
+    QString m_partialDownloadPath;
+    QString m_downloadFileError;
 };
