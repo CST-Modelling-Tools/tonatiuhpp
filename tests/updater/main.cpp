@@ -200,6 +200,17 @@ int main(int argc, char** argv)
         check(!badAssetUrl.readGitHubRelease(badAssetJson.toUtf8()), "Expected unexpected download asset URL to fail");
         check(!badAssetUrl.errorMessage().isEmpty(), "Expected unexpected download asset URL to set an error message");
 
+        UpdateReader wrongTagAssetUrl;
+        QString wrongTagAssetJson = QString(R"({
+            "tag_name":"v1.0.1",
+            "html_url":"https://github.com/CST-Modelling-Tools/tonatiuhpp/releases/tag/v1.0.1",
+            "assets":[
+                {"name":"%1","browser_download_url":"https://github.com/CST-Modelling-Tools/tonatiuhpp/releases/download/v1.0.0/%1","size":10}
+            ]
+        })").arg(expectedAsset);
+        check(!wrongTagAssetUrl.readGitHubRelease(wrongTagAssetJson.toUtf8()), "Expected mismatched asset URL release tag to fail");
+        check(!wrongTagAssetUrl.errorMessage().isEmpty(), "Expected mismatched asset URL release tag to set an error message");
+
         UpdateReader badChecksumUrl;
         QString badChecksumJson = QString(R"({
             "tag_name":"v1.0.1",

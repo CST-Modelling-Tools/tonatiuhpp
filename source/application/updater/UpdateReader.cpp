@@ -24,12 +24,22 @@ int compareVersions(const QVersionNumber& a, const QVersionNumber& b)
     return 0;
 }
 
-bool isGitHubReleaseDownloadUrl(const QUrl& url)
+bool isExpectedGitHubReleaseAssetUrl(const QUrl& url, const QString& tagName, const QString& assetName)
 {
+    QString expectedTag = tagName.trimmed();
+    QString expectedAsset = assetName.trimmed();
+    if (expectedTag.isEmpty() || expectedAsset.isEmpty())
+        return false;
+
+    QString expectedPath = QString("/CST-Modelling-Tools/tonatiuhpp/releases/download/%1/%2")
+        .arg(expectedTag, expectedAsset);
+
     return url.isValid() &&
         url.scheme() == "https" &&
         url.host().compare("github.com", Qt::CaseInsensitive) == 0 &&
-        url.path().startsWith("/CST-Modelling-Tools/tonatiuhpp/releases/download/", Qt::CaseInsensitive);
+        url.path() == expectedPath &&
+        url.query().isEmpty() &&
+        url.fragment().isEmpty();
 }
 
 bool isChecksumForDownloadAsset(const QString& checksumAssetName, const QString& downloadAssetName)
@@ -137,7 +147,7 @@ bool UpdateReader::readGitHubRelease(const QByteArray& data)
         }
 
         QUrl downloadUrl(downloadUrlValue.toString().trimmed());
-        if (!isGitHubReleaseDownloadUrl(downloadUrl)) {
+        if (!isExpectedGitHubReleaseAssetUrl(downloadUrl, m_latestTagName, assetName)) {
             m_message = QString("GitHub release asset \"%1\" contains an unexpected browser_download_url: %2")
                 .arg(assetName, downloadUrlValue.toString());
             return false;
@@ -166,7 +176,7 @@ bool UpdateReader::readGitHubRelease(const QByteArray& data)
             }
 
             QUrl downloadUrl(downloadUrlValue.toString().trimmed());
-            if (!isGitHubReleaseDownloadUrl(downloadUrl)) {
+            if (!isExpectedGitHubReleaseAssetUrl(downloadUrl, m_latestTagName, assetName)) {
                 m_message = QString("GitHub release checksum asset \"%1\" contains an unexpected browser_download_url: %2")
                     .arg(assetName, downloadUrlValue.toString());
                 return false;
