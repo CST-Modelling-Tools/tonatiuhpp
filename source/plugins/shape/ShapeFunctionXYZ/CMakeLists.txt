@@ -1,7 +1,8 @@
 cmake_minimum_required(VERSION 3.28)
 
 set(ProjectName ShapeFunctionXYZ)
-project(${ProjectName} VERSION 0.1.8.16)
+set(ProjectVersion "${CMAKE_PROJECT_VERSION}")
+project(${ProjectName} VERSION ${ProjectVersion})
 
 # Set the C++ standard
 set(CMAKE_CXX_STANDARD 20)

@@ -2,7 +2,8 @@ cmake_minimum_required(VERSION 3.28)
 
 # Logical target name may include '+'; we'll give the on-disk exe a simpler name.
 set(ProjectName tonatiuhpp)
-project(${ProjectName} VERSION 0.1.8.16)
+set(ProjectVersion "${CMAKE_PROJECT_VERSION}")
+project(${ProjectName} VERSION ${ProjectVersion})
 
 # C++ standard (global is already set, but harmless here)
 set(CMAKE_CXX_STANDARD 20)
@@ -206,7 +207,7 @@ target_include_directories(${ProjectName} PRIVATE
 # ----------------------------
 # Compile defs
 # ----------------------------
-target_compile_definitions(${ProjectName} PRIVATE APP_VERSION="0.1.8.16")
+target_compile_definitions(${ProjectName} PRIVATE APP_VERSION="${ProjectVersion}")
 
 # ----------------------------
 # Link libraries

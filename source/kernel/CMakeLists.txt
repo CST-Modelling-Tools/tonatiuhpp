@@ -2,7 +2,8 @@ cmake_minimum_required(VERSION 3.28)
 
 # Define project
 set(ProjectName TonatiuhKernel)
-project(${ProjectName} VERSION 1.0.0)
+set(ProjectVersion "${CMAKE_PROJECT_VERSION}")
+project(${ProjectName} VERSION ${ProjectVersion})
 
 # C++ Standard
 set(CMAKE_CXX_STANDARD 20)
