@@ -405,10 +405,10 @@ void UpdateDialog::onChecksumReplyFinished()
         return;
     }
 
-    startPackageDownload();
+    startInstallerDownload();
 }
 
-void UpdateDialog::startPackageDownload()
+void UpdateDialog::startInstallerDownload()
 {
     QFile::remove(m_partialDownloadPath);
     m_downloadFile.setFileName(m_partialDownloadPath);
@@ -502,14 +502,14 @@ void UpdateDialog::onDownloadReplyFinished()
     QByteArray actualSha256 = fileSha256(m_downloadPath, &hashError);
     if (actualSha256.isEmpty()) {
         QFile::remove(m_downloadPath);
-        showFailure(QString("Update verification failed.\nCould not read the downloaded package:\n%1").arg(hashError));
+        showFailure(QString("Update verification failed.\nCould not read the downloaded installer:\n%1").arg(hashError));
         return;
     }
 
     if (actualSha256 != m_expectedSha256) {
         QFile::remove(m_downloadPath);
         showFailure(
-            QString("Update verification failed.\nThe downloaded package checksum does not match the release checksum.\nExpected: %1\nActual: %2")
+            QString("Update verification failed.\nThe downloaded installer checksum does not match the release checksum.\nExpected: %1\nActual: %2")
                 .arg(QString::fromLatin1(m_expectedSha256), QString::fromLatin1(actualSha256))
         );
         return;

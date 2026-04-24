@@ -39,7 +39,7 @@ private:
     void showFailure(const QString& message);
     void startDownload();
     void startChecksumDownload();
-    void startPackageDownload();
+    void startInstallerDownload();
     void offerInstallUpdate();
     void startInstaller();
 
