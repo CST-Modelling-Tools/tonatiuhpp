@@ -39,6 +39,7 @@ private:
     void startDownload();
     void startChecksumDownload();
     void startPackageDownload();
+    void offerInstallUpdate();
 
     Ui::UpdateDialog* ui;
     QNetworkAccessManager m_network;

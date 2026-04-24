@@ -11,6 +11,7 @@
 #include <QMessageBox>
 #include <QNetworkReply>
 #include <QNetworkRequest>
+#include <QProcess>
 #include <QPushButton>
 #include <QRegularExpression>
 #include <QStandardPaths>
@@ -115,6 +116,16 @@ QByteArray fileSha256(const QString& path, QString* error)
     if (error)
         error->clear();
     return hash.result().toHex();
+}
+
+bool isRunnableInstaller(const QString& path)
+{
+#if defined(Q_OS_WIN)
+    return path.endsWith(".exe", Qt::CaseInsensitive);
+#else
+    Q_UNUSED(path);
+    return false;
+#endif
 }
 }
 
@@ -509,9 +520,48 @@ void UpdateDialog::onDownloadReplyFinished()
     setDownloading(false);
 
     showResult(QString("Update package downloaded and verified.\nPackage: %1\nFile: %2").arg(m_downloadAssetName, m_downloadPath));
+    offerInstallUpdate();
+}
+
+void UpdateDialog::offerInstallUpdate()
+{
+    if (!isRunnableInstaller(m_downloadPath)) {
+        QMessageBox::information(
+            this,
+            "Tonatiuh++ Updates",
+            QString("The update package has been downloaded and verified.\n\nFile: %1").arg(m_downloadPath)
+        );
+        return;
+    }
+
+    QMessageBox installMessage(this);
+    installMessage.setWindowTitle("Tonatiuh++ Updates");
+    installMessage.setIcon(QMessageBox::Information);
+    installMessage.setText("The update package has been downloaded and verified.");
+    installMessage.setInformativeText(
+        QString("Installer: %1\n\nDo you want to start the installer now?\nSave your work and close Tonatiuh++ before continuing in the installer.")
+            .arg(m_downloadPath)
+    );
+    QPushButton* installButton = installMessage.addButton("Start Installer", QMessageBox::AcceptRole);
+    installMessage.addButton("Later", QMessageBox::RejectRole);
+    installMessage.setDefaultButton(installButton);
+    installMessage.exec();
+
+    if (installMessage.clickedButton() != installButton)
+        return;
+
+    if (!QProcess::startDetached(m_downloadPath)) {
+        QMessageBox::warning(
+            this,
+            "Tonatiuh++ Updates",
+            QString("Could not start the installer:\n%1").arg(m_downloadPath)
+        );
+        return;
+    }
+
     QMessageBox::information(
         this,
         "Tonatiuh++ Updates",
-        QString("The update package has been downloaded and verified.\n\nFile: %1").arg(m_downloadPath)
+        "The installer has been started.\nSave your work and close Tonatiuh++ before continuing in the installer."
     );
 }
