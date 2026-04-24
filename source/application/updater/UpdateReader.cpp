@@ -223,6 +223,35 @@ bool UpdateReader::parseDottedVersion(const QString& versionText, QVersionNumber
     return true;
 }
 
+bool UpdateReader::parseSha256Checksum(const QByteArray& data, const QString& expectedFileName, QByteArray* checksum, QString* error)
+{
+    if (checksum)
+        checksum->clear();
+
+    QString text = QString::fromUtf8(data).trimmed();
+    QString firstLine = text.section('\n', 0, 0).trimmed();
+    static const QRegularExpression checksumPattern("^([0-9a-fA-F]{64})(?:\\s+\\*?(.+))?$");
+    QRegularExpressionMatch match = checksumPattern.match(firstLine);
+    if (!match.hasMatch()) {
+        if (error)
+            *error = "checksum file does not contain a valid SHA-256 line";
+        return false;
+    }
+
+    QString fileName = match.captured(2).trimmed();
+    if (!fileName.isEmpty() && fileName != expectedFileName) {
+        if (error)
+            *error = QString("checksum file is for %1 instead of %2").arg(fileName, expectedFileName);
+        return false;
+    }
+
+    if (checksum)
+        *checksum = match.captured(1).toLatin1().toLower();
+    if (error)
+        error->clear();
+    return true;
+}
+
 bool UpdateReader::isCurrentPlatformDownloadAsset(const QString& assetName)
 {
     QString name = assetName.trimmed().toLower();

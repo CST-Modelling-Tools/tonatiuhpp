@@ -37,6 +37,25 @@ void checkInvalidVersion(const QString& input)
     check(!error.isEmpty(), QString("Expected error message for version: %1").arg(input));
 }
 
+void checkChecksum(const QByteArray& input, const QString& expectedFileName, const QByteArray& expectedChecksum)
+{
+    QByteArray checksum;
+    QString error;
+    bool ok = UpdateReader::parseSha256Checksum(input, expectedFileName, &checksum, &error);
+    check(ok, QString("Expected checksum to parse for %1").arg(expectedFileName));
+    if (ok)
+        check(checksum == expectedChecksum, QString("Unexpected checksum for %1").arg(expectedFileName));
+}
+
+void checkInvalidChecksum(const QByteArray& input, const QString& expectedFileName)
+{
+    QByteArray checksum;
+    QString error;
+    check(!UpdateReader::parseSha256Checksum(input, expectedFileName, &checksum, &error), "Expected checksum to fail");
+    check(!error.isEmpty(), "Expected checksum error message");
+    check(checksum.isEmpty(), "Expected failed checksum parse to clear output");
+}
+
 QString expectedPlatformAssetName()
 {
 #if defined(Q_OS_WIN)
@@ -63,6 +82,12 @@ int main(int argc, char** argv)
     checkInvalidVersion("1.2");
     checkInvalidVersion("1.2.3.4.5");
     checkInvalidVersion("v1.2.beta");
+
+    QByteArray sampleHash = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+    checkChecksum(sampleHash + "  TonatiuhPP-1.0.1-windows-x64.exe\n", "TonatiuhPP-1.0.1-windows-x64.exe", sampleHash);
+    checkChecksum(sampleHash.toUpper() + " *tonatiuhpp-Linux.tar.gz\n", "tonatiuhpp-Linux.tar.gz", sampleHash);
+    checkInvalidChecksum("not-a-checksum  TonatiuhPP-1.0.1-windows-x64.exe\n", "TonatiuhPP-1.0.1-windows-x64.exe");
+    checkInvalidChecksum(sampleHash + "  other-file.exe\n", "TonatiuhPP-1.0.1-windows-x64.exe");
 
     UpdateReader newer;
     check(

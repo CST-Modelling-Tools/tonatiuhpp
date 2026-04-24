@@ -12,7 +12,6 @@
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QPushButton>
-#include <QRegularExpression>
 #include <QStandardPaths>
 #include <QStringList>
 
@@ -66,30 +65,6 @@ QString uniqueDownloadPath(const QString& directoryPath, const QString& fileName
     }
 
     return directory.filePath(QString("%1-%2").arg(safeFileName).arg(QDateTime::currentSecsSinceEpoch()));
-}
-
-QByteArray parseChecksum(const QByteArray& data, const QString& expectedFileName, QString* error)
-{
-    QString text = QString::fromUtf8(data).trimmed();
-    QString firstLine = text.section('\n', 0, 0).trimmed();
-    static const QRegularExpression checksumPattern("^([0-9a-fA-F]{64})(?:\\s+\\*?(.+))?$");
-    QRegularExpressionMatch match = checksumPattern.match(firstLine);
-    if (!match.hasMatch()) {
-        if (error)
-            *error = "checksum file does not contain a valid SHA-256 line";
-        return QByteArray();
-    }
-
-    QString fileName = match.captured(2).trimmed();
-    if (!fileName.isEmpty() && fileName != expectedFileName) {
-        if (error)
-            *error = QString("checksum file is for %1 instead of %2").arg(fileName, expectedFileName);
-        return QByteArray();
-    }
-
-    if (error)
-        error->clear();
-    return match.captured(1).toLatin1().toLower();
 }
 
 QByteArray fileSha256(const QString& path, QString* error)
@@ -417,8 +392,7 @@ void UpdateDialog::onChecksumReplyFinished()
     }
 
     QString checksumError;
-    m_expectedSha256 = parseChecksum(response, m_downloadAssetName, &checksumError);
-    if (m_expectedSha256.isEmpty()) {
+    if (!UpdateReader::parseSha256Checksum(response, m_downloadAssetName, &m_expectedSha256, &checksumError)) {
         setDownloading(false);
         showFailure(QString("Update checksum is malformed.\n%1").arg(checksumError));
         return;
