@@ -230,13 +230,13 @@ void UpdateDialog::onReleaseReplyFinished()
 
     if (!reader.hasDownloadAsset()) {
         showResult(
-            QString("Update available.\nInstalled version: %1\nLatest release: %2\n\nNo update package was found for this platform.")
+            QString("Update available.\nInstalled version: %1\nLatest release: %2\n\nNo self-update installer was found for this platform.")
                 .arg(reader.currentVersionText(), reader.latestTagName())
         );
         QMessageBox::warning(
             this,
             "Tonatiuh++ Updates",
-            QString("A newer Tonatiuh++ release is available, but no update package was found for this platform.\n\nLatest release: %1")
+            QString("A newer Tonatiuh++ release is available, but this release does not include a self-update installer for this platform.\n\nLatest release: %1")
                 .arg(reader.latestTagName())
         );
         return;
