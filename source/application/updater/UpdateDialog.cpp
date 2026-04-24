@@ -498,6 +498,16 @@ void UpdateDialog::onDownloadReplyFinished()
         return;
     }
 
+    qint64 actualFileSize = QFileInfo(m_downloadPath).size();
+    if (m_downloadAssetSize > 0 && actualFileSize != m_downloadAssetSize) {
+        QFile::remove(m_downloadPath);
+        showFailure(
+            QString("Update verification failed.\nThe downloaded installer size does not match the release metadata.\nExpected: %1\nActual: %2")
+                .arg(formatBytes(m_downloadAssetSize), formatBytes(actualFileSize))
+        );
+        return;
+    }
+
     QString hashError;
     QByteArray actualSha256 = fileSha256(m_downloadPath, &hashError);
     if (actualSha256.isEmpty()) {
