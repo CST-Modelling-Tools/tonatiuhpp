@@ -4,6 +4,7 @@
 #include "UpdateReader.h"
 
 #include <QApplication>
+#include <QCryptographicHash>
 #include <QDateTime>
 #include <QDir>
 #include <QFileInfo>
@@ -11,6 +12,7 @@
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QPushButton>
+#include <QRegularExpression>
 #include <QStandardPaths>
 #include <QStringList>
 
@@ -65,12 +67,62 @@ QString uniqueDownloadPath(const QString& directoryPath, const QString& fileName
 
     return directory.filePath(QString("%1-%2").arg(safeFileName).arg(QDateTime::currentSecsSinceEpoch()));
 }
+
+QByteArray parseChecksum(const QByteArray& data, const QString& expectedFileName, QString* error)
+{
+    QString text = QString::fromUtf8(data).trimmed();
+    QString firstLine = text.section('\n', 0, 0).trimmed();
+    static const QRegularExpression checksumPattern("^([0-9a-fA-F]{64})(?:\\s+\\*?(.+))?$");
+    QRegularExpressionMatch match = checksumPattern.match(firstLine);
+    if (!match.hasMatch()) {
+        if (error)
+            *error = "checksum file does not contain a valid SHA-256 line";
+        return QByteArray();
+    }
+
+    QString fileName = match.captured(2).trimmed();
+    if (!fileName.isEmpty() && fileName != expectedFileName) {
+        if (error)
+            *error = QString("checksum file is for %1 instead of %2").arg(fileName, expectedFileName);
+        return QByteArray();
+    }
+
+    if (error)
+        error->clear();
+    return match.captured(1).toLatin1().toLower();
+}
+
+QByteArray fileSha256(const QString& path, QString* error)
+{
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly)) {
+        if (error)
+            *error = file.errorString();
+        return QByteArray();
+    }
+
+    QCryptographicHash hash(QCryptographicHash::Sha256);
+    while (!file.atEnd()) {
+        QByteArray chunk = file.read(1024 * 1024);
+        if (chunk.isEmpty() && file.error() != QFileDevice::NoError) {
+            if (error)
+                *error = file.errorString();
+            return QByteArray();
+        }
+        hash.addData(chunk);
+    }
+
+    if (error)
+        error->clear();
+    return hash.result().toHex();
+}
 }
 
 UpdateDialog::UpdateDialog(QWidget* parent):
     QDialog(parent),
     ui(new Ui::UpdateDialog),
     m_reply(nullptr),
+    m_checksumReply(nullptr),
     m_downloadReply(nullptr),
     m_downloadAssetSize(-1)
 {
@@ -98,6 +150,12 @@ UpdateDialog::~UpdateDialog()
         m_downloadReply->deleteLater();
     }
 
+    if (m_checksumReply) {
+        disconnect(m_checksumReply, nullptr, this, nullptr);
+        m_checksumReply->abort();
+        m_checksumReply->deleteLater();
+    }
+
     if (m_downloadFile.isOpen())
         m_downloadFile.close();
     if (!m_partialDownloadPath.isEmpty())
@@ -108,12 +166,15 @@ UpdateDialog::~UpdateDialog()
 
 void UpdateDialog::checkUpdates()
 {
-    if (m_reply || m_downloadReply)
+    if (m_reply || m_checksumReply || m_downloadReply)
         return;
 
     m_downloadUrl = QUrl();
+    m_checksumUrl = QUrl();
     m_downloadAssetName.clear();
+    m_checksumAssetName.clear();
     m_downloadAssetSize = -1;
+    m_expectedSha256.clear();
     m_downloadPath.clear();
     m_partialDownloadPath.clear();
     m_downloadFileError.clear();
@@ -193,8 +254,24 @@ void UpdateDialog::onReleaseReplyFinished()
         return;
     }
 
+    if (!reader.hasChecksumAsset()) {
+        showResult(
+            QString("Update available.\nInstalled version: %1\nLatest release: %2\nPackage: %3\n\nNo checksum file was found for this package, so it will not be downloaded.")
+                .arg(reader.currentVersionText(), reader.latestTagName(), reader.downloadAssetName())
+        );
+        QMessageBox::warning(
+            this,
+            "Tonatiuh++ Updates",
+            QString("A newer Tonatiuh++ release is available, but its update package is missing a checksum file.\n\nPackage: %1")
+                .arg(reader.downloadAssetName())
+        );
+        return;
+    }
+
     m_downloadUrl = reader.downloadAssetUrl();
+    m_checksumUrl = reader.checksumAssetUrl();
     m_downloadAssetName = reader.downloadAssetName();
+    m_checksumAssetName = reader.checksumAssetName();
     m_downloadAssetSize = reader.downloadAssetSize();
     setChecking(false);
     showResult(
@@ -207,7 +284,7 @@ void UpdateDialog::onReleaseReplyFinished()
     updateMessage.setIcon(QMessageBox::Information);
     updateMessage.setText(QString("Tonatiuh++ %1 is available.").arg(reader.latestTagName()));
     updateMessage.setInformativeText(
-        QString("Package: %1\nSize: %2\n\nDo you want to download this update now?")
+        QString("Package: %1\nSize: %2\n\nDo you want to download and verify this update now?")
             .arg(m_downloadAssetName, formatBytes(m_downloadAssetSize))
     );
     QPushButton* downloadButton = updateMessage.addButton("Download", QMessageBox::AcceptRole);
@@ -221,14 +298,14 @@ void UpdateDialog::onReleaseReplyFinished()
 
 void UpdateDialog::setChecking(bool checking)
 {
-    ui->checkButton->setEnabled(!checking && !m_downloadReply);
-    ui->downloadButton->setEnabled(!checking && !m_downloadReply && m_downloadUrl.isValid());
+    ui->checkButton->setEnabled(!checking && !m_checksumReply && !m_downloadReply);
+    ui->downloadButton->setEnabled(!checking && !m_checksumReply && !m_downloadReply && m_downloadUrl.isValid() && m_checksumUrl.isValid());
 }
 
 void UpdateDialog::setDownloading(bool downloading)
 {
     ui->checkButton->setEnabled(!downloading && !m_reply);
-    ui->downloadButton->setEnabled(!downloading && !m_reply && m_downloadUrl.isValid());
+    ui->downloadButton->setEnabled(!downloading && !m_reply && m_downloadUrl.isValid() && m_checksumUrl.isValid());
 }
 
 void UpdateDialog::showResult(const QString& message)
@@ -250,7 +327,7 @@ void UpdateDialog::on_downloadButton_pressed()
 
 void UpdateDialog::startDownload()
 {
-    if (!m_downloadUrl.isValid() || m_downloadReply)
+    if (!m_downloadUrl.isValid() || !m_checksumUrl.isValid() || m_checksumReply || m_downloadReply)
         return;
 
     QString downloadDirectory = QStandardPaths::writableLocation(QStandardPaths::DownloadLocation);
@@ -270,7 +347,59 @@ void UpdateDialog::startDownload()
     m_downloadPath = uniqueDownloadPath(downloadDirectory, m_downloadAssetName);
     m_partialDownloadPath = QString("%1.part").arg(m_downloadPath);
     m_downloadFileError.clear();
+    m_expectedSha256.clear();
 
+    startChecksumDownload();
+}
+
+void UpdateDialog::startChecksumDownload()
+{
+    QNetworkRequest request(m_checksumUrl);
+    request.setRawHeader("User-Agent", "TonatiuhPP");
+    request.setTransferTimeout(30000);
+
+    m_checksumReply = m_network.get(request);
+    connect(m_checksumReply, &QNetworkReply::finished, this, &UpdateDialog::onChecksumReplyFinished);
+
+    setDownloading(true);
+    showResult(QString("Downloading update checksum...\nChecksum: %1\nPackage: %2").arg(m_checksumAssetName, m_downloadAssetName));
+}
+
+void UpdateDialog::onChecksumReplyFinished()
+{
+    QNetworkReply* reply = qobject_cast<QNetworkReply*>(sender());
+    if (!reply || reply != m_checksumReply)
+        return;
+
+    QByteArray response = reply->readAll();
+    QNetworkReply::NetworkError networkError = reply->error();
+    QString errorText = reply->errorString();
+    QVariant status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute);
+    int statusCode = status.isValid() ? status.toInt() : 0;
+
+    reply->deleteLater();
+    m_checksumReply = nullptr;
+
+    if (networkError != QNetworkReply::NoError) {
+        setDownloading(false);
+        QString httpStatus = statusCode > 0 ? QString::number(statusCode) : "unavailable";
+        showFailure(QString("Update checksum download failed.\nHTTP status: %1\nNetwork error: %2").arg(httpStatus, errorText));
+        return;
+    }
+
+    QString checksumError;
+    m_expectedSha256 = parseChecksum(response, m_downloadAssetName, &checksumError);
+    if (m_expectedSha256.isEmpty()) {
+        setDownloading(false);
+        showFailure(QString("Update checksum is malformed.\n%1").arg(checksumError));
+        return;
+    }
+
+    startPackageDownload();
+}
+
+void UpdateDialog::startPackageDownload()
+{
     QFile::remove(m_partialDownloadPath);
     m_downloadFile.setFileName(m_partialDownloadPath);
     if (!m_downloadFile.open(QIODevice::WriteOnly)) {
@@ -287,7 +416,6 @@ void UpdateDialog::startDownload()
     connect(m_downloadReply, &QNetworkReply::downloadProgress, this, &UpdateDialog::onDownloadProgress);
     connect(m_downloadReply, &QNetworkReply::finished, this, &UpdateDialog::onDownloadReplyFinished);
 
-    setDownloading(true);
     showResult(QString("Downloading update package...\nPackage: %1\nDestination: %2").arg(m_downloadAssetName, m_downloadPath));
 }
 
@@ -359,13 +487,31 @@ void UpdateDialog::onDownloadReplyFinished()
         return;
     }
 
+    QString hashError;
+    QByteArray actualSha256 = fileSha256(m_downloadPath, &hashError);
+    if (actualSha256.isEmpty()) {
+        QFile::remove(m_downloadPath);
+        showFailure(QString("Update verification failed.\nCould not read the downloaded package:\n%1").arg(hashError));
+        return;
+    }
+
+    if (actualSha256 != m_expectedSha256) {
+        QFile::remove(m_downloadPath);
+        showFailure(
+            QString("Update verification failed.\nThe downloaded package checksum does not match the release checksum.\nExpected: %1\nActual: %2")
+                .arg(QString::fromLatin1(m_expectedSha256), QString::fromLatin1(actualSha256))
+        );
+        return;
+    }
+
     m_downloadUrl = QUrl();
+    m_checksumUrl = QUrl();
     setDownloading(false);
 
-    showResult(QString("Update package downloaded.\nPackage: %1\nFile: %2").arg(m_downloadAssetName, m_downloadPath));
+    showResult(QString("Update package downloaded and verified.\nPackage: %1\nFile: %2").arg(m_downloadAssetName, m_downloadPath));
     QMessageBox::information(
         this,
         "Tonatiuh++ Updates",
-        QString("The update package has been downloaded.\n\nFile: %1").arg(m_downloadPath)
+        QString("The update package has been downloaded and verified.\n\nFile: %1").arg(m_downloadPath)
     );
 }

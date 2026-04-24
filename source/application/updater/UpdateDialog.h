@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QByteArray>
 #include <QDialog>
 #include <QFile>
 #include <QNetworkAccessManager>
@@ -28,6 +29,7 @@ private slots:
     void onDownloadReadyRead();
     void onDownloadProgress(qint64 bytesReceived, qint64 bytesTotal);
     void onDownloadReplyFinished();
+    void onChecksumReplyFinished();
 
 private:
     void setChecking(bool checking);
@@ -35,14 +37,20 @@ private:
     void showResult(const QString& message);
     void showFailure(const QString& message);
     void startDownload();
+    void startChecksumDownload();
+    void startPackageDownload();
 
     Ui::UpdateDialog* ui;
     QNetworkAccessManager m_network;
     QNetworkReply* m_reply;
+    QNetworkReply* m_checksumReply;
     QNetworkReply* m_downloadReply;
     QUrl m_downloadUrl;
+    QUrl m_checksumUrl;
     QString m_downloadAssetName;
+    QString m_checksumAssetName;
     qint64 m_downloadAssetSize;
+    QByteArray m_expectedSha256;
     QFile m_downloadFile;
     QString m_downloadPath;
     QString m_partialDownloadPath;
