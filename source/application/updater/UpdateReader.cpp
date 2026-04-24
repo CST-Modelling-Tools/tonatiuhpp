@@ -81,6 +81,7 @@ UpdateReader::UpdateReader()
     m_currentVersionText = QCoreApplication::applicationVersion();
     parseDottedVersion(m_currentVersionText, &m_currentVersion, &m_currentVersionError);
     m_installerAssetSize = -1;
+    m_checksumAssetSize = -1;
 }
 
 bool UpdateReader::readGitHubRelease(const QByteArray& data)
@@ -95,6 +96,7 @@ bool UpdateReader::readGitHubRelease(const QByteArray& data)
     m_installerAssetSize = -1;
     m_checksumAssetName.clear();
     m_checksumAssetUrl = QUrl();
+    m_checksumAssetSize = -1;
 
     QJsonParseError parseError;
     QJsonDocument document = QJsonDocument::fromJson(data, &parseError);
@@ -219,6 +221,7 @@ bool UpdateReader::readGitHubRelease(const QByteArray& data)
 
             m_checksumAssetName = assetName;
             m_checksumAssetUrl = downloadUrl;
+            m_checksumAssetSize = static_cast<qint64>(asset.value("size").toDouble());
             break;
         }
     }

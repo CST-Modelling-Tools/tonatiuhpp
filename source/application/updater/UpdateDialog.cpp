@@ -114,7 +114,8 @@ UpdateDialog::UpdateDialog(QWidget* parent):
     m_reply(nullptr),
     m_checksumReply(nullptr),
     m_downloadReply(nullptr),
-    m_installerAssetSize(-1)
+    m_installerAssetSize(-1),
+    m_checksumAssetSize(-1)
 {
     ui->setupUi(this);
 
@@ -164,6 +165,7 @@ void UpdateDialog::checkUpdates()
     m_installerAssetName.clear();
     m_checksumAssetName.clear();
     m_installerAssetSize = -1;
+    m_checksumAssetSize = -1;
     m_expectedSha256.clear();
     m_downloadPath.clear();
     m_partialDownloadPath.clear();
@@ -267,6 +269,7 @@ void UpdateDialog::onReleaseReplyFinished()
     m_installerAssetName = reader.installerAssetName();
     m_checksumAssetName = reader.checksumAssetName();
     m_installerAssetSize = reader.installerAssetSize();
+    m_checksumAssetSize = reader.checksumAssetSize();
     setChecking(false);
     showResult(
         QString("Update available.\nInstalled version: %1\nLatest release: %2\nInstaller: %3\nSize: %4")
@@ -395,6 +398,15 @@ void UpdateDialog::onChecksumReplyFinished()
         setDownloading(false);
         QString httpStatus = statusCode > 0 ? QString::number(statusCode) : "unavailable";
         showFailure(QString("Update checksum download failed.\nHTTP status: %1\nNetwork error: %2").arg(httpStatus, errorText));
+        return;
+    }
+
+    if (m_checksumAssetSize > 0 && response.size() != m_checksumAssetSize) {
+        setDownloading(false);
+        showFailure(
+            QString("Update checksum download failed.\nThe downloaded checksum size does not match the release metadata.\nExpected: %1\nActual: %2")
+                .arg(formatBytes(m_checksumAssetSize), formatBytes(response.size()))
+        );
         return;
     }
 

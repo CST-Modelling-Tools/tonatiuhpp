@@ -133,6 +133,7 @@ int main(int argc, char** argv)
             releaseWithAssets.checksumAssetUrl() == QUrl(QString("https://github.com/CST-Modelling-Tools/tonatiuhpp/releases/download/v1.0.1/%1.sha256").arg(expectedAsset)),
             "Unexpected platform checksum asset URL"
         );
+        check(releaseWithAssets.checksumAssetSize() > 0, "Expected platform checksum asset size");
     } else {
         check(!releaseWithAssets.hasInstallerAsset(), "Expected no installer asset on unsupported platforms");
         check(!releaseWithAssets.hasChecksumAsset(), "Expected no checksum asset on unsupported platforms");

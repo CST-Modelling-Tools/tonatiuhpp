@@ -53,6 +53,7 @@ private:
     QString m_installerAssetName;
     QString m_checksumAssetName;
     qint64 m_installerAssetSize;
+    qint64 m_checksumAssetSize;
     QByteArray m_expectedSha256;
     QFile m_downloadFile;
     QString m_downloadPath;

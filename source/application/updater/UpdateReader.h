@@ -24,6 +24,7 @@ public:
     bool hasInstallerAsset() const { return m_installerAssetUrl.isValid(); }
     QString checksumAssetName() const { return m_checksumAssetName; }
     QUrl checksumAssetUrl() const { return m_checksumAssetUrl; }
+    qint64 checksumAssetSize() const { return m_checksumAssetSize; }
     bool hasChecksumAsset() const { return m_checksumAssetUrl.isValid(); }
     QString errorMessage() const { return m_message; }
 
@@ -48,4 +49,5 @@ private:
     qint64 m_installerAssetSize;
     QString m_checksumAssetName;
     QUrl m_checksumAssetUrl;
+    qint64 m_checksumAssetSize;
 };
