@@ -59,7 +59,6 @@ set(HEADERS
     tree/SceneTreeModel.h
     tree/SceneTreeView.h
     tree/SoPathVariant.h
-    updater/FileDownloader.h
     updater/UpdateDialog.h
     updater/UpdateReader.h
     view/GraphicRoot.h
@@ -131,7 +130,6 @@ set(SOURCES
     tree/SceneTreeModel.cpp
     tree/SceneTreeView.cpp
     tree/SoPathVariant.cpp
-    updater/FileDownloader.cpp
     updater/UpdateDialog.cpp
     updater/UpdateReader.cpp
     view/GraphicRoot.cpp
