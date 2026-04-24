@@ -66,6 +66,22 @@ int main(int argc, char** argv)
     );
     check(!same.isUpdateAvailable(), "Expected v1.0.0 not to be newer than 1.0.0");
 
+    QCoreApplication::setApplicationVersion("1.0.0.0");
+    UpdateReader sameWithTrailingZero;
+    check(
+        sameWithTrailingZero.readGitHubRelease(R"({"tag_name":"v1.0.0","html_url":"https://github.com/CST-Modelling-Tools/tonatiuhpp/releases/tag/v1.0.0"})"),
+        "Expected three-component release JSON to parse"
+    );
+    check(!sameWithTrailingZero.isUpdateAvailable(), "Expected v1.0.0 not to be newer than 1.0.0.0");
+
+    QCoreApplication::setApplicationVersion("1.0.0");
+    UpdateReader newerFourthComponent;
+    check(
+        newerFourthComponent.readGitHubRelease(R"({"tag_name":"v1.0.0.1","html_url":"https://github.com/CST-Modelling-Tools/tonatiuhpp/releases/tag/v1.0.0.1"})"),
+        "Expected four-component release JSON to parse"
+    );
+    check(newerFourthComponent.isUpdateAvailable(), "Expected v1.0.0.1 to be newer than 1.0.0");
+
     UpdateReader malformedTag;
     check(
         !malformedTag.readGitHubRelease(R"({"tag_name":"v1.0","html_url":"https://github.com/CST-Modelling-Tools/tonatiuhpp/releases/tag/v1.0"})"),

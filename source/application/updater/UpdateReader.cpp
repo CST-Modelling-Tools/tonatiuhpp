@@ -7,6 +7,23 @@
 #include <QRegularExpression>
 
 
+namespace
+{
+int compareVersions(const QVersionNumber& a, const QVersionNumber& b)
+{
+    int count = a.segmentCount() > b.segmentCount() ? a.segmentCount() : b.segmentCount();
+    for (int i = 0; i < count; ++i) {
+        int av = i < a.segmentCount() ? a.segmentAt(i) : 0;
+        int bv = i < b.segmentCount() ? b.segmentAt(i) : 0;
+        if (av < bv)
+            return -1;
+        if (av > bv)
+            return 1;
+    }
+    return 0;
+}
+}
+
 UpdateReader::UpdateReader()
 {
     m_currentVersionText = QCoreApplication::applicationVersion();
@@ -74,7 +91,7 @@ bool UpdateReader::isUpdateAvailable() const
     if (m_currentVersion.isNull() || m_latestVersion.isNull())
         return false;
 
-    return QVersionNumber::compare(m_currentVersion, m_latestVersion) < 0;
+    return compareVersions(m_currentVersion, m_latestVersion) < 0;
 }
 
 QString UpdateReader::normalizedVersionTag(const QString& tag)
