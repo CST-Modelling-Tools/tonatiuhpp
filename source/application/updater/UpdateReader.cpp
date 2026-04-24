@@ -65,6 +65,15 @@ bool isChecksumForDownloadAsset(const QString& checksumAssetName, const QString&
 {
     return checksumAssetName.compare(QString("%1.sha256").arg(downloadAssetName), Qt::CaseInsensitive) == 0;
 }
+
+bool isValidGitHubAssetSize(const QJsonValue& sizeValue)
+{
+    double sizeDouble = sizeValue.toDouble(-1.0);
+    return sizeValue.isDouble() &&
+        sizeDouble > 0.0 &&
+        sizeDouble <= static_cast<double>(std::numeric_limits<qint64>::max()) &&
+        std::floor(sizeDouble) == sizeDouble;
+}
 }
 
 UpdateReader::UpdateReader()
@@ -175,15 +184,11 @@ bool UpdateReader::readGitHubRelease(const QByteArray& data)
         m_downloadAssetUrl = downloadUrl;
 
         QJsonValue sizeValue = asset.value("size");
-        double sizeDouble = sizeValue.toDouble(-1.0);
-        if (!sizeValue.isDouble() ||
-            sizeDouble <= 0.0 ||
-            sizeDouble > static_cast<double>(std::numeric_limits<qint64>::max()) ||
-            std::floor(sizeDouble) != sizeDouble) {
+        if (!isValidGitHubAssetSize(sizeValue)) {
             m_message = QString("GitHub release asset \"%1\" contains an invalid size").arg(assetName);
             return false;
         }
-        m_downloadAssetSize = static_cast<qint64>(sizeDouble);
+        m_downloadAssetSize = static_cast<qint64>(sizeValue.toDouble());
 
     }
 
@@ -204,6 +209,11 @@ bool UpdateReader::readGitHubRelease(const QByteArray& data)
             if (!isExpectedGitHubReleaseAssetUrl(downloadUrl, m_latestTagName, assetName)) {
                 m_message = QString("GitHub release checksum asset \"%1\" contains an unexpected browser_download_url: %2")
                     .arg(assetName, downloadUrlValue.toString());
+                return false;
+            }
+
+            if (!isValidGitHubAssetSize(asset.value("size"))) {
+                m_message = QString("GitHub release checksum asset \"%1\" contains an invalid size").arg(assetName);
                 return false;
             }
 

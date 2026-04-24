@@ -230,6 +230,18 @@ int main(int argc, char** argv)
         check(!missingAssetSize.readGitHubRelease(missingAssetSizeJson.toUtf8()), "Expected missing asset size to fail");
         check(!missingAssetSize.errorMessage().isEmpty(), "Expected missing asset size to set an error message");
 
+        UpdateReader missingChecksumSize;
+        QString missingChecksumSizeJson = QString(R"({
+            "tag_name":"v1.0.1",
+            "html_url":"https://github.com/CST-Modelling-Tools/tonatiuhpp/releases/tag/v1.0.1",
+            "assets":[
+                {"name":"%1","browser_download_url":"https://github.com/CST-Modelling-Tools/tonatiuhpp/releases/download/v1.0.1/%1","size":10},
+                {"name":"%1.sha256","browser_download_url":"https://github.com/CST-Modelling-Tools/tonatiuhpp/releases/download/v1.0.1/%1.sha256"}
+            ]
+        })").arg(expectedAsset);
+        check(!missingChecksumSize.readGitHubRelease(missingChecksumSizeJson.toUtf8()), "Expected missing checksum asset size to fail");
+        check(!missingChecksumSize.errorMessage().isEmpty(), "Expected missing checksum asset size to set an error message");
+
         UpdateReader badChecksumUrl;
         QString badChecksumJson = QString(R"({
             "tag_name":"v1.0.1",
