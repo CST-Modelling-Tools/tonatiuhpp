@@ -88,6 +88,7 @@ int main(int argc, char** argv)
     check(!UpdateReader::isCurrentPlatformInstallerAsset("tonatiuhpp-Linux.tar.gz", "1.0.1"), "Expected Linux archive to be ignored by the self-update asset matcher");
     check(!UpdateReader::isCurrentPlatformInstallerAsset("tonatiuhpp-macOS.tar.gz", "1.0.1"), "Expected macOS archive to be ignored by the self-update asset matcher");
     check(!UpdateReader::isCurrentPlatformInstallerAsset("TonatiuhPP-1.0.0-windows-x64.exe", "1.0.1"), "Expected stale installer asset to be ignored");
+    check(!UpdateReader::isCurrentPlatformInstallerAsset("TonatiuhPP-1.0.1-windows-x64-portable.exe", "1.0.1"), "Expected nonstandard Windows installer asset name to be ignored");
 #if defined(Q_OS_WIN)
     check(UpdateReader::isCurrentPlatformInstallerAsset("TonatiuhPP-1.0.1-windows-x64.exe", "v1.0.1"), "Expected matching Windows installer asset to be accepted");
 #endif

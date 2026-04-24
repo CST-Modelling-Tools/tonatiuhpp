@@ -285,11 +285,8 @@ bool UpdateReader::isCurrentPlatformInstallerAsset(const QString& assetName, con
         return false;
 
 #if defined(Q_OS_WIN)
-    return name.startsWith("tonatiuhpp-") &&
-        name.contains(QString("-%1-").arg(version)) &&
-        name.contains("windows") &&
-        name.contains("x64") &&
-        name.endsWith(".exe");
+    QString expectedName = QString("tonatiuhpp-%1-windows-x64.exe").arg(version);
+    return name == expectedName;
 #else
     Q_UNUSED(name);
     Q_UNUSED(version);
