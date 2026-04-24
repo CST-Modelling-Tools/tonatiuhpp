@@ -18,10 +18,15 @@ public:
     QString latestTagName() const { return m_latestTagName; }
     QString latestVersionText() const { return m_latestVersionText; }
     QUrl releaseUrl() const { return m_releaseUrl; }
+    QString downloadAssetName() const { return m_downloadAssetName; }
+    QUrl downloadAssetUrl() const { return m_downloadAssetUrl; }
+    qint64 downloadAssetSize() const { return m_downloadAssetSize; }
+    bool hasDownloadAsset() const { return m_downloadAssetUrl.isValid(); }
     QString errorMessage() const { return m_message; }
 
     static QString normalizedVersionTag(const QString& tag);
     static bool parseDottedVersion(const QString& versionText, QVersionNumber* version, QString* error = nullptr);
+    static bool isCurrentPlatformDownloadAsset(const QString& assetName);
 
 private:
     QString m_message;
@@ -34,4 +39,7 @@ private:
     QString m_latestVersionText;
     QVersionNumber m_latestVersion;
     QUrl m_releaseUrl;
+    QString m_downloadAssetName;
+    QUrl m_downloadAssetUrl;
+    qint64 m_downloadAssetSize;
 };

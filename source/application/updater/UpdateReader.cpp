@@ -1,6 +1,7 @@
 #include "UpdateReader.h"
 
 #include <QCoreApplication>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonParseError>
@@ -22,12 +23,21 @@ int compareVersions(const QVersionNumber& a, const QVersionNumber& b)
     }
     return 0;
 }
+
+bool isGitHubReleaseDownloadUrl(const QUrl& url)
+{
+    return url.isValid() &&
+        url.scheme() == "https" &&
+        url.host().compare("github.com", Qt::CaseInsensitive) == 0 &&
+        url.path().startsWith("/CST-Modelling-Tools/tonatiuhpp/releases/download/", Qt::CaseInsensitive);
+}
 }
 
 UpdateReader::UpdateReader()
 {
     m_currentVersionText = QCoreApplication::applicationVersion();
     parseDottedVersion(m_currentVersionText, &m_currentVersion, &m_currentVersionError);
+    m_downloadAssetSize = -1;
 }
 
 bool UpdateReader::readGitHubRelease(const QByteArray& data)
@@ -37,6 +47,9 @@ bool UpdateReader::readGitHubRelease(const QByteArray& data)
     m_latestVersionText.clear();
     m_latestVersion = QVersionNumber();
     m_releaseUrl = QUrl();
+    m_downloadAssetName.clear();
+    m_downloadAssetUrl = QUrl();
+    m_downloadAssetSize = -1;
 
     QJsonParseError parseError;
     QJsonDocument document = QJsonDocument::fromJson(data, &parseError);
@@ -83,6 +96,56 @@ bool UpdateReader::readGitHubRelease(const QByteArray& data)
         return false;
     }
 
+    QJsonValue assetsValue = release.value("assets");
+    if (assetsValue.isUndefined() || assetsValue.isNull())
+        return true;
+
+    if (!assetsValue.isArray()) {
+        m_message = "GitHub release response contains malformed assets";
+        return false;
+    }
+
+    QJsonArray assets = assetsValue.toArray();
+    for (const QJsonValue& assetValue : assets) {
+        if (!assetValue.isObject()) {
+            m_message = "GitHub release response contains a malformed asset";
+            return false;
+        }
+
+        QJsonObject asset = assetValue.toObject();
+        QJsonValue nameValue = asset.value("name");
+        if (!nameValue.isString() || nameValue.toString().trimmed().isEmpty()) {
+            m_message = "GitHub release response contains an asset without a name";
+            return false;
+        }
+
+        QString assetName = nameValue.toString().trimmed();
+        if (!isCurrentPlatformDownloadAsset(assetName))
+            continue;
+
+        QJsonValue downloadUrlValue = asset.value("browser_download_url");
+        if (!downloadUrlValue.isString() || downloadUrlValue.toString().trimmed().isEmpty()) {
+            m_message = QString("GitHub release asset \"%1\" is missing browser_download_url").arg(assetName);
+            return false;
+        }
+
+        QUrl downloadUrl(downloadUrlValue.toString().trimmed());
+        if (!isGitHubReleaseDownloadUrl(downloadUrl)) {
+            m_message = QString("GitHub release asset \"%1\" contains an unexpected browser_download_url: %2")
+                .arg(assetName, downloadUrlValue.toString());
+            return false;
+        }
+
+        m_downloadAssetName = assetName;
+        m_downloadAssetUrl = downloadUrl;
+
+        QJsonValue sizeValue = asset.value("size");
+        if (sizeValue.isDouble())
+            m_downloadAssetSize = static_cast<qint64>(sizeValue.toDouble());
+
+        break;
+    }
+
     return true;
 }
 
@@ -126,4 +189,19 @@ bool UpdateReader::parseDottedVersion(const QString& versionText, QVersionNumber
     if (error)
         error->clear();
     return true;
+}
+
+bool UpdateReader::isCurrentPlatformDownloadAsset(const QString& assetName)
+{
+    QString name = assetName.trimmed().toLower();
+#if defined(Q_OS_WIN)
+    return name.startsWith("tonatiuhpp-") && name.contains("windows") && name.contains("x64") && name.endsWith(".exe");
+#elif defined(Q_OS_MACOS)
+    return name == "tonatiuhpp-macos.tar.gz";
+#elif defined(Q_OS_LINUX)
+    return name == "tonatiuhpp-linux.tar.gz";
+#else
+    Q_UNUSED(name);
+    return false;
+#endif
 }
