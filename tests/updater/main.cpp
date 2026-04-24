@@ -219,6 +219,17 @@ int main(int argc, char** argv)
         check(!wrongTagAssetUrl.readGitHubRelease(wrongTagAssetJson.toUtf8()), "Expected mismatched asset URL release tag to fail");
         check(!wrongTagAssetUrl.errorMessage().isEmpty(), "Expected mismatched asset URL release tag to set an error message");
 
+        UpdateReader missingAssetSize;
+        QString missingAssetSizeJson = QString(R"({
+            "tag_name":"v1.0.1",
+            "html_url":"https://github.com/CST-Modelling-Tools/tonatiuhpp/releases/tag/v1.0.1",
+            "assets":[
+                {"name":"%1","browser_download_url":"https://github.com/CST-Modelling-Tools/tonatiuhpp/releases/download/v1.0.1/%1"}
+            ]
+        })").arg(expectedAsset);
+        check(!missingAssetSize.readGitHubRelease(missingAssetSizeJson.toUtf8()), "Expected missing asset size to fail");
+        check(!missingAssetSize.errorMessage().isEmpty(), "Expected missing asset size to set an error message");
+
         UpdateReader badChecksumUrl;
         QString badChecksumJson = QString(R"({
             "tag_name":"v1.0.1",

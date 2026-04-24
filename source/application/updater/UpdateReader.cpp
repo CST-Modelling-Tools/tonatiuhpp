@@ -1,5 +1,8 @@
 #include "UpdateReader.h"
 
+#include <cmath>
+#include <limits>
+
 #include <QCoreApplication>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -172,8 +175,15 @@ bool UpdateReader::readGitHubRelease(const QByteArray& data)
         m_downloadAssetUrl = downloadUrl;
 
         QJsonValue sizeValue = asset.value("size");
-        if (sizeValue.isDouble())
-            m_downloadAssetSize = static_cast<qint64>(sizeValue.toDouble());
+        double sizeDouble = sizeValue.toDouble(-1.0);
+        if (!sizeValue.isDouble() ||
+            sizeDouble <= 0.0 ||
+            sizeDouble > static_cast<double>(std::numeric_limits<qint64>::max()) ||
+            std::floor(sizeDouble) != sizeDouble) {
+            m_message = QString("GitHub release asset \"%1\" contains an invalid size").arg(assetName);
+            return false;
+        }
+        m_downloadAssetSize = static_cast<qint64>(sizeDouble);
 
     }
 
