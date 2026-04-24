@@ -840,11 +840,6 @@ border:none;
     <string>Ctrl+Shift+R</string>
    </property>
   </action>
-  <action name="actionCheckForUpdates">
-   <property name="text">
-    <string>Check for updates</string>
-   </property>
-  </action>
   <action name="actionAnalyzerNode">
    <property name="text">
     <string>Analyzer Node</string>

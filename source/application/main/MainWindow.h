@@ -186,7 +186,6 @@ private slots:
     void on_actionHelpAbout_triggered();
 
 //    void on_actionViewAxes_toggled();
-//    void on_actionCheckForUpdates_triggered();
 
     void treeWorldClicked(QTreeWidgetItem* item, int column); // temporary
     void treeWorldDoubleClicked(QTreeWidgetItem* item, int column);
