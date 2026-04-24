@@ -165,7 +165,7 @@ void UpdateDialog::checkUpdates()
     m_downloadFileError.clear();
     m_verifiedInstallerPath.clear();
     m_installerPathToStart.clear();
-    ui->downloadButton->setText("Download Update");
+    ui->downloadButton->setText("Download Installer");
     setChecking(true);
     showResult(QString("Checking for updates...\nInstalled version: %1").arg(qApp->applicationVersion()));
 
@@ -244,13 +244,13 @@ void UpdateDialog::onReleaseReplyFinished()
 
     if (!reader.hasChecksumAsset()) {
         showResult(
-            QString("Update available.\nInstalled version: %1\nLatest release: %2\nPackage: %3\n\nNo checksum file was found for this package, so it will not be downloaded.")
+            QString("Update available.\nInstalled version: %1\nLatest release: %2\nInstaller: %3\n\nNo checksum file was found for this installer, so it will not be downloaded.")
                 .arg(reader.currentVersionText(), reader.latestTagName(), reader.downloadAssetName())
         );
         QMessageBox::warning(
             this,
             "Tonatiuh++ Updates",
-            QString("A newer Tonatiuh++ release is available, but its update package is missing a checksum file.\n\nPackage: %1")
+            QString("A newer Tonatiuh++ release is available, but its installer is missing a checksum file.\n\nInstaller: %1")
                 .arg(reader.downloadAssetName())
         );
         return;
@@ -263,7 +263,7 @@ void UpdateDialog::onReleaseReplyFinished()
     m_downloadAssetSize = reader.downloadAssetSize();
     setChecking(false);
     showResult(
-        QString("Update available.\nInstalled version: %1\nLatest release: %2\nPackage: %3\nSize: %4")
+        QString("Update available.\nInstalled version: %1\nLatest release: %2\nInstaller: %3\nSize: %4")
             .arg(reader.currentVersionText(), reader.latestTagName(), m_downloadAssetName, formatBytes(m_downloadAssetSize))
     );
 
@@ -272,7 +272,7 @@ void UpdateDialog::onReleaseReplyFinished()
     updateMessage.setIcon(QMessageBox::Information);
     updateMessage.setText(QString("Tonatiuh++ %1 is available.").arg(reader.latestTagName()));
     updateMessage.setInformativeText(
-        QString("Package: %1\nSize: %2\n\nDo you want to download and verify this update now?")
+        QString("Installer: %1\nSize: %2\n\nDo you want to download and verify this installer now?")
             .arg(m_downloadAssetName, formatBytes(m_downloadAssetSize))
     );
     QPushButton* downloadButton = updateMessage.addButton("Download", QMessageBox::AcceptRole);
@@ -351,7 +351,7 @@ void UpdateDialog::startDownload()
     m_downloadFileError.clear();
     m_expectedSha256.clear();
     m_verifiedInstallerPath.clear();
-    ui->downloadButton->setText("Download Update");
+    ui->downloadButton->setText("Download Installer");
 
     startChecksumDownload();
 }
@@ -366,7 +366,7 @@ void UpdateDialog::startChecksumDownload()
     connect(m_checksumReply, &QNetworkReply::finished, this, &UpdateDialog::onChecksumReplyFinished);
 
     setDownloading(true);
-    showResult(QString("Downloading update checksum...\nChecksum: %1\nPackage: %2").arg(m_checksumAssetName, m_downloadAssetName));
+    showResult(QString("Downloading update checksum...\nChecksum: %1\nInstaller: %2").arg(m_checksumAssetName, m_downloadAssetName));
 }
 
 void UpdateDialog::onChecksumReplyFinished()
@@ -419,7 +419,7 @@ void UpdateDialog::startPackageDownload()
     connect(m_downloadReply, &QNetworkReply::downloadProgress, this, &UpdateDialog::onDownloadProgress);
     connect(m_downloadReply, &QNetworkReply::finished, this, &UpdateDialog::onDownloadReplyFinished);
 
-    showResult(QString("Downloading update package...\nPackage: %1\nDestination: %2").arg(m_downloadAssetName, m_downloadPath));
+    showResult(QString("Downloading update installer...\nInstaller: %1\nDestination: %2").arg(m_downloadAssetName, m_downloadPath));
 }
 
 void UpdateDialog::onDownloadReadyRead()
@@ -441,7 +441,7 @@ void UpdateDialog::onDownloadProgress(qint64 bytesReceived, qint64 bytesTotal)
 {
     qint64 total = bytesTotal > 0 ? bytesTotal : m_downloadAssetSize;
     showResult(
-        QString("Downloading update package...\nPackage: %1\nProgress: %2 of %3\nDestination: %4")
+        QString("Downloading update installer...\nInstaller: %1\nProgress: %2 of %3\nDestination: %4")
             .arg(m_downloadAssetName, formatBytes(bytesReceived), formatBytes(total), m_downloadPath)
     );
 }
@@ -471,7 +471,7 @@ void UpdateDialog::onDownloadReplyFinished()
 
     if (!m_downloadFileError.isEmpty()) {
         QFile::remove(m_partialDownloadPath);
-        showFailure(QString("Update download failed.\nCould not write the update package:\n%1").arg(m_downloadFileError));
+        showFailure(QString("Update download failed.\nCould not write the update installer:\n%1").arg(m_downloadFileError));
         return;
     }
 
@@ -515,7 +515,7 @@ void UpdateDialog::onDownloadReplyFinished()
     m_downloadUrl = QUrl();
     m_checksumUrl = QUrl();
     setDownloading(false);
-    showResult(QString("Update package downloaded and verified.\nPackage: %1\nFile: %2").arg(m_downloadAssetName, m_downloadPath));
+    showResult(QString("Update installer downloaded and verified.\nInstaller: %1\nFile: %2").arg(m_downloadAssetName, m_downloadPath));
     offerInstallUpdate();
 }
 
@@ -525,7 +525,7 @@ void UpdateDialog::offerInstallUpdate()
         QMessageBox::information(
             this,
             "Tonatiuh++ Updates",
-            QString("The update package has been downloaded and verified.\n\nFile: %1").arg(m_downloadPath)
+            QString("The update installer has been downloaded and verified.\n\nFile: %1").arg(m_downloadPath)
         );
         return;
     }
@@ -533,7 +533,7 @@ void UpdateDialog::offerInstallUpdate()
     QMessageBox installMessage(this);
     installMessage.setWindowTitle("Tonatiuh++ Updates");
     installMessage.setIcon(QMessageBox::Information);
-    installMessage.setText("The update package has been downloaded and verified.");
+    installMessage.setText("The update installer has been downloaded and verified.");
     installMessage.setInformativeText(
         QString("Installer: %1\n\nDo you want to start the installer and close Tonatiuh++ now?\nIf there are unsaved changes, Tonatiuh++ will ask what to do before closing.")
             .arg(m_verifiedInstallerPath)
