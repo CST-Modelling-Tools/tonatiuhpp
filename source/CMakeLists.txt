@@ -351,7 +351,7 @@ if(UNIX AND NOT APPLE AND TONATIUHPP_BUNDLE_RUNTIME)
 
      # ---- Copy essential Qt plugin folders into bin/ ----
      if(_qt_plugins_dir AND EXISTS \"\${_qt_plugins_dir}\")
-       foreach(_subdir platforms xcbglintegrations imageformats)
+       foreach(_subdir platforms xcbglintegrations imageformats tls)
          if(EXISTS \"\${_qt_plugins_dir}/\${_subdir}\")
            file(INSTALL
              DESTINATION \"\${_installed_bindir}\"
