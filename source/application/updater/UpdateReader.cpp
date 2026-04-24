@@ -257,10 +257,6 @@ bool UpdateReader::isCurrentPlatformDownloadAsset(const QString& assetName)
     QString name = assetName.trimmed().toLower();
 #if defined(Q_OS_WIN)
     return name.startsWith("tonatiuhpp-") && name.contains("windows") && name.contains("x64") && name.endsWith(".exe");
-#elif defined(Q_OS_MACOS)
-    return name == "tonatiuhpp-macos.tar.gz";
-#elif defined(Q_OS_LINUX)
-    return name == "tonatiuhpp-linux.tar.gz";
 #else
     Q_UNUSED(name);
     return false;

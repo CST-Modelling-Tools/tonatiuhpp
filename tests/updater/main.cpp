@@ -60,10 +60,6 @@ QString expectedPlatformAssetName()
 {
 #if defined(Q_OS_WIN)
     return "TonatiuhPP-1.0.1-windows-x64.exe";
-#elif defined(Q_OS_MACOS)
-    return "tonatiuhpp-macOS.tar.gz";
-#elif defined(Q_OS_LINUX)
-    return "tonatiuhpp-Linux.tar.gz";
 #else
     return QString();
 #endif
@@ -88,6 +84,9 @@ int main(int argc, char** argv)
     checkChecksum(sampleHash.toUpper() + " *tonatiuhpp-Linux.tar.gz\n", "tonatiuhpp-Linux.tar.gz", sampleHash);
     checkInvalidChecksum("not-a-checksum  TonatiuhPP-1.0.1-windows-x64.exe\n", "TonatiuhPP-1.0.1-windows-x64.exe");
     checkInvalidChecksum(sampleHash + "  other-file.exe\n", "TonatiuhPP-1.0.1-windows-x64.exe");
+
+    check(!UpdateReader::isCurrentPlatformDownloadAsset("tonatiuhpp-Linux.tar.gz"), "Expected Linux archive to be ignored by the self-update asset matcher");
+    check(!UpdateReader::isCurrentPlatformDownloadAsset("tonatiuhpp-macOS.tar.gz"), "Expected macOS archive to be ignored by the self-update asset matcher");
 
     UpdateReader newer;
     check(
