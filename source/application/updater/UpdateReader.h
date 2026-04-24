@@ -1,8 +1,6 @@
 #pragma once
 
 #include <QByteArray>
-#include <QDate>
-#include <QList>
 #include <QString>
 #include <QUrl>
 #include <QVersionNumber>
@@ -24,21 +22,7 @@ public:
     static QString normalizedVersionTag(const QString& tag);
     static bool parseDottedVersion(const QString& versionText, QVersionNumber* version, QString* error = nullptr);
 
-    bool checkUpdates(const QString& data);
-    bool isNewer();
-
-    QList<int> m_versionCurrent;
-
-    QDate m_date;
-    QList<int> m_version;
-    int m_size;
-    QString m_path;
-
     QString m_message;
-
-protected:
-    QList<int> toVersion(const QString& version) const;
-    bool isGrowing(const QList<int>& a, const QList<int>& b) const;
 
 private:
     QString m_currentVersionText;
