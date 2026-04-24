@@ -27,9 +27,9 @@ private slots:
     void on_checkButton_pressed();
     void on_downloadButton_pressed();
     void onReleaseReplyFinished();
-    void onDownloadReadyRead();
-    void onDownloadProgress(qint64 bytesReceived, qint64 bytesTotal);
-    void onDownloadReplyFinished();
+    void onInstallerReadyRead();
+    void onInstallerProgress(qint64 bytesReceived, qint64 bytesTotal);
+    void onInstallerReplyFinished();
     void onChecksumReplyFinished();
 
 private:
@@ -37,7 +37,7 @@ private:
     void setDownloading(bool downloading);
     void showResult(const QString& message);
     void showFailure(const QString& message);
-    void startDownload();
+    void startUpdateDownload();
     void startChecksumDownload();
     void startInstallerDownload();
     void offerInstallUpdate();
@@ -47,18 +47,18 @@ private:
     QNetworkAccessManager m_network;
     QNetworkReply* m_reply;
     QNetworkReply* m_checksumReply;
-    QNetworkReply* m_downloadReply;
-    QUrl m_downloadUrl;
+    QNetworkReply* m_installerReply;
+    QUrl m_installerUrl;
     QUrl m_checksumUrl;
     QString m_installerAssetName;
     QString m_checksumAssetName;
     qint64 m_installerAssetSize;
     qint64 m_checksumAssetSize;
     QByteArray m_expectedSha256;
-    QFile m_downloadFile;
-    QString m_downloadPath;
-    QString m_partialDownloadPath;
-    QString m_downloadFileError;
+    QFile m_installerFile;
+    QString m_installerPath;
+    QString m_partialInstallerPath;
+    QString m_installerFileError;
     QString m_verifiedInstallerPath;
     QString m_installerPathToStart;
 };
