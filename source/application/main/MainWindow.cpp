@@ -16,6 +16,7 @@
 #include <QProgressDialog>
 #include <QSettings>
 #include <QStandardPaths>
+#include <QStringList>
 #include <QtConcurrentMap>
 #include <QTime>
 #include <QUndoStack>
@@ -2878,11 +2879,14 @@ void MainWindow::on_action_Updates_triggered()
     if (!OkToContinue())
         return;
 
-    if (!QProcess::startDetached(installerPath)) {
+    QString installerFilePath = installerInfo.absoluteFilePath();
+    QString installerWorkingDirectory = installerInfo.absolutePath();
+
+    if (!QProcess::startDetached(installerFilePath, QStringList(), installerWorkingDirectory)) {
         QMessageBox::warning(
             this,
             "Tonatiuh++ Updates",
-            QString("Could not start the installer:\n%1").arg(installerPath)
+            QString("Could not start the installer:\n%1").arg(installerFilePath)
         );
         return;
     }
