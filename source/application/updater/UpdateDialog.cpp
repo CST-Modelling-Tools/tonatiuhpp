@@ -106,6 +106,16 @@ void allowHttpsRedirects(QNetworkRequest& request)
 {
     request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
 }
+
+QString formatHttpStatus(int statusCode)
+{
+    return statusCode > 0 ? QString::number(statusCode) : "unavailable";
+}
+
+bool isSuccessfulGetStatus(int statusCode)
+{
+    return statusCode == 200;
+}
 }
 
 UpdateDialog::UpdateDialog(QWidget* parent):
@@ -202,14 +212,19 @@ void UpdateDialog::onLatestReleaseReplyFinished()
     QString errorText = reply->errorString();
     QVariant status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute);
     int statusCode = status.isValid() ? status.toInt() : 0;
+    QString httpStatus = formatHttpStatus(statusCode);
 
     reply->deleteLater();
     m_releaseReply = nullptr;
     setChecking(false);
 
     if (networkError != QNetworkReply::NoError) {
-        QString httpStatus = statusCode > 0 ? QString::number(statusCode) : "unavailable";
         showFailure(QString("Update check failed.\nHTTP status: %1\nNetwork error: %2").arg(httpStatus, errorText));
+        return;
+    }
+
+    if (!isSuccessfulGetStatus(statusCode)) {
+        showFailure(QString("Update check failed.\nUnexpected HTTP status: %1").arg(httpStatus));
         return;
     }
 
@@ -390,14 +405,20 @@ void UpdateDialog::onChecksumReplyFinished()
     QString errorText = reply->errorString();
     QVariant status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute);
     int statusCode = status.isValid() ? status.toInt() : 0;
+    QString httpStatus = formatHttpStatus(statusCode);
 
     reply->deleteLater();
     m_checksumReply = nullptr;
 
     if (networkError != QNetworkReply::NoError) {
         setDownloading(false);
-        QString httpStatus = statusCode > 0 ? QString::number(statusCode) : "unavailable";
         showFailure(QString("Update checksum download failed.\nHTTP status: %1\nNetwork error: %2").arg(httpStatus, errorText));
+        return;
+    }
+
+    if (!isSuccessfulGetStatus(statusCode)) {
+        setDownloading(false);
+        showFailure(QString("Update checksum download failed.\nUnexpected HTTP status: %1").arg(httpStatus));
         return;
     }
 
@@ -478,6 +499,7 @@ void UpdateDialog::onInstallerReplyFinished()
     QString errorText = reply->errorString();
     QVariant status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute);
     int statusCode = status.isValid() ? status.toInt() : 0;
+    QString httpStatus = formatHttpStatus(statusCode);
 
     reply->deleteLater();
     m_installerReply = nullptr;
@@ -497,8 +519,13 @@ void UpdateDialog::onInstallerReplyFinished()
 
     if (networkError != QNetworkReply::NoError) {
         QFile::remove(m_partialInstallerPath);
-        QString httpStatus = statusCode > 0 ? QString::number(statusCode) : "unavailable";
         showFailure(QString("Update download failed.\nHTTP status: %1\nNetwork error: %2").arg(httpStatus, errorText));
+        return;
+    }
+
+    if (!isSuccessfulGetStatus(statusCode)) {
+        QFile::remove(m_partialInstallerPath);
+        showFailure(QString("Update download failed.\nUnexpected HTTP status: %1").arg(httpStatus));
         return;
     }
 
