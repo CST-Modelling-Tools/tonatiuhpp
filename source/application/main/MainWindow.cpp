@@ -2856,5 +2856,6 @@ void MainWindow::on_actionSunPosition_triggered()
 void MainWindow::on_action_Updates_triggered()
 {
     UpdateDialog dialog(this);
+    dialog.checkUpdates();
     dialog.exec();
 }
