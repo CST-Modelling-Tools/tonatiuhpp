@@ -26,7 +26,7 @@ public:
 private slots:
     void on_checkButton_pressed();
     void on_downloadButton_pressed();
-    void onReleaseReplyFinished();
+    void onLatestReleaseReplyFinished();
     void onInstallerReadyRead();
     void onInstallerProgress(qint64 bytesReceived, qint64 bytesTotal);
     void onInstallerReplyFinished();
@@ -45,7 +45,7 @@ private:
 
     Ui::UpdateDialog* ui;
     QNetworkAccessManager m_network;
-    QNetworkReply* m_reply;
+    QNetworkReply* m_releaseReply;
     QNetworkReply* m_checksumReply;
     QNetworkReply* m_installerReply;
     QUrl m_installerUrl;

@@ -17,7 +17,7 @@
 
 namespace
 {
-const QUrl kLatestReleaseUrl("https://api.github.com/repos/CST-Modelling-Tools/tonatiuhpp/releases/latest");
+const QUrl kLatestReleaseApiUrl("https://api.github.com/repos/CST-Modelling-Tools/tonatiuhpp/releases/latest");
 
 QString formatBytes(qint64 bytes)
 {
@@ -111,7 +111,7 @@ void allowHttpsRedirects(QNetworkRequest& request)
 UpdateDialog::UpdateDialog(QWidget* parent):
     QDialog(parent),
     ui(new Ui::UpdateDialog),
-    m_reply(nullptr),
+    m_releaseReply(nullptr),
     m_checksumReply(nullptr),
     m_installerReply(nullptr),
     m_installerAssetSize(-1),
@@ -129,10 +129,10 @@ UpdateDialog::UpdateDialog(QWidget* parent):
 
 UpdateDialog::~UpdateDialog()
 {
-    if (m_reply) {
-        disconnect(m_reply, nullptr, this, nullptr);
-        m_reply->abort();
-        m_reply->deleteLater();
+    if (m_releaseReply) {
+        disconnect(m_releaseReply, nullptr, this, nullptr);
+        m_releaseReply->abort();
+        m_releaseReply->deleteLater();
     }
 
     if (m_installerReply) {
@@ -157,7 +157,7 @@ UpdateDialog::~UpdateDialog()
 
 void UpdateDialog::checkUpdates()
 {
-    if (m_reply || m_checksumReply || m_installerReply)
+    if (m_releaseReply || m_checksumReply || m_installerReply)
         return;
 
     m_installerUrl = QUrl();
@@ -176,14 +176,14 @@ void UpdateDialog::checkUpdates()
     setChecking(true);
     showResult(QString("Checking for updates...\nInstalled version: %1").arg(qApp->applicationVersion()));
 
-    QNetworkRequest request(kLatestReleaseUrl);
+    QNetworkRequest request(kLatestReleaseApiUrl);
     request.setRawHeader("Accept", "application/vnd.github+json");
     request.setRawHeader("User-Agent", "TonatiuhPP");
     request.setTransferTimeout(15000);
     allowHttpsRedirects(request);
 
-    m_reply = m_network.get(request);
-    connect(m_reply, &QNetworkReply::finished, this, &UpdateDialog::onReleaseReplyFinished);
+    m_releaseReply = m_network.get(request);
+    connect(m_releaseReply, &QNetworkReply::finished, this, &UpdateDialog::onLatestReleaseReplyFinished);
 }
 
 void UpdateDialog::on_checkButton_pressed()
@@ -191,10 +191,10 @@ void UpdateDialog::on_checkButton_pressed()
     checkUpdates();
 }
 
-void UpdateDialog::onReleaseReplyFinished()
+void UpdateDialog::onLatestReleaseReplyFinished()
 {
     QNetworkReply* reply = qobject_cast<QNetworkReply*>(sender());
-    if (!reply || reply != m_reply)
+    if (!reply || reply != m_releaseReply)
         return;
 
     QByteArray response = reply->readAll();
@@ -204,7 +204,7 @@ void UpdateDialog::onReleaseReplyFinished()
     int statusCode = status.isValid() ? status.toInt() : 0;
 
     reply->deleteLater();
-    m_reply = nullptr;
+    m_releaseReply = nullptr;
     setChecking(false);
 
     if (networkError != QNetworkReply::NoError) {
@@ -306,10 +306,10 @@ void UpdateDialog::setChecking(bool checking)
 
 void UpdateDialog::setDownloading(bool downloading)
 {
-    ui->checkButton->setEnabled(!downloading && !m_reply);
+    ui->checkButton->setEnabled(!downloading && !m_releaseReply);
     ui->downloadButton->setEnabled(
         !downloading &&
-        !m_reply &&
+        !m_releaseReply &&
         (!m_verifiedInstallerPath.isEmpty() || (m_installerUrl.isValid() && m_checksumUrl.isValid()))
     );
 }
