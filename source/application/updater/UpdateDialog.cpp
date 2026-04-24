@@ -114,7 +114,7 @@ UpdateDialog::UpdateDialog(QWidget* parent):
     m_reply(nullptr),
     m_checksumReply(nullptr),
     m_downloadReply(nullptr),
-    m_downloadAssetSize(-1)
+    m_installerAssetSize(-1)
 {
     ui->setupUi(this);
 
@@ -161,9 +161,9 @@ void UpdateDialog::checkUpdates()
 
     m_downloadUrl = QUrl();
     m_checksumUrl = QUrl();
-    m_downloadAssetName.clear();
+    m_installerAssetName.clear();
     m_checksumAssetName.clear();
-    m_downloadAssetSize = -1;
+    m_installerAssetSize = -1;
     m_expectedSha256.clear();
     m_downloadPath.clear();
     m_partialDownloadPath.clear();
@@ -264,13 +264,13 @@ void UpdateDialog::onReleaseReplyFinished()
 
     m_downloadUrl = reader.installerAssetUrl();
     m_checksumUrl = reader.checksumAssetUrl();
-    m_downloadAssetName = reader.installerAssetName();
+    m_installerAssetName = reader.installerAssetName();
     m_checksumAssetName = reader.checksumAssetName();
-    m_downloadAssetSize = reader.installerAssetSize();
+    m_installerAssetSize = reader.installerAssetSize();
     setChecking(false);
     showResult(
         QString("Update available.\nInstalled version: %1\nLatest release: %2\nInstaller: %3\nSize: %4")
-            .arg(reader.currentVersionText(), reader.latestTagName(), m_downloadAssetName, formatBytes(m_downloadAssetSize))
+            .arg(reader.currentVersionText(), reader.latestTagName(), m_installerAssetName, formatBytes(m_installerAssetSize))
     );
 
     QMessageBox updateMessage(this);
@@ -279,7 +279,7 @@ void UpdateDialog::onReleaseReplyFinished()
     updateMessage.setText(QString("Tonatiuh++ %1 is available.").arg(reader.latestTagName()));
     updateMessage.setInformativeText(
         QString("Installer: %1\nSize: %2\n\nDo you want to download and verify this installer now?")
-            .arg(m_downloadAssetName, formatBytes(m_downloadAssetSize))
+            .arg(m_installerAssetName, formatBytes(m_installerAssetSize))
     );
     QPushButton* downloadButton = updateMessage.addButton("Download", QMessageBox::AcceptRole);
     updateMessage.addButton("Later", QMessageBox::RejectRole);
@@ -352,7 +352,7 @@ void UpdateDialog::startDownload()
         return;
     }
 
-    m_downloadPath = uniqueDownloadPath(downloadDirectory, m_downloadAssetName);
+    m_downloadPath = uniqueDownloadPath(downloadDirectory, m_installerAssetName);
     m_partialDownloadPath = QString("%1.part").arg(m_downloadPath);
     m_downloadFileError.clear();
     m_expectedSha256.clear();
@@ -373,7 +373,7 @@ void UpdateDialog::startChecksumDownload()
     connect(m_checksumReply, &QNetworkReply::finished, this, &UpdateDialog::onChecksumReplyFinished);
 
     setDownloading(true);
-    showResult(QString("Downloading update checksum...\nChecksum: %1\nInstaller: %2").arg(m_checksumAssetName, m_downloadAssetName));
+    showResult(QString("Downloading update checksum...\nChecksum: %1\nInstaller: %2").arg(m_checksumAssetName, m_installerAssetName));
 }
 
 void UpdateDialog::onChecksumReplyFinished()
@@ -399,7 +399,7 @@ void UpdateDialog::onChecksumReplyFinished()
     }
 
     QString checksumError;
-    if (!UpdateReader::parseSha256Checksum(response, m_downloadAssetName, &m_expectedSha256, &checksumError)) {
+    if (!UpdateReader::parseSha256Checksum(response, m_installerAssetName, &m_expectedSha256, &checksumError)) {
         setDownloading(false);
         showFailure(QString("Update checksum is malformed.\n%1").arg(checksumError));
         return;
@@ -427,7 +427,7 @@ void UpdateDialog::startInstallerDownload()
     connect(m_downloadReply, &QNetworkReply::downloadProgress, this, &UpdateDialog::onDownloadProgress);
     connect(m_downloadReply, &QNetworkReply::finished, this, &UpdateDialog::onDownloadReplyFinished);
 
-    showResult(QString("Downloading update installer...\nInstaller: %1\nDestination: %2").arg(m_downloadAssetName, m_downloadPath));
+    showResult(QString("Downloading update installer...\nInstaller: %1\nDestination: %2").arg(m_installerAssetName, m_downloadPath));
 }
 
 void UpdateDialog::onDownloadReadyRead()
@@ -447,10 +447,10 @@ void UpdateDialog::onDownloadReadyRead()
 
 void UpdateDialog::onDownloadProgress(qint64 bytesReceived, qint64 bytesTotal)
 {
-    qint64 total = bytesTotal > 0 ? bytesTotal : m_downloadAssetSize;
+    qint64 total = bytesTotal > 0 ? bytesTotal : m_installerAssetSize;
     showResult(
         QString("Downloading update installer...\nInstaller: %1\nProgress: %2 of %3\nDestination: %4")
-            .arg(m_downloadAssetName, formatBytes(bytesReceived), formatBytes(total), m_downloadPath)
+            .arg(m_installerAssetName, formatBytes(bytesReceived), formatBytes(total), m_downloadPath)
     );
 }
 
@@ -499,11 +499,11 @@ void UpdateDialog::onDownloadReplyFinished()
     }
 
     qint64 actualFileSize = QFileInfo(m_downloadPath).size();
-    if (m_downloadAssetSize > 0 && actualFileSize != m_downloadAssetSize) {
+    if (m_installerAssetSize > 0 && actualFileSize != m_installerAssetSize) {
         QFile::remove(m_downloadPath);
         showFailure(
             QString("Update verification failed.\nThe downloaded installer size does not match the release metadata.\nExpected: %1\nActual: %2")
-                .arg(formatBytes(m_downloadAssetSize), formatBytes(actualFileSize))
+                .arg(formatBytes(m_installerAssetSize), formatBytes(actualFileSize))
         );
         return;
     }
@@ -533,7 +533,7 @@ void UpdateDialog::onDownloadReplyFinished()
     m_downloadUrl = QUrl();
     m_checksumUrl = QUrl();
     setDownloading(false);
-    showResult(QString("Update installer downloaded and verified.\nInstaller: %1\nFile: %2").arg(m_downloadAssetName, m_downloadPath));
+    showResult(QString("Update installer downloaded and verified.\nInstaller: %1\nFile: %2").arg(m_installerAssetName, m_downloadPath));
     offerInstallUpdate();
 }
 

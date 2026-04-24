@@ -61,9 +61,9 @@ bool isExpectedGitHubReleasePageUrl(const QUrl& url, const QString& tagName)
         url.fragment().isEmpty();
 }
 
-bool isChecksumForDownloadAsset(const QString& checksumAssetName, const QString& downloadAssetName)
+bool isChecksumForInstallerAsset(const QString& checksumAssetName, const QString& installerAssetName)
 {
-    return checksumAssetName.compare(QString("%1.sha256").arg(downloadAssetName), Qt::CaseInsensitive) == 0;
+    return checksumAssetName.compare(QString("%1.sha256").arg(installerAssetName), Qt::CaseInsensitive) == 0;
 }
 
 bool isValidGitHubAssetSize(const QJsonValue& sizeValue)
@@ -196,7 +196,7 @@ bool UpdateReader::readGitHubRelease(const QByteArray& data)
         for (const QJsonValue& assetValue : assets) {
             QJsonObject asset = assetValue.toObject();
             QString assetName = asset.value("name").toString().trimmed();
-            if (!isChecksumForDownloadAsset(assetName, m_installerAssetName))
+            if (!isChecksumForInstallerAsset(assetName, m_installerAssetName))
                 continue;
 
             QJsonValue downloadUrlValue = asset.value("browser_download_url");

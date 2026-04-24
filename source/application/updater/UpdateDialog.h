@@ -50,9 +50,9 @@ private:
     QNetworkReply* m_downloadReply;
     QUrl m_downloadUrl;
     QUrl m_checksumUrl;
-    QString m_downloadAssetName;
+    QString m_installerAssetName;
     QString m_checksumAssetName;
-    qint64 m_downloadAssetSize;
+    qint64 m_installerAssetSize;
     QByteArray m_expectedSha256;
     QFile m_downloadFile;
     QString m_downloadPath;
