@@ -31,6 +31,11 @@ bool isGitHubReleaseDownloadUrl(const QUrl& url)
         url.host().compare("github.com", Qt::CaseInsensitive) == 0 &&
         url.path().startsWith("/CST-Modelling-Tools/tonatiuhpp/releases/download/", Qt::CaseInsensitive);
 }
+
+bool isChecksumForDownloadAsset(const QString& checksumAssetName, const QString& downloadAssetName)
+{
+    return checksumAssetName.compare(QString("%1.sha256").arg(downloadAssetName), Qt::CaseInsensitive) == 0;
+}
 }
 
 UpdateReader::UpdateReader()
@@ -50,6 +55,8 @@ bool UpdateReader::readGitHubRelease(const QByteArray& data)
     m_downloadAssetName.clear();
     m_downloadAssetUrl = QUrl();
     m_downloadAssetSize = -1;
+    m_checksumAssetName.clear();
+    m_checksumAssetUrl = QUrl();
 
     QJsonParseError parseError;
     QJsonDocument document = QJsonDocument::fromJson(data, &parseError);
@@ -120,7 +127,7 @@ bool UpdateReader::readGitHubRelease(const QByteArray& data)
         }
 
         QString assetName = nameValue.toString().trimmed();
-        if (!isCurrentPlatformDownloadAsset(assetName))
+        if (!m_downloadAssetName.isEmpty() || !isCurrentPlatformDownloadAsset(assetName))
             continue;
 
         QJsonValue downloadUrlValue = asset.value("browser_download_url");
@@ -143,7 +150,32 @@ bool UpdateReader::readGitHubRelease(const QByteArray& data)
         if (sizeValue.isDouble())
             m_downloadAssetSize = static_cast<qint64>(sizeValue.toDouble());
 
-        break;
+    }
+
+    if (!m_downloadAssetName.isEmpty()) {
+        for (const QJsonValue& assetValue : assets) {
+            QJsonObject asset = assetValue.toObject();
+            QString assetName = asset.value("name").toString().trimmed();
+            if (!isChecksumForDownloadAsset(assetName, m_downloadAssetName))
+                continue;
+
+            QJsonValue downloadUrlValue = asset.value("browser_download_url");
+            if (!downloadUrlValue.isString() || downloadUrlValue.toString().trimmed().isEmpty()) {
+                m_message = QString("GitHub release checksum asset \"%1\" is missing browser_download_url").arg(assetName);
+                return false;
+            }
+
+            QUrl downloadUrl(downloadUrlValue.toString().trimmed());
+            if (!isGitHubReleaseDownloadUrl(downloadUrl)) {
+                m_message = QString("GitHub release checksum asset \"%1\" contains an unexpected browser_download_url: %2")
+                    .arg(assetName, downloadUrlValue.toString());
+                return false;
+            }
+
+            m_checksumAssetName = assetName;
+            m_checksumAssetUrl = downloadUrl;
+            break;
+        }
     }
 
     return true;

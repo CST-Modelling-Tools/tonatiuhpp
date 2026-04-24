@@ -22,6 +22,9 @@ public:
     QUrl downloadAssetUrl() const { return m_downloadAssetUrl; }
     qint64 downloadAssetSize() const { return m_downloadAssetSize; }
     bool hasDownloadAsset() const { return m_downloadAssetUrl.isValid(); }
+    QString checksumAssetName() const { return m_checksumAssetName; }
+    QUrl checksumAssetUrl() const { return m_checksumAssetUrl; }
+    bool hasChecksumAsset() const { return m_checksumAssetUrl.isValid(); }
     QString errorMessage() const { return m_message; }
 
     static QString normalizedVersionTag(const QString& tag);
@@ -42,4 +45,6 @@ private:
     QString m_downloadAssetName;
     QUrl m_downloadAssetUrl;
     qint64 m_downloadAssetSize;
+    QString m_checksumAssetName;
+    QUrl m_checksumAssetUrl;
 };

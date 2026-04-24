@@ -79,8 +79,11 @@ int main(int argc, char** argv)
             "html_url":"https://github.com/CST-Modelling-Tools/tonatiuhpp/releases/tag/v1.0.1",
             "assets":[
                 {"name":"tonatiuhpp-Linux.tar.gz","browser_download_url":"https://github.com/CST-Modelling-Tools/tonatiuhpp/releases/download/v1.0.1/tonatiuhpp-Linux.tar.gz","size":101},
+                {"name":"tonatiuhpp-Linux.tar.gz.sha256","browser_download_url":"https://github.com/CST-Modelling-Tools/tonatiuhpp/releases/download/v1.0.1/tonatiuhpp-Linux.tar.gz.sha256","size":90},
                 {"name":"tonatiuhpp-macOS.tar.gz","browser_download_url":"https://github.com/CST-Modelling-Tools/tonatiuhpp/releases/download/v1.0.1/tonatiuhpp-macOS.tar.gz","size":102},
-                {"name":"TonatiuhPP-1.0.1-windows-x64.exe","browser_download_url":"https://github.com/CST-Modelling-Tools/tonatiuhpp/releases/download/v1.0.1/TonatiuhPP-1.0.1-windows-x64.exe","size":103}
+                {"name":"tonatiuhpp-macOS.tar.gz.sha256","browser_download_url":"https://github.com/CST-Modelling-Tools/tonatiuhpp/releases/download/v1.0.1/tonatiuhpp-macOS.tar.gz.sha256","size":90},
+                {"name":"TonatiuhPP-1.0.1-windows-x64.exe","browser_download_url":"https://github.com/CST-Modelling-Tools/tonatiuhpp/releases/download/v1.0.1/TonatiuhPP-1.0.1-windows-x64.exe","size":103},
+                {"name":"TonatiuhPP-1.0.1-windows-x64.exe.sha256","browser_download_url":"https://github.com/CST-Modelling-Tools/tonatiuhpp/releases/download/v1.0.1/TonatiuhPP-1.0.1-windows-x64.exe.sha256","size":90}
             ]
         })"),
         "Expected GitHub release JSON with assets to parse"
@@ -94,8 +97,15 @@ int main(int argc, char** argv)
             "Unexpected platform download asset URL"
         );
         check(releaseWithAssets.downloadAssetSize() > 0, "Expected platform download asset size");
+        check(releaseWithAssets.hasChecksumAsset(), "Expected a checksum asset for the current platform");
+        check(releaseWithAssets.checksumAssetName() == QString("%1.sha256").arg(expectedAsset), "Unexpected platform checksum asset name");
+        check(
+            releaseWithAssets.checksumAssetUrl() == QUrl(QString("https://github.com/CST-Modelling-Tools/tonatiuhpp/releases/download/v1.0.1/%1.sha256").arg(expectedAsset)),
+            "Unexpected platform checksum asset URL"
+        );
     } else {
         check(!releaseWithAssets.hasDownloadAsset(), "Expected no download asset on unsupported platforms");
+        check(!releaseWithAssets.hasChecksumAsset(), "Expected no checksum asset on unsupported platforms");
     }
 
     UpdateReader same;
@@ -160,6 +170,18 @@ int main(int argc, char** argv)
         })").arg(expectedAsset);
         check(!badAssetUrl.readGitHubRelease(badAssetJson.toUtf8()), "Expected unexpected download asset URL to fail");
         check(!badAssetUrl.errorMessage().isEmpty(), "Expected unexpected download asset URL to set an error message");
+
+        UpdateReader badChecksumUrl;
+        QString badChecksumJson = QString(R"({
+            "tag_name":"v1.0.1",
+            "html_url":"https://github.com/CST-Modelling-Tools/tonatiuhpp/releases/tag/v1.0.1",
+            "assets":[
+                {"name":"%1","browser_download_url":"https://github.com/CST-Modelling-Tools/tonatiuhpp/releases/download/v1.0.1/%1","size":10},
+                {"name":"%1.sha256","browser_download_url":"https://example.com/downloads/%1.sha256","size":10}
+            ]
+        })").arg(expectedAsset);
+        check(!badChecksumUrl.readGitHubRelease(badChecksumJson.toUtf8()), "Expected unexpected checksum asset URL to fail");
+        check(!badChecksumUrl.errorMessage().isEmpty(), "Expected unexpected checksum asset URL to set an error message");
     }
 
     return failures == 0 ? 0 : 1;
