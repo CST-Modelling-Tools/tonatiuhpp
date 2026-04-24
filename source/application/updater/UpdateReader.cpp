@@ -60,6 +60,11 @@ bool UpdateReader::readGitHubRelease(const QByteArray& data)
         m_message = QString("GitHub release response contains an invalid or non-HTTPS html_url: %1").arg(urlValue.toString());
         return false;
     }
+    if (m_releaseUrl.host().compare("github.com", Qt::CaseInsensitive) != 0 ||
+        !m_releaseUrl.path().startsWith("/CST-Modelling-Tools/tonatiuhpp/releases/", Qt::CaseInsensitive)) {
+        m_message = QString("GitHub release response contains an unexpected html_url: %1").arg(urlValue.toString());
+        return false;
+    }
 
     return true;
 }

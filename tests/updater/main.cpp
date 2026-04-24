@@ -87,5 +87,12 @@ int main(int argc, char** argv)
     );
     check(!insecureUrl.errorMessage().isEmpty(), "Expected non-HTTPS html_url to set an error message");
 
+    UpdateReader wrongHostUrl;
+    check(
+        !wrongHostUrl.readGitHubRelease(R"({"tag_name":"v1.0.1","html_url":"https://example.com/CST-Modelling-Tools/tonatiuhpp/releases/tag/v1.0.1"})"),
+        "Expected non-GitHub html_url to fail"
+    );
+    check(!wrongHostUrl.errorMessage().isEmpty(), "Expected non-GitHub html_url to set an error message");
+
     return failures == 0 ? 0 : 1;
 }
