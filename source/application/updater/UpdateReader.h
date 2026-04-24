@@ -18,13 +18,14 @@ public:
     QString latestTagName() const { return m_latestTagName; }
     QString latestVersionText() const { return m_latestVersionText; }
     QUrl releaseUrl() const { return m_releaseUrl; }
+    QString errorMessage() const { return m_message; }
 
     static QString normalizedVersionTag(const QString& tag);
     static bool parseDottedVersion(const QString& versionText, QVersionNumber* version, QString* error = nullptr);
 
+private:
     QString m_message;
 
-private:
     QString m_currentVersionText;
     QString m_currentVersionError;
     QVersionNumber m_currentVersion;

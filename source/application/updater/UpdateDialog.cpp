@@ -109,7 +109,7 @@ void UpdateDialog::onReleaseReplyFinished()
     }
 
     if (!reader.readGitHubRelease(response)) {
-        showFailure(QString("Update check failed.\n%1").arg(reader.m_message));
+        showFailure(QString("Update check failed.\n%1").arg(reader.errorMessage()));
         return;
     }
 

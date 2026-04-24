@@ -71,14 +71,14 @@ int main(int argc, char** argv)
         !malformedTag.readGitHubRelease(R"({"tag_name":"v1.0","html_url":"https://github.com/CST-Modelling-Tools/tonatiuhpp/releases/tag/v1.0"})"),
         "Expected malformed tag to fail"
     );
-    check(!malformedTag.m_message.isEmpty(), "Expected malformed tag to set an error message");
+    check(!malformedTag.errorMessage().isEmpty(), "Expected malformed tag to set an error message");
 
     UpdateReader missingUrl;
     check(
         !missingUrl.readGitHubRelease(R"({"tag_name":"v1.0.1"})"),
         "Expected missing html_url to fail"
     );
-    check(!missingUrl.m_message.isEmpty(), "Expected missing html_url to set an error message");
+    check(!missingUrl.errorMessage().isEmpty(), "Expected missing html_url to set an error message");
 
     return failures == 0 ? 0 : 1;
 }
