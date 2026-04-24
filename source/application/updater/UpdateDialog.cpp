@@ -101,6 +101,11 @@ bool isRunnableInstaller(const QString& path)
     return false;
 #endif
 }
+
+void allowHttpsRedirects(QNetworkRequest& request)
+{
+    request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
+}
 }
 
 UpdateDialog::UpdateDialog(QWidget* parent):
@@ -173,6 +178,7 @@ void UpdateDialog::checkUpdates()
     request.setRawHeader("Accept", "application/vnd.github+json");
     request.setRawHeader("User-Agent", "TonatiuhPP");
     request.setTransferTimeout(15000);
+    allowHttpsRedirects(request);
 
     m_reply = m_network.get(request);
     connect(m_reply, &QNetworkReply::finished, this, &UpdateDialog::onReleaseReplyFinished);
@@ -361,6 +367,7 @@ void UpdateDialog::startChecksumDownload()
     QNetworkRequest request(m_checksumUrl);
     request.setRawHeader("User-Agent", "TonatiuhPP");
     request.setTransferTimeout(30000);
+    allowHttpsRedirects(request);
 
     m_checksumReply = m_network.get(request);
     connect(m_checksumReply, &QNetworkReply::finished, this, &UpdateDialog::onChecksumReplyFinished);
@@ -413,6 +420,7 @@ void UpdateDialog::startPackageDownload()
     QNetworkRequest request(m_downloadUrl);
     request.setRawHeader("User-Agent", "TonatiuhPP");
     request.setTransferTimeout(60000);
+    allowHttpsRedirects(request);
 
     m_downloadReply = m_network.get(request);
     connect(m_downloadReply, &QNetworkReply::readyRead, this, &UpdateDialog::onDownloadReadyRead);
