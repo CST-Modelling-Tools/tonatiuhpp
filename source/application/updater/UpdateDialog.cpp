@@ -116,6 +116,11 @@ bool isSuccessfulGetStatus(int statusCode)
 {
     return statusCode == 200;
 }
+
+bool isValidFinalReplyUrl(const QUrl& url)
+{
+    return url.isValid() && url.scheme() == "https";
+}
 }
 
 UpdateDialog::UpdateDialog(QWidget* parent):
@@ -213,6 +218,7 @@ void UpdateDialog::onLatestReleaseReplyFinished()
     QVariant status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute);
     int statusCode = status.isValid() ? status.toInt() : 0;
     QString httpStatus = formatHttpStatus(statusCode);
+    QUrl finalUrl = reply->url();
 
     reply->deleteLater();
     m_releaseReply = nullptr;
@@ -225,6 +231,11 @@ void UpdateDialog::onLatestReleaseReplyFinished()
 
     if (!isSuccessfulGetStatus(statusCode)) {
         showFailure(QString("Update check failed.\nUnexpected HTTP status: %1").arg(httpStatus));
+        return;
+    }
+
+    if (!isValidFinalReplyUrl(finalUrl)) {
+        showFailure(QString("Update check failed.\nUnexpected final URL: %1").arg(finalUrl.toString()));
         return;
     }
 
@@ -406,6 +417,7 @@ void UpdateDialog::onChecksumReplyFinished()
     QVariant status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute);
     int statusCode = status.isValid() ? status.toInt() : 0;
     QString httpStatus = formatHttpStatus(statusCode);
+    QUrl finalUrl = reply->url();
 
     reply->deleteLater();
     m_checksumReply = nullptr;
@@ -419,6 +431,12 @@ void UpdateDialog::onChecksumReplyFinished()
     if (!isSuccessfulGetStatus(statusCode)) {
         setDownloading(false);
         showFailure(QString("Update checksum download failed.\nUnexpected HTTP status: %1").arg(httpStatus));
+        return;
+    }
+
+    if (!isValidFinalReplyUrl(finalUrl)) {
+        setDownloading(false);
+        showFailure(QString("Update checksum download failed.\nUnexpected final URL: %1").arg(finalUrl.toString()));
         return;
     }
 
@@ -500,6 +518,7 @@ void UpdateDialog::onInstallerReplyFinished()
     QVariant status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute);
     int statusCode = status.isValid() ? status.toInt() : 0;
     QString httpStatus = formatHttpStatus(statusCode);
+    QUrl finalUrl = reply->url();
 
     reply->deleteLater();
     m_installerReply = nullptr;
@@ -526,6 +545,12 @@ void UpdateDialog::onInstallerReplyFinished()
     if (!isSuccessfulGetStatus(statusCode)) {
         QFile::remove(m_partialInstallerPath);
         showFailure(QString("Update download failed.\nUnexpected HTTP status: %1").arg(httpStatus));
+        return;
+    }
+
+    if (!isValidFinalReplyUrl(finalUrl)) {
+        QFile::remove(m_partialInstallerPath);
+        showFailure(QString("Update download failed.\nUnexpected final URL: %1").arg(finalUrl.toString()));
         return;
     }
 
