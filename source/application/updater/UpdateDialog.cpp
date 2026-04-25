@@ -576,7 +576,7 @@ void UpdateDialog::onInstallerReplyFinished()
     if (m_installerAssetSize > 0 && actualFileSize != m_installerAssetSize) {
         QFile::remove(m_installerPath);
         showFailure(
-            QString("Update verification failed.\nThe downloaded installer size does not match the release metadata.\nExpected: %1\nActual: %2")
+            QString("Installer verification failed.\nThe downloaded installer size does not match the release metadata.\nExpected: %1\nActual: %2")
                 .arg(formatBytes(m_installerAssetSize), formatBytes(actualFileSize))
         );
         return;
@@ -586,14 +586,14 @@ void UpdateDialog::onInstallerReplyFinished()
     QByteArray actualSha256 = fileSha256(m_installerPath, &hashError);
     if (actualSha256.isEmpty()) {
         QFile::remove(m_installerPath);
-        showFailure(QString("Update verification failed.\nCould not read the downloaded installer:\n%1").arg(hashError));
+        showFailure(QString("Installer verification failed.\nCould not read the downloaded installer:\n%1").arg(hashError));
         return;
     }
 
     if (actualSha256 != m_expectedSha256) {
         QFile::remove(m_installerPath);
         showFailure(
-            QString("Update verification failed.\nThe downloaded installer checksum does not match the release checksum.\nExpected: %1\nActual: %2")
+            QString("Installer verification failed.\nThe downloaded installer checksum does not match the release checksum.\nExpected: %1\nActual: %2")
                 .arg(QString::fromLatin1(m_expectedSha256), QString::fromLatin1(actualSha256))
         );
         return;
@@ -607,7 +607,7 @@ void UpdateDialog::onInstallerReplyFinished()
     m_installerUrl = QUrl();
     m_checksumUrl = QUrl();
     setDownloading(false);
-    showResult(QString("Update installer downloaded and verified.\nInstaller: %1\nFile: %2").arg(m_installerAssetName, m_installerPath));
+    showResult(QString("Installer downloaded and verified.\nInstaller: %1\nFile: %2").arg(m_installerAssetName, m_installerPath));
     offerInstallUpdate();
 }
 
@@ -617,7 +617,7 @@ void UpdateDialog::offerInstallUpdate()
         QMessageBox::information(
             this,
             "Tonatiuh++ Updates",
-            QString("The update installer has been downloaded and verified.\n\nFile: %1").arg(m_installerPath)
+            QString("The installer has been downloaded and verified.\n\nFile: %1").arg(m_installerPath)
         );
         return;
     }
@@ -625,7 +625,7 @@ void UpdateDialog::offerInstallUpdate()
     QMessageBox installMessage(this);
     installMessage.setWindowTitle("Tonatiuh++ Updates");
     installMessage.setIcon(QMessageBox::Information);
-    installMessage.setText("The update installer has been downloaded and verified.");
+    installMessage.setText("The installer has been downloaded and verified.");
     installMessage.setInformativeText(
         QString("Installer: %1\n\nDo you want to start the installer and close Tonatiuh++ now?\nIf there are unsaved changes, Tonatiuh++ will ask what to do before closing.")
             .arg(m_verifiedInstallerPath)
