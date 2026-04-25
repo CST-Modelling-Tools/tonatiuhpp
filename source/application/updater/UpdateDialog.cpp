@@ -121,6 +121,16 @@ bool isValidFinalReplyUrl(const QUrl& url)
 {
     return url.isValid() && url.scheme() == "https";
 }
+
+bool isExpectedLatestReleaseApiReplyUrl(const QUrl& url)
+{
+    return url.isValid() &&
+        url.scheme() == kLatestReleaseApiUrl.scheme() &&
+        url.host().compare(kLatestReleaseApiUrl.host(), Qt::CaseInsensitive) == 0 &&
+        url.path() == kLatestReleaseApiUrl.path() &&
+        url.query().isEmpty() &&
+        url.fragment().isEmpty();
+}
 }
 
 UpdateDialog::UpdateDialog(QWidget* parent):
@@ -234,7 +244,7 @@ void UpdateDialog::onLatestReleaseReplyFinished()
         return;
     }
 
-    if (!isValidFinalReplyUrl(finalUrl)) {
+    if (!isExpectedLatestReleaseApiReplyUrl(finalUrl)) {
         showFailure(QString("Update check failed.\nUnexpected final URL: %1").arg(finalUrl.toString()));
         return;
     }
