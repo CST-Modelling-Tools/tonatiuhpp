@@ -462,7 +462,7 @@ void UpdateDialog::onChecksumReplyFinished()
     QString checksumError;
     if (!UpdateReader::parseSha256Checksum(response, m_installerAssetName, &m_expectedSha256, &checksumError)) {
         setDownloading(false);
-        showFailure(QString("Update checksum is malformed.\n%1").arg(checksumError));
+        showFailure(QString("Installer checksum is malformed.\n%1").arg(checksumError));
         return;
     }
 
