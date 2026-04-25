@@ -371,13 +371,13 @@ void UpdateDialog::startUpdateDownload()
     if (downloadDirectory.isEmpty())
         downloadDirectory = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
     if (downloadDirectory.isEmpty()) {
-        showFailure("Update download failed.\nNo writable download directory is available.");
+        showFailure("Installer download failed.\nNo writable download directory is available.");
         return;
     }
 
     QDir directory(downloadDirectory);
     if (!directory.exists() && !directory.mkpath(".")) {
-        showFailure(QString("Update download failed.\nCould not create download directory:\n%1").arg(downloadDirectory));
+        showFailure(QString("Installer download failed.\nCould not create download directory:\n%1").arg(downloadDirectory));
         return;
     }
 
@@ -402,7 +402,7 @@ void UpdateDialog::startChecksumDownload()
     connect(m_checksumReply, &QNetworkReply::finished, this, &UpdateDialog::onChecksumReplyFinished);
 
     setDownloading(true);
-    showResult(QString("Downloading update checksum...\nChecksum: %1\nInstaller: %2").arg(m_checksumAssetName, m_installerAssetName));
+    showResult(QString("Downloading installer checksum...\nChecksum: %1\nInstaller: %2").arg(m_checksumAssetName, m_installerAssetName));
 }
 
 void UpdateDialog::onChecksumReplyFinished()
@@ -424,26 +424,26 @@ void UpdateDialog::onChecksumReplyFinished()
 
     if (networkError != QNetworkReply::NoError) {
         setDownloading(false);
-        showFailure(QString("Update checksum download failed.\nHTTP status: %1\nNetwork error: %2").arg(httpStatus, errorText));
+        showFailure(QString("Installer checksum download failed.\nHTTP status: %1\nNetwork error: %2").arg(httpStatus, errorText));
         return;
     }
 
     if (!isSuccessfulGetStatus(statusCode)) {
         setDownloading(false);
-        showFailure(QString("Update checksum download failed.\nUnexpected HTTP status: %1").arg(httpStatus));
+        showFailure(QString("Installer checksum download failed.\nUnexpected HTTP status: %1").arg(httpStatus));
         return;
     }
 
     if (!isValidFinalReplyUrl(finalUrl)) {
         setDownloading(false);
-        showFailure(QString("Update checksum download failed.\nUnexpected final URL: %1").arg(finalUrl.toString()));
+        showFailure(QString("Installer checksum download failed.\nUnexpected final URL: %1").arg(finalUrl.toString()));
         return;
     }
 
     if (m_checksumAssetSize > 0 && response.size() != m_checksumAssetSize) {
         setDownloading(false);
         showFailure(
-            QString("Update checksum download failed.\nThe downloaded checksum size does not match the release metadata.\nExpected: %1\nActual: %2")
+            QString("Installer checksum download failed.\nThe downloaded checksum size does not match the release metadata.\nExpected: %1\nActual: %2")
                 .arg(formatBytes(m_checksumAssetSize), formatBytes(response.size()))
         );
         return;
@@ -464,7 +464,7 @@ void UpdateDialog::startInstallerDownload()
     QFile::remove(m_partialInstallerPath);
     m_installerFile.setFileName(m_partialInstallerPath);
     if (!m_installerFile.open(QIODevice::WriteOnly)) {
-        showFailure(QString("Update download failed.\nCould not write to:\n%1\n%2").arg(m_partialInstallerPath, m_installerFile.errorString()));
+        showFailure(QString("Installer download failed.\nCould not write to:\n%1\n%2").arg(m_partialInstallerPath, m_installerFile.errorString()));
         return;
     }
 
@@ -478,7 +478,7 @@ void UpdateDialog::startInstallerDownload()
     connect(m_installerReply, &QNetworkReply::downloadProgress, this, &UpdateDialog::onInstallerProgress);
     connect(m_installerReply, &QNetworkReply::finished, this, &UpdateDialog::onInstallerReplyFinished);
 
-    showResult(QString("Downloading update installer...\nInstaller: %1\nDestination: %2").arg(m_installerAssetName, m_installerPath));
+    showResult(QString("Downloading installer...\nInstaller: %1\nDestination: %2").arg(m_installerAssetName, m_installerPath));
 }
 
 void UpdateDialog::onInstallerReadyRead()
@@ -500,7 +500,7 @@ void UpdateDialog::onInstallerProgress(qint64 bytesReceived, qint64 bytesTotal)
 {
     qint64 total = bytesTotal > 0 ? bytesTotal : m_installerAssetSize;
     showResult(
-        QString("Downloading update installer...\nInstaller: %1\nProgress: %2 of %3\nDestination: %4")
+        QString("Downloading installer...\nInstaller: %1\nProgress: %2 of %3\nDestination: %4")
             .arg(m_installerAssetName, formatBytes(bytesReceived), formatBytes(total), m_installerPath)
     );
 }
@@ -532,25 +532,25 @@ void UpdateDialog::onInstallerReplyFinished()
 
     if (!m_installerFileError.isEmpty()) {
         QFile::remove(m_partialInstallerPath);
-        showFailure(QString("Update download failed.\nCould not write the update installer:\n%1").arg(m_installerFileError));
+        showFailure(QString("Installer download failed.\nCould not write the installer:\n%1").arg(m_installerFileError));
         return;
     }
 
     if (networkError != QNetworkReply::NoError) {
         QFile::remove(m_partialInstallerPath);
-        showFailure(QString("Update download failed.\nHTTP status: %1\nNetwork error: %2").arg(httpStatus, errorText));
+        showFailure(QString("Installer download failed.\nHTTP status: %1\nNetwork error: %2").arg(httpStatus, errorText));
         return;
     }
 
     if (!isSuccessfulGetStatus(statusCode)) {
         QFile::remove(m_partialInstallerPath);
-        showFailure(QString("Update download failed.\nUnexpected HTTP status: %1").arg(httpStatus));
+        showFailure(QString("Installer download failed.\nUnexpected HTTP status: %1").arg(httpStatus));
         return;
     }
 
     if (!isValidFinalReplyUrl(finalUrl)) {
         QFile::remove(m_partialInstallerPath);
-        showFailure(QString("Update download failed.\nUnexpected final URL: %1").arg(finalUrl.toString()));
+        showFailure(QString("Installer download failed.\nUnexpected final URL: %1").arg(finalUrl.toString()));
         return;
     }
 
@@ -558,7 +558,7 @@ void UpdateDialog::onInstallerReplyFinished()
         QFile::remove(m_installerPath);
     if (!QFile::rename(m_partialInstallerPath, m_installerPath)) {
         QFile::remove(m_partialInstallerPath);
-        showFailure(QString("Update download failed.\nCould not finalize the downloaded file:\n%1").arg(m_installerPath));
+        showFailure(QString("Installer download failed.\nCould not finalize the downloaded file:\n%1").arg(m_installerPath));
         return;
     }
 
