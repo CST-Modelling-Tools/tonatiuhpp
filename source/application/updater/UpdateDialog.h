@@ -37,7 +37,7 @@ private:
     void setDownloading(bool downloading);
     void showResult(const QString& message);
     void showFailure(const QString& message);
-    void startUpdateDownload();
+    void beginInstallerDownload();
     void startChecksumDownload();
     void startInstallerDownload();
     void offerInstallUpdate();

@@ -326,7 +326,7 @@ void UpdateDialog::onLatestReleaseReplyFinished()
     updateMessage.exec();
 
     if (updateMessage.clickedButton() == downloadButton)
-        startUpdateDownload();
+        beginInstallerDownload();
 }
 
 void UpdateDialog::setChecking(bool checking)
@@ -369,10 +369,10 @@ void UpdateDialog::on_downloadButton_pressed()
         return;
     }
 
-    startUpdateDownload();
+    beginInstallerDownload();
 }
 
-void UpdateDialog::startUpdateDownload()
+void UpdateDialog::beginInstallerDownload()
 {
     if (!m_installerUrl.isValid() || !m_checksumUrl.isValid() || m_checksumReply || m_installerReply)
         return;
