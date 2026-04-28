@@ -59,8 +59,8 @@ set(HEADERS
     tree/SceneTreeModel.h
     tree/SceneTreeView.h
     tree/SoPathVariant.h
+    updater/IfwUpdateService.h
     updater/UpdateDialog.h
-    updater/UpdateReader.h
     view/GraphicRoot.h
     view/GraphicView.h
     view/GridNode3D.h
@@ -130,8 +130,8 @@ set(SOURCES
     tree/SceneTreeModel.cpp
     tree/SceneTreeView.cpp
     tree/SoPathVariant.cpp
+    updater/IfwUpdateService.cpp
     updater/UpdateDialog.cpp
-    updater/UpdateReader.cpp
     view/GraphicRoot.cpp
     view/GraphicView.cpp
     view/GridNode3D.cpp
@@ -220,7 +220,6 @@ target_link_libraries(${ProjectName}
         Qt6::PrintSupport
         Qt6::Qml
         Qt6::Concurrent
-        Qt6::Network
         TonatiuhLibraries
         TonatiuhKernel
 )

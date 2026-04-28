@@ -13,6 +13,7 @@ class CustomSplashScreen;
 class Document;
 class GraphicRoot;
 class GraphicView;
+class IfwUpdateService;
 class InstanceNode;
 class PhotonsAbstract;
 class PluginManager;
@@ -194,6 +195,7 @@ private slots:
     void on_actionSunPosition_triggered();
 
     void on_action_Updates_triggered();
+    void onUpdateStatusChanged();
 
 signals:
     void Abort(QString error);
@@ -229,6 +231,7 @@ private:
 
     void onSunDialog();
     void onAirDialog();
+    void updateUpdatesAction();
 
     void ShowRaysIn3DView();
     void UpdateLightSize();
@@ -236,6 +239,7 @@ private:
 private:
     Ui::MainWindow* ui;
     PluginManager* m_pluginManager;
+    IfwUpdateService* m_updateService;
 
     QString m_fileName;
     static const int m_filesRecentMax = 8;

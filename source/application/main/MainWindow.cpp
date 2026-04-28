@@ -12,11 +12,11 @@
 #include <QMessageBox>
 #include <QMutex>
 #include <QPluginLoader>
-#include <QProcess>
 #include <QProgressDialog>
 #include <QSettings>
 #include <QStandardPaths>
 #include <QStringList>
+#include <QTimer>
 #include <QtConcurrentMap>
 #include <QTime>
 #include <QUndoStack>
@@ -103,6 +103,8 @@
 #include "widgets/SunDialog.h"
 #include "UndoView.h"
 #include "kernel/scene/GridNode.h"
+#include "updater/IfwUpdateService.h"
+#include "updater/UpdateDialog.h"
 
 namespace {
 QString appBundleDataPath(const QString& relativePath)
@@ -202,6 +204,8 @@ void setSearchPaths(const QString& fileName)
 MainWindow::MainWindow(QString fileName, CustomSplashScreen* splash, QWidget* parent, Qt::WindowFlags flags):
     QMainWindow(parent, flags),
     ui(new Ui::MainWindow),
+    m_pluginManager(0),
+    m_updateService(0),
     m_document(0),
     m_graphicsRoot(0),
     m_modelScene(0),
@@ -268,6 +272,16 @@ MainWindow::MainWindow(QString fileName, CustomSplashScreen* splash, QWidget* pa
     ui->centralWidget->setFocus();
 
     setAcceptDrops(true);
+
+    m_updateService = new IfwUpdateService(this);
+    connect(m_updateService, &IfwUpdateService::statusChanged, this, [this](IfwUpdateService::Status) {
+        onUpdateStatusChanged();
+    });
+    updateUpdatesAction();
+    QTimer::singleShot(1500, this, [this]() {
+        if (m_updateService)
+            m_updateService->checkForUpdates();
+    });
 }
 
 MainWindow::~MainWindow()
@@ -2855,42 +2869,61 @@ void MainWindow::on_actionSunPosition_triggered()
     dialog.exec();
 }
 
-#include "updater/UpdateDialog.h"
 void MainWindow::on_action_Updates_triggered()
 {
-    UpdateDialog dialog(this);
-    dialog.checkUpdates();
+    UpdateDialog dialog(m_updateService, this);
     dialog.exec();
+}
 
-    QString installerPath = dialog.installerPathToStart();
-    if (installerPath.isEmpty())
+void MainWindow::onUpdateStatusChanged()
+{
+    updateUpdatesAction();
+
+    if (!m_updateService)
         return;
 
-    QFileInfo installerInfo(installerPath);
-    if (!installerInfo.exists() || !installerInfo.isFile()) {
-        QMessageBox::warning(
-            this,
-            "Tonatiuh++ Updates",
-            QString("The verified installer could not be found:\n%1").arg(installerPath)
-        );
+    if (m_updateService->status() == IfwUpdateService::UpdateAvailable) {
+        showInStatusBar("Tonatiuh++ updates are available.", 8000);
+    } else if (m_updateService->status() == IfwUpdateService::MaintenanceToolMissing) {
+        showInStatusBar("Update checks require an installer-based Tonatiuh++ installation.", 8000);
+    } else if (m_updateService->status() == IfwUpdateService::CheckFailed) {
+        showInStatusBar("Tonatiuh++ update check failed. Open Help > Updates for details.", 8000);
+    }
+}
+
+void MainWindow::updateUpdatesAction()
+{
+    if (!m_updateService) {
+        ui->action_Updates->setText("&Updates...");
+        ui->action_Updates->setStatusTip("Check for Tonatiuh++ updates");
         return;
     }
 
-    if (!OkToContinue())
-        return;
-
-    QString installerFilePath = installerInfo.absoluteFilePath();
-    QString installerWorkingDirectory = installerInfo.absolutePath();
-
-    if (!QProcess::startDetached(installerFilePath, QStringList(), installerWorkingDirectory)) {
-        QMessageBox::warning(
-            this,
-            "Tonatiuh++ Updates",
-            QString("Could not start the installer:\n%1").arg(installerFilePath)
-        );
-        return;
+    switch (m_updateService->status()) {
+    case IfwUpdateService::Checking:
+        ui->action_Updates->setText("&Updates... (Checking)");
+        ui->action_Updates->setStatusTip("Checking for Tonatiuh++ updates");
+        break;
+    case IfwUpdateService::UpdateAvailable:
+        ui->action_Updates->setText("&Updates... (Available)");
+        ui->action_Updates->setStatusTip("Tonatiuh++ updates are available");
+        break;
+    case IfwUpdateService::UpToDate:
+        ui->action_Updates->setText("&Updates...");
+        ui->action_Updates->setStatusTip("Tonatiuh++ is up to date");
+        break;
+    case IfwUpdateService::MaintenanceToolMissing:
+        ui->action_Updates->setText("&Updates...");
+        ui->action_Updates->setStatusTip("MaintenanceTool was not found for this installation");
+        break;
+    case IfwUpdateService::CheckFailed:
+        ui->action_Updates->setText("&Updates...");
+        ui->action_Updates->setStatusTip("The update check failed");
+        break;
+    case IfwUpdateService::Idle:
+    default:
+        ui->action_Updates->setText("&Updates...");
+        ui->action_Updates->setStatusTip("Check for Tonatiuh++ updates");
+        break;
     }
-
-    writeSettings();
-    qApp->quit();
 }
