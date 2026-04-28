@@ -18,6 +18,7 @@ Example:
   - `vX.Y.Z`
   - or `vX.Y.Z.W` if using four components
 - The GitHub release tag must match the application version, with only the leading `v` added.
+- Pushing a matching tag to GitHub triggers the repository `Release` workflow.
 
 Example:
 - App version: `0.1.8.18`
@@ -25,7 +26,8 @@ Example:
 
 ## 3. Build the Windows release asset
 
-- Build the Windows installer from the exact tagged commit.
+- Preferred path: let the GitHub Actions `Release` workflow build the Windows installer from the exact tagged commit.
+- Manual fallback: build the Windows installer locally from the exact tagged commit.
 - Confirm the produced installer filename is exactly:
 
 `TonatiuhPP-<version>-windows-x64.exe`
@@ -36,7 +38,9 @@ Example:
 
 ## 4. Generate the SHA-256 checksum
 
-- Compute the SHA-256 checksum of the exact installer file to be uploaded.
+- GitHub does not generate this checksum file automatically.
+- Preferred path: the repository GitHub Actions `Release` workflow generates this checksum file from the Windows installer it built.
+- Manual fallback: compute the SHA-256 checksum of the exact installer file to be uploaded.
 - Create a checksum file named exactly:
 
 `TonatiuhPP-<version>-windows-x64.exe.sha256`
@@ -55,9 +59,29 @@ or
 <sha256> *TonatiuhPP-0.1.8.18-windows-x64.exe
 ```
 
+Manual Windows PowerShell example:
+
+```powershell
+$asset = "installer\output\TonatiuhPP-0.1.8.18-windows-x64.exe"
+$hash = (Get-FileHash -Algorithm SHA256 -Path $asset).Hash.ToLowerInvariant()
+$assetName = Split-Path $asset -Leaf
+Set-Content -Path "$asset.sha256" -Value "$hash  $assetName" -Encoding ascii
+```
+
 ## 5. Upload GitHub release assets
 
-Upload these assets to the GitHub release for the matching tag:
+Preferred path:
+
+- Do not upload these files manually when using the repository `Release` workflow.
+- The workflow downloads the build artifacts and publishes the release assets to the GitHub release for the matching tag.
+- After the workflow finishes, verify the files on the release page.
+
+Manual fallback:
+
+- Use this only when not using the `Release` workflow, or when deliberately replacing release assets.
+- Open the GitHub release for the matching tag, choose **Edit release**, upload both files, and save the release.
+
+The GitHub release for the matching tag must contain both assets:
 
 - `TonatiuhPP-<version>-windows-x64.exe`
 - `TonatiuhPP-<version>-windows-x64.exe.sha256`

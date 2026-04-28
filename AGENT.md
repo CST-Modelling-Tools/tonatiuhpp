@@ -40,6 +40,8 @@ For each task:
 - Provide a concise summary.
 - List modified files.
 - Provide an standardize and detailed commit message.
+- Provide commit messages with real lines and paragraphs: a subject line, optional blank line, and optional body paragraphs when useful.
+- Use CR/LF only to end the subject line or a paragraph; do not split one sentence or paragraph across multiple lines for formatting.
 - Do not print full file contents unless explicitly requested.
 
 ## Validation
