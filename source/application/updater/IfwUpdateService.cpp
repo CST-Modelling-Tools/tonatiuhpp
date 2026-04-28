@@ -111,6 +111,40 @@ void IfwUpdateService::checkForUpdates()
     m_process->start();
 }
 
+bool IfwUpdateService::startUpdater(QString* errorMessage)
+{
+    if (errorMessage)
+        errorMessage->clear();
+
+    if (m_process && m_process->state() != QProcess::NotRunning) {
+        if (errorMessage)
+            *errorMessage = "The MaintenanceTool is still checking for updates.";
+        return false;
+    }
+
+    if (m_maintenanceToolPath.isEmpty())
+        m_maintenanceToolPath = locateMaintenanceTool();
+
+    if (m_maintenanceToolPath.isEmpty()) {
+        if (errorMessage)
+            *errorMessage = "MaintenanceTool was not found next to this Tonatiuh++ installation.";
+        return false;
+    }
+
+    QFileInfo toolInfo(m_maintenanceToolPath);
+    qint64 processId = 0;
+    bool started = QProcess::startDetached(
+        toolInfo.absoluteFilePath(),
+        { "--updater" },
+        toolInfo.absolutePath(),
+        &processId
+    );
+    if (!started && errorMessage)
+        *errorMessage = QString("Could not start MaintenanceTool:\n%1").arg(toolInfo.absoluteFilePath());
+
+    return started;
+}
+
 void IfwUpdateService::setStatus(Status status, const QString& message, const QString& details)
 {
     m_status = status;

@@ -4,12 +4,12 @@
 #include "IfwUpdateService.h"
 
 #include <QApplication>
-#include <QMessageBox>
 
 UpdateDialog::UpdateDialog(IfwUpdateService* updateService, QWidget* parent):
     QDialog(parent),
     ui(new Ui::UpdateDialog),
-    m_updateService(updateService)
+    m_updateService(updateService),
+    m_updateRequested(false)
 {
     ui->setupUi(this);
     setWindowFlag(Qt::WindowContextHelpButtonHint, false);
@@ -50,11 +50,11 @@ void UpdateDialog::on_checkButton_pressed()
 
 void UpdateDialog::on_downloadButton_pressed()
 {
-    QMessageBox::information(
-        this,
-        "Tonatiuh++ Updates",
-        "Installing updates from the MaintenanceTool will be enabled in a later update milestone."
-    );
+    if (!m_updateService || !m_updateService->updateAvailable())
+        return;
+
+    m_updateRequested = true;
+    accept();
 }
 
 void UpdateDialog::refresh()
@@ -78,10 +78,12 @@ void UpdateDialog::refresh()
     if (m_updateService->status() == IfwUpdateService::Idle)
         message = QString("Installed version: %1\n\nPress Check to ask the MaintenanceTool for available updates.")
             .arg(qApp->applicationVersion());
+    else if (m_updateService->status() == IfwUpdateService::UpdateAvailable)
+        message += "\n\nClick Install Updates to start the MaintenanceTool. Tonatiuh++ will close before the updater starts. Please restart Tonatiuh++ manually after the update completes.";
 
     showMessage(message);
     ui->checkButton->setEnabled(!m_updateService->isChecking());
-    ui->downloadButton->setEnabled(false);
+    ui->downloadButton->setEnabled(m_updateService->updateAvailable() && !m_updateService->isChecking());
 }
 
 void UpdateDialog::showMessage(const QString& message)

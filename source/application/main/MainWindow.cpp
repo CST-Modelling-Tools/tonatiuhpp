@@ -2872,7 +2872,44 @@ void MainWindow::on_actionSunPosition_triggered()
 void MainWindow::on_action_Updates_triggered()
 {
     UpdateDialog dialog(m_updateService, this);
-    dialog.exec();
+    if (dialog.exec() != QDialog::Accepted || !dialog.updateRequested())
+        return;
+
+    if (!m_updateService || !m_updateService->updateAvailable()) {
+        QMessageBox::information(this, "Tonatiuh++ Updates", "No update is ready to install.");
+        return;
+    }
+
+    QMessageBox confirm(this);
+    confirm.setWindowTitle("Tonatiuh++ Updates");
+    confirm.setIcon(QMessageBox::Information);
+    confirm.setText("Start the Tonatiuh++ MaintenanceTool now?");
+    confirm.setInformativeText(
+        "Tonatiuh++ will close before the updater starts so installed files can be replaced safely.\n\n"
+        "Automatic restart is not enabled yet. Please restart Tonatiuh++ manually after the update completes."
+    );
+    QPushButton* startButton = confirm.addButton("Start MaintenanceTool", QMessageBox::AcceptRole);
+    confirm.addButton("Cancel", QMessageBox::RejectRole);
+    confirm.setDefaultButton(startButton);
+    confirm.exec();
+    if (confirm.clickedButton() != startButton)
+        return;
+
+    if (!OkToContinue())
+        return;
+
+    QString errorMessage;
+    if (!m_updateService->startUpdater(&errorMessage)) {
+        QMessageBox::warning(
+            this,
+            "Tonatiuh++ Updates",
+            errorMessage.isEmpty() ? "Could not start the MaintenanceTool." : errorMessage
+        );
+        return;
+    }
+
+    writeSettings();
+    qApp->quit();
 }
 
 void MainWindow::onUpdateStatusChanged()

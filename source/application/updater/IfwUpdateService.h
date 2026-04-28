@@ -24,6 +24,7 @@ public:
     ~IfwUpdateService();
 
     void checkForUpdates();
+    bool startUpdater(QString* errorMessage = nullptr);
 
     Status status() const { return m_status; }
     bool isChecking() const { return m_status == Checking; }

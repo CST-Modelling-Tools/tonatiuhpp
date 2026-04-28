@@ -42,7 +42,7 @@
         <bool>false</bool>
        </property>
        <property name="text">
-        <string>Download Installer</string>
+        <string>Install Updates</string>
        </property>
       </widget>
      </item>

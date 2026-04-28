@@ -17,6 +17,7 @@ public:
     ~UpdateDialog();
 
     void checkUpdates();
+    bool updateRequested() const { return m_updateRequested; }
 
 private slots:
     void on_checkButton_pressed();
@@ -28,4 +29,5 @@ private:
 
     Ui::UpdateDialog* ui;
     IfwUpdateService* m_updateService;
+    bool m_updateRequested;
 };
