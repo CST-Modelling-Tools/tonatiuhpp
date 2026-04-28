@@ -1,6 +1,6 @@
-# Windows Updater Release Checklist
+# IFW Release Checklist
 
-Use this checklist when preparing a GitHub release that must be recognized by the Tonatiuh++ Windows updater.
+Use this checklist when preparing a Tonatiuh++ release that must be visible to the Qt Installer Framework MaintenanceTool.
 
 ## 1. Set the application version
 
@@ -17,141 +17,81 @@ Example:
 - Create and push the Git tag in this format:
   - `vX.Y.Z`
   - or `vX.Y.Z.W` if using four components
-- The GitHub release tag must match the application version, with only the leading `v` added.
+- The tag must match the application version, with only the leading `v` added.
 - Pushing a matching tag to GitHub triggers the repository `Release` workflow.
 
-Example:
-- App version: `0.1.8.18`
-- Tag: `v0.1.8.18`
-
-## 3. Build the Windows release asset
-
-- Preferred path: let the GitHub Actions `Release` workflow build the Windows installer from the exact tagged commit.
-- Manual fallback: build the Windows installer locally from the exact tagged commit.
-- Confirm the produced installer filename is exactly:
-
-`TonatiuhPP-<version>-windows-x64.exe`
-
-Example:
-
-`TonatiuhPP-0.1.8.18-windows-x64.exe`
-
-## 4. Generate the SHA-256 checksum
-
-- GitHub does not generate this checksum file automatically.
-- Preferred path: the repository GitHub Actions `Release` workflow generates this checksum file from the Windows installer it built.
-- Manual fallback: compute the SHA-256 checksum of the exact installer file to be uploaded.
-- Create a checksum file named exactly:
-
-`TonatiuhPP-<version>-windows-x64.exe.sha256`
-
-- The checksum file content must reference the exact installer filename.
-
-Accepted formats:
-
-```text
-<sha256>  TonatiuhPP-0.1.8.18-windows-x64.exe
-```
-
-or
-
-```text
-<sha256> *TonatiuhPP-0.1.8.18-windows-x64.exe
-```
-
-Manual Windows PowerShell example:
-
-```powershell
-$asset = "installer\output\TonatiuhPP-0.1.8.18-windows-x64.exe"
-$hash = (Get-FileHash -Algorithm SHA256 -Path $asset).Hash.ToLowerInvariant()
-$assetName = Split-Path $asset -Leaf
-Set-Content -Path "$asset.sha256" -Value "$hash  $assetName" -Encoding ascii
-```
-
-## 5. Upload GitHub release assets
+## 3. Build release payloads
 
 Preferred path:
 
-- Do not upload these files manually when using the repository `Release` workflow.
-- The workflow downloads the build artifacts and publishes the release assets to the GitHub release for the matching tag.
-- After the workflow finishes, verify the files on the release page.
+- Let the GitHub Actions `Release` workflow build all release payloads from the exact tagged commit.
 
-Manual fallback:
+The workflow currently publishes GitHub release distribution assets and IFW online repositories:
 
-- Use this only when not using the `Release` workflow, or when deliberately replacing release assets.
-- Open the GitHub release for the matching tag, choose **Edit release**, upload both files, and save the release.
+- Windows installer and checksum
+- Linux archive and checksum
+- macOS archive and checksum
+- IFW repository: `ifw/windows`
+- IFW repository: `ifw/linux`
+- IFW repository: `ifw/macos`
 
-The GitHub release for the matching tag must contain both assets:
+## 4. Verify IFW repositories
 
-- `TonatiuhPP-<version>-windows-x64.exe`
-- `TonatiuhPP-<version>-windows-x64.exe.sha256`
+Confirm GitHub Pages contains all platform repositories:
 
-## 6. Verify release metadata
+- `https://cst-modelling-tools.github.io/tonatiuhpp/ifw/windows/Updates.xml`
+- `https://cst-modelling-tools.github.io/tonatiuhpp/ifw/linux/Updates.xml`
+- `https://cst-modelling-tools.github.io/tonatiuhpp/ifw/macos/Updates.xml`
 
-Confirm all of the following:
+Each repository must contain:
 
-- The release belongs to:
-  - `https://github.com/CST-Modelling-Tools/tonatiuhpp`
-- The release page is for the correct tag:
-  - `https://github.com/CST-Modelling-Tools/tonatiuhpp/releases/tag/v<version>`
-- The Windows installer asset is attached to that exact release.
-- The checksum asset is attached to that exact release.
-- The installer and checksum filenames match exactly.
-- The checksum was generated from the uploaded installer, not a different rebuild.
+- `Updates.xml`
+- generated IFW package data for `com.tonatiuh.app`
+- package metadata for the release version
 
-## 7. Naming rules required by the updater
+## 5. Verify installer update configuration
 
-The current Windows updater expects:
+Each IFW installer must point to its platform repository:
 
-- tag name:
-  - `v<version>`
-- installer filename:
-  - `TonatiuhPP-<version>-windows-x64.exe`
-- checksum filename:
-  - `TonatiuhPP-<version>-windows-x64.exe.sha256`
+- Windows installer: `https://cst-modelling-tools.github.io/tonatiuhpp/ifw/windows`
+- Linux installer: `https://cst-modelling-tools.github.io/tonatiuhpp/ifw/linux`
+- macOS installer: `https://cst-modelling-tools.github.io/tonatiuhpp/ifw/macos`
 
-Do not publish near-match names such as:
+The application does not implement GitHub release download logic for updates. It asks the installed IFW MaintenanceTool to check and apply updates.
 
-- `TonatiuhPP-<version>-windows-x64-portable.exe`
-- `TonatiuhPP-<version>-setup.exe`
-- old-version installers under the new release
-- checksum files that reference a different filename
+## 6. Verify GitHub release distribution assets
 
-## 8. Supported updater behavior
+GitHub release assets are for distribution and manual download, not for updater metadata.
 
-Current updater behavior on Windows:
+Confirm the release belongs to:
 
-- checks the latest GitHub release
-- compares installed version with the latest tag
-- downloads the checksum first
-- downloads the installer second
-- verifies installer size
-- verifies SHA-256 checksum
-- offers to start the installer and close the application
+- `https://github.com/CST-Modelling-Tools/tonatiuhpp`
 
-Current updater does not:
+Confirm the release page is for the correct tag:
 
-- auto-install silently
-- support Linux/macOS archive self-update
-- accept nonstandard Windows installer filenames
+- `https://github.com/CST-Modelling-Tools/tonatiuhpp/releases/tag/v<version>`
 
-## 9. Final pre-release sanity check
+Confirm uploaded assets and checksum files match the workflow output for the tagged commit.
+
+## 7. Final pre-release sanity check
 
 Before publishing, verify:
 
 - App version in `source/CMakeLists.txt` is correct
 - Git tag matches the app version
-- Installer filename matches the expected pattern
-- Checksum filename matches the installer filename
-- Checksum content references the exact installer filename
-- Assets are uploaded to the correct GitHub release
+- Release workflow completed successfully
+- GitHub Pages deploy completed successfully
+- All three IFW platform repositories contain `Updates.xml`
+- Distribution assets are uploaded to the correct GitHub release
 
-## 10. Recommended manual validation
+## 8. Recommended manual validation
 
 After publishing:
 
-- Run an older installed Windows build of Tonatiuh++
-- Open `Help > Updates`
-- Confirm the updater detects the new version
-- Confirm it downloads and verifies the installer
-- Confirm `Start Installer and Close` launches the installer successfully
+- Install an older Tonatiuh++ build made with IFW repository configuration.
+- Start Tonatiuh++.
+- Confirm startup update checking is non-blocking.
+- Open `Help > Updates`.
+- Confirm the MaintenanceTool detects the new version.
+- Click `Install Updates`.
+- Confirm Tonatiuh++ prompts for unsaved work, starts the MaintenanceTool, and closes before the update runs.
