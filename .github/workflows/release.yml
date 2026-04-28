@@ -584,11 +584,6 @@ jobs:
           path: ifw-repositories
           pattern: ifw-repository-*
 
-      - name: Publish GitHub release assets
-        uses: softprops/action-gh-release@v2
-        with:
-          files: assets/**/*
-
       - name: Prepare GitHub Pages IFW content
         shell: bash
         run: |
@@ -619,3 +614,8 @@ jobs:
       - name: Deploy GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
+      - name: Publish GitHub release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: assets/**/*

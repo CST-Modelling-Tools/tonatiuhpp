@@ -135,7 +135,7 @@ bool IfwUpdateService::startUpdater(QString* errorMessage)
     qint64 processId = 0;
     bool started = QProcess::startDetached(
         toolInfo.absoluteFilePath(),
-        { "--updater" },
+        { "--start-updater" },
         toolInfo.absolutePath(),
         &processId
     );
