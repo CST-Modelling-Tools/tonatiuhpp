@@ -13,6 +13,7 @@ Files:
 Notes:
 - No installer payload is populated yet.
 - Installers are configured with platform-specific update repositories.
+- The official update-capable installers are generated with Qt IFW and include MaintenanceTool.
 - The IFW `Version` fields are rendered from `project(TonatiuhPP VERSION ...)` in `source/CMakeLists.txt` when `create_installer.py` runs.
 - The IFW update repository URL is rendered by `create_installer.py`; the default base URL is `https://cst-modelling-tools.github.io/tonatiuhpp/ifw`.
 - `ReleaseDate` remains explicit in package metadata because Qt IFW requires a concrete date value.
@@ -74,8 +75,9 @@ python installer/create_installer.py --binarycreator "/opt/Qt/Tools/QtInstallerF
 This will:
 - validate that the Qt IFW skeleton and staged payload exist
 - invoke `binarycreator` to generate the installer
+- create a hybrid installer so the installed MaintenanceTool can use online repositories for later updates
 - embed the platform-specific IFW update repository URL in the installer configuration
-- place the output in `installer/output/` with a platform-specific extension (e.g., `.exe` on Windows, no extension on Unix)
+- place the output in `installer/output/` with a platform-specific name
 
 ## Generating an IFW online repository locally
 
@@ -101,7 +103,6 @@ Release CI publishes platform repositories under:
 
 - dependency bundling beyond Qt runtime deployment
 - signing or notarization
-- maintenance tool integration
 - OS-specific installer polish beyond binarycreator defaults
 
 ## GitHub Actions usage
@@ -112,4 +113,4 @@ The Windows release workflow in `.github/workflows/release.yml` reuses the local
 - run `create_ifw_repository.py` with an explicit `repogen` path
 - run `create_installer.py` with an explicit `binarycreator` path
 
-Linux and macOS release jobs remain archive-based for GitHub release assets, but also generate platform IFW online repositories from their staged release payloads.
+Linux and macOS release jobs generate IFW online repositories and IFW installer assets from their staged release payloads. Archive assets may remain available as manual convenience packages, but the official update-capable installation path is the platform IFW installer.

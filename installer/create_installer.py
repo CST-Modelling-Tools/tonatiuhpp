@@ -53,6 +53,11 @@ def parse_args() -> argparse.Namespace:
         help="Path to Qt IFW packages directory.",
     )
     parser.add_argument(
+        "--package-data-dir",
+        default=None,
+        help="Optional package data directory to use instead of packages/com.tonatiuh.app/data.",
+    )
+    parser.add_argument(
         "--output-dir",
         default=default_output_dir,
         help="Directory to place the generated installer.",
@@ -123,6 +128,7 @@ def resolve_binarycreator(binarycreator: str) -> Path:
 def render_ifw_metadata(
     config_xml_template: Path,
     packages_dir_template: Path,
+    package_data_dir: Path | None,
     repository_url: str,
     verbose: bool = False,
 ) -> tuple[tempfile.TemporaryDirectory[str], Path, Path, str]:
@@ -150,6 +156,11 @@ def render_ifw_metadata(
         rendered_packages_dir / "com.tonatiuh.app" / "meta" / "package.xml",
         version,
     )
+    if package_data_dir:
+        rendered_data_dir = rendered_packages_dir / "com.tonatiuh.app" / "data"
+        if rendered_data_dir.exists():
+            shutil.rmtree(rendered_data_dir)
+        shutil.copytree(package_data_dir, rendered_data_dir, symlinks=True)
 
     return temp_dir, rendered_config_xml, rendered_packages_dir, version
 
@@ -158,12 +169,15 @@ def main() -> None:
     args = parse_args()
     config_xml_template = Path(args.config_xml).resolve()
     packages_dir_template = Path(args.packages_dir).resolve()
+    package_data_dir = Path(args.package_data_dir).resolve() if args.package_data_dir else None
     output_dir = Path(args.output_dir).resolve()
     binarycreator = resolve_binarycreator(args.binarycreator)
+    if package_data_dir and (not package_data_dir.is_dir() or not any(package_data_dir.iterdir())):
+        raise SystemExit(f"Qt IFW package data directory is empty or missing: {package_data_dir}")
     repository_platform = detect_platform() if args.repository_platform == "auto" else args.repository_platform
     repository_url = args.repository_url or platform_repository_url(args.repository_base_url, repository_platform)
     temp_dir, config_xml, packages_dir, project_version = render_ifw_metadata(
-        config_xml_template, packages_dir_template, repository_url, verbose=args.verbose
+        config_xml_template, packages_dir_template, package_data_dir, repository_url, verbose=args.verbose
     )
 
     try:
@@ -171,11 +185,11 @@ def main() -> None:
 
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        # Determine output file path; let binarycreator add platform-specific extension
         output_file = output_dir / args.output_name
 
         cmd = [
             str(binarycreator),
+            "--hybrid",
             "--config", str(config_xml),
             "--packages", str(packages_dir),
             str(output_file),
@@ -189,7 +203,7 @@ def main() -> None:
         print(f"Project version: {project_version}")
         print(f"IFW repository URL: {repository_url}")
         print(f"Output directory: {output_dir}")
-        print(f"Installer file: {output_file} (with platform-specific extension)")
+        print(f"Installer file: {output_file}")
     finally:
         temp_dir.cleanup()
 

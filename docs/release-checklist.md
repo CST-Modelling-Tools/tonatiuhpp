@@ -28,12 +28,16 @@ Preferred path:
 
 The workflow currently publishes GitHub release distribution assets and IFW online repositories:
 
-- Windows installer and checksum
+- Windows IFW installer and checksum
+- Linux IFW installer and checksum
+- macOS IFW installer and checksum
 - Linux archive and checksum
 - macOS archive and checksum
 - IFW repository: `ifw/windows`
 - IFW repository: `ifw/linux`
 - IFW repository: `ifw/macos`
+
+The official update-capable distribution path on every platform is the IFW installer. Archive assets may remain available as manual convenience packages, but they are not the updater-enabled installation path.
 
 ## 4. Verify IFW repositories
 
@@ -82,13 +86,14 @@ Before publishing, verify:
 - Release workflow completed successfully
 - GitHub Pages deploy completed successfully
 - All three IFW platform repositories contain `Updates.xml`
+- Windows, Linux, and macOS IFW installers are attached to the GitHub release
 - Distribution assets are uploaded to the correct GitHub release
 
 ## 8. Recommended manual validation
 
 After publishing:
 
-- Install an older Tonatiuh++ build made with IFW repository configuration.
+- Install an older Tonatiuh++ build made with IFW repository configuration on each platform.
 - Start Tonatiuh++.
 - Confirm startup update checking is non-blocking.
 - Open `Help > Updates`.

@@ -83,12 +83,38 @@ jobs:
             repogen="$(find "${RUNNER_TOOL_CACHE:-$HOME}" "$HOME" -type f -path '*/QtInstallerFramework*/bin/repogen' -print -quit 2>/dev/null || true)"
           fi
 
+          binarycreator="$(command -v binarycreator || true)"
+          if [ -z "${binarycreator}" ]; then
+            binarycreator="$(find "${RUNNER_TOOL_CACHE:-$HOME}" "$HOME" -type f -path '*/QtInstallerFramework*/bin/binarycreator' -print -quit 2>/dev/null || true)"
+          fi
+
           if [ -z "${repogen}" ]; then
             echo "repogen not found after installing Qt IFW." >&2
             exit 1
           fi
 
+          if [ -z "${binarycreator}" ]; then
+            echo "binarycreator not found after installing Qt IFW." >&2
+            exit 1
+          fi
+
           echo "REPOGEN_PATH=${repogen}" >> "$GITHUB_ENV"
+          echo "BINARYCREATOR_PATH=${binarycreator}" >> "$GITHUB_ENV"
+
+      - name: Resolve project version
+        id: project_version
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          tag="${GITHUB_REF_NAME}"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            tag="${{ inputs.fake_tag }}"
+          fi
+
+          version="$(python installer/sync_ifw_metadata.py --check-tag "${tag}" --print-version)"
+          echo "TONATIUHPP_VERSION=${version}" >> "$GITHUB_ENV"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
 
       - name: Install Python deps (+ Ninja)
         shell: bash
@@ -331,6 +357,82 @@ jobs:
             --repository-dir "installer/repositories/${{ matrix.ifw_platform }}" \
             --platform "${{ matrix.ifw_platform }}"
 
+      - name: Generate IFW installer
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          case "${{ runner.arch }}" in
+            X64) asset_arch="x64" ;;
+            ARM64) asset_arch="arm64" ;;
+            *) asset_arch="$(echo "${{ runner.arch }}" | tr '[:upper:]' '[:lower:]')" ;;
+          esac
+
+          output_name="TonatiuhPP-${TONATIUHPP_VERSION}-${{ matrix.ifw_platform }}-${asset_arch}"
+          if [ "${{ matrix.ifw_platform }}" = "linux" ]; then
+            output_name="${output_name}.run"
+          fi
+
+          python installer/create_installer.py \
+            --binarycreator "${BINARYCREATOR_PATH}" \
+            --package-data-dir dist \
+            --repository-platform "${{ matrix.ifw_platform }}" \
+            --output-name "${output_name}"
+
+      - name: Package IFW installer asset
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          case "${{ runner.arch }}" in
+            X64) asset_arch="x64" ;;
+            ARM64) asset_arch="arm64" ;;
+            *) asset_arch="$(echo "${{ runner.arch }}" | tr '[:upper:]' '[:lower:]')" ;;
+          esac
+
+          base="TonatiuhPP-${TONATIUHPP_VERSION}-${{ matrix.ifw_platform }}-${asset_arch}"
+          mkdir -p ifw-assets
+
+          if [ "${{ matrix.ifw_platform }}" = "linux" ]; then
+            installer="installer/output/${base}.run"
+            test -f "${installer}"
+            asset="${base}.run"
+            cp "${installer}" "ifw-assets/${asset}"
+            chmod +x "ifw-assets/${asset}"
+          else
+            if [ -d "installer/output/${base}.app" ]; then
+              installer="installer/output/${base}.app"
+            elif [ -e "installer/output/${base}" ]; then
+              installer="installer/output/${base}"
+            else
+              echo "macOS IFW installer output not found for ${base}" >&2
+              find installer/output -maxdepth 1 -mindepth 1 -print >&2
+              exit 1
+            fi
+
+            if [ -d "${installer}" ]; then
+              asset="${base}-installer.tar.gz"
+              tar -czf "ifw-assets/${asset}" -C "$(dirname "${installer}")" "$(basename "${installer}")"
+            else
+              asset="${base}-installer"
+              cp "${installer}" "ifw-assets/${asset}"
+              chmod +x "ifw-assets/${asset}" || true
+            fi
+          fi
+
+          python - "ifw-assets/${asset}" <<'PY'
+          import hashlib
+          import pathlib
+          import sys
+
+          asset = pathlib.Path(sys.argv[1])
+          digest = hashlib.sha256()
+          with asset.open("rb") as handle:
+              for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                  digest.update(chunk)
+          asset.with_name(asset.name + ".sha256").write_text(f"{digest.hexdigest()}  {asset.name}\n", encoding="ascii")
+          PY
+
       - name: Upload IFW repository artifact
         uses: actions/upload-artifact@v4
         with:
@@ -344,6 +446,7 @@ jobs:
           path: |
             tonatiuhpp-${{ runner.os }}.tar.gz
             tonatiuhpp-${{ runner.os }}.tar.gz.sha256
+            ifw-assets/*
 
   build-windows-installer:
     runs-on: windows-2022
