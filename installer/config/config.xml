@@ -10,6 +10,12 @@
   <!-- Default target path mirrors current CMake install prefix behavior. -->
   <TargetDir>@HomeDir@/tonatiuhpp</TargetDir>
 
-  <!-- No remote repository configured yet; future release automation will add this. -->
-  <RemoteRepositories/>
+  <!-- Rendered by installer/create_installer.py for the current platform. -->
+  <RemoteRepositories>
+    <Repository>
+      <Url>@TONATIUHPP_IFW_REPOSITORY_URL@</Url>
+      <Enabled>1</Enabled>
+      <DisplayName>Tonatiuh++ Updates</DisplayName>
+    </Repository>
+  </RemoteRepositories>
 </Installer>

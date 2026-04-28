@@ -4,10 +4,26 @@
 import argparse
 import shutil
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
 from sync_ifw_metadata import read_project_version, render_version_template
+
+IFW_REPOSITORY_URL_TOKEN = "@TONATIUHPP_IFW_REPOSITORY_URL@"
+DEFAULT_REPOSITORY_BASE_URL = "https://cst-modelling-tools.github.io/tonatiuhpp/ifw"
+
+
+def detect_platform() -> str:
+    if sys.platform.startswith("win"):
+        return "windows"
+    if sys.platform == "darwin":
+        return "macos"
+    return "linux"
+
+
+def platform_repository_url(base_url: str, platform: str) -> str:
+    return f"{base_url.rstrip('/')}/{platform}"
 
 
 def parse_args() -> argparse.Namespace:
@@ -45,6 +61,22 @@ def parse_args() -> argparse.Namespace:
         "--output-name",
         default=default_output_name,
         help="Base name for the installer output file (without extension).",
+    )
+    parser.add_argument(
+        "--repository-base-url",
+        default=DEFAULT_REPOSITORY_BASE_URL,
+        help="Base URL that contains platform IFW repositories.",
+    )
+    parser.add_argument(
+        "--repository-platform",
+        choices=["auto", "windows", "linux", "macos"],
+        default="auto",
+        help="Platform repository to embed in config.xml.",
+    )
+    parser.add_argument(
+        "--repository-url",
+        default=None,
+        help="Explicit IFW repository URL. Overrides --repository-base-url and --repository-platform.",
     )
     parser.add_argument(
         "--verbose",
@@ -89,7 +121,10 @@ def resolve_binarycreator(binarycreator: str) -> Path:
 
 
 def render_ifw_metadata(
-    config_xml_template: Path, packages_dir_template: Path, verbose: bool = False
+    config_xml_template: Path,
+    packages_dir_template: Path,
+    repository_url: str,
+    verbose: bool = False,
 ) -> tuple[tempfile.TemporaryDirectory[str], Path, Path, str]:
     version = read_project_version(Path(__file__).resolve().parents[1])
     temp_dir = tempfile.TemporaryDirectory(prefix="tonatiuhpp-ifw-")
@@ -101,6 +136,14 @@ def render_ifw_metadata(
         print(f"Rendering Qt IFW metadata for Tonatiuh++ version {version}")
 
     render_version_template(config_xml_template, rendered_config_xml, version)
+    config_text = rendered_config_xml.read_text(encoding="utf-8")
+    if IFW_REPOSITORY_URL_TOKEN not in config_text:
+        raise SystemExit(f"IFW repository URL token missing from {config_xml_template}")
+    rendered_config_xml.write_text(
+        config_text.replace(IFW_REPOSITORY_URL_TOKEN, repository_url),
+        encoding="utf-8",
+        newline="\n",
+    )
     shutil.copytree(packages_dir_template, rendered_packages_dir)
     render_version_template(
         packages_dir_template / "com.tonatiuh.app" / "meta" / "package.xml",
@@ -117,8 +160,10 @@ def main() -> None:
     packages_dir_template = Path(args.packages_dir).resolve()
     output_dir = Path(args.output_dir).resolve()
     binarycreator = resolve_binarycreator(args.binarycreator)
+    repository_platform = detect_platform() if args.repository_platform == "auto" else args.repository_platform
+    repository_url = args.repository_url or platform_repository_url(args.repository_base_url, repository_platform)
     temp_dir, config_xml, packages_dir, project_version = render_ifw_metadata(
-        config_xml_template, packages_dir_template, verbose=args.verbose
+        config_xml_template, packages_dir_template, repository_url, verbose=args.verbose
     )
 
     try:
@@ -142,6 +187,7 @@ def main() -> None:
 
         print("Qt IFW installer generated successfully.")
         print(f"Project version: {project_version}")
+        print(f"IFW repository URL: {repository_url}")
         print(f"Output directory: {output_dir}")
         print(f"Installer file: {output_file} (with platform-specific extension)")
     finally:

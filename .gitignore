@@ -123,4 +123,5 @@ cmake/LocalDepsHints.cmake
 
 installer/packages/com.tonatiuh.app/data/
 installer/output/
+installer/repositories/
 build/install-staging/

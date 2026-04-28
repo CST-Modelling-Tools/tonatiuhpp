@@ -3,6 +3,7 @@
 This directory contains the minimal Qt Installer Framework (Qt IFW) foundation for Tonatiuh++.
 
 Files:
+- `create_ifw_repository.py` - script to generate a Qt IFW online repository from package data
 - `config/config.xml` — installer metadata and default install paths
 - `packages/com.tonatiuh.app/meta/package.xml` — package metadata for the application
 - `packages/com.tonatiuh.app/data/` — placeholder package payload directory
@@ -11,14 +12,16 @@ Files:
 
 Notes:
 - No installer payload is populated yet.
-- No updater repository or update configuration is included yet.
+- Installers are configured with platform-specific update repositories.
 - The IFW `Version` fields are rendered from `project(TonatiuhPP VERSION ...)` in `source/CMakeLists.txt` when `create_installer.py` runs.
+- The IFW update repository URL is rendered by `create_installer.py`; the default base URL is `https://cst-modelling-tools.github.io/tonatiuhpp/ifw`.
 - `ReleaseDate` remains explicit in package metadata because Qt IFW requires a concrete date value.
 - `installscript.qs` is intentionally omitted; no custom installer scripting is required in this initial skeleton.
 
 ## Prerequisites
 
 - Qt Installer Framework installed and `binarycreator` in PATH or specified via `--binarycreator`
+- Qt Installer Framework `repogen` in PATH or specified via `--repogen` when generating update repositories
 - Qt deployment tools available on PATH for runtime staging:
   - Windows: `windeployqt`
   - macOS: `macdeployqt` (supported only for `.app` bundle builds)
@@ -71,14 +74,33 @@ python installer/create_installer.py --binarycreator "/opt/Qt/Tools/QtInstallerF
 This will:
 - validate that the Qt IFW skeleton and staged payload exist
 - invoke `binarycreator` to generate the installer
+- embed the platform-specific IFW update repository URL in the installer configuration
 - place the output in `installer/output/` with a platform-specific extension (e.g., `.exe` on Windows, no extension on Unix)
+
+## Generating an IFW online repository locally
+
+After staging the payload, run the repository generation script.
+
+Example:
+
+```bash
+python installer/create_ifw_repository.py --repogen repogen --repository-dir installer/repositories/windows --platform windows
+```
+
+This will:
+- render the package metadata version from `source/CMakeLists.txt`
+- run `repogen`
+- create an online repository containing `Updates.xml` and package data
+
+Release CI publishes platform repositories under:
+- `https://cst-modelling-tools.github.io/tonatiuhpp/ifw/windows`
+- `https://cst-modelling-tools.github.io/tonatiuhpp/ifw/linux`
+- `https://cst-modelling-tools.github.io/tonatiuhpp/ifw/macos`
 
 ## What is intentionally not yet handled
 
 - dependency bundling beyond Qt runtime deployment
-- updater repository configuration
 - signing or notarization
-- non-Windows IFW CI/CD automation
 - maintenance tool integration
 - OS-specific installer polish beyond binarycreator defaults
 
@@ -87,6 +109,7 @@ This will:
 The Windows release workflow in `.github/workflows/release.yml` reuses the local validated packaging path directly:
 - configure and build Tonatiuh++ with the Visual Studio generator
 - run `prepare_ifw_payload.py` with an explicit `windeployqt` path
+- run `create_ifw_repository.py` with an explicit `repogen` path
 - run `create_installer.py` with an explicit `binarycreator` path
 
-Linux and macOS release jobs remain archive-based in the current release workflow.
+Linux and macOS release jobs remain archive-based for GitHub release assets, but also generate platform IFW online repositories from their staged release payloads.

@@ -13,13 +13,19 @@ on:
 
 permissions:
   contents: write
+  pages: write
+  id-token: write
 
 jobs:
   build-and-package:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04, macos-latest]
+        include:
+          - os: ubuntu-24.04
+            ifw_platform: linux
+          - os: macos-latest
+            ifw_platform: macos
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -37,6 +43,7 @@ jobs:
         uses: jurplel/install-qt-action@v4
         with:
           version: "6.6.3"
+          tools: "tools_ifw"
           cache: true
 
       - name: Export Qt prefix (macOS/Linux)
@@ -65,6 +72,23 @@ jobs:
           if [ -d "${QT_PREFIX}/lib" ]; then
             echo "LD_LIBRARY_PATH=${QT_PREFIX}/lib:${LD_LIBRARY_PATH:-}" >> "$GITHUB_ENV"
           fi
+
+      - name: Resolve Qt IFW tool paths
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          repogen="$(command -v repogen || true)"
+          if [ -z "${repogen}" ]; then
+            repogen="$(find "${RUNNER_TOOL_CACHE:-$HOME}" "$HOME" -type f -path '*/QtInstallerFramework*/bin/repogen' -print -quit 2>/dev/null || true)"
+          fi
+
+          if [ -z "${repogen}" ]; then
+            echo "repogen not found after installing Qt IFW." >&2
+            exit 1
+          fi
+
+          echo "REPOGEN_PATH=${repogen}" >> "$GITHUB_ENV"
 
       - name: Install Python deps (+ Ninja)
         shell: bash
@@ -296,6 +320,23 @@ jobs:
           asset.with_name(asset.name + ".sha256").write_text(f"{digest.hexdigest()}  {asset.name}\n", encoding="ascii")
           PY
 
+      - name: Generate IFW repository
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          python installer/create_ifw_repository.py \
+            --repogen "${REPOGEN_PATH}" \
+            --package-data-dir dist \
+            --repository-dir "installer/repositories/${{ matrix.ifw_platform }}" \
+            --platform "${{ matrix.ifw_platform }}"
+
+      - name: Upload IFW repository artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ifw-repository-${{ matrix.ifw_platform }}
+          path: installer/repositories/${{ matrix.ifw_platform }}/
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
@@ -349,11 +390,13 @@ jobs:
 
           $windeployqt = (Get-Command windeployqt -ErrorAction Stop).Source
           $binarycreator = (Get-Command binarycreator -ErrorAction Stop).Source
+          $repogen = (Get-Command repogen -ErrorAction Stop).Source
 
           "TONATIUH_QT_ROOT=$qtRoot" | Out-File -FilePath $env:GITHUB_ENV -Append
           "Qt6_DIR=$qtRoot\lib\cmake\Qt6" | Out-File -FilePath $env:GITHUB_ENV -Append
           "WINDEPLOYQT_PATH=$windeployqt" | Out-File -FilePath $env:GITHUB_ENV -Append
           "BINARYCREATOR_PATH=$binarycreator" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "REPOGEN_PATH=$repogen" | Out-File -FilePath $env:GITHUB_ENV -Append
 
       - name: Resolve project version
         id: project_version
@@ -485,10 +528,15 @@ jobs:
         run: |
           py installer/prepare_ifw_payload.py --build-dir build --config Release --skip-build --windeployqt "$env:WINDEPLOYQT_PATH"
 
+      - name: Generate Windows IFW repository
+        shell: pwsh
+        run: |
+          py installer/create_ifw_repository.py --repogen "$env:REPOGEN_PATH" --repository-dir "installer/repositories/windows" --platform windows
+
       - name: Generate Windows installer
         shell: pwsh
         run: |
-          py installer/create_installer.py --binarycreator "$env:BINARYCREATOR_PATH" --output-name "TonatiuhPP-$env:TONATIUHPP_VERSION-windows-x64"
+          py installer/create_installer.py --binarycreator "$env:BINARYCREATOR_PATH" --repository-platform windows --output-name "TonatiuhPP-$env:TONATIUHPP_VERSION-windows-x64"
 
       - name: Generate Windows installer checksum
         shell: pwsh
@@ -507,20 +555,67 @@ jobs:
             installer/output/TonatiuhPP-${{ steps.project_version.outputs.version }}-windows-x64.exe
             installer/output/TonatiuhPP-${{ steps.project_version.outputs.version }}-windows-x64.exe.sha256
 
+      - name: Upload Windows IFW repository artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ifw-repository-windows
+          path: installer/repositories/windows/
+
   publish:
     if: github.event_name != 'workflow_dispatch'
     needs:
       - build-and-package
       - build-windows-installer
     runs-on: ubuntu-24.04
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
 
     steps:
-      - name: Download artifacts
+      - name: Download release assets
         uses: actions/download-artifact@v4
         with:
           path: assets
+          pattern: asset-*
+
+      - name: Download IFW repositories
+        uses: actions/download-artifact@v4
+        with:
+          path: ifw-repositories
+          pattern: ifw-repository-*
 
       - name: Publish GitHub release assets
         uses: softprops/action-gh-release@v2
         with:
           files: assets/**/*
+
+      - name: Prepare GitHub Pages IFW content
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mkdir -p pages/ifw
+
+          for artifact in ifw-repositories/ifw-repository-*; do
+            [ -d "${artifact}" ] || continue
+            platform="${artifact##*/ifw-repository-}"
+            mkdir -p "pages/ifw/${platform}"
+            cp -a "${artifact}/." "pages/ifw/${platform}/"
+            test -f "pages/ifw/${platform}/Updates.xml"
+          done
+
+          test -f pages/ifw/windows/Updates.xml
+          test -f pages/ifw/linux/Updates.xml
+          test -f pages/ifw/macos/Updates.xml
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload GitHub Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: pages
+
+      - name: Deploy GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
