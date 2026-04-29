@@ -1,6 +1,7 @@
 #pragma once
 
 #include "kernel/TonatiuhKernel.h"
+#include <atomic>
 #include <vector>
 
 #include <QVector>
@@ -36,7 +37,8 @@ public:
               QMutex* mutexRand,
               PhotonsBuffer* photonBuffer,
               QMutex* mutexPhotons,
-              QVector<InstanceNode*> exportSuraceList);
+              QVector<InstanceNode*> exportSuraceList,
+              std::atomic_bool* exportFailed = nullptr);
 
     typedef void result_type;
 
@@ -55,6 +57,7 @@ private:
     QMutex* m_mutexRand;
     PhotonsBuffer* m_photonBuffer;
     QMutex* m_mutexPhotonsBuffer;
+    std::atomic_bool* m_exportFailed;
     QVector<InstanceNode*> m_exportSurfaceList;
 
     const std::vector< QPair<int, int> >&  m_sunCells;

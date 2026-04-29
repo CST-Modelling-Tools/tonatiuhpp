@@ -131,8 +131,8 @@ public slots:
     void SetRaysScreen(uint rays) {m_raysScreen = rays;}
     void SetRaysRandomFactory(QString name);
     void SetRaysGrid(int width, int height);
-    void SetPhotonBufferSize(uint size) {m_photonBufferSize = size;}
-    void SetPhotonBufferAppend(bool on) {m_photonBufferAppend = on;}
+    void SetPhotonBufferSize(uint size);
+    void SetPhotonBufferAppend(bool on);
 
 private slots:
     void fileOpen();
@@ -207,6 +207,7 @@ protected:
 private:   
     void ChangeModelScene();
     PhotonsAbstract* CreatePhotonMapExport() const;
+    void ResetPhotonExporter();
 
     bool fileSave(const QString& fileName);
     void SetCurrentFile(const QString& filePath);

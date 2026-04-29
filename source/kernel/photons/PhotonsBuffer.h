@@ -24,4 +24,5 @@ private:
     ulong m_photonsMax;
 
     PhotonsAbstract* m_exporter;
+    bool m_exportFailed;
 };

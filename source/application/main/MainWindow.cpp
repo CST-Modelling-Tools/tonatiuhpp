@@ -1,6 +1,7 @@
 #include "MainWindow.h"
 #include "ui_MainWindow.h"
 
+#include <atomic>
 #include <iostream>
 
 #include <QCloseEvent>
@@ -1222,6 +1223,7 @@ void MainWindow::AddExportSurfaceURL(QString nodeURL)
 {
     if (!m_photonsSettings) return;
     m_photonsSettings->surfaces << nodeURL;
+    ResetPhotonExporter();
 }
 
 /*!
@@ -2002,6 +2004,7 @@ void MainWindow::Run()
     QMutex mutex;
     QMutex mutexPhotonMap;
     QFuture<void> photonMap;
+    std::atomic_bool exportFailed(false);
     AirTransmission* airTemp = 0;
     if (air->getTypeId() != AirVacuum::getClassTypeId())
         airTemp = air;
@@ -2010,7 +2013,7 @@ void MainWindow::Run()
                                                            &instanceSun, sunAperture, sunShape, airTemp,
                                                            m_rand,
                                                            &mutex, m_photonsBuffer, &mutexPhotonMap,
-                                                           exportSurfaceList) );
+                                                           exportSurfaceList, &exportFailed) );
     watcher.setFuture(photonMap);
 
     dialog.exec();
@@ -2087,6 +2090,7 @@ void MainWindow::SetExportAllPhotonMap()
 {
     if (!m_photonsSettings) return;
     m_photonsSettings->surfaces.clear();
+    ResetPhotonExporter();
 }
 
 /*!
@@ -2096,8 +2100,11 @@ void MainWindow::SetExportAllPhotonMap()
 void MainWindow::SetExportCoordinates(bool enabled, bool global)
 {
     if (!m_photonsSettings) return;
+    if (m_photonsSettings->saveCoordinates == enabled && m_photonsSettings->saveCoordinatesGlobal == global)
+        return;
     m_photonsSettings->saveCoordinates = enabled;
     m_photonsSettings->saveCoordinatesGlobal = global;
+    ResetPhotonExporter();
 }
 
 /*!
@@ -2107,7 +2114,10 @@ void MainWindow::SetExportCoordinates(bool enabled, bool global)
 void MainWindow::SetExportIntersectionSurface(bool enabled)
 {
     if (!m_photonsSettings) return;
+    if (m_photonsSettings->saveSurfaceID == enabled)
+        return;
     m_photonsSettings->saveSurfaceID = enabled;
+    ResetPhotonExporter();
 }
 
 /*!
@@ -2117,7 +2127,10 @@ void MainWindow::SetExportIntersectionSurface(bool enabled)
 void MainWindow::SetExportIntersectionSurfaceSide(bool enabled)
 {
     if (!m_photonsSettings) return;
+    if (m_photonsSettings->saveSurfaceSide == enabled)
+        return;
     m_photonsSettings->saveSurfaceSide = enabled;
+    ResetPhotonExporter();
 }
 
 /*!
@@ -2141,7 +2154,10 @@ void MainWindow::SetExportPhotonMapType(QString name)
     if (!m_photonsSettings)
         m_photonsSettings = new PhotonsSettings;
 
+    if (m_photonsSettings->name == name)
+        return;
     m_photonsSettings->name = name;
+    ResetPhotonExporter();
 }
 
 /*!
@@ -2151,7 +2167,10 @@ void MainWindow::SetExportPhotonMapType(QString name)
 void MainWindow::SetExportPreviousNextPhotonID(bool enabled)
 {
     if (!m_photonsSettings) return;
+    if (m_photonsSettings->savePhotonsID == enabled)
+        return;
     m_photonsSettings->savePhotonsID = enabled;
+    ResetPhotonExporter();
 }
 
 /*!
@@ -2160,7 +2179,26 @@ void MainWindow::SetExportPreviousNextPhotonID(bool enabled)
 void MainWindow::SetExportTypeParameterValue(QString name, QString value)
 {
     if (!m_photonsSettings) return;
+    if (m_photonsSettings->parameters.value(name) == value)
+        return;
     m_photonsSettings->parameters.insert(name, value);
+    ResetPhotonExporter();
+}
+
+void MainWindow::SetPhotonBufferSize(uint size)
+{
+    if (m_photonBufferSize == size)
+        return;
+    m_photonBufferSize = size;
+    ResetPhotonExporter();
+}
+
+void MainWindow::SetPhotonBufferAppend(bool on)
+{
+    if (m_photonBufferAppend == on)
+        return;
+    m_photonBufferAppend = on;
+    ResetPhotonExporter();
 }
 
 /*!
@@ -2559,6 +2597,16 @@ PhotonsAbstract* MainWindow::CreatePhotonMapExport() const
     photonExport->setSceneModel(*m_modelScene);
     photonExport->setPhotonSettings(m_photonsSettings);
     return photonExport;
+}
+
+void MainWindow::ResetPhotonExporter()
+{
+    if (!m_photonsBuffer)
+        return;
+
+    delete m_photonsBuffer;
+    m_photonsBuffer = 0;
+    m_raysTracedTotal = 0;
 }
 
 /*!

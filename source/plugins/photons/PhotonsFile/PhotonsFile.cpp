@@ -220,15 +220,12 @@ ulong PhotonsFile::savePhotons(const std::vector<Photon>& photons)
             if (!openOutputFile(fileName))
                 return writtenTotal;
             ulong written = writePhotons(photons, rangeBegin, nEnd);
-            if (written < nEnd - rangeBegin)
-            {
-                writtenTotal += written;
-                return writtenTotal;
-            }
-            if (m_exportedPhotons % m_nPhotonsPerFile == 0 && !closeCurrentFile())
-                return writtenTotal;
             writtenTotal += written;
             nBegin += written;
+            if (written < nEnd - rangeBegin)
+                return writtenTotal;
+            if (m_exportedPhotons % m_nPhotonsPerFile == 0 && !closeCurrentFile())
+                return writtenTotal;
         }
         return writtenTotal;
     }
@@ -375,6 +372,16 @@ ulong PhotonsFile::writePhotons(const std::vector<Photon>& photons, ulong nBegin
         if (fileStart >= 0) {
             if (!m_file->resize(fileStart) || !m_file->seek(fileStart))
                 qWarning() << "Could not restore photon output file after a failed write" << m_filePath << m_file->errorString();
+        }
+        m_exportFailed = true;
+        return 0;
+    }
+
+    if (!m_file->flush()) {
+        qWarning() << "Could not flush photon output file" << m_filePath << m_file->errorString();
+        if (fileStart >= 0) {
+            if (!m_file->resize(fileStart) || !m_file->seek(fileStart))
+                qWarning() << "Could not restore photon output file after a failed flush" << m_filePath << m_file->errorString();
         }
         m_exportFailed = true;
         return 0;

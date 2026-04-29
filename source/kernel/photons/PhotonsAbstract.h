@@ -22,6 +22,7 @@ public:
     virtual ulong savePhotons(const std::vector<Photon>& photons) { return photons.size(); }
     virtual void setPhotonPower(double /*p*/) {}
     virtual bool endExport() { return true; }
+    virtual bool hasExportError() const { return false; }
 
     void setSceneModel(SceneTreeModel& sceneModel) { m_sceneModel = &sceneModel; }
     void setPhotonSettings(PhotonsSettings* ps);

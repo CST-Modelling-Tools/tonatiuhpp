@@ -22,6 +22,7 @@ public:
     ulong savePhotons(const std::vector<Photon>& photons);
     void setPhotonPower(double p) {m_photonPower = p;}
     bool endExport();
+    bool hasExportError() const {return m_exportFailed;}
 
     NAME_ICON_FUNCTIONS("File", ":/PhotonsFile.png")
 

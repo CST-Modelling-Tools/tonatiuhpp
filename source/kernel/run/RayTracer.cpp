@@ -19,7 +19,8 @@ RayTracer::RayTracer(InstanceNode* instanceRoot,
     QMutex* mutexRand,
     PhotonsBuffer* photonBuffer,
     QMutex* mutexPhotons,
-    QVector<InstanceNode*> exportSuraceList
+    QVector<InstanceNode*> exportSuraceList,
+    std::atomic_bool* exportFailed
 ):
     m_instanceLayout(instanceRoot),
     m_instanceSun(instanceSun),
@@ -31,6 +32,7 @@ RayTracer::RayTracer(InstanceNode* instanceRoot,
     m_mutexRand(mutexRand),
     m_photonBuffer(photonBuffer),
     m_mutexPhotonsBuffer(mutexPhotons),
+    m_exportFailed(exportFailed),
     m_exportSurfaceList(exportSuraceList),
     m_sunCells(sunAperture->getCells())
 {   
@@ -40,6 +42,9 @@ RayTracer::RayTracer(InstanceNode* instanceRoot,
 void RayTracer::operator()(ulong nRays)
 {
     if (m_sunCells.empty()) return;
+    if (m_exportFailed && m_exportFailed->load())
+        return;
+
     bool bExportAll = m_exportSurfaceList.empty();
     bool bExportLight = bExportAll ? true : m_exportSurfaceList.contains(m_instanceSun);
 
@@ -50,6 +55,9 @@ void RayTracer::operator()(ulong nRays)
 
     for (ulong n = 0; n < nRays; ++n)
     {
+        if (m_exportFailed && m_exportFailed->load())
+            return;
+
         // Part 1: first photon point (on sun surface)
         Ray ray;
         NewPrimitiveRay(&ray, rand);
@@ -98,8 +106,10 @@ void RayTracer::operator()(ulong nRays)
     }
 
     m_mutexPhotonsBuffer->lock();
-    m_photonBuffer->addPhotons(photons);
+    bool photonsSaved = m_photonBuffer->addPhotons(photons);
     m_mutexPhotonsBuffer->unlock();
+    if (!photonsSaved && m_exportFailed)
+        m_exportFailed->store(true);
 }
 
 bool RayTracer::NewPrimitiveRay(Ray* ray, Random& rand)

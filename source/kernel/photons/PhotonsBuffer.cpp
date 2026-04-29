@@ -5,7 +5,8 @@
 
 PhotonsBuffer::PhotonsBuffer(ulong size, ulong sizeReserve):
     m_photonsMax(size),
-    m_exporter(0)
+    m_exporter(0),
+    m_exportFailed(false)
 {
     if (sizeReserve > 0)
         m_photons.reserve(sizeReserve);
@@ -13,6 +14,9 @@ PhotonsBuffer::PhotonsBuffer(ulong size, ulong sizeReserve):
 
 bool PhotonsBuffer::addPhotons(const std::vector<Photon>& photons)
 {
+    if (m_exportFailed)
+        return false;
+
     if (photons.empty())
         return true;
 
@@ -24,7 +28,7 @@ bool PhotonsBuffer::addPhotons(const std::vector<Photon>& photons)
     ulong nBegin = 0;
     while (nBegin < photons.size()) {
         if (m_photons.size() >= m_photonsMax && !flush()) {
-            m_photons.insert(m_photons.end(), photons.begin() + nBegin, photons.end());
+            m_exportFailed = true;
             return false;
         }
 
@@ -39,8 +43,22 @@ bool PhotonsBuffer::addPhotons(const std::vector<Photon>& photons)
 
 bool PhotonsBuffer::endExport(double p)
 {
-    if (!flush())
+    if (m_exportFailed) {
+        if (m_exporter) {
+            m_exporter->setPhotonPower(p);
+            m_exporter->endExport();
+        }
         return false;
+    }
+
+    if (!flush())
+    {
+        if (m_exporter) {
+            m_exporter->setPhotonPower(p);
+            m_exporter->endExport();
+        }
+        return false;
+    }
 
     if (m_exporter)
     {
@@ -55,7 +73,8 @@ bool PhotonsBuffer::setExporter(PhotonsAbstract* exporter)
 {
     if (!exporter) return false;
     m_exporter = exporter;
-    return m_exporter->startExport();
+    m_exportFailed = !m_exporter->startExport();
+    return !m_exportFailed;
 }
 
 bool PhotonsBuffer::flush()
@@ -74,5 +93,8 @@ bool PhotonsBuffer::flush()
     if (saved > 0)
         m_photons.erase(m_photons.begin(), m_photons.begin() + saved);
 
-    return m_photons.empty();
+    if (m_exporter->hasExportError() || !m_photons.empty())
+        m_exportFailed = true;
+
+    return !m_exportFailed;
 }
