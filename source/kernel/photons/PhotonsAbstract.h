@@ -19,9 +19,9 @@ public:
     virtual ~PhotonsAbstract() {}
 
     virtual bool startExport() { return true; }
-    virtual void savePhotons(const std::vector<Photon>& /*photons*/) {}
+    virtual ulong savePhotons(const std::vector<Photon>& photons) { return photons.size(); }
     virtual void setPhotonPower(double /*p*/) {}
-    virtual void endExport() {}
+    virtual bool endExport() { return true; }
 
     void setSceneModel(SceneTreeModel& sceneModel) { m_sceneModel = &sceneModel; }
     void setPhotonSettings(PhotonsSettings* ps);

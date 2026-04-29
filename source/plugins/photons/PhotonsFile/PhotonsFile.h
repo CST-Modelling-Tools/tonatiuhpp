@@ -5,6 +5,7 @@
 
 #include "kernel/photons/PhotonsAbstract.h"
 
+class QFile;
 class Photon;
 
 class PhotonsFile: public PhotonsAbstract
@@ -12,22 +13,29 @@ class PhotonsFile: public PhotonsAbstract
 
 public:
     PhotonsFile();
+    ~PhotonsFile();
 
     static QStringList getParameterNames() {return {"ExportDirectory", "ExportFile", "FileSize"};}
     void setParameter(QString name, QString value);
 
     bool startExport();
-    void savePhotons(const std::vector<Photon>& photons);
+    ulong savePhotons(const std::vector<Photon>& photons);
     void setPhotonPower(double p) {m_photonPower = p;}
-    void endExport();
+    bool endExport();
 
     NAME_ICON_FUNCTIONS("File", ":/PhotonsFile.png")
 
 private:
-    void writePhotons(QString fileName, const std::vector<Photon>& photon, ulong nBegin, ulong nEnd);
+    bool prepareDirectory();
+    bool closeCurrentFile();
+    bool openOutputFile(QString fileName);
+    ulong writePhotons(const std::vector<Photon>& photon, ulong nBegin, ulong nEnd);
 
     QString m_dirName;
     QString m_fileName;
+    QFile* m_file;
+    QString m_filePath;
+    bool m_exportFailed;
     bool m_oneFile;
     ulong m_nPhotonsPerFile;
 

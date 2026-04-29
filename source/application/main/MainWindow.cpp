@@ -173,6 +173,21 @@ QString saveFileWithDirectory(QWidget* parent,
         return QString();
     return dialog.selectedFiles().first();
 }
+
+bool samePhotonSettings(const PhotonsSettings* current, const PhotonsSettings& next)
+{
+    if (!current)
+        return false;
+
+    return current->name == next.name &&
+        current->saveCoordinates == next.saveCoordinates &&
+        current->saveCoordinatesGlobal == next.saveCoordinatesGlobal &&
+        current->saveSurfaceID == next.saveSurfaceID &&
+        current->saveSurfaceSide == next.saveSurfaceSide &&
+        current->savePhotonsID == next.savePhotonsID &&
+        current->surfaces == next.surfaces &&
+        current->parameters == next.parameters;
+}
 }
 
 void startManipulator(void* data, SoDragger* dragger)
@@ -831,10 +846,16 @@ void MainWindow::RunCompleteRayTracer()
     SetPhotonBufferSize(dialog.photonBufferSize());
     SetPhotonBufferAppend(dialog.photonBufferAppend());
 
-    if (!m_photonsBuffer->getExporter()) {
-        if (m_photonsSettings) delete m_photonsSettings;
-        m_photonsSettings = new PhotonsSettings;
-        *m_photonsSettings = dialog.getPhotonSettings();
+    PhotonsSettings photonSettings = dialog.getPhotonSettings();
+    bool photonSettingsChanged = !samePhotonSettings(m_photonsSettings, photonSettings);
+    if (m_photonsSettings) delete m_photonsSettings;
+    m_photonsSettings = new PhotonsSettings;
+    *m_photonsSettings = photonSettings;
+
+    if (photonSettingsChanged && m_photonsBuffer && m_photonsBuffer->getExporter()) {
+        delete m_photonsBuffer;
+        m_photonsBuffer = 0;
+        m_raysTracedTotal = 0;
     }
 
     Run();
@@ -1913,7 +1934,21 @@ void MainWindow::Run()
 
         PhotonsAbstract* photonsExporter = CreatePhotonMapExport();
         if (!photonsExporter) return;
-        if (!m_photonsBuffer->setExporter(photonsExporter)) return;
+        if (!m_photonsBuffer->setExporter(photonsExporter)) {
+            QMessageBox::warning(
+                this,
+                "Tonatiuh",
+                "Photon export could not be started. Check that the output directory exists or can be created, and that it is writable."
+            );
+            return;
+        }
+    } else if (!m_photonsBuffer->getExporter()->startExport()) {
+        QMessageBox::warning(
+            this,
+            "Tonatiuh",
+            "Photon export could not be started. Check that the output directory exists or can be created, and that it is writable."
+        );
+        return;
     }
 
     QVector<InstanceNode*> exportSurfaceList;
@@ -1994,7 +2029,13 @@ void MainWindow::Run()
     double area = sunAperture->getArea();
     double irradiance = sunPosition->irradiance.getValue();
     double power = area*irradiance/m_raysTracedTotal;
-    m_photonsBuffer->endExport(power);
+    if (!m_photonsBuffer->endExport(power)) {
+        QMessageBox::warning(
+            this,
+            "Tonatiuh",
+            "Photon export failed. Some photons were not written and remain buffered in memory. Check the output directory before starting a new export."
+        );
+    }
 
     std::cout << "Elapsed time (Run): " << timer.elapsed() << std::endl;
 
