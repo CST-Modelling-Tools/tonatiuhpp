@@ -1,6 +1,8 @@
 #include "PhotonsBuffer.h"
 #include "PhotonsAbstract.h"
 
+#include <algorithm>
+
 PhotonsBuffer::PhotonsBuffer(ulong size, ulong sizeReserve):
     m_photonsMax(size),
     m_exporter(0)
@@ -11,23 +13,29 @@ PhotonsBuffer::PhotonsBuffer(ulong size, ulong sizeReserve):
 
 void PhotonsBuffer::addPhotons(const std::vector<Photon>& photons)
 {
-    uint nMax = photons.size();
-    if (m_photons.size() > 0 && m_photons.size() + nMax > m_photonsMax)
-    {
-        if (m_exporter) m_exporter->savePhotons(m_photons);
-        m_photons.clear();
+    if (photons.empty())
+        return;
+
+    if (m_photonsMax == 0) {
+        m_photons.insert(m_photons.end(), photons.begin(), photons.end());
+        return;
     }
 
-    m_photons.insert(m_photons.end(), photons.begin(), photons.end());
+    ulong nBegin = 0;
+    while (nBegin < photons.size()) {
+        if (m_photons.size() >= m_photonsMax)
+            flush();
+
+        ulong space = m_photonsMax - m_photons.size();
+        ulong nCopy = std::min<ulong>(space, photons.size() - nBegin);
+        m_photons.insert(m_photons.end(), photons.begin() + nBegin, photons.begin() + nBegin + nCopy);
+        nBegin += nCopy;
+    }
 }
 
 void PhotonsBuffer::endExport(double p)
 {
-    if (m_photons.size() > 0)
-    {
-        if (m_exporter) m_exporter->savePhotons(m_photons);
-        m_photons.clear();
-    }
+    flush();
     if (m_exporter)
     {
         m_exporter->setPhotonPower(p);
@@ -40,4 +48,14 @@ bool PhotonsBuffer::setExporter(PhotonsAbstract* exporter)
     if (!exporter) return false;
     m_exporter = exporter;
     return m_exporter->startExport();
+}
+
+void PhotonsBuffer::flush()
+{
+    if (m_photons.empty())
+        return;
+
+    if (m_exporter)
+        m_exporter->savePhotons(m_photons);
+    m_photons.clear();
 }

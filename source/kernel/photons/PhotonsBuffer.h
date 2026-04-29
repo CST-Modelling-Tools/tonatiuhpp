@@ -18,6 +18,8 @@ public:
     PhotonsAbstract* getExporter() const {return m_exporter;}
 
 private:
+    void flush();
+
     std::vector<Photon> m_photons; // buffer, std is faster than QVector
     ulong m_photonsMax;
 

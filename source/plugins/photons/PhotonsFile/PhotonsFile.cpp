@@ -1,8 +1,10 @@
 #include "PhotonsFile.h"
 
+#include <algorithm>
 #include <iostream>
 
 #include <QDataStream>
+#include <QDebug>
 #include <QTextStream>
 #include <QDir>
 #include <QFile>
@@ -73,8 +75,11 @@ bool PhotonsFile::startExport()
 
 void PhotonsFile::savePhotons(const std::vector<Photon>& photons)
 {
+    if (photons.empty())
+        return;
+
     QDir dir(m_dirName);
-    if (m_oneFile)
+    if (m_oneFile || m_nPhotonsPerFile == 0)
 	{
         QString fileName = dir.absoluteFilePath(m_fileName + ".dat");
         writePhotons(fileName, photons, 0, photons.size());
@@ -82,16 +87,14 @@ void PhotonsFile::savePhotons(const std::vector<Photon>& photons)
 	else
     {
         ulong nBegin = 0;
-        ulong nEnd = nBegin;
-        while (nEnd < photons.size()) {
-           ulong nFile = m_exportedPhotons - m_nPhotonsPerFile*(m_fileCurrent - 1);
-           nEnd = nBegin + (m_nPhotonsPerFile - nFile);
-           if (nEnd > photons.size()) nEnd = photons.size();
-           QString fileName = QString("%1_%2.dat").arg(m_fileName, QString::number(m_fileCurrent));
-           fileName = dir.absoluteFilePath(fileName);
-           writePhotons(fileName, photons, nBegin, nEnd);
-           m_fileCurrent++;
-           nBegin = nEnd;
+        while (nBegin < photons.size()) {
+            m_fileCurrent = int(m_exportedPhotons/m_nPhotonsPerFile) + 1;
+            ulong nFile = m_exportedPhotons % m_nPhotonsPerFile;
+            ulong nEnd = nBegin + std::min<ulong>(m_nPhotonsPerFile - nFile, photons.size() - nBegin);
+            QString fileName = QString("%1_%2.dat").arg(m_fileName, QString::number(m_fileCurrent));
+            fileName = dir.absoluteFilePath(fileName);
+            writePhotons(fileName, photons, nBegin, nEnd);
+            nBegin = nEnd;
         }
     }
 }
@@ -101,7 +104,10 @@ void PhotonsFile::endExport()
     QDir dir(m_dirName);
     QString fileName = dir.absoluteFilePath(m_fileName + "_parameters.txt");
     QFile file(fileName);
-    file.open(QIODevice::WriteOnly);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        qWarning() << "Could not open photon parameters file" << fileName << file.errorString();
+        return;
+    }
     QTextStream out(&file);
 
     out << "START PARAMETERS\n";
@@ -132,8 +138,14 @@ void PhotonsFile::endExport()
 
 void PhotonsFile::writePhotons(QString fileName, const std::vector<Photon>& photons, ulong nBegin, ulong nEnd)
 {
+    if (nBegin >= nEnd)
+        return;
+
     QFile file(fileName);
-    file.open(QIODevice::WriteOnly);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Append)) {
+        qWarning() << "Could not open photon output file" << fileName << file.errorString();
+        return;
+    }
     QDataStream out(&file);
 
     ulong nMax = photons.size();
@@ -178,4 +190,7 @@ void PhotonsFile::writePhotons(QString fileName, const std::vector<Photon>& phot
         if (m_saveSurfaceID)
             out << double(urlId);
     }
+
+    if (out.status() != QDataStream::Ok)
+        qWarning() << "Error writing photon output file" << fileName;
 }
