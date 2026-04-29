@@ -207,7 +207,7 @@ protected:
 private:   
     void ChangeModelScene();
     PhotonsAbstract* CreatePhotonMapExport() const;
-    void ResetPhotonExporter();
+    bool ResetPhotonExporter();
 
     bool fileSave(const QString& fileName);
     void SetCurrentFile(const QString& filePath);

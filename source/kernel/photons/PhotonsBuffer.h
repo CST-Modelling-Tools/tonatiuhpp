@@ -12,6 +12,8 @@ public:
 
     bool addPhotons(const std::vector<Photon>& photons);
     const std::vector<Photon>& getPhotons() const {return m_photons;} // for flux and screen
+    bool hasRetainedPhotons() const {return !m_photons.empty();}
+    bool hasExportFailed() const {return m_exportFailed;}
     bool endExport(double p);
 
     bool setExporter(PhotonsAbstract* exporter);

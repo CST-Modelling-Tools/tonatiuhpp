@@ -840,24 +840,24 @@ void MainWindow::RunCompleteRayTracer()
     dialog.setPhotonSettings(m_modelScene, exportFactories, m_photonsSettings);
     if (!dialog.exec()) return;
 
+    ulong photonBufferSize = dialog.photonBufferSize();
+    bool photonBufferAppend = dialog.photonBufferAppend();
+    PhotonsSettings photonSettings = dialog.getPhotonSettings();
+    bool photonSettingsChanged = !samePhotonSettings(m_photonsSettings, photonSettings);
+    bool photonBufferChanged = m_photonBufferSize != photonBufferSize || m_photonBufferAppend != photonBufferAppend;
+    if ((photonSettingsChanged || photonBufferChanged) && !ResetPhotonExporter())
+        return;
+
     SetRaysNumber(dialog.raysNumber());
     SetRaysScreen(dialog.raysScreen());
     SetRaysRandomFactory(randomFactories[dialog.raysRandomFactory()]->name());
     SetRaysGrid(dialog.raysGridWidth(), dialog.raysGridHeight());
-    SetPhotonBufferSize(dialog.photonBufferSize());
-    SetPhotonBufferAppend(dialog.photonBufferAppend());
+    m_photonBufferSize = photonBufferSize;
+    m_photonBufferAppend = photonBufferAppend;
 
-    PhotonsSettings photonSettings = dialog.getPhotonSettings();
-    bool photonSettingsChanged = !samePhotonSettings(m_photonsSettings, photonSettings);
     if (m_photonsSettings) delete m_photonsSettings;
     m_photonsSettings = new PhotonsSettings;
     *m_photonsSettings = photonSettings;
-
-    if (photonSettingsChanged && m_photonsBuffer && m_photonsBuffer->getExporter()) {
-        delete m_photonsBuffer;
-        m_photonsBuffer = 0;
-        m_raysTracedTotal = 0;
-    }
 
     Run();
 }
@@ -1222,8 +1222,9 @@ void MainWindow::ChangeNodeName(const QModelIndex& index, const QString& name)
 void MainWindow::AddExportSurfaceURL(QString nodeURL)
 {
     if (!m_photonsSettings) return;
+    if (!ResetPhotonExporter())
+        return;
     m_photonsSettings->surfaces << nodeURL;
-    ResetPhotonExporter();
 }
 
 /*!
@@ -2020,7 +2021,9 @@ void MainWindow::Run()
     watcher.waitForFinished();
     std::cout << "QtConcurrent finished: " << timer.elapsed() << std::endl;
 
-    m_raysTracedTotal += m_raysNumber;
+    bool tracingCancelledByExport = exportFailed.load();
+    if (!tracingCancelledByExport)
+        m_raysTracedTotal += m_raysNumber;
 
     if (exportSurfaceList.empty())
         ShowRaysIn3DView(); // all photons must be stored
@@ -2031,7 +2034,7 @@ void MainWindow::Run()
 
     double area = sunAperture->getArea();
     double irradiance = sunPosition->irradiance.getValue();
-    double power = area*irradiance/m_raysTracedTotal;
+    double power = m_raysTracedTotal > 0 ? area*irradiance/m_raysTracedTotal : 0.;
     if (!m_photonsBuffer->endExport(power)) {
         QMessageBox::warning(
             this,
@@ -2089,8 +2092,11 @@ void MainWindow::fileSaveAs(QString fileName)
 void MainWindow::SetExportAllPhotonMap()
 {
     if (!m_photonsSettings) return;
+    if (m_photonsSettings->surfaces.empty())
+        return;
+    if (!ResetPhotonExporter())
+        return;
     m_photonsSettings->surfaces.clear();
-    ResetPhotonExporter();
 }
 
 /*!
@@ -2102,9 +2108,10 @@ void MainWindow::SetExportCoordinates(bool enabled, bool global)
     if (!m_photonsSettings) return;
     if (m_photonsSettings->saveCoordinates == enabled && m_photonsSettings->saveCoordinatesGlobal == global)
         return;
+    if (!ResetPhotonExporter())
+        return;
     m_photonsSettings->saveCoordinates = enabled;
     m_photonsSettings->saveCoordinatesGlobal = global;
-    ResetPhotonExporter();
 }
 
 /*!
@@ -2116,8 +2123,9 @@ void MainWindow::SetExportIntersectionSurface(bool enabled)
     if (!m_photonsSettings) return;
     if (m_photonsSettings->saveSurfaceID == enabled)
         return;
+    if (!ResetPhotonExporter())
+        return;
     m_photonsSettings->saveSurfaceID = enabled;
-    ResetPhotonExporter();
 }
 
 /*!
@@ -2129,8 +2137,9 @@ void MainWindow::SetExportIntersectionSurfaceSide(bool enabled)
     if (!m_photonsSettings) return;
     if (m_photonsSettings->saveSurfaceSide == enabled)
         return;
+    if (!ResetPhotonExporter())
+        return;
     m_photonsSettings->saveSurfaceSide = enabled;
-    ResetPhotonExporter();
 }
 
 /*!
@@ -2156,8 +2165,9 @@ void MainWindow::SetExportPhotonMapType(QString name)
 
     if (m_photonsSettings->name == name)
         return;
+    if (!ResetPhotonExporter())
+        return;
     m_photonsSettings->name = name;
-    ResetPhotonExporter();
 }
 
 /*!
@@ -2169,8 +2179,9 @@ void MainWindow::SetExportPreviousNextPhotonID(bool enabled)
     if (!m_photonsSettings) return;
     if (m_photonsSettings->savePhotonsID == enabled)
         return;
+    if (!ResetPhotonExporter())
+        return;
     m_photonsSettings->savePhotonsID = enabled;
-    ResetPhotonExporter();
 }
 
 /*!
@@ -2181,24 +2192,27 @@ void MainWindow::SetExportTypeParameterValue(QString name, QString value)
     if (!m_photonsSettings) return;
     if (m_photonsSettings->parameters.value(name) == value)
         return;
+    if (!ResetPhotonExporter())
+        return;
     m_photonsSettings->parameters.insert(name, value);
-    ResetPhotonExporter();
 }
 
 void MainWindow::SetPhotonBufferSize(uint size)
 {
     if (m_photonBufferSize == size)
         return;
+    if (!ResetPhotonExporter())
+        return;
     m_photonBufferSize = size;
-    ResetPhotonExporter();
 }
 
 void MainWindow::SetPhotonBufferAppend(bool on)
 {
     if (m_photonBufferAppend == on)
         return;
+    if (!ResetPhotonExporter())
+        return;
     m_photonBufferAppend = on;
-    ResetPhotonExporter();
 }
 
 /*!
@@ -2599,14 +2613,22 @@ PhotonsAbstract* MainWindow::CreatePhotonMapExport() const
     return photonExport;
 }
 
-void MainWindow::ResetPhotonExporter()
+bool MainWindow::ResetPhotonExporter()
 {
     if (!m_photonsBuffer)
-        return;
+        return true;
+
+    if (m_photonsBuffer->hasExportFailed() && m_photonsBuffer->hasRetainedPhotons()) {
+        QString message = tr("The photon export buffer cannot be reset because a failed export still has unsaved photons buffered. Check the output directory and resolve the export failure before changing export settings or starting a new non-append export.");
+        showWarning(message);
+        emit Abort(message);
+        return false;
+    }
 
     delete m_photonsBuffer;
     m_photonsBuffer = 0;
     m_raysTracedTotal = 0;
+    return true;
 }
 
 /*!
@@ -2775,8 +2797,8 @@ bool MainWindow::ReadyForRaytracing(InstanceNode*& instanceLayout,
 
     if (!m_photonBufferAppend)
     {
-        delete m_photonsBuffer;
-        m_photonsBuffer = 0;
+        if (!ResetPhotonExporter())
+            return false;
     }
 
     if (!m_photonsBuffer)
