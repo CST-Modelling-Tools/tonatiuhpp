@@ -8,7 +8,13 @@ import sys
 import tempfile
 from pathlib import Path
 
-from sync_ifw_metadata import read_project_version, render_version_template
+from sync_ifw_metadata import (
+    default_release_date,
+    read_project_version,
+    render_ifw_template,
+    render_version_template,
+    validate_release_date,
+)
 
 IFW_REPOSITORY_URL_TOKEN = "@TONATIUHPP_IFW_REPOSITORY_URL@"
 DEFAULT_REPOSITORY_BASE_URL = "https://cst-modelling-tools.github.io/tonatiuhpp"
@@ -85,6 +91,11 @@ def parse_args() -> argparse.Namespace:
         help="Explicit IFW repository URL. Overrides --repository-base-url and --repository-platform.",
     )
     parser.add_argument(
+        "--release-date",
+        default=default_release_date(),
+        help="Release date to write to IFW package metadata in YYYY-MM-DD format.",
+    )
+    parser.add_argument(
         "--verbose",
         action="store_true",
         help="Print detailed status messages.",
@@ -132,6 +143,7 @@ def render_ifw_metadata(
     packages_dir_template: Path,
     package_data_dir: Path | None,
     repository_url: str,
+    release_date: str,
     verbose: bool = False,
 ) -> tuple[tempfile.TemporaryDirectory[str], Path, Path, str]:
     version = read_project_version(Path(__file__).resolve().parents[1])
@@ -141,7 +153,10 @@ def render_ifw_metadata(
     rendered_packages_dir = temp_root / "packages"
 
     if verbose:
-        print(f"Rendering Qt IFW metadata for Tonatiuh++ version {version}")
+        print(
+            f"Rendering Qt IFW metadata for Tonatiuh++ version {version} "
+            f"released on {release_date}"
+        )
 
     render_version_template(config_xml_template, rendered_config_xml, version)
     config_text = rendered_config_xml.read_text(encoding="utf-8")
@@ -153,10 +168,11 @@ def render_ifw_metadata(
         newline="\n",
     )
     shutil.copytree(packages_dir_template, rendered_packages_dir)
-    render_version_template(
+    render_ifw_template(
         packages_dir_template / PACKAGE_ID / "meta" / "package.xml",
         rendered_packages_dir / PACKAGE_ID / "meta" / "package.xml",
         version,
+        release_date,
     )
     if package_data_dir:
         rendered_data_dir = rendered_packages_dir / PACKAGE_ID / "data"
@@ -178,8 +194,14 @@ def main() -> None:
         raise SystemExit(f"Qt IFW package data directory is empty or missing: {package_data_dir}")
     repository_platform = detect_platform() if args.repository_platform == "auto" else args.repository_platform
     repository_url = args.repository_url or platform_repository_url(args.repository_base_url, repository_platform)
+    release_date = validate_release_date(args.release_date)
     temp_dir, config_xml, packages_dir, project_version = render_ifw_metadata(
-        config_xml_template, packages_dir_template, package_data_dir, repository_url, verbose=args.verbose
+        config_xml_template,
+        packages_dir_template,
+        package_data_dir,
+        repository_url,
+        release_date,
+        verbose=args.verbose,
     )
 
     try:
@@ -202,6 +224,7 @@ def main() -> None:
 
         print("Qt IFW installer generated successfully.")
         print(f"Project version: {project_version}")
+        print(f"Release date: {release_date}")
         print(f"IFW repository URL: {repository_url}")
         print(f"Output directory: {output_dir}")
         print(f"Installer file: {output_file}")

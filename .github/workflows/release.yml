@@ -113,8 +113,11 @@ jobs:
           fi
 
           version="$(python installer/sync_ifw_metadata.py --check-tag "${tag}" --print-version)"
+          release_date="$(date -u +%Y-%m-%d)"
           echo "TONATIUHPP_VERSION=${version}" >> "$GITHUB_ENV"
+          echo "TONATIUHPP_RELEASE_DATE=${release_date}" >> "$GITHUB_ENV"
           echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "release_date=${release_date}" >> "$GITHUB_OUTPUT"
 
       - name: Install Python deps (+ Ninja)
         shell: bash
@@ -355,7 +358,8 @@ jobs:
             --repogen "${REPOGEN_PATH}" \
             --package-data-dir dist \
             --repository-dir "installer/repositories/${{ matrix.ifw_platform }}" \
-            --platform "${{ matrix.ifw_platform }}"
+            --platform "${{ matrix.ifw_platform }}" \
+            --release-date "${TONATIUHPP_RELEASE_DATE}"
 
       - name: Generate IFW installer
         shell: bash
@@ -378,6 +382,7 @@ jobs:
             --package-data-dir dist \
             --repository-base-url "https://cst-modelling-tools.github.io/tonatiuhpp" \
             --repository-platform "${{ matrix.ifw_platform }}" \
+            --release-date "${TONATIUHPP_RELEASE_DATE}" \
             --output-name "${output_name}"
 
       - name: Package IFW installer asset
@@ -512,8 +517,11 @@ jobs:
           }
 
           $version = py installer/sync_ifw_metadata.py --check-tag "$tag" --print-version
+          $releaseDate = (Get-Date).ToUniversalTime().ToString("yyyy-MM-dd")
           "TONATIUHPP_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "TONATIUHPP_RELEASE_DATE=$releaseDate" | Out-File -FilePath $env:GITHUB_ENV -Append
           "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "release_date=$releaseDate" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
 
       - name: Install Python deps (+ Ninja)
         shell: bash
@@ -635,7 +643,7 @@ jobs:
       - name: Generate Windows IFW repository
         shell: pwsh
         run: |
-          py installer/create_ifw_repository.py --repogen "$env:REPOGEN_PATH" --repository-dir "installer/repositories/windows" --platform windows
+          py installer/create_ifw_repository.py --repogen "$env:REPOGEN_PATH" --repository-dir "installer/repositories/windows" --platform windows --release-date "$env:TONATIUHPP_RELEASE_DATE"
 
       - name: Generate Windows installer
         shell: pwsh
@@ -645,6 +653,7 @@ jobs:
             "--binarycreator", "$env:BINARYCREATOR_PATH",
             "--repository-base-url", "https://cst-modelling-tools.github.io/tonatiuhpp",
             "--repository-platform", "windows",
+            "--release-date", "$env:TONATIUHPP_RELEASE_DATE",
             "--output-name", "TonatiuhPP-$env:TONATIUHPP_VERSION-windows-x64"
           )
           py @installerArgs
