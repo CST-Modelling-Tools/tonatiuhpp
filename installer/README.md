@@ -75,8 +75,8 @@ python installer/create_installer.py --binarycreator "/opt/Qt/Tools/QtInstallerF
 This will:
 - validate that the Qt IFW skeleton and staged payload exist
 - invoke `binarycreator` to generate the installer
-- create a hybrid installer so the installed MaintenanceTool can use online repositories for later updates
-- embed the platform-specific IFW update repository URL in the installer configuration
+- create a bundled installer that includes the application payload
+- embed the platform-specific IFW update repository URL in the installer configuration so MaintenanceTool can use online repositories for later updates
 - place the output in `installer/output/` with a platform-specific name
 
 ## Generating an IFW online repository locally

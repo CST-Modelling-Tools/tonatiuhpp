@@ -189,7 +189,6 @@ def main() -> None:
 
         cmd = [
             str(binarycreator),
-            "--hybrid",
             "--config", str(config_xml),
             "--packages", str(packages_dir),
             str(output_file),
