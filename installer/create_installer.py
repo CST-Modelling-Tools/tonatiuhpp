@@ -12,6 +12,7 @@ from sync_ifw_metadata import read_project_version, render_version_template
 
 IFW_REPOSITORY_URL_TOKEN = "@TONATIUHPP_IFW_REPOSITORY_URL@"
 DEFAULT_REPOSITORY_BASE_URL = "https://cst-modelling-tools.github.io/tonatiuhpp"
+PACKAGE_ID = "com.tonatiuhpp.app"
 
 
 def detect_platform() -> str:
@@ -55,7 +56,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--package-data-dir",
         default=None,
-        help="Optional package data directory to use instead of packages/com.tonatiuh.app/data.",
+        help=f"Optional package data directory to use instead of packages/{PACKAGE_ID}/data.",
     )
     parser.add_argument(
         "--output-dir",
@@ -101,11 +102,12 @@ def validate_installer_skeleton(config_xml: Path, packages_dir: Path) -> None:
     if not config_xml.exists():
         raise SystemExit(f"Qt IFW config.xml not found: {config_xml}")
 
-    package_meta = packages_dir / "com.tonatiuh.app" / "meta" / "package.xml"
+    package_root = packages_dir / PACKAGE_ID
+    package_meta = package_root / "meta" / "package.xml"
     if not package_meta.exists():
         raise SystemExit(f"Qt IFW package.xml not found: {package_meta}")
 
-    package_data = packages_dir / "com.tonatiuh.app" / "data"
+    package_data = package_root / "data"
     if not package_data.exists() or not any(package_data.iterdir()):
         raise SystemExit(
             f"Qt IFW package data directory is empty: {package_data}\n"
@@ -152,12 +154,12 @@ def render_ifw_metadata(
     )
     shutil.copytree(packages_dir_template, rendered_packages_dir)
     render_version_template(
-        packages_dir_template / "com.tonatiuh.app" / "meta" / "package.xml",
-        rendered_packages_dir / "com.tonatiuh.app" / "meta" / "package.xml",
+        packages_dir_template / PACKAGE_ID / "meta" / "package.xml",
+        rendered_packages_dir / PACKAGE_ID / "meta" / "package.xml",
         version,
     )
     if package_data_dir:
-        rendered_data_dir = rendered_packages_dir / "com.tonatiuh.app" / "data"
+        rendered_data_dir = rendered_packages_dir / PACKAGE_ID / "data"
         if rendered_data_dir.exists():
             shutil.rmtree(rendered_data_dir)
         shutil.copytree(package_data_dir, rendered_data_dir, symlinks=True)

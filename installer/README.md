@@ -5,8 +5,8 @@ This directory contains the minimal Qt Installer Framework (Qt IFW) foundation f
 Files:
 - `create_ifw_repository.py` - script to generate a Qt IFW online repository from package data
 - `config/config.xml` — installer metadata and default install paths
-- `packages/com.tonatiuh.app/meta/package.xml` — package metadata for the application
-- `packages/com.tonatiuh.app/data/` — placeholder package payload directory
+- `packages/com.tonatiuhpp.app/meta/package.xml` — package metadata for the application
+- `packages/com.tonatiuhpp.app/data/` — placeholder package payload directory
 - `prepare_ifw_payload.py` — script to stage CMake install output into package data and deploy Qt runtime
 - `create_installer.py` — script to generate Qt IFW installer from staged payload
 
@@ -43,7 +43,7 @@ This will:
 - build the project from `build/`
 - install into `build/install-staging/`
 - apply Qt runtime deployment on Windows and macOS when supported
-- copy the staged tree into `installer/packages/com.tonatiuh.app/data/`
+- copy the staged tree into `installer/packages/com.tonatiuhpp.app/data/`
 
 The script only allows the package data target under the intended Qt IFW package path, to avoid accidental staging elsewhere.
 

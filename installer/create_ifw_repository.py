@@ -10,6 +10,8 @@ from pathlib import Path
 
 from sync_ifw_metadata import read_project_version, render_version_template
 
+PACKAGE_ID = "com.tonatiuhpp.app"
+
 
 def detect_platform() -> str:
     if sys.platform.startswith("win"):
@@ -40,7 +42,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--package-data-dir",
         default=None,
-        help="Optional package data directory to use instead of packages/com.tonatiuh.app/data.",
+        help=f"Optional package data directory to use instead of packages/{PACKAGE_ID}/data.",
     )
     parser.add_argument(
         "--repository-dir",
@@ -91,8 +93,9 @@ def remove_path(path: Path, verbose: bool = False) -> None:
 
 
 def validate_packages(packages_dir: Path) -> None:
-    package_meta = packages_dir / "com.tonatiuh.app" / "meta" / "package.xml"
-    package_data = packages_dir / "com.tonatiuh.app" / "data"
+    package_root = packages_dir / PACKAGE_ID
+    package_meta = package_root / "meta" / "package.xml"
+    package_data = package_root / "data"
 
     if not package_meta.exists():
         raise SystemExit(f"Qt IFW package.xml not found: {package_meta}")
@@ -114,13 +117,13 @@ def render_packages(
 
     shutil.copytree(packages_dir_template, rendered_packages_dir, symlinks=True)
     render_version_template(
-        packages_dir_template / "com.tonatiuh.app" / "meta" / "package.xml",
-        rendered_packages_dir / "com.tonatiuh.app" / "meta" / "package.xml",
+        packages_dir_template / PACKAGE_ID / "meta" / "package.xml",
+        rendered_packages_dir / PACKAGE_ID / "meta" / "package.xml",
         version,
     )
 
     if package_data_dir:
-        rendered_data_dir = rendered_packages_dir / "com.tonatiuh.app" / "data"
+        rendered_data_dir = rendered_packages_dir / PACKAGE_ID / "data"
         remove_path(rendered_data_dir, verbose=verbose)
         shutil.copytree(package_data_dir, rendered_data_dir, symlinks=True)
 

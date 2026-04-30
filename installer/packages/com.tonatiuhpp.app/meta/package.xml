@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Package>
+  <Name>com.tonatiuhpp.app</Name>
   <DisplayName>Tonatiuh++</DisplayName>
   <Description>Qt-based solar raytracing application built with Tonatiuh++.</Description>
   <!-- Rendered from source/CMakeLists.txt by installer/create_installer.py. -->

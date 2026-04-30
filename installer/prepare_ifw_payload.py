@@ -7,12 +7,14 @@ import subprocess
 import sys
 from pathlib import Path
 
+PACKAGE_ID = "com.tonatiuhpp.app"
+
 
 def parse_args() -> argparse.Namespace:
     repo_root = Path(__file__).resolve().parents[1]
     default_build_dir = repo_root / "build"
     default_staging_dir = repo_root / "build" / "install-staging"
-    package_root = repo_root / "installer" / "packages" / "com.tonatiuh.app"
+    package_root = repo_root / "installer" / "packages" / PACKAGE_ID
     default_package_data_dir = package_root / "data"
 
     parser = argparse.ArgumentParser(
@@ -209,7 +211,7 @@ def main() -> None:
     build_dir = Path(args.build_dir).resolve()
     staging_dir = Path(args.staging_dir).resolve()
     package_data_dir = Path(args.package_data_dir).resolve()
-    package_root = repo_root / "installer" / "packages" / "com.tonatiuh.app"
+    package_root = repo_root / "installer" / "packages" / PACKAGE_ID
     default_package_data_dir = package_root / "data"
 
     if not build_dir.exists():
