@@ -11,7 +11,7 @@ from pathlib import Path
 from sync_ifw_metadata import read_project_version, render_version_template
 
 IFW_REPOSITORY_URL_TOKEN = "@TONATIUHPP_IFW_REPOSITORY_URL@"
-DEFAULT_REPOSITORY_BASE_URL = "https://cst-modelling-tools.github.io/tonatiuhpp/ifw"
+DEFAULT_REPOSITORY_BASE_URL = "https://cst-modelling-tools.github.io/tonatiuhpp"
 
 
 def detect_platform() -> str:

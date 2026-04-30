@@ -376,6 +376,7 @@ jobs:
           python installer/create_installer.py \
             --binarycreator "${BINARYCREATOR_PATH}" \
             --package-data-dir dist \
+            --repository-base-url "https://cst-modelling-tools.github.io/tonatiuhpp" \
             --repository-platform "${{ matrix.ifw_platform }}" \
             --output-name "${output_name}"
 
@@ -639,7 +640,14 @@ jobs:
       - name: Generate Windows installer
         shell: pwsh
         run: |
-          py installer/create_installer.py --binarycreator "$env:BINARYCREATOR_PATH" --repository-platform windows --output-name "TonatiuhPP-$env:TONATIUHPP_VERSION-windows-x64"
+          $installerArgs = @(
+            "installer/create_installer.py",
+            "--binarycreator", "$env:BINARYCREATOR_PATH",
+            "--repository-base-url", "https://cst-modelling-tools.github.io/tonatiuhpp",
+            "--repository-platform", "windows",
+            "--output-name", "TonatiuhPP-$env:TONATIUHPP_VERSION-windows-x64"
+          )
+          py @installerArgs
 
       - name: Generate Windows installer checksum
         shell: pwsh
@@ -692,19 +700,39 @@ jobs:
         run: |
           set -euo pipefail
 
-          mkdir -p pages/ifw
+          rm -rf pages
+          mkdir -p pages
+          printf '%s\n' \
+            '<!doctype html>' \
+            '<meta charset="utf-8">' \
+            '<title>Tonatiuh++ IFW repositories</title>' \
+            '<h1>Tonatiuh++ IFW repositories</h1>' \
+            > pages/index.html
 
-          for artifact in ifw-repositories/ifw-repository-*; do
-            [ -d "${artifact}" ] || continue
-            platform="${artifact##*/ifw-repository-}"
-            mkdir -p "pages/ifw/${platform}"
-            cp -a "${artifact}/." "pages/ifw/${platform}/"
-            test -f "pages/ifw/${platform}/Updates.xml"
+          for platform in windows linux macos; do
+            artifact="ifw-repositories/ifw-repository-${platform}"
+            if [ ! -d "${artifact}" ]; then
+              echo "Missing IFW repository artifact: ${artifact}" >&2
+              exit 1
+            fi
+            mkdir -p "pages/${platform}"
+            cp -a "${artifact}/." "pages/${platform}/"
           done
 
-          test -f pages/ifw/windows/Updates.xml
-          test -f pages/ifw/linux/Updates.xml
-          test -f pages/ifw/macos/Updates.xml
+      - name: Validate GitHub Pages IFW content
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "GitHub Pages artifact content:"
+          find pages -maxdepth 3 -print | sort
+
+          for platform in windows linux macos; do
+            if [ ! -f "pages/${platform}/Updates.xml" ]; then
+              echo "Missing Pages repository file: pages/${platform}/Updates.xml" >&2
+              exit 1
+            fi
+          done
 
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5

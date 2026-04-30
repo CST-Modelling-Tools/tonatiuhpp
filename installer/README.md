@@ -15,7 +15,7 @@ Notes:
 - Installers are configured with platform-specific update repositories.
 - The official update-capable installers are generated with Qt IFW and include MaintenanceTool.
 - The IFW `Version` fields are rendered from `project(TonatiuhPP VERSION ...)` in `source/CMakeLists.txt` when `create_installer.py` runs.
-- The IFW update repository URL is rendered by `create_installer.py`; the default base URL is `https://cst-modelling-tools.github.io/tonatiuhpp/ifw`.
+- The IFW update repository URL is rendered by `create_installer.py`; the default base URL is `https://cst-modelling-tools.github.io/tonatiuhpp`.
 - `ReleaseDate` remains explicit in package metadata because Qt IFW requires a concrete date value.
 - `installscript.qs` is intentionally omitted; no custom installer scripting is required in this initial skeleton.
 
@@ -95,9 +95,9 @@ This will:
 - create an online repository containing `Updates.xml` and package data
 
 Release CI publishes platform repositories under:
-- `https://cst-modelling-tools.github.io/tonatiuhpp/ifw/windows`
-- `https://cst-modelling-tools.github.io/tonatiuhpp/ifw/linux`
-- `https://cst-modelling-tools.github.io/tonatiuhpp/ifw/macos`
+- `https://cst-modelling-tools.github.io/tonatiuhpp/windows`
+- `https://cst-modelling-tools.github.io/tonatiuhpp/linux`
+- `https://cst-modelling-tools.github.io/tonatiuhpp/macos`
 
 ## What is intentionally not yet handled
 
