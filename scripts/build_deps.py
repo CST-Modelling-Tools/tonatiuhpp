@@ -100,6 +100,11 @@ def find_lib_files(lib_base: str):
     matches.sort(key=lambda p: (p.suffix.lower() in [".dll"], str(p)))
     return matches
 
+def ensure_install_prefix_dirs() -> None:
+    """Create the local install skeleton expected by check probes and CMake hints."""
+    for p in (TP, BUILD, PREFIX, PREFIX / "include", PREFIX / "lib", PREFIX / "bin"):
+        p.mkdir(parents=True, exist_ok=True)
+
 def has_system_simage() -> bool:
     """
     Return True if a usable system simage is available.
@@ -472,9 +477,37 @@ def _derive_vc_include_lib_from_cl(cl_path: str):
     return inc, lib
 
 
+def _is_active_msvc_x64_env(env: dict) -> bool:
+    """Return True when the caller already has an MSVC x64 developer env."""
+    if platform.system() != "Windows":
+        return False
+
+    has_vs_marker = any(env.get(k) for k in ("VSCMD_ARG_TGT_ARCH", "VCINSTALLDIR", "VisualStudioVersion"))
+    if not has_vs_marker:
+        return False
+
+    target_arch = (env.get("VSCMD_ARG_TGT_ARCH") or "").lower()
+    if target_arch and target_arch != "x64":
+        return False
+
+    cl = shutil.which("cl", path=env.get("PATH", ""))
+    if not cl:
+        return False
+
+    cl_norm = cl.replace("/", "\\").lower()
+    if "\\hostx64\\x64\\" in cl_norm or "\\hostx86\\x64\\" in cl_norm or "\\amd64\\" in cl_norm:
+        return True
+
+    lib_norm = (env.get("LIB") or "").replace("/", "\\").lower()
+    return "\\lib\\x64" in lib_norm or "\\um\\x64" in lib_norm or "\\ucrt\\x64" in lib_norm
+
+
 def load_msvc_env_x64(env_in: dict) -> dict:
     """Load VS (MSVC) x64 dev environment via VsDevCmd if available."""
     if platform.system() != "Windows":
+        return env_in.copy()
+
+    if _is_active_msvc_x64_env(env_in):
         return env_in.copy()
 
     vsdev = _find_vsdevcmd()
@@ -1132,6 +1165,8 @@ def add_extra_includes_and_libs_from_prefixes(cmd_list: list[str],
 # ----------------------------
 
 def compile_check(dep: dict):
+    ensure_install_prefix_dirs()
+
     v = dep.get("verify", {}) or {}
     cc_name, cc = choose_cxx()
     if not cc:
@@ -1654,9 +1689,7 @@ def build_cmake_git(dep: dict, config: str = "Release", native_flags: bool = Fal
     bld_dir = step_dir / "build"
     ok_marker = step_dir / ".ok"
 
-    TP.mkdir(exist_ok=True)
-    BUILD.mkdir(parents=True, exist_ok=True)
-    PREFIX.mkdir(parents=True, exist_ok=True)
+    ensure_install_prefix_dirs()
     step_dir.mkdir(parents=True, exist_ok=True)
 
     if not src_dir.exists():
@@ -1766,6 +1799,7 @@ def main():
     args = ap.parse_args()
 
     _apply_overrides_from_env_and_args(args)
+    ensure_install_prefix_dirs()
 
     if args.doctor:
         cmd_doctor()
