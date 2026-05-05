@@ -1442,6 +1442,9 @@ def compile_check(dep: dict):
 
 def verify_install(dep: dict) -> None:
     v = dep.get("verify", {}) or {}
+    check_error = _check_dependency_diagnostic(dep)
+    if check_error:
+        raise RuntimeError(check_error)
 
     header = v.get("header")
     if header:
@@ -1469,6 +1472,82 @@ def verify_install(dep: dict) -> None:
 
     if v.get("compile_check"):
         compile_check(dep)
+
+
+def _check_dependency_diagnostic(dep: dict) -> str | None:
+    name = (dep.get("name") or "").lower()
+    if name not in ("eigen3", "boost"):
+        return None
+
+    try:
+        ensure_install_prefix_dirs()
+    except OSError as e:
+        return (
+            f"Verification failed: could not create the local install skeleton for {dep.get('name')}.\n"
+            f"Install prefix: {PREFIX}\n"
+            f"Reason: {e}"
+        )
+
+    include_dir = PREFIX / "include"
+    skeleton = [PREFIX, include_dir, PREFIX / "lib", PREFIX / "bin"]
+    missing = [str(p) for p in skeleton if not p.exists()]
+    if missing:
+        return (
+            f"Verification failed: local install skeleton is missing for {dep.get('name')}.\n"
+            "Missing paths:\n"
+            + "\n".join(f"  - {p}" for p in missing)
+        )
+
+    env = os.environ.copy()
+    if name == "eigen3" and not _has_eigen_headers(env):
+        return (
+            "Verification failed: Eigen headers were not found.\n"
+            f"The local install skeleton exists at {PREFIX}, but no Eigen/Core header was found.\n"
+            "Provide Eigen with --eigen-root, TONATIUH_EIGEN_ROOT, or by placing headers under "
+            f"{include_dir} (for example {include_dir / 'eigen3' / 'Eigen' / 'Core'})."
+        )
+
+    if name == "boost" and not _has_boost_headers(env):
+        return (
+            "Verification failed: Boost headers were not found.\n"
+            f"The local install skeleton exists at {PREFIX}, but no boost/version.hpp header was found.\n"
+            "Provide Boost with --boost-root, TONATIUH_BOOST_ROOT, or by placing headers under "
+            f"{include_dir} (for example {include_dir / 'boost' / 'version.hpp'})."
+        )
+
+    return None
+
+
+def _has_eigen_headers(env: dict) -> bool:
+    if detect_eigen_include_root(env):
+        return True
+
+    for p in get_cmake_prefix_paths(env):
+        base = Path(p)
+        for rel in (
+            Path("Eigen") / "Core",
+            Path("eigen3") / "Eigen" / "Core",
+            Path("include") / "Eigen" / "Core",
+            Path("include") / "eigen3" / "Eigen" / "Core",
+        ):
+            if (base / rel).is_file():
+                return True
+
+    return False
+
+
+def _has_boost_headers(env: dict) -> bool:
+    if _probe_boost_root(env):
+        return True
+
+    for p in get_cmake_prefix_paths(env):
+        base = Path(p)
+        if (base / "boost" / "version.hpp").is_file():
+            return True
+        if (base / "include" / "boost" / "version.hpp").is_file():
+            return True
+
+    return False
 
 
 # ----------------------------
