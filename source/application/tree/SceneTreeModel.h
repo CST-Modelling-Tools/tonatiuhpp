@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QAbstractItemModel>
+#include <QSet>
 #include <Inventor/SoType.h>
 
 class InstanceNode;
@@ -57,9 +58,11 @@ public:
     void UpdateSceneModel();
 
 private:
+    void clearInstanceTree();
     InstanceNode* addInstanceNode(InstanceNode* parent, SoNode* node);
     void generateInstanceTree(InstanceNode* instance);
     void deleteInstanceTree(InstanceNode* instance);
+    bool containsInstance(InstanceNode* instance) const;
 
 private:
     SoSeparator* m_nodeRoot;
@@ -70,4 +73,5 @@ private:
     // the same SoNode can be attached to multiple parents
     // InstanceNode have a single parent
     std::map< SoNode*, QList<InstanceNode*> > m_mapCoinQt;
+    QSet<InstanceNode*> m_instances;
 };

@@ -37,14 +37,15 @@ SceneTreeModel::SceneTreeModel(QObject* parent):
     QAbstractItemModel(parent),
     m_nodeRoot(0),
     m_nodeScene(0),
-    m_instanceScene(0)
+    m_instanceScene(0),
+    m_instanceLayout(0)
 {
 
 }
 
 SceneTreeModel::~SceneTreeModel()
 {
-    clear();
+    clearInstanceTree();
 }
 
 /*!
@@ -54,10 +55,24 @@ SceneTreeModel::~SceneTreeModel()
  */
 void SceneTreeModel::clear()
 {
+    if (!m_instanceScene && m_mapCoinQt.empty() && m_instances.isEmpty()) return;
+
+    beginResetModel();
+    clearInstanceTree();
+    endResetModel();
+}
+
+void SceneTreeModel::clearInstanceTree()
+{
     deleteInstanceTree(m_instanceScene);
 
     delete m_instanceScene;
     m_instanceScene = 0;
+    m_instanceLayout = 0;
+    m_nodeRoot = 0;
+    m_nodeScene = 0;
+    m_mapCoinQt.clear();
+    m_instances.clear();
 }
 
 /*!
@@ -69,13 +84,19 @@ void SceneTreeModel::setDocument(Document* document)
 {
     beginResetModel();
 
+    clearInstanceTree();
+    if (!document || !document->getSceneKit())
+    {
+        endResetModel();
+        return;
+    }
+
     m_nodeRoot = document->getSceneKit()->m_graphicRoot->getRoot();
     m_nodeScene = document->getSceneKit();
-    m_mapCoinQt.clear();
-    if (m_instanceScene) clear();
 
     m_instanceScene = new InstanceNode(m_nodeScene);
     m_mapCoinQt[m_nodeScene].append(m_instanceScene);
+    m_instances.insert(m_instanceScene);
 
 //    SoNode* worldKit = m_nodeScene->getPart("world", true);
 //    InstanceNode* instanceW = addInstanceNode(m_instanceScene, worldKit);
@@ -93,23 +114,33 @@ void SceneTreeModel::setDocument(Document* document)
 //    addInstanceNode(instanceW, terrainKit);
 
     TSeparatorKit* nodeLayout = m_nodeScene->getLayout();
-    m_instanceLayout = addInstanceNode(m_instanceScene, nodeLayout);
-    generateInstanceTree(m_instanceLayout);
+    if (nodeLayout)
+    {
+        m_instanceLayout = addInstanceNode(m_instanceScene, nodeLayout);
+        generateInstanceTree(m_instanceLayout);
+    }
 
     endResetModel();
 }
 
 InstanceNode* SceneTreeModel::addInstanceNode(InstanceNode* parent, SoNode* node)
 {
+    if (!parent || !node) return 0;
+
     InstanceNode* instance = new InstanceNode(node);
     parent->addChild(instance);
     m_mapCoinQt[node].append(instance);
+    m_instances.insert(instance);
     return instance;
 }
 
 void SceneTreeModel::generateInstanceTree(InstanceNode* instance)
 {
+    if (!instance) return;
+
     SoNode* node = instance->getNode();
+    if (!node) return;
+
     if (TSeparatorKit* kit = dynamic_cast<TSeparatorKit*>(node))
     {
         SoGroup* group = (SoGroup*) kit->getPart("group", false);
@@ -125,9 +156,15 @@ void SceneTreeModel::generateInstanceTree(InstanceNode* instance)
 
 void SceneTreeModel::deleteInstanceTree(InstanceNode* instance)
 {
+    if (!instance) return;
+
     while (instance->children.count() > 0)
     {
         InstanceNode* child = instance->children[instance->children.count() - 1];
+        instance->children.remove(instance->children.count() - 1);
+        if (!child) continue;
+
+        child->setParent(0);
         deleteInstanceTree(child);
         delete child;
     }
@@ -138,27 +175,45 @@ void SceneTreeModel::deleteInstanceTree(InstanceNode* instance)
 //        delete child;
 //    }
 
-    QList<InstanceNode*>& instanceList = m_mapCoinQt[instance->getNode()];
-    int q = instanceList.indexOf(instance);
-    instanceList.removeAt(q);
+    std::map<SoNode*, QList<InstanceNode*> >::iterator it = m_mapCoinQt.find(instance->getNode());
+    if (it != m_mapCoinQt.end())
+    {
+        QList<InstanceNode*>& instanceList = it->second;
+        int q = instanceList.indexOf(instance);
+        if (q >= 0) instanceList.removeAt(q);
+        if (instanceList.isEmpty()) m_mapCoinQt.erase(it);
+    }
 
     InstanceNode* instanceParent = instance->getParent();
     if (instanceParent)
     {
         int row = instanceParent->children.indexOf(instance);
-        instanceParent->children.remove(row);
+        if (row >= 0) instanceParent->children.remove(row);
+        instance->setParent(0);
     }
+
+    m_instances.remove(instance);
 }
 
 QModelIndex SceneTreeModel::index(int row, int column, const QModelIndex& parent) const
 {
-    if (!m_instanceScene) return QModelIndex();
+    if (column != 0 || row < 0) return QModelIndex();
+
     InstanceNode* instance = getInstance(parent);
+    if (!instance) return QModelIndex();
+    if (row >= instance->children.count()) return QModelIndex();
+
+    InstanceNode* child = instance->children[row];
+    if (!containsInstance(child)) return QModelIndex();
+    if (child->getParent() != instance) return QModelIndex();
+
     return createIndex(row, column, instance->children[row]);
 }
 
 int SceneTreeModel::rowCount(const QModelIndex& index) const
 {
+    if (index.isValid() && index.column() != 0) return 0;
+
     InstanceNode* instance = getInstance(index);
     return instance ? instance->children.count() : 0;
 }
@@ -170,30 +225,36 @@ int SceneTreeModel::columnCount(const QModelIndex& /*index*/) const
 
 QModelIndex SceneTreeModel::parent(const QModelIndex& index) const
 {
+    if (!index.isValid() || index.model() != this || index.column() != 0) return QModelIndex();
+
     InstanceNode* instance = getInstance(index);
     if (!instance) return QModelIndex();
 
     InstanceNode* instanceParent = instance->getParent();
     if (!instanceParent) return QModelIndex();
+    if (!containsInstance(instanceParent)) return QModelIndex();
+    if (!instanceParent->children.contains(instance)) return QModelIndex();
 
     InstanceNode* instanceGrandparent = instanceParent->getParent();
     if (!instanceGrandparent) return QModelIndex();
+    if (!containsInstance(instanceGrandparent)) return QModelIndex();
 
     int row = instanceGrandparent->children.indexOf(instanceParent);
+    if (row < 0) return QModelIndex();
+
     return createIndex(row, 0, instanceParent);
 }
 
 QVariant SceneTreeModel::data(const QModelIndex& index, int role) const
 {
     if (role != Qt::DisplayRole && role != Qt::UserRole && role != Qt::DecorationRole) return QVariant();
+    if (!index.isValid() || index.model() != this || index.column() != 0) return QVariant();
 
     InstanceNode* instance = getInstance(index);
     if (!instance) return QVariant();
 
     SoNode* node = instance->getNode();
     if (!node) return QVariant();
-
-    if (index.column() != 0) return QVariant();
 
     if (role == Qt::DisplayRole)
     {
@@ -206,7 +267,7 @@ QVariant SceneTreeModel::data(const QModelIndex& index, int role) const
         SoSearchAction action;
         action.setNode(node);
         action.setInterest(SoSearchAction::ALL);
-        action.apply(m_nodeScene);
+        if (m_nodeScene) action.apply(m_nodeScene);
 
         int count = action.getPaths().getLength();
 //        count = node->getRefCount();
@@ -282,8 +343,16 @@ Qt::DropActions SceneTreeModel::supportedDragActions() const
 InstanceNode* SceneTreeModel::getInstance(const QModelIndex& index) const
 {
     if (!index.isValid())
-        return m_instanceScene;
-    return (InstanceNode*) index.internalPointer();
+        return containsInstance(m_instanceScene) ? m_instanceScene : 0;
+    if (index.model() != this) return 0;
+
+    InstanceNode* instance = (InstanceNode*) index.internalPointer();
+    return containsInstance(instance) ? instance : 0;
+}
+
+bool SceneTreeModel::containsInstance(InstanceNode* instance) const
+{
+    return instance && m_instances.contains(instance);
 }
 
 bool SceneTreeModel::setNodeName(SoNode* node, QString name)
@@ -333,12 +402,16 @@ QModelIndex SceneTreeModel::indexFromUrl(QString url) const
     QString parentURL = QString("//") + path.join("/");
     QModelIndex parentIndex = indexFromUrl(parentURL);
     InstanceNode* instanceParent = getInstance(parentIndex);
+    if (!instanceParent) return QModelIndex();
 
     int row = 0;
     for (InstanceNode* child : instanceParent->children)
     {
-        if (child->getNode()->getName() == nodeName.toStdString().c_str())
+        if (containsInstance(child) && child->getNode()
+            && child->getNode()->getName() == nodeName.toStdString().c_str())
+        {
             return index(row, 0, parentIndex);
+        }
         row++;
     }
 
@@ -356,6 +429,8 @@ QModelIndex SceneTreeModel::indexFromUrl(QString url) const
 #include <QDebug>
 QModelIndex SceneTreeModel::indexFromPath(const SoNodeKitPath& path) const
 {
+    if (!m_instanceScene) return QModelIndex();
+
 //    qDebug() << "asd";
 //    for (int q = 0; q < path.getLength(); q++)
 //    {
@@ -377,7 +452,7 @@ QModelIndex SceneTreeModel::indexFromPath(const SoNodeKitPath& path) const
         int row = 0;
         for (InstanceNode* child : m_instanceScene->children)
         {
-            if (child->getNode() == coinNode)
+            if (containsInstance(child) && child->getNode() == coinNode)
                 return index(row, 0);
             row++;
         }
@@ -389,16 +464,19 @@ QModelIndex SceneTreeModel::indexFromPath(const SoNodeKitPath& path) const
     {
         coinNode = coinParent;
         coinParent = (SoBaseKit*) path.getNodeFromTail(++temp);
+        if (!coinParent) return QModelIndex();
     }
     if (coinParent->getTypeId().isDerivedFrom(TShapeKit::getClassTypeId())
         || coinParent->getTypeId().isDerivedFrom(TrackerKit::getClassTypeId()))
     {
         coinNode = coinParent;
         coinParent = (SoBaseKit*) path.getNodeFromTail(++temp);
+        if (!coinParent) return QModelIndex();
         if (coinParent->getTypeId().isDerivedFrom(TSeparatorKit::getClassTypeId()))
         {
             coinNode = coinParent;
             coinParent = (SoBaseKit*) path.getNodeFromTail(++temp);
+            if (!coinParent) return QModelIndex();
         }
     }
 
@@ -418,10 +496,19 @@ QModelIndex SceneTreeModel::indexFromPath(const SoNodeKitPath& path) const
 
 SoNodeKitPath* SceneTreeModel::pathFromIndex(const QModelIndex& index) const
 {
+    InstanceNode* instance = getInstance(index);
+    if (!instance || !m_nodeRoot) return 0;
+
     // search for kits only
-    SoNode* node = getInstance(index)->getNode();
+    SoNode* node = instance->getNode();
+    if (!node) return 0;
+
     if (!node->getTypeId().isDerivedFrom(SoBaseKit::getClassTypeId()))
-        return pathFromIndex(parent(index));
+    {
+        QModelIndex parentIndex = parent(index);
+        if (!parentIndex.isValid()) return 0;
+        return pathFromIndex(parentIndex);
+    }
 
     // find first
     SoSearchAction action;
@@ -430,7 +517,7 @@ SoNodeKitPath* SceneTreeModel::pathFromIndex(const QModelIndex& index) const
     action.apply(m_nodeRoot);
 
     SoNodeKitPath* path = (SoNodeKitPath*) action.getPath();
-    if (!path) gcf::SevereError("PathFromIndex Null nodePath.");
+    if (!path) return 0;
     path->ref(); // otherwise destroyed with action
 
     //
@@ -482,6 +569,7 @@ int SceneTreeModel::insertCoinNode(SoNode* node, SoBaseKit* parent)
         InstanceNode* instance = new InstanceNode(node);
         instanceParent->insertChild(row, instance);
         m_mapCoinQt[node].append(instance);
+        m_instances.insert(instance);
         generateInstanceTree(instance);
     }
 
@@ -500,9 +588,8 @@ void SceneTreeModel::removeCoinNode(int row, SoBaseKit* parent)
     for (InstanceNode* instanceParent : m_mapCoinQt[parent])
     {
         InstanceNode* instance = instanceParent->children[row];
-        instanceParent->children.remove(row);
-        QList<InstanceNode*>& instances = m_mapCoinQt[instance->getNode()];
-        instances.removeAt(instances.indexOf(instance));
+        deleteInstanceTree(instance);
+        delete instance;
     }
 
     emit layoutChanged();
@@ -588,6 +675,7 @@ bool SceneTreeModel::Paste(SoBaseKit* parent, SoNode* node, int row, bool isShar
         InstanceNode* instance = new InstanceNode(child);
         instanceParent->insertChild(row, instance);
         m_mapCoinQt[child].append(instance);
+        m_instances.insert(instance);
         generateInstanceTree(instance);
     }
 
