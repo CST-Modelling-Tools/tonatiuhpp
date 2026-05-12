@@ -173,7 +173,12 @@ void GraphicView::setSceneGraph(GraphicRoot* sceneGraphRoot)
 
     if (!m_viewerCameraSensor)
         m_viewerCameraSensor = new SoNodeSensor(onViewerCameraChanged, this);
-    m_viewerCameraSensor->attach(camera);
+    if (m_viewerCameraSensor->getAttachedNode() != camera) {
+        if (m_viewerCameraSensor->getAttachedNode())
+            m_viewerCameraSensor->detach();
+        if (camera)
+            m_viewerCameraSensor->attach(camera);
+    }
     syncSkyCamera();
 
     TCameraKit* cameraKit = (TCameraKit*) m_graphicRoot->getScene()->getPart("world.camera", true);

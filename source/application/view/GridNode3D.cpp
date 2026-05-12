@@ -45,8 +45,23 @@ GridNode3D::~GridNode3D()
 
 void GridNode3D::attach(GridNode* grid)
 {
-    if (m_sensor->getAttachedNode())
+    GridNode* attachedGrid = static_cast<GridNode*>(m_sensor->getAttachedNode());
+    if (attachedGrid == grid) {
+        if (grid)
+            create();
+        else
+            m_grid->removeAllChildren();
+        return;
+    }
+
+    if (attachedGrid)
         m_sensor->detach();
+
+    if (!grid) {
+        m_grid->removeAllChildren();
+        return;
+    }
+
     m_sensor->attach(grid);
     create();
 }
@@ -55,6 +70,10 @@ void GridNode3D::create()
 {
     // grid parameters
     GridNode* grid = (GridNode*) m_sensor->getAttachedNode();
+    if (!grid) {
+        m_grid->removeAllChildren();
+        return;
+    }
 
     double dx = grid->steps.getValue()[0];
     int divsX = grid->divisions.getValue()[0];
