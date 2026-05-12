@@ -22,7 +22,6 @@ void ParametersModel::setNode(SoNode* node)
     if (m_node == node && node) return; // important to keep selection
     m_node = node;
 
-    beginResetModel();
     clear();
     setHorizontalHeaderLabels({"Parameter", "Value"});
     if (node) {
@@ -33,8 +32,6 @@ void ParametersModel::setNode(SoNode* node)
     //    itemV->setEditable(false);
         invisibleRootItem()->appendRow(itemP);
     }
-
-    endResetModel();
 }
 
 bool ParametersModel::setData(const QModelIndex& index, const QVariant& value, int role)
