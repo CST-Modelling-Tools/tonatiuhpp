@@ -4,21 +4,26 @@ Last updated: 2026-05-13
 
 Purpose: lightweight handoff for current Tonatiuh++ project and release context. Keep stable agent rules in `AGENT.md`; update this file when release context changes.
 
+## Current Priorities
+
+- Prepare the next Tonatiuh++ release.
+- Remove or reduce remaining runtime warnings visible from command-prompt launches.
+- Validate IFW installer/update behavior on Windows, Linux, and macOS.
+
 ## Current Baseline
 
 - Branch: `master`.
-- Current application version: `0.1.8.18` from `source/CMakeLists.txt`.
-- Current HEAD context: `v0.1.8.18-5-g38534050`; latest work includes idempotent node sensor attaches.
-- Release packaging source of truth is `.github/workflows/release.yml` plus the `installer/` scripts.
-- Cross-check release URLs before publishing: current scripts and workflow use platform repositories at `https://cst-modelling-tools.github.io/tonatiuhpp/{windows,linux,macos}`, while older checklist text still mentions `/ifw/...`.
+- Application version: `0.1.8.18` from `source/CMakeLists.txt`.
+- HEAD context: `v0.1.8.18-5-g38534050`.
+- Release packaging source of truth: `.github/workflows/release.yml` and `installer/`.
 
-## Recent Fixes
+## Recent Completed Milestones
 
-- View and model stability: made node sensor attaches idempotent, avoided nested `ParametersModel` resets, and guarded `SceneTreeModel` against stale indexes.
-- Dependency bootstrap: clarified missing Eigen and Boost diagnostics and hardened the Windows dependency path.
-- Installer and release flow: rendered IFW repository release metadata, normalized the IFW package id to `com.tonatiuhpp.app`, published IFW repositories at the GitHub Pages root platform paths, and removed unsupported `binarycreator` hybrid mode.
-- Photon export and raytracing: preserved retained photons after export failures, propagated fatal export failures, made file export failure-aware and sequential, and honored photon buffer and file split limits.
-- Updater path: replaced legacy GitHub release parsing with the Qt IFW `MaintenanceTool` flow, including `check-updates` classification and user-approved updater launch.
+- View/model stability: idempotent node sensor attaches, no nested `ParametersModel` reset, and stale `SceneTreeModel` index guards.
+- Dependency bootstrap: clearer missing Eigen/Boost diagnostics and a hardened Windows dependency path.
+- Installer/release flow: IFW repository release metadata rendering, `com.tonatiuhpp.app` package id normalization, GitHub Pages root platform repositories, and removal of unsupported `binarycreator` hybrid mode.
+- Photon export/raytracing reliability: retained photons survive export failures, fatal export failures propagate, file export is failure-aware and sequential, and photon buffer/file split limits are honored.
+- Updater path: legacy GitHub release parsing was replaced with the Qt IFW `MaintenanceTool` flow, including `check-updates` classification and user-approved updater launch.
 
 ## Current Release Workflow
 
@@ -34,6 +39,13 @@ Purpose: lightweight handoff for current Tonatiuh++ project and release context.
 - `IfwUpdateService` locates the Qt IFW `MaintenanceTool` near the installed application, runs `check-updates`, classifies the result, and starts the tool detached with `--start-updater`.
 - `UpdateDialog` displays the installed version, update status, details, and MaintenanceTool path; the install button is enabled only when an update is available.
 - `MainWindow` performs a delayed startup check, exposes `Help > Updates`, prompts before launching the updater, then closes Tonatiuh++ so installed files can be replaced. Manual restart is still expected after update completion.
+
+## Known Technical Debt / Warnings
+
+- Manual restart is still expected after IFW updates.
+- macOS signing and Gatekeeper behavior still need full validation.
+- Remaining runtime warnings visible from command-prompt launches need triage and reduction.
+- Release documentation should be rechecked if IFW URL paths or package IDs change; current scripts use `https://cst-modelling-tools.github.io/tonatiuhpp/{windows,linux,macos}`, while older checklist text may still mention `/ifw/...`.
 
 ## Pending Validation
 
