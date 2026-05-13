@@ -6,14 +6,16 @@ Purpose: lightweight handoff for current Tonatiuh++ project and release context.
 
 ## Current Priorities
 
-- Prepare the next Tonatiuh++ release.
+- Prepare the next Tonatiuh++ release, intended as `v0.1.8.19`.
 - Remove or reduce remaining runtime warnings visible from command-prompt launches.
-- Validate IFW installer/update behavior on Windows, Linux, and macOS.
+- Validate the IFW updater path from an installed `v0.1.8.18` IFW build to `v0.1.8.19` on Windows, Linux, and macOS.
 
 ## Current Baseline
 
 - Branch: `master`.
-- Application version: `0.1.8.18` from `source/CMakeLists.txt`.
+- Published release: `v0.1.8.18`; it already includes the IFW updater software.
+- Next intended release: `v0.1.8.19`.
+- Source version currently in `source/CMakeLists.txt`: `0.1.8.18`.
 - HEAD context: `v0.1.8.18-5-g38534050`.
 - Release packaging source of truth: `.github/workflows/release.yml` and `installer/`.
 
@@ -27,7 +29,7 @@ Purpose: lightweight handoff for current Tonatiuh++ project and release context.
 
 ## Current Release Workflow
 
-- Set the version in `source/CMakeLists.txt`, then tag the release as `v<version>`; the current version is `0.1.8.18`.
+- Set the version in `source/CMakeLists.txt`, then tag the release as `v<version>`; the next intended release is `v0.1.8.19`.
 - Pushing a `v*` tag triggers the GitHub Actions `Release` workflow. `workflow_dispatch` accepts a `fake_tag` for simulation and skips the publish job.
 - The workflow resolves the version with `installer/sync_ifw_metadata.py --check-tag`, derives a UTC release date, builds Linux/macOS in a matrix, and builds Windows on `windows-2022`.
 - Packaging stages the release payload, generates per-platform IFW repositories with `repogen`, generates IFW installers with `binarycreator`, uploads assets and checksums, and deploys the IFW repositories to GitHub Pages.
@@ -49,17 +51,20 @@ Purpose: lightweight handoff for current Tonatiuh++ project and release context.
 
 ## Pending Validation
 
-- Confirm the `Release` workflow succeeds on Windows, Linux, and macOS from a matching tag.
-- Confirm GitHub Pages serves each generated IFW repository at the exact URL embedded in its installer.
+- Confirm the `v0.1.8.19` `Release` workflow succeeds on Windows, Linux, and macOS from the matching tag.
+- Confirm GitHub Pages serves each generated `v0.1.8.19` IFW repository at the exact URL embedded in its installer.
 - Confirm every generated repository has `Updates.xml` and package metadata for `com.tonatiuhpp.app`.
-- Test updating from an older IFW install on Windows, Linux, and macOS, including non-blocking startup check, `Help > Updates`, install prompt, MaintenanceTool launch, application shutdown, and manual restart.
+- Test update detection from an installed `v0.1.8.18` IFW build to `v0.1.8.19` on Windows, Linux, and macOS.
+- Test update installation from `v0.1.8.18` to `v0.1.8.19` on Windows, Linux, and macOS, including non-blocking startup check, `Help > Updates`, install prompt, MaintenanceTool launch, application shutdown, and manual restart.
 - Reconcile or explicitly re-check release documentation if URL paths or package IDs change.
 
 ## Pre-release Checklist
 
-- Verify `source/CMakeLists.txt` has the intended version.
+- Install the published `v0.1.8.18` IFW build on Windows, Linux, and macOS as the update source.
+- Verify `source/CMakeLists.txt` has the intended `0.1.8.19` version.
 - Create and push the matching `v<version>` tag.
 - Confirm the `Release` workflow and GitHub Pages deploy complete successfully.
 - Confirm release assets include Windows, Linux, and macOS IFW installers and checksums, plus any intended manual archives.
 - Verify each platform installer embeds the correct IFW repository URL and each URL serves `Updates.xml`.
-- Run manual updater validation from older IFW installations on Windows, Linux, and macOS.
+- After `v0.1.8.19` release repositories are published, confirm `Help > Updates` in the installed `v0.1.8.18` app detects `v0.1.8.19`.
+- Run manual updater installation validation from `v0.1.8.18` to `v0.1.8.19` on Windows, Linux, and macOS.
