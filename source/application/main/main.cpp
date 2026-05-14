@@ -4,6 +4,7 @@
 #include <QSettings>
 #include "CustomSplashScreen.h"
 
+#include <QFile>
 #include <QFileInfo>
 #include <QJSEngine>
 #include <QTextStream>
@@ -144,11 +145,20 @@ int main(int argc, char** argv)
         QFile file(fileName);
         if (!file.open(QIODevice::ReadOnly))
         {
-            QString text = QString("Cannot open file %1.").arg(fileName);
+            QString text = QString("Cannot open file %1.\n%2")
+                .arg(fileName)
+                .arg(file.errorString());
             cerr << text << Qt::endl;
+            return 1;
         }
         QTextStream in(&file);
         QString program = in.readAll();
+        if (in.status() != QTextStream::Ok)
+        {
+            QString text = QString("Cannot read file %1.").arg(fileName);
+            cerr << text << Qt::endl;
+            return 1;
+        }
         file.close();
 
 //        QScriptSyntaxCheckResult check = engine->checkSyntax(program);
@@ -168,7 +178,7 @@ int main(int argc, char** argv)
                 .arg(result.property("lineNumber").toNumber())
                 .arg(result.toString());
             cerr << text << Qt::endl;
-            return -1;
+            return 1;
         }
 
         delete engine;
