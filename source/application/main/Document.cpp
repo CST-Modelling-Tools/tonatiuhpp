@@ -1,5 +1,6 @@
 #include <Inventor/SoNodeKitPath.h>
 #include <Inventor/actions/SoWriteAction.h>
+#include <Inventor/fields/SoSFString.h>
 #include <Inventor/nodes/SoSeparator.h>
 #include <Inventor/nodes/SoSelection.h>
 #include <Inventor/VRMLnodes/SoVRMLBackground.h>
@@ -51,6 +52,7 @@ bool Document::ReadFile(const QString& fileName)
 
     if (!input.isValidFile())
     {
+        input.closeFile();
         QString message = QString("Error reading file %1.").arg(fileName);
         emit Warning(message);
         return false;
@@ -66,10 +68,30 @@ bool Document::ReadFile(const QString& fileName)
         return false;
     }
 
-    TSceneKit* scene = dynamic_cast<TSceneKit*>(separator->getChild(0));
-    if (!scene) return false;
+    if (separator->getNumChildren() < 1)
+    {
+        QString message = QString("Error reading file %1: missing Tonatiuh++ scene root.").arg(fileName);
+        emit Warning(message);
+        return false;
+    }
 
-    QString version = ((SoSFString*)scene->getField("version"))->getValue().getString();
+    TSceneKit* scene = dynamic_cast<TSceneKit*>(separator->getChild(0));
+    if (!scene)
+    {
+        QString message = QString("Error reading file %1: invalid Tonatiuh++ scene root.").arg(fileName);
+        emit Warning(message);
+        return false;
+    }
+
+    SoSFString* versionField = dynamic_cast<SoSFString*>(scene->getField("version"));
+    if (!versionField)
+    {
+        QString message = QString("Error reading file %1: missing Tonatiuh++ project version.").arg(fileName);
+        emit Warning(message);
+        return false;
+    }
+
+    QString version = versionField->getValue().getString();
     if (version != "2020") {
         QString message = QString("Version %1 is not compatible.").arg(version);
         emit Warning(message);
