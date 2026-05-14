@@ -1,22 +1,21 @@
 # Project Status
 
-Last updated: 2026-05-13
+Last updated: 2026-05-15
 
 Purpose: lightweight handoff for current Tonatiuh++ project and release context. Keep stable agent rules in `AGENT.md`; update this file when release context changes.
 
 ## Current Priorities
 
-- Prepare the next Tonatiuh++ release, intended as `v0.1.8.19`.
+- Prepare, publish, and validate the Tonatiuh++ `v0.1.8.19` release.
 - Remove or reduce remaining runtime warnings visible from command-prompt launches.
 - Validate the IFW updater path from an installed `v0.1.8.18` IFW build to `v0.1.8.19` on Windows, Linux, and macOS.
 
 ## Current Baseline
 
 - Branch: `master`.
-- Published release: `v0.1.8.18`; it already includes the IFW updater software.
-- Next intended release: `v0.1.8.19`.
-- Source version currently in `source/CMakeLists.txt`: `0.1.8.18`.
-- HEAD context: `v0.1.8.18-5-g38534050`.
+- Current application version in `source/CMakeLists.txt`: `0.1.8.19`.
+- Published updater baseline: `v0.1.8.18`; it already includes the IFW updater software.
+- Intended release under validation: `v0.1.8.19`, focused on proving the updater flow from installed `v0.1.8.18` IFW builds.
 - Release packaging source of truth: `.github/workflows/release.yml` and `installer/`.
 
 ## Recent Completed Milestones
