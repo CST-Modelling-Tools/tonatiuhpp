@@ -2878,14 +2878,31 @@ bool MainWindow::openFileProject(const QString& fileName)
 //    ui->actionViewRays->setEnabled(false);
 //    ui->actionViewRays->setChecked(false);
 
+    Document* loadedDocument = 0;
+    QStringList previousProjectSearchPaths = QDir::searchPaths("project");
+    if (!fileName.isEmpty()) {
+        setSearchPaths(fileName);
+        loadedDocument = new Document;
+        connect(
+            loadedDocument, SIGNAL(Warning(QString)),
+            this, SLOT(showWarning(QString))
+        );
+        if (!loadedDocument->ReadFile(fileName)) {
+            QDir::setSearchPaths("project", previousProjectSearchPaths);
+            delete loadedDocument;
+            showInStatusBar("Open canceled");
+            return false;
+        }
+    }
+
     m_undoStack->clear();
     m_modelScene->clear();
     m_graphicsRoot->removeScene();
     ui->parametersTabs->setNode(0);
 
-    if (!fileName.isEmpty()) setSearchPaths(fileName);
-    if (m_document->ReadFile(fileName))
-    {
+    Document* previousDocument = m_document;
+    if (loadedDocument) {
+        m_document = loadedDocument;
         showInStatusBar("File loaded");
         SetCurrentFile(fileName);
     }
@@ -2897,6 +2914,9 @@ bool MainWindow::openFileProject(const QString& fileName)
     }
 
     ChangeModelScene();
+    if (loadedDocument)
+        delete previousDocument;
+
     if (fileName.isEmpty()) {
         m_graphicView[0]->onViewHome();
     }
@@ -2943,11 +2963,23 @@ void MainWindow::dragEnterEvent(QDragEnterEvent* event)
 
 void MainWindow::dropEvent(QDropEvent* event)
 {
+    if (event->mimeData()->urls().isEmpty()) {
+        event->ignore();
+        return;
+    }
+
     QString url = event->mimeData()->urls()[0].toLocalFile();
+    if (url.isEmpty()) {
+        event->ignore();
+        return;
+    }
 
-    if (OkToContinue())
-        openFileProject(url);
+    if (!OkToContinue()) {
+        event->ignore();
+        return;
+    }
 
+    fileOpen(url);
     event->acceptProposedAction();
 }
 
