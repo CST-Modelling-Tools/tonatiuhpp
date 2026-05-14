@@ -160,12 +160,15 @@ QString openFileWithDirectory(QWidget* parent,
 QString saveFileWithDirectory(QWidget* parent,
                               const QString& title,
                               const QString& initialDirectory,
-                              const QString& filter)
+                              const QString& filter,
+                              const QString& defaultSuffix = QString())
 {
     QFileDialog dialog(parent, title);
     dialog.setAcceptMode(QFileDialog::AcceptSave);
     dialog.setFileMode(QFileDialog::AnyFile);
     dialog.setNameFilter(filter);
+    if (!defaultSuffix.isEmpty())
+        dialog.setDefaultSuffix(defaultSuffix);
     dialog.setDirectory(existingDirectoryOrFallback(initialDirectory));
 #ifdef Q_OS_MACOS
     dialog.setOption(QFileDialog::DontUseNativeDialog, true);
@@ -173,6 +176,20 @@ QString saveFileWithDirectory(QWidget* parent,
     if (dialog.exec() != QDialog::Accepted || dialog.selectedFiles().isEmpty())
         return QString();
     return dialog.selectedFiles().first();
+}
+
+QString projectSaveFileNameWithDefaultSuffix(const QString& fileName)
+{
+    QFileInfo info(fileName);
+    if (!fileName.isEmpty() && info.suffix().isEmpty())
+        return fileName + ".tnhpp";
+    return fileName;
+}
+
+bool isSupportedProjectSaveFileName(const QString& fileName)
+{
+    const QString suffix = QFileInfo(fileName).suffix().toLower();
+    return suffix == "tnhpp" || suffix == "tnh" || suffix == "tnhd";
 }
 
 bool samePhotonSettings(const PhotonsSettings* current, const PhotonsSettings& next)
@@ -903,9 +920,16 @@ bool MainWindow::fileSaveAs()
 
     QString fileName = saveFileWithDirectory(
         this, "Save", dirName,
-        "Tonatiuh files (*.tnhpp);;Tonatiuh debug (*.tnhd)"
+        "Tonatiuh files (*.tnhpp);;Tonatiuh debug (*.tnhd)",
+        "tnhpp"
     );
     if (fileName.isEmpty()) return false;
+    fileName = projectSaveFileNameWithDefaultSuffix(fileName);
+    if (!isSupportedProjectSaveFileName(fileName)) {
+        showWarning(tr("Unsupported save file extension:\n%1").arg(fileName));
+        showInStatusBar("Saving canceled");
+        return false;
+    }
 
     QFileInfo info(fileName);
     settings.setValue("dirProjects", info.path());
@@ -2072,15 +2096,15 @@ void MainWindow::RunFluxAnalysis(QString nodeURL, QString surfaceSide, uint nOfR
  */
 void MainWindow::fileSaveAs(QString fileName)
 {
+    fileName = projectSaveFileNameWithDefaultSuffix(fileName);
     if (fileName.isEmpty())
     {
         emit Abort(tr("SaveAs: There is no file defined."));
         return;
     }
-    QFileInfo info(fileName);
-    if (info.completeSuffix() != "tnhpp")
+    if (!isSupportedProjectSaveFileName(fileName))
     {
-        emit Abort(tr("SaveAs: The file defined is not a tonatiuh file. The suffix must be tnh.") );
+        emit Abort(tr("SaveAs: The file defined is not a supported Tonatiuh project file."));
         return;
     }
     fileSave(fileName);
@@ -2817,13 +2841,20 @@ bool MainWindow::ReadyForRaytracing(InstanceNode*& instanceLayout,
  */
 bool MainWindow::fileSave(const QString& fileName)
 {
-    if (!m_document->WriteFile(fileName))
+    const QString saveFileName = projectSaveFileNameWithDefaultSuffix(fileName);
+    if (!isSupportedProjectSaveFileName(saveFileName)) {
+        showWarning(tr("Unsupported save file extension:\n%1").arg(saveFileName));
+        showInStatusBar("Saving canceled");
+        return false;
+    }
+
+    if (!m_document->WriteFile(saveFileName))
     {
         showInStatusBar("Saving canceled");
         return false;
     }
 
-    SetCurrentFile(fileName);
+    SetCurrentFile(saveFileName);
     showInStatusBar("File saved");
     return true;
 }

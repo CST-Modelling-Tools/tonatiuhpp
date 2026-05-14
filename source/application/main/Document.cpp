@@ -5,6 +5,7 @@
 #include <Inventor/VRMLnodes/SoVRMLBackground.h>
 
 #include <QApplication>
+#include <QFileInfo>
 #include <QString>
 
 #include "Document.h"
@@ -89,6 +90,16 @@ bool Document::ReadFile(const QString& fileName)
  */
 bool Document::WriteFile(const QString& fileName)
 {
+    const QString suffix = QFileInfo(fileName).suffix().toLower();
+    const bool writeScene = suffix == "tnh" || suffix == "tnhpp";
+    const bool writeDebugScene = suffix == "tnhd";
+    if (!writeScene && !writeDebugScene)
+    {
+        QString message = QString("Unsupported save file extension for %1.").arg(fileName);
+        emit Warning(message);
+        return false;
+    }
+
     SoWriteAction action;
     if (!action.getOutput()->openFile(fileName.toLatin1().constData() ) )
     {
@@ -102,9 +113,9 @@ bool Document::WriteFile(const QString& fileName)
     action.getOutput()->setFloatPrecision(6);
     // by default %.8g for floats and %.16lg for double
 
-    if (fileName.endsWith(".tnh") || fileName.endsWith(".tnhpp")) // normal
+    if (writeScene)
         action.apply(m_scene);
-    else if (fileName.endsWith(".tnhd")) // debug
+    else if (writeDebugScene)
         action.apply(m_scene->m_graphicRoot->getRoot());
 
     action.getOutput()->closeFile();
