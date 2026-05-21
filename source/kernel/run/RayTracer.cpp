@@ -45,13 +45,46 @@ void RayTracer::operator()(ulong nRays)
     if (m_exportFailed && m_exportFailed->load())
         return;
 
+    RandomParallel rand(m_rand, m_mutexRand);
+    const bool recordPhotons = m_photonBuffer && m_mutexPhotonsBuffer;
+
+    if (!recordPhotons) {
+        for (ulong n = 0; n < nRays; ++n) {
+            if (m_exportFailed && m_exportFailed->load())
+                return;
+
+            Ray ray;
+            NewPrimitiveRay(&ray, rand);
+            bool isFront = true;
+            int rayLength = 0;
+            InstanceNode* intersectedSurface = nullptr;
+
+            bool isReflected = true;
+            while (isReflected) {
+                Ray rayReflected;
+                isFront = false;
+                intersectedSurface = nullptr;
+                isReflected = m_instanceLayout->intersect(ray, rand, isFront, intersectedSurface, rayReflected);
+
+                if (m_air && rayLength > 0 && m_air->transmission(ray.tMax) < rand.RandomDouble())
+                    break;
+
+                if (!isReflected)
+                    break;
+
+                ++rayLength;
+                ray = rayReflected;
+            }
+        }
+        return;
+    }
+
     bool bExportAll = m_exportSurfaceList.empty();
     bool bExportLight = bExportAll ? true : m_exportSurfaceList.contains(m_instanceSun);
 
     std::vector<Photon> photons;
     photons.reserve(2*nRays);
     // Photon(Point3D pos, int side, double id = 0, InstanceNode* intersectedSurface = 0, int absorbedPhoton = 0);
-    RandomParallel rand(m_rand, m_mutexRand);
 
     for (ulong n = 0; n < nRays; ++n)
     {

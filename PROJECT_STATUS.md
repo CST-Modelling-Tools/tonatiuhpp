@@ -19,13 +19,15 @@ Purpose: lightweight handoff for current Tonatiuh++ project and release context.
 - Intended release under validation: `v0.1.8.19`, focused on proving the updater flow from installed `v0.1.8.18` IFW builds.
 - Release packaging source of truth: `.github/workflows/release.yml` and `installer/`.
 - Headless execution foundation is now implemented in the existing `tonatiuhpp` executable; there is no separate console executable or installer target.
-- Current headless commands: `tonatiuhpp --headless --help` and `tonatiuhpp --headless validate-scene <scene.tnhpp>`.
+- Current headless commands: `tonatiuhpp --headless --help`, `tonatiuhpp --headless validate-scene <scene.tnhpp>`, and `tonatiuhpp --headless trace-scene <scene.tnhpp> --rays N --seed S --no-export`.
 
 ## Recent Completed Milestones
 
 - Headless startup foundation: `--headless` is parsed before GUI startup, uses `QCoreApplication`, avoids `MainWindow`, SoQt widgets, hidden windows, progress dialogs, and `SceneTreeModel`, and validates `.tnhpp` scene loading through shared core services.
 - Headless scene loading: core Coin/nodekit/interaction initialization, Tonatiuh type registration, scene-factory plugin filtering, project search paths, and shared `.tnhpp` loading were extracted for reuse by GUI and headless paths.
 - Headless validation was tested on Windows with an installed scene using plugin mesh assets: `tonatiuhpp.exe --headless validate-scene ".../solatom_module.tnhpp"` reported `Scene validation succeeded`.
+- Headless trace-scene foundation: builds a non-GUI `InstanceNode` tree, sizes the sun aperture from ray-tracing bounds instead of Coin GUI bounding-box traversal, runs the kernel ray tracer serially with a deterministic `RandomSTL` stream, disables photon export by passing no photon buffer/exporter, and reports progress, elapsed seconds, and rays/s.
+- Headless trace validation was tested on Windows with an installed plugin/mesh scene: `tonatiuhpp.exe --headless trace-scene ".../solatom_module.tnhpp" --rays 10000000 --seed 123456789 --no-export` completed in `13.384000` seconds at `747160.789002` rays/s.
 - Runtime noise reduction: removed stray `ShapeMesh` debug prints that emitted resolved OBJ paths and project search paths during scene loading.
 - View/model stability: idempotent node sensor attaches, no nested `ParametersModel` reset, and stale `SceneTreeModel` index guards.
 - Dependency bootstrap: clearer missing Eigen/Boost diagnostics and a hardened Windows dependency path.
@@ -50,7 +52,7 @@ Purpose: lightweight handoff for current Tonatiuh++ project and release context.
 
 ## Known Technical Debt / Warnings
 
-- Benchmark v1 is not implemented yet; current headless mode only validates scene loading.
+- Benchmark v1 is not implemented yet; current headless trace mode does not perform benchmark-specific flux accumulation.
 - Headless mode still needs CI-style validation on Linux and macOS before relying on it for cluster workflows.
 - In the Codex shell environment on Windows, direct CMake/Ninja invocations intermittently wedged and left stale generated metadata; prefer VS Code CMake Tools or the user's normal terminal build path for validation unless this is rechecked.
 - Manual restart is still expected after IFW updates.
@@ -62,6 +64,8 @@ Purpose: lightweight handoff for current Tonatiuh++ project and release context.
 
 - Confirm normal GUI startup still behaves as before after the headless entry-point changes.
 - Confirm `tonatiuhpp --headless validate-scene` on representative plugin-based scenes on Linux and macOS.
+- Confirm normal GUI startup still behaves as before after the headless `trace-scene` changes.
+- Confirm `trace-scene` produces no photon files from the installed application output directory.
 - Add benchmark v1 runner on top of the headless foundation; do not implement benchmark-specific flux accumulation until that milestone is explicitly requested.
 - Confirm the `v0.1.8.19` `Release` workflow succeeds on Windows, Linux, and macOS from the matching tag.
 - Confirm GitHub Pages serves each generated `v0.1.8.19` IFW repository at the exact URL embedded in its installer.
