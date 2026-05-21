@@ -4,6 +4,7 @@
 #include <QPluginLoader>
 #include <QStringList>
 
+#include "application/core/TonatiuhCore.h"
 #include "kernel/air/AirExponential.h"
 #include "kernel/air/AirPolynomial.h"
 #include "kernel/air/AirVacuum.h"
@@ -38,9 +39,6 @@
 #include "kernel/trackers/TrackerArmature1A.h"
 #include "kernel/trackers/TrackerArmature2A.h"
 #include "kernel/trackers/TrackerArmature2AwD.h"
-#include "libraries/Coin3D/MFVec2.h"
-#include "libraries/Coin3D/UserMField.h"
-#include "libraries/Coin3D/UserSField.h"
 #include "libraries/math/gcf.h"
 #include "view/SkyNode3D.h"
 #include "view/OverlayNode.h"
@@ -49,12 +47,7 @@
 
 PluginManager::PluginManager()
 {
-    UserMField::initClass();
-    UserSField::initClass();
-    MFVec2::initClass();
-    TNode::initClass();
-
-    TSceneKit::initClass();
+    TonatiuhCore::initializeCoreTypes();
     SkyNode3D::initClass();
     OverlayNode::initClass();
     SeparatorStyle::initClass();

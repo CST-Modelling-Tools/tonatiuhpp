@@ -10,6 +10,7 @@
 #include <QString>
 
 #include "Document.h"
+#include "application/core/SceneLoader.h"
 #include "kernel/scene/TSceneKit.h"
 #include "application/view/GraphicRoot.h"
 
@@ -38,69 +39,15 @@ void Document::New()
  */
 bool Document::ReadFile(const QString& fileName)
 {
-    if (fileName.isEmpty())
-        return false;
-
-    SoInput input;
-
-    if (!input.openFile(fileName.toLatin1().data()))
-    {
-        QString message = QString("Cannot open file %1.").arg(fileName);
-        emit Warning(message);
-        return false;
-    }
-
-    if (!input.isValidFile())
-    {
-        input.closeFile();
-        QString message = QString("Error reading file %1.").arg(fileName);
-        emit Warning(message);
-        return false;
-    }
-
-    SoSeparator* separator = SoDB::readAll(&input);
-    input.closeFile();
-
-    if (!separator)
-    {
-        QString message = QString("Error reading file %1.").arg(fileName);
-        emit Warning(message);
-        return false;
-    }
-
-    if (separator->getNumChildren() < 1)
-    {
-        QString message = QString("Error reading file %1: missing Tonatiuh++ scene root.").arg(fileName);
-        emit Warning(message);
-        return false;
-    }
-
-    TSceneKit* scene = dynamic_cast<TSceneKit*>(separator->getChild(0));
-    if (!scene)
-    {
-        QString message = QString("Error reading file %1: invalid Tonatiuh++ scene root.").arg(fileName);
-        emit Warning(message);
-        return false;
-    }
-
-    SoSFString* versionField = dynamic_cast<SoSFString*>(scene->getField("version"));
-    if (!versionField)
-    {
-        QString message = QString("Error reading file %1: missing Tonatiuh++ project version.").arg(fileName);
-        emit Warning(message);
-        return false;
-    }
-
-    QString version = versionField->getValue().getString();
-    if (version != "2020") {
-        QString message = QString("Version %1 is not compatible.").arg(version);
+    LoadedScene loadedScene;
+    QString message;
+    if (!SceneLoader::readFile(fileName, &loadedScene, &message)) {
         emit Warning(message);
         return false;
     }
 
     if (m_scene) ClearScene();
-    m_scene = scene;
-    m_scene->ref();
+    m_scene = loadedScene.release();
     m_isModified = false;
     return true;
 }

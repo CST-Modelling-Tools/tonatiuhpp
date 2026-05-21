@@ -27,6 +27,10 @@ set(HEADERS
     commands/CmdRename.h
     commands/CmdSetFieldNode.h
     commands/CmdSetFieldText.h
+    core/CorePluginRegistry.h
+    core/SceneLoader.h
+    core/TonatiuhCore.h
+    headless/HeadlessCommandRunner.h
     main/CustomSplashScreen.h
     main/Document.h
     main/LineEditPlaceHolder.h
@@ -97,6 +101,10 @@ set(SOURCES
     commands/CmdRename.cpp
     commands/CmdSetFieldNode.cpp
     commands/CmdSetFieldText.cpp
+    core/CorePluginRegistry.cpp
+    core/SceneLoader.cpp
+    core/TonatiuhCore.cpp
+    headless/HeadlessCommandRunner.cpp
     main/CustomSplashScreen.cpp
     main/Document.cpp
     main/LineEditPlaceHolder.cpp

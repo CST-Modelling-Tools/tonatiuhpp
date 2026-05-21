@@ -85,7 +85,6 @@ bool ShapeMesh::intersect(const Ray& ray, double* tHit, DifferentialGeometry* dg
 }
 
 #include "kernel/scene/MaterialGL.h"
-#include <QDebug>
 void ShapeMesh::updateShapeGL(TShapeKit* parent)
 {
     SoShapeKit* shapeKit = parent->m_shapeKit;
@@ -158,9 +157,6 @@ void ShapeMesh::onSensor(void* data, SoSensor*)
 
     fileName = QString("project:") + fileName;
     QFileInfo info(fileName);
-
-    qDebug() << info.absoluteFilePath();
-    qDebug() << QDir::searchPaths("project");
 
     if (info.suffix() != "obj") {
         QMessageBox::warning(0, "Warning", "File is not in obj-format");

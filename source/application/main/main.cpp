@@ -1,4 +1,5 @@
 #include <QApplication>
+#include <QCoreApplication>
 #include <QStyleFactory>
 #include <QCommandLineParser>
 #include <QSettings>
@@ -10,6 +11,7 @@
 #include <QTextStream>
 
 #include <Inventor/Qt/SoQt.h>
+#include "headless/HeadlessCommandRunner.h"
 #include "MainWindow.h"
 
 QTextStream cerr(stderr);
@@ -31,9 +33,30 @@ QTextStream cerr(stderr);
 //Q_SCRIPT_DECLARE_QMETAOBJECT(DataObject, QObject*)
 #include <QQmlEngine>
 
+namespace
+{
+bool hasHeadlessArgument(int argc, char** argv)
+{
+    for (int i = 1; i < argc; ++i) {
+        if (QString::fromLocal8Bit(argv[i]) == "--headless")
+            return true;
+    }
+
+    return false;
+}
+}
 
 int main(int argc, char** argv)
 {  
+    if (hasHeadlessArgument(argc, argv)) {
+        QCoreApplication app(argc, argv);
+        app.setApplicationName("Tonatiuh");
+        app.setApplicationVersion(APP_VERSION);
+
+        HeadlessCommandRunner runner;
+        return runner.run(app.arguments());
+    }
+
     // application
     QApplication app(argc, argv);
     app.setApplicationName("Tonatiuh");
