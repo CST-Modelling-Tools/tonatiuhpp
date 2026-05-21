@@ -1,11 +1,12 @@
 # Project Status
 
-Last updated: 2026-05-15
+Last updated: 2026-05-21
 
 Purpose: lightweight handoff for current Tonatiuh++ project and release context. Keep stable agent rules in `AGENT.md`; update this file when release context changes.
 
 ## Current Priorities
 
+- Build benchmark v1 on top of the new headless execution foundation without adding a second executable.
 - Prepare, publish, and validate the Tonatiuh++ `v0.1.8.19` release.
 - Remove or reduce remaining runtime warnings visible from command-prompt launches.
 - Validate the IFW updater path from an installed `v0.1.8.18` IFW build to `v0.1.8.19` on Windows, Linux, and macOS.
@@ -17,9 +18,15 @@ Purpose: lightweight handoff for current Tonatiuh++ project and release context.
 - Published updater baseline: `v0.1.8.18`; it already includes the IFW updater software.
 - Intended release under validation: `v0.1.8.19`, focused on proving the updater flow from installed `v0.1.8.18` IFW builds.
 - Release packaging source of truth: `.github/workflows/release.yml` and `installer/`.
+- Headless execution foundation is now implemented in the existing `tonatiuhpp` executable; there is no separate console executable or installer target.
+- Current headless commands: `tonatiuhpp --headless --help` and `tonatiuhpp --headless validate-scene <scene.tnhpp>`.
 
 ## Recent Completed Milestones
 
+- Headless startup foundation: `--headless` is parsed before GUI startup, uses `QCoreApplication`, avoids `MainWindow`, SoQt widgets, hidden windows, progress dialogs, and `SceneTreeModel`, and validates `.tnhpp` scene loading through shared core services.
+- Headless scene loading: core Coin/nodekit/interaction initialization, Tonatiuh type registration, scene-factory plugin filtering, project search paths, and shared `.tnhpp` loading were extracted for reuse by GUI and headless paths.
+- Headless validation was tested on Windows with an installed scene using plugin mesh assets: `tonatiuhpp.exe --headless validate-scene ".../solatom_module.tnhpp"` reported `Scene validation succeeded`.
+- Runtime noise reduction: removed stray `ShapeMesh` debug prints that emitted resolved OBJ paths and project search paths during scene loading.
 - View/model stability: idempotent node sensor attaches, no nested `ParametersModel` reset, and stale `SceneTreeModel` index guards.
 - Dependency bootstrap: clearer missing Eigen/Boost diagnostics and a hardened Windows dependency path.
 - Installer/release flow: IFW repository release metadata rendering, `com.tonatiuhpp.app` package id normalization, GitHub Pages root platform repositories, and removal of unsupported `binarycreator` hybrid mode.
@@ -43,13 +50,19 @@ Purpose: lightweight handoff for current Tonatiuh++ project and release context.
 
 ## Known Technical Debt / Warnings
 
+- Benchmark v1 is not implemented yet; current headless mode only validates scene loading.
+- Headless mode still needs CI-style validation on Linux and macOS before relying on it for cluster workflows.
+- In the Codex shell environment on Windows, direct CMake/Ninja invocations intermittently wedged and left stale generated metadata; prefer VS Code CMake Tools or the user's normal terminal build path for validation unless this is rechecked.
 - Manual restart is still expected after IFW updates.
 - macOS signing and Gatekeeper behavior still need full validation.
-- Remaining runtime warnings visible from command-prompt launches need triage and reduction.
+- Remaining runtime warnings visible from command-prompt launches need triage and reduction; current build still reports existing `FluxAnalysis.cpp` warnings C4834 and C4805.
 - Release documentation should be rechecked if IFW URL paths or package IDs change; current scripts use `https://cst-modelling-tools.github.io/tonatiuhpp/{windows,linux,macos}`, while older checklist text may still mention `/ifw/...`.
 
 ## Pending Validation
 
+- Confirm normal GUI startup still behaves as before after the headless entry-point changes.
+- Confirm `tonatiuhpp --headless validate-scene` on representative plugin-based scenes on Linux and macOS.
+- Add benchmark v1 runner on top of the headless foundation; do not implement benchmark-specific flux accumulation until that milestone is explicitly requested.
 - Confirm the `v0.1.8.19` `Release` workflow succeeds on Windows, Linux, and macOS from the matching tag.
 - Confirm GitHub Pages serves each generated `v0.1.8.19` IFW repository at the exact URL embedded in its installer.
 - Confirm every generated repository has `Updates.xml` and package metadata for `com.tonatiuhpp.app`.

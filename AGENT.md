@@ -41,8 +41,10 @@
 For each task:
 - Provide a concise summary.
 - List modified files.
-- Provide an standardize and detailed commit message.
-- Provide commit messages with real lines and paragraphs: a subject line, optional blank line, and optional body paragraphs when useful.
+- Provide a standardized, detailed commit message using Conventional Commits 1.0.0.
+- Format commit messages as `<type>[optional scope]: <description>`, followed by an optional blank line and detailed body paragraphs when useful.
+- Use conventional types such as `feat`, `fix`, `docs`, `refactor`, `test`, `build`, `ci`, `perf`, `chore`, or `revert`; add `!` and a `BREAKING CHANGE:` footer when the change is breaking.
+- Keep the subject concise and imperative. Use the body to explain what changed, why it changed, important validation, and any compatibility or packaging impact.
 - Use CR/LF only to end the subject line or a paragraph; do not split one sentence or paragraph across multiple lines for formatting.
 - Do not print full file contents unless explicitly requested.
 
