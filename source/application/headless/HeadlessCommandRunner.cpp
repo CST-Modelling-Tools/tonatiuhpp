@@ -6,6 +6,7 @@
 #include <QFileInfo>
 #include <QTextStream>
 
+#include "benchmark/BenchmarkRunner.h"
 #include "core/CorePluginRegistry.h"
 #include "core/RayTraceRunner.h"
 #include "core/SceneLoader.h"
@@ -34,6 +35,9 @@ int HeadlessCommandRunner::run(const QStringList& arguments) const
 
     if (command == "trace-scene")
         return traceScene(args.mid(1));
+
+    if (command == "benchmark")
+        return benchmark(args.mid(1));
 
     return printUsageError(QString("Unknown headless command: %1.").arg(command));
 }
@@ -102,6 +106,37 @@ int HeadlessCommandRunner::traceScene(const QStringList& args) const
     out << "elapsed_seconds: " << result.elapsedSeconds << Qt::endl;
     out << "rays_per_second: " << result.raysPerSecond << Qt::endl;
     return 0;
+}
+
+int HeadlessCommandRunner::benchmark(const QStringList& args) const
+{
+    QTextStream err(stderr);
+
+    if (args.size() != 1)
+        return printUsageError("benchmark requires exactly one benchmark config JSON file path.");
+
+    BenchmarkRunner benchmarkRunner;
+    QString errorMessage;
+    const QString sceneFileName = benchmarkRunner.sceneFileName(args[0], &errorMessage);
+    if (sceneFileName.isEmpty()) {
+        err << "Benchmark configuration failed: " << errorMessage << Qt::endl;
+        return 1;
+    }
+
+    TonatiuhCore::initializeCoin();
+    CorePluginRegistry plugins;
+    initializeSceneServices(sceneFileName, &plugins);
+
+    LoadedScene scene;
+    if (!SceneLoader::readFile(sceneFileName, &scene, &errorMessage)) {
+        err << "Scene load failed: " << errorMessage << Qt::endl;
+        return 1;
+    }
+
+    const int result = benchmarkRunner.run(args[0], scene.get(), &errorMessage);
+    if (result != 0)
+        err << "Benchmark failed: " << errorMessage << Qt::endl;
+    return result;
 }
 
 void HeadlessCommandRunner::initializeSceneServices(const QString& fileName, CorePluginRegistry* plugins) const
@@ -205,11 +240,13 @@ void HeadlessCommandRunner::printUsage() const
     out << "  tonatiuhpp --headless --help" << Qt::endl;
     out << "  tonatiuhpp --headless validate-scene <scene.tnhpp>" << Qt::endl;
     out << "  tonatiuhpp --headless trace-scene <scene.tnhpp> --rays N --seed S --no-export" << Qt::endl;
+    out << "  tonatiuhpp --headless benchmark <benchmark_config.json>" << Qt::endl;
     out << Qt::endl;
     out << "Commands:" << Qt::endl;
     out << "  validate-scene <scene.tnhpp>                         Validate that a Tonatiuh++ scene can be loaded." << Qt::endl;
     out << "  trace-scene <scene.tnhpp> --rays N --seed S --no-export" << Qt::endl;
     out << "                                                     Run ray tracing without photon export." << Qt::endl;
+    out << "  benchmark <benchmark_config.json>                  Run a headless benchmark and write JSON results." << Qt::endl;
 }
 
 int HeadlessCommandRunner::printUsageError(const QString& message) const

@@ -2,6 +2,7 @@
 
 #include "kernel/TonatiuhKernel.h"
 #include <atomic>
+#include <functional>
 #include <vector>
 
 #include <QVector>
@@ -10,6 +11,7 @@
 #include <QObject>
 
 #include "libraries/math/3D/Transform.h"
+#include "libraries/math/3D/vec3d.h"
 
 class InstanceNode;
 class RandomParallel;
@@ -23,11 +25,19 @@ class SunAperture;
 class SunShape;
 class AirTransmission;
 
+struct TONATIUH_KERNEL RayTracerHit
+{
+    vec3d position;
+    InstanceNode* surface = nullptr;
+    bool isFront = false;
+};
 
 class TONATIUH_KERNEL RayTracer
 {
 
 public:
+    using HitCallback = std::function<void(const RayTracerHit&)>;
+
     RayTracer(InstanceNode* instanceRoot,
               InstanceNode* instanceSun,
               SunAperture* sunAperture,
@@ -38,7 +48,8 @@ public:
               PhotonsBuffer* photonBuffer,
               QMutex* mutexPhotons,
               QVector<InstanceNode*> exportSuraceList,
-              std::atomic_bool* exportFailed = nullptr);
+              std::atomic_bool* exportFailed = nullptr,
+              HitCallback hitCallback = HitCallback());
 
     typedef void result_type;
 
@@ -58,6 +69,7 @@ private:
     PhotonsBuffer* m_photonBuffer;
     QMutex* m_mutexPhotonsBuffer;
     std::atomic_bool* m_exportFailed;
+    HitCallback m_hitCallback;
     QVector<InstanceNode*> m_exportSurfaceList;
 
     const std::vector< QPair<int, int> >&  m_sunCells;

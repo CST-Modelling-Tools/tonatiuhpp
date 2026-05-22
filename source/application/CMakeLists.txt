@@ -13,6 +13,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 # Headers
 # ----------------------------
 set(HEADERS
+    benchmark/BenchmarkRunner.h
     calculator/CelestialWidget.h
     calculator/HorizontalWidget.h
     calculator/Image.h
@@ -89,6 +90,7 @@ set(HEADERS
 # Sources
 # ----------------------------
 set(SOURCES
+    benchmark/BenchmarkRunner.cpp
     calculator/CelestialWidget.cpp
     calculator/HorizontalWidget.cpp
     calculator/Image.cpp

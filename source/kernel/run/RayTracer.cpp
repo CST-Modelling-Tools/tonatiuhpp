@@ -20,7 +20,8 @@ RayTracer::RayTracer(InstanceNode* instanceRoot,
     PhotonsBuffer* photonBuffer,
     QMutex* mutexPhotons,
     QVector<InstanceNode*> exportSuraceList,
-    std::atomic_bool* exportFailed
+    std::atomic_bool* exportFailed,
+    HitCallback hitCallback
 ):
     m_instanceLayout(instanceRoot),
     m_instanceSun(instanceSun),
@@ -33,6 +34,7 @@ RayTracer::RayTracer(InstanceNode* instanceRoot,
     m_photonBuffer(photonBuffer),
     m_mutexPhotonsBuffer(mutexPhotons),
     m_exportFailed(exportFailed),
+    m_hitCallback(hitCallback),
     m_exportSurfaceList(exportSuraceList),
     m_sunCells(sunAperture->getCells())
 {   
@@ -66,15 +68,24 @@ void RayTracer::operator()(ulong nRays)
                 intersectedSurface = nullptr;
                 isReflected = m_instanceLayout->intersect(ray, rand, isFront, intersectedSurface, rayReflected);
 
-                if (m_air && rayLength > 0 && m_air->transmission(ray.tMax) < rand.RandomDouble())
+                if (m_air && rayLength > 0 && m_air->transmission(ray.tMax) < rand.RandomDouble()) {
+                    intersectedSurface = nullptr;
+                    ray.tMax = gcf::infinity;
                     break;
+                }
 
                 if (!isReflected)
                     break;
 
+                if (m_hitCallback && intersectedSurface)
+                    m_hitCallback(RayTracerHit{ray.point(ray.tMax), intersectedSurface, isFront});
+
                 ++rayLength;
                 ray = rayReflected;
             }
+
+            if (m_hitCallback && intersectedSurface && ray.tMax != gcf::infinity)
+                m_hitCallback(RayTracerHit{ray.point(ray.tMax), intersectedSurface, isFront});
         }
         return;
     }

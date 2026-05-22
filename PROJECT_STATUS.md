@@ -6,7 +6,7 @@ Purpose: lightweight handoff for current Tonatiuh++ project and release context.
 
 ## Current Priorities
 
-- Build benchmark v1 on top of the new headless execution foundation without adding a second executable.
+- Stabilize and scale benchmark v1 on top of the new headless execution foundation without adding a second executable.
 - Prepare, publish, and validate the Tonatiuh++ `v0.1.8.19` release.
 - Remove or reduce remaining runtime warnings visible from command-prompt launches.
 - Validate the IFW updater path from an installed `v0.1.8.18` IFW build to `v0.1.8.19` on Windows, Linux, and macOS.
@@ -19,7 +19,7 @@ Purpose: lightweight handoff for current Tonatiuh++ project and release context.
 - Intended release under validation: `v0.1.8.19`, focused on proving the updater flow from installed `v0.1.8.18` IFW builds.
 - Release packaging source of truth: `.github/workflows/release.yml` and `installer/`.
 - Headless execution foundation is now implemented in the existing `tonatiuhpp` executable; there is no separate console executable or installer target.
-- Current headless commands: `tonatiuhpp --headless --help`, `tonatiuhpp --headless validate-scene <scene.tnhpp>`, and `tonatiuhpp --headless trace-scene <scene.tnhpp> --rays N --seed S --no-export`.
+- Current headless commands: `tonatiuhpp --headless --help`, `tonatiuhpp --headless validate-scene <scene.tnhpp>`, `tonatiuhpp --headless trace-scene <scene.tnhpp> --rays N --seed S --no-export`, and `tonatiuhpp --headless benchmark <benchmark_config.json>`.
 
 ## Recent Completed Milestones
 
@@ -28,6 +28,9 @@ Purpose: lightweight handoff for current Tonatiuh++ project and release context.
 - Headless validation was tested on Windows with an installed scene using plugin mesh assets: `tonatiuhpp.exe --headless validate-scene ".../solatom_module.tnhpp"` reported `Scene validation succeeded`.
 - Headless trace-scene foundation: builds a non-GUI `InstanceNode` tree, sizes the sun aperture from ray-tracing bounds instead of Coin GUI bounding-box traversal, runs the kernel ray tracer serially with a deterministic `RandomSTL` stream, disables photon export by passing no photon buffer/exporter, and reports progress, elapsed seconds, and rays/s.
 - Headless trace validation was tested on Windows with an installed plugin/mesh scene: `tonatiuhpp.exe --headless trace-scene ".../solatom_module.tnhpp" --rays 10000000 --seed 123456789 --no-export` completed in `13.384000` seconds at `747160.789002` rays/s.
+- Headless benchmark v1: `tonatiuhpp --headless benchmark <benchmark_config.json>` parses benchmark JSON, loads the configured scene without GUI startup, runs the existing ray tracer without photon export or photon buffering, accumulates target-side hits into the configured flux grid, computes power/flux metrics and a little-endian float64 grid SHA256, writes result JSON, and supports optional reference comparison fields.
+- Headless benchmark validation was tested on Windows with `benchmark_heliostat_field_v1.tnhpp` at 10,000 rays and seed `123456789`: elapsed time and rays/s were reported, result JSON was written, `total_power_mw` was `44.31264485072039`, `maximum_flux_mw_m2` was `61.354459529685954`, and `flux_grid_sha256` was `b90ae20902ed96237ea4e29f87064493ee6b91cc9b8ad3848f139885698f1074`.
+- Benchmark reference comparison was tested with the same 10,000-ray result as the reference and produced `benchmark_pass: true`, matching flux-grid hash, and zero total-power/maximum-flux error.
 - Runtime noise reduction: removed stray `ShapeMesh` debug prints that emitted resolved OBJ paths and project search paths during scene loading.
 - View/model stability: idempotent node sensor attaches, no nested `ParametersModel` reset, and stale `SceneTreeModel` index guards.
 - Dependency bootstrap: clearer missing Eigen/Boost diagnostics and a hardened Windows dependency path.
@@ -52,7 +55,7 @@ Purpose: lightweight handoff for current Tonatiuh++ project and release context.
 
 ## Known Technical Debt / Warnings
 
-- Benchmark v1 is not implemented yet; current headless trace mode does not perform benchmark-specific flux accumulation.
+- Benchmark v1 is implemented for the configured receiver transform and grid, but the full 500,000,000-ray baseline and authoritative reference JSON still need to be generated and archived.
 - Headless mode still needs CI-style validation on Linux and macOS before relying on it for cluster workflows.
 - In the Codex shell environment on Windows, direct CMake/Ninja invocations intermittently wedged and left stale generated metadata; prefer VS Code CMake Tools or the user's normal terminal build path for validation unless this is rechecked.
 - Manual restart is still expected after IFW updates.
@@ -65,8 +68,9 @@ Purpose: lightweight handoff for current Tonatiuh++ project and release context.
 - Confirm normal GUI startup still behaves as before after the headless entry-point changes.
 - Confirm `tonatiuhpp --headless validate-scene` on representative plugin-based scenes on Linux and macOS.
 - Confirm normal GUI startup still behaves as before after the headless `trace-scene` changes.
-- Confirm `trace-scene` produces no photon files from the installed application output directory.
-- Add benchmark v1 runner on top of the headless foundation; do not implement benchmark-specific flux accumulation until that milestone is explicitly requested.
+- Confirm normal GUI startup still behaves as before after the headless `benchmark` changes.
+- Confirm `trace-scene` and `benchmark` produce no photon files from the installed application output directory on representative runs.
+- Run the full benchmark v1 target of 500,000,000 rays, generate the authoritative reference JSON, and preserve the resulting SHA256 and metric tolerances.
 - Confirm the `v0.1.8.19` `Release` workflow succeeds on Windows, Linux, and macOS from the matching tag.
 - Confirm GitHub Pages serves each generated `v0.1.8.19` IFW repository at the exact URL embedded in its installer.
 - Confirm every generated repository has `Updates.xml` and package metadata for `com.tonatiuhpp.app`.

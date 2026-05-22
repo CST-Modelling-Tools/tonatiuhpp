@@ -14,6 +14,7 @@
 #include "kernel/scene/TSceneKit.h"
 #include "kernel/sun/SunAperture.h"
 #include "kernel/sun/SunKit.h"
+#include "kernel/sun/SunPosition.h"
 #include "kernel/sun/SunShape.h"
 #include "libraries/math/3D/Transform.h"
 
@@ -44,7 +45,8 @@ bool RayTraceRunner::trace(TSceneKit* scene,
                            const RayTraceOptions& options,
                            RayTraceResult* result,
                            QString* errorMessage,
-                           const ProgressCallback& progress) const
+                           const ProgressCallback& progress,
+                           const HitCallback& hitCallback) const
 {
     if (result)
         *result = RayTraceResult();
@@ -77,12 +79,19 @@ bool RayTraceRunner::trace(TSceneKit* scene,
 
     SunShape* sunShape = static_cast<SunShape*>(sunKit->getPart("shape", false));
     SunAperture* sunAperture = static_cast<SunAperture*>(sunKit->getPart("aperture", false));
-    if (!sunShape || !sunAperture)
-        return fail(errorMessage, "Scene sun is missing shape or aperture data.");
+    SunPosition* sunPosition = static_cast<SunPosition*>(sunKit->getPart("position", false));
+    if (!sunShape || !sunAperture || !sunPosition)
+        return fail(errorMessage, "Scene sun is missing position, shape, or aperture data.");
 
     reportProgress(progress, "Finding sun aperture cells.");
     if (!sunKit->findTexture(options.sunWidthDivisions, options.sunHeightDivisions, instanceLayout))
         return fail(errorMessage, "There are no surfaces defined for ray tracing.");
+
+    if (result) {
+        result->sunApertureArea = sunAperture->getArea();
+        result->irradiance = sunPosition->irradiance.getValue();
+        result->powerPerRay = options.rays > 0 ? result->sunApertureArea * result->irradiance / options.rays : 0.;
+    }
 
     AirTransmission* air = static_cast<AirTransmission*>(scene->getPart("world.air.transmission", false));
     AirTransmission* tracingAir = nullptr;
@@ -111,7 +120,9 @@ bool RayTraceRunner::trace(TSceneKit* scene,
             &mutexRandom,
             nullptr,
             nullptr,
-            exportSurfaceList
+            exportSurfaceList,
+            nullptr,
+            hitCallback
         );
         tracer(raysThisStep);
         traced += raysThisStep;
