@@ -5,6 +5,7 @@
 #include <QCoreApplication>
 #include <QFileInfo>
 #include <QTextStream>
+#include <QThread>
 
 #include "benchmark/BenchmarkRunner.h"
 #include "core/CorePluginRegistry.h"
@@ -90,6 +91,8 @@ int HeadlessCommandRunner::traceScene(const QStringList& args) const
     RayTraceOptions options;
     options.rays = parsed.rays;
     options.seed = parsed.seed;
+    options.workerCount = qMax(1, QThread::idealThreadCount());
+    options.chunkSize = 100000;
 
     RayTraceResult result;
     RayTraceRunner runner;
@@ -105,6 +108,9 @@ int HeadlessCommandRunner::traceScene(const QStringList& args) const
     out << "Trace completed." << Qt::endl;
     out << "elapsed_seconds: " << result.elapsedSeconds << Qt::endl;
     out << "rays_per_second: " << result.raysPerSecond << Qt::endl;
+    out << "worker_count: " << result.workerCount << Qt::endl;
+    out << "chunk_count: " << result.chunkCount << Qt::endl;
+    out << "chunk_size: " << result.chunkSize << Qt::endl;
     return 0;
 }
 

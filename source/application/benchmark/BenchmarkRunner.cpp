@@ -15,6 +15,7 @@
 #include <QJsonValue>
 #include <QSaveFile>
 #include <QTextStream>
+#include <QThread>
 #include <QtEndian>
 
 #include "core/RayTraceRunner.h"
@@ -320,26 +321,29 @@ class BenchmarkAccumulator
 public:
     explicit BenchmarkAccumulator(const BenchmarkConfig& config):
         m_config(config),
-        m_hits(static_cast<size_t>(config.grid.width) * static_cast<size_t>(config.grid.height), 0)
+        m_hits(static_cast<size_t>(config.grid.width) * static_cast<size_t>(config.grid.height), 0),
+        m_targetSideIsFront(config.targetSideId != 0),
+        m_yScale(1. / std::cos(kBenchmarkV1TiltDegrees * gcf::degree)),
+        m_xBinScale(config.grid.width / (config.bounds.xMax - config.bounds.xMin)),
+        m_yBinScale(config.grid.height / (config.bounds.yMax - config.bounds.yMin))
     {
     }
 
     void onHit(const RayTracerHit& hit)
     {
-        const int sideId = hit.isFront ? 1 : 0;
-        if (sideId != m_config.targetSideId)
+        if (hit.isFront != m_targetSideIsFront)
             return;
 
         const double x = hit.position.x;
-        const double y = (hit.position.z - kBenchmarkV1ReceiverZ) / std::cos(kBenchmarkV1TiltDegrees * gcf::degree);
+        const double y = (hit.position.z - kBenchmarkV1ReceiverZ) * m_yScale;
         if (!std::isfinite(x) || !std::isfinite(y))
             return;
         if (x < m_config.bounds.xMin || x > m_config.bounds.xMax ||
             y < m_config.bounds.yMin || y > m_config.bounds.yMax)
             return;
 
-        int column = static_cast<int>(std::floor((x - m_config.bounds.xMin) / (m_config.bounds.xMax - m_config.bounds.xMin) * m_config.grid.width));
-        int row = static_cast<int>(std::floor((y - m_config.bounds.yMin) / (m_config.bounds.yMax - m_config.bounds.yMin) * m_config.grid.height));
+        int column = static_cast<int>(std::floor((x - m_config.bounds.xMin) * m_xBinScale));
+        int row = static_cast<int>(std::floor((y - m_config.bounds.yMin) * m_yBinScale));
         if (column == m_config.grid.width)
             --column;
         if (row == m_config.grid.height)
@@ -349,6 +353,13 @@ public:
 
         ++m_hits[static_cast<size_t>(row) * static_cast<size_t>(m_config.grid.width) + static_cast<size_t>(column)];
         ++m_totalHits;
+    }
+
+    void merge(const BenchmarkAccumulator& other)
+    {
+        for (size_t index = 0; index < m_hits.size(); ++index)
+            m_hits[index] += other.m_hits[index];
+        m_totalHits += other.m_totalHits;
     }
 
     BenchmarkMetrics metrics(double powerPerRay) const
@@ -384,6 +395,10 @@ private:
     const BenchmarkConfig& m_config;
     std::vector<qulonglong> m_hits;
     qulonglong m_totalHits = 0;
+    bool m_targetSideIsFront = true;
+    double m_yScale = 1.;
+    double m_xBinScale = 1.;
+    double m_yBinScale = 1.;
 };
 
 bool writeResult(const QString& outputFileName, const QJsonObject& result, QString* errorMessage)
@@ -435,25 +450,37 @@ int BenchmarkRunner::run(const QString& configFileName, TSceneKit* scene, QStrin
     out << "Seed: " << config.seed << Qt::endl;
     out << "Photon export: disabled" << Qt::endl;
 
-    BenchmarkAccumulator accumulator(config);
     RayTraceOptions options;
     options.rays = config.rays;
     options.seed = config.seed;
     options.sunWidthDivisions = 100;
     options.sunHeightDivisions = 100;
+    options.workerCount = qMax(1, QThread::idealThreadCount());
+    options.chunkSize = 100000;
+
+    std::vector<BenchmarkAccumulator> workerAccumulators;
+    workerAccumulators.reserve(static_cast<size_t>(options.workerCount));
+    for (int worker = 0; worker < options.workerCount; ++worker)
+        workerAccumulators.emplace_back(config);
 
     RayTraceResult traceResult;
     RayTraceRunner runner;
     QString traceError;
     if (!runner.trace(scene, options, &traceResult, &traceError, [&out](const QString& message) {
             out << message << Qt::endl;
-        }, [&accumulator](const RayTracerHit& hit) {
-            accumulator.onHit(hit);
+        }, RayTraceRunner::HitCallback(), [&workerAccumulators](int workerIndex) {
+            return [&workerAccumulators, workerIndex](const RayTracerHit& hit) {
+                workerAccumulators[static_cast<size_t>(workerIndex)].onHit(hit);
+            };
         })) {
         return fail(errorMessage, QString("Benchmark trace failed: %1").arg(traceError)), 1;
     }
     if (!std::isfinite(traceResult.powerPerRay) || traceResult.powerPerRay < 0.)
         return fail(errorMessage, "Benchmark trace produced invalid power-per-ray."), 1;
+
+    BenchmarkAccumulator accumulator(config);
+    for (const BenchmarkAccumulator& workerAccumulator : workerAccumulators)
+        accumulator.merge(workerAccumulator);
 
     const BenchmarkMetrics metrics = accumulator.metrics(traceResult.powerPerRay);
     if (!std::isfinite(metrics.totalPowerMw) ||
@@ -470,6 +497,9 @@ int BenchmarkRunner::run(const QString& configFileName, TSceneKit* scene, QStrin
     result["seed"] = static_cast<double>(config.seed);
     result["elapsed_seconds"] = traceResult.elapsedSeconds;
     result["rays_per_second"] = traceResult.raysPerSecond;
+    result["worker_count"] = traceResult.workerCount;
+    result["chunk_count"] = static_cast<double>(traceResult.chunkCount);
+    result["chunk_size"] = static_cast<double>(traceResult.chunkSize);
     result["target_side_id"] = config.targetSideId;
     result["target_bounds"] = boundsToJson(config.bounds);
     result["target_grid"] = gridToJson(config.grid);
@@ -502,6 +532,9 @@ int BenchmarkRunner::run(const QString& configFileName, TSceneKit* scene, QStrin
     out << "Benchmark completed." << Qt::endl;
     out << "elapsed_seconds: " << traceResult.elapsedSeconds << Qt::endl;
     out << "rays_per_second: " << traceResult.raysPerSecond << Qt::endl;
+    out << "worker_count: " << traceResult.workerCount << Qt::endl;
+    out << "chunk_count: " << traceResult.chunkCount << Qt::endl;
+    out << "chunk_size: " << traceResult.chunkSize << Qt::endl;
     out << "total_power_mw: " << metrics.totalPowerMw << Qt::endl;
     out << "maximum_flux_mw_m2: " << metrics.maximumFluxMwM2 << Qt::endl;
     out << "Result written: " << outputFileName << Qt::endl;
