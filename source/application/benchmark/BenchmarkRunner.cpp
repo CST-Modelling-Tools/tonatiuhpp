@@ -49,6 +49,8 @@ struct BenchmarkConfig
     QString sceneFile = "benchmark_v1.tnhpp";
     ulong rays = 500000000;
     ulong seed = 123456789;
+    int workerCount = 0;
+    ulong chunkSize = 0;
     int targetSideId = 1;
     Bounds bounds;
     Grid grid;
@@ -180,6 +182,10 @@ bool parseConfig(const QString& configFileName, BenchmarkConfig* config, QString
     if (!parseULong(object, "rays", true, &parsed.rays, errorMessage))
         return false;
     if (!parseULong(object, "seed", false, &parsed.seed, errorMessage))
+        return false;
+    if (!parsePositiveInt(object, "worker_count", &parsed.workerCount, errorMessage))
+        return false;
+    if (!parseULong(object, "chunk_size", true, &parsed.chunkSize, errorMessage))
         return false;
     if (object.contains("target_side_id")) {
         if (!object.value("target_side_id").isDouble())
@@ -455,8 +461,8 @@ int BenchmarkRunner::run(const QString& configFileName, TSceneKit* scene, QStrin
     options.seed = config.seed;
     options.sunWidthDivisions = 100;
     options.sunHeightDivisions = 100;
-    options.workerCount = qMax(1, QThread::idealThreadCount());
-    options.chunkSize = 100000;
+    options.workerCount = config.workerCount > 0 ? config.workerCount : qMax(1, QThread::idealThreadCount());
+    options.chunkSize = config.chunkSize > 0 ? config.chunkSize : 100000;
 
     std::vector<BenchmarkAccumulator> workerAccumulators;
     workerAccumulators.reserve(static_cast<size_t>(options.workerCount));
