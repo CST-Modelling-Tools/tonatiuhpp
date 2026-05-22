@@ -92,7 +92,7 @@ int HeadlessCommandRunner::traceScene(const QStringList& args) const
     options.rays = parsed.rays;
     options.seed = parsed.seed;
     options.workerCount = qMax(1, QThread::idealThreadCount());
-    options.chunkSize = 100000;
+    options.chunkSize = 10000;
 
     RayTraceResult result;
     RayTraceRunner runner;

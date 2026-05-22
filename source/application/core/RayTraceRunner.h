@@ -24,7 +24,7 @@ struct RayTraceOptions
     int sunWidthDivisions = 100;
     int sunHeightDivisions = 100;
     int workerCount = 1;
-    ulong chunkSize = 100000;
+    ulong chunkSize = 10000;
     RayTraceOutputMode outputMode = RayTraceOutputMode::NoOutput;
     PhotonsBuffer* photonBuffer = nullptr;
     QVector<InstanceNode*> exportSurfaceList;

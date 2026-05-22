@@ -462,7 +462,7 @@ int BenchmarkRunner::run(const QString& configFileName, TSceneKit* scene, QStrin
     options.sunWidthDivisions = 100;
     options.sunHeightDivisions = 100;
     options.workerCount = config.workerCount > 0 ? config.workerCount : qMax(1, QThread::idealThreadCount());
-    options.chunkSize = config.chunkSize > 0 ? config.chunkSize : 100000;
+    options.chunkSize = config.chunkSize > 0 ? config.chunkSize : 10000;
 
     std::vector<BenchmarkAccumulator> workerAccumulators;
     workerAccumulators.reserve(static_cast<size_t>(options.workerCount));
