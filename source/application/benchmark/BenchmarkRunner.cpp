@@ -26,6 +26,7 @@ namespace
 constexpr double kBenchmarkV1ReceiverZ = 80.;
 constexpr double kBenchmarkV1TiltDegrees = 210.515 - 180.;
 constexpr double kMegawatt = 1.e6;
+constexpr size_t kMaxGridCells = 10000000;
 
 struct Bounds
 {
@@ -209,6 +210,12 @@ bool parseConfig(const QString& configFileName, BenchmarkConfig* config, QString
             !parsePositiveInt(grid, "height", &parsed.grid.height, errorMessage))
             return false;
     }
+    const size_t gridWidth = static_cast<size_t>(parsed.grid.width);
+    const size_t gridHeight = static_cast<size_t>(parsed.grid.height);
+    if (gridWidth > std::numeric_limits<size_t>::max() / gridHeight)
+        return fail(errorMessage, "target_grid dimensions are too large.");
+    if (gridWidth * gridHeight > kMaxGridCells)
+        return fail(errorMessage, QString("target_grid must not exceed %1 cells.").arg(static_cast<qulonglong>(kMaxGridCells)));
 
     if (object.contains("photon_export")) {
         if (!object.value("photon_export").isBool())
@@ -325,6 +332,8 @@ public:
 
         const double x = hit.position.x;
         const double y = (hit.position.z - kBenchmarkV1ReceiverZ) / std::cos(kBenchmarkV1TiltDegrees * gcf::degree);
+        if (!std::isfinite(x) || !std::isfinite(y))
+            return;
         if (x < m_config.bounds.xMin || x > m_config.bounds.xMax ||
             y < m_config.bounds.yMin || y > m_config.bounds.yMax)
             return;
@@ -443,8 +452,15 @@ int BenchmarkRunner::run(const QString& configFileName, TSceneKit* scene, QStrin
         })) {
         return fail(errorMessage, QString("Benchmark trace failed: %1").arg(traceError)), 1;
     }
+    if (!std::isfinite(traceResult.powerPerRay) || traceResult.powerPerRay < 0.)
+        return fail(errorMessage, "Benchmark trace produced invalid power-per-ray."), 1;
 
     const BenchmarkMetrics metrics = accumulator.metrics(traceResult.powerPerRay);
+    if (!std::isfinite(metrics.totalPowerMw) ||
+        !std::isfinite(metrics.minimumFluxMwM2) ||
+        !std::isfinite(metrics.averageFluxMwM2) ||
+        !std::isfinite(metrics.maximumFluxMwM2))
+        return fail(errorMessage, "Benchmark produced non-finite metrics."), 1;
 
     QJsonObject result;
     result["schema_version"] = 1;
