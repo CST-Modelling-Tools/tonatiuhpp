@@ -108,6 +108,11 @@ bool fail(QString* errorMessage, const QString& message)
     return false;
 }
 
+QString boolText(bool value)
+{
+    return value ? "true" : "false";
+}
+
 QString resolveRelativePath(const QDir& baseDir, const QString& path)
 {
     QFileInfo info(path);
@@ -861,6 +866,22 @@ int BenchmarkRunner::run(const QString& configFileName, TSceneKit* scene, QStrin
     out << "chunk_size: " << traceResult.chunkSize << Qt::endl;
     out << "total_power_mw: " << metrics.totalPowerMw << Qt::endl;
     out << "maximum_flux_mw_m2: " << metrics.maximumFluxMwM2 << Qt::endl;
+    if (reference.enabled) {
+        out << "Comparison:" << Qt::endl;
+        out << "benchmark_pass: " << boolText(result.value("benchmark_pass").toBool()) << Qt::endl;
+        if (result.contains("total_power_error_percent") && result.contains("total_power_pass")) {
+            out << "total_power_error_percent: " << result.value("total_power_error_percent").toDouble()
+                << ", total_power_pass: " << boolText(result.value("total_power_pass").toBool()) << Qt::endl;
+        }
+        if (result.contains("maximum_flux_error_percent") && result.contains("maximum_flux_pass")) {
+            out << "maximum_flux_error_percent: " << result.value("maximum_flux_error_percent").toDouble()
+                << ", maximum_flux_pass: " << boolText(result.value("maximum_flux_pass").toBool()) << Qt::endl;
+        }
+        if (result.contains("flux_grid_hash_matches") && result.contains("flux_grid_hash_pass")) {
+            out << "flux_grid_hash_matches: " << boolText(result.value("flux_grid_hash_matches").toBool())
+                << ", flux_grid_hash_pass: " << boolText(result.value("flux_grid_hash_pass").toBool()) << Qt::endl;
+        }
+    }
     if (!fluxGridOutputFileName.isEmpty())
         out << "Flux grid written: " << fluxGridOutputFileName << Qt::endl;
     if (!fluxGridBinaryOutputFileName.isEmpty())
