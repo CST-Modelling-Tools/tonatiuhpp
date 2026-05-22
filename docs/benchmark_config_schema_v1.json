@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/cst-modelling-tools/tonatiuhpp/schemas/benchmark_config_v1.json",
+  "title": "Tonatiuh++ headless benchmark v1 configuration",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "benchmark": {
+      "type": "string",
+      "default": "benchmark_v1",
+      "description": "Benchmark definition to run. Only benchmark_v1 is currently supported."
+    },
+    "scene_file": {
+      "type": "string",
+      "default": "benchmark_v1.tnhpp",
+      "description": "Path to the .tnhpp scene. Relative paths are resolved from the config file directory."
+    },
+    "rays": {
+      "type": "integer",
+      "minimum": 1,
+      "default": 500000000,
+      "description": "Number of rays to trace."
+    },
+    "seed": {
+      "type": "integer",
+      "minimum": 0,
+      "default": 123456789,
+      "description": "Deterministic random seed."
+    },
+    "worker_count": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Optional RayTraceRunner worker count. When omitted, Tonatiuh++ uses QThread::idealThreadCount()."
+    },
+    "chunk_size": {
+      "type": "integer",
+      "minimum": 1,
+      "default": 10000,
+      "description": "Optional rays per worker chunk. Different chunk sizes use different deterministic chunk seeds, so flux_grid_sha256 is expected to change."
+    },
+    "target_side_id": {
+      "type": "integer",
+      "enum": [0, 1],
+      "default": 1,
+      "description": "Receiver side to accumulate. 1 maps to front-side hits."
+    },
+    "target_bounds": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "x_min": { "type": "number", "default": -2.0 },
+        "x_max": { "type": "number", "default": 2.0 },
+        "y_min": { "type": "number", "default": -2.0 },
+        "y_max": { "type": "number", "default": 2.0 }
+      },
+      "description": "Target grid bounds in benchmark-v1 mapped target coordinates."
+    },
+    "target_grid": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "width": { "type": "integer", "minimum": 1, "default": 100 },
+        "height": { "type": "integer", "minimum": 1, "default": 100 }
+      },
+      "description": "Flux grid dimensions."
+    },
+    "photon_export": {
+      "type": "boolean",
+      "const": false,
+      "default": false,
+      "description": "Benchmark mode currently supports no-export only."
+    },
+    "output_file": {
+      "type": "string",
+      "default": "benchmark_result.json",
+      "description": "Result JSON path. Relative paths are resolved from the config file directory."
+    },
+    "reference_file": {
+      "type": "string",
+      "description": "Optional reference JSON path for metric/hash comparison."
+    }
+  }
+}
