@@ -17,5 +17,6 @@
     "height": 100
   },
   "photon_export": false,
-  "output_file": "benchmark_result.json"
+  "output_file": "benchmark_result.json",
+  "flux_grid_output_file": "benchmark_flux_grid.csv"
 }

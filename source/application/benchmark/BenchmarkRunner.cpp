@@ -4,6 +4,7 @@
 #include <cmath>
 #include <cstring>
 #include <limits>
+#include <utility>
 #include <vector>
 
 #include <QCryptographicHash>
@@ -14,6 +15,7 @@
 #include <QJsonObject>
 #include <QJsonValue>
 #include <QSaveFile>
+#include <QStringList>
 #include <QTextStream>
 #include <QThread>
 #include <QtEndian>
@@ -56,15 +58,22 @@ struct BenchmarkConfig
     Grid grid;
     bool photonExport = false;
     QString outputFile = "benchmark_result.json";
+    QString fluxGridOutputFile;
     QString referenceFile;
+    QString referenceFluxGridFile;
 };
 
 struct ReferenceConfig
 {
     bool enabled = false;
+    bool hasTotalPowerMw = false;
+    bool hasMaximumFluxMwM2 = false;
+    bool hasFluxGridSha256 = false;
+    bool hasFluxGridFile = false;
     double totalPowerMw = 0.;
     double maximumFluxMwM2 = 0.;
     QString fluxGridSha256;
+    QString fluxGridFile;
     double totalPowerTolerancePercent = 0.1;
     double maximumFluxTolerancePercent = 5.;
 };
@@ -76,6 +85,14 @@ struct BenchmarkMetrics
     double averageFluxMwM2 = 0.;
     double maximumFluxMwM2 = 0.;
     QString fluxGridSha256;
+    std::vector<double> fluxGrid;
+};
+
+struct FluxGridComparison
+{
+    double maximumAbsoluteErrorMwM2 = 0.;
+    double maximumRelativeErrorPercent = 0.;
+    double rmsErrorMwM2 = 0.;
 };
 
 bool fail(QString* errorMessage, const QString& message)
@@ -238,10 +255,24 @@ bool parseConfig(const QString& configFileName, BenchmarkConfig* config, QString
     }
     if (parsed.outputFile.trimmed().isEmpty())
         return fail(errorMessage, "output_file must not be empty.");
+    if (object.contains("flux_grid_output_file")) {
+        if (!object.value("flux_grid_output_file").isString())
+            return fail(errorMessage, "flux_grid_output_file must be a string.");
+        parsed.fluxGridOutputFile = object.value("flux_grid_output_file").toString();
+        if (parsed.fluxGridOutputFile.trimmed().isEmpty())
+            return fail(errorMessage, "flux_grid_output_file must not be empty.");
+    }
     if (object.contains("reference_file")) {
         if (!object.value("reference_file").isString())
             return fail(errorMessage, "reference_file must be a string.");
         parsed.referenceFile = object.value("reference_file").toString();
+    }
+    if (object.contains("reference_flux_grid_file")) {
+        if (!object.value("reference_flux_grid_file").isString())
+            return fail(errorMessage, "reference_flux_grid_file must be a string.");
+        parsed.referenceFluxGridFile = object.value("reference_flux_grid_file").toString();
+        if (parsed.referenceFluxGridFile.trimmed().isEmpty())
+            return fail(errorMessage, "reference_flux_grid_file must not be empty.");
     }
 
     if (config)
@@ -260,14 +291,33 @@ bool parseReference(const QString& referenceFileName, ReferenceConfig* reference
 
     ReferenceConfig parsed;
     parsed.enabled = true;
-    if (!object.contains("total_power_mw") || !object.contains("maximum_flux_mw_m2"))
-        return fail(errorMessage, "reference must define total_power_mw and maximum_flux_mw_m2.");
-    if (!parseFiniteDouble(object, "total_power_mw", &parsed.totalPowerMw, errorMessage) ||
-        !parseFiniteDouble(object, "maximum_flux_mw_m2", &parsed.maximumFluxMwM2, errorMessage))
-        return false;
-    if (!object.value("flux_grid_sha256").isString())
-        return fail(errorMessage, "reference flux_grid_sha256 must be a string.");
-    parsed.fluxGridSha256 = object.value("flux_grid_sha256").toString();
+    if (object.contains("total_power_mw")) {
+        if (!parseFiniteDouble(object, "total_power_mw", &parsed.totalPowerMw, errorMessage))
+            return false;
+        parsed.hasTotalPowerMw = true;
+    }
+    if (object.contains("maximum_flux_mw_m2")) {
+        if (!parseFiniteDouble(object, "maximum_flux_mw_m2", &parsed.maximumFluxMwM2, errorMessage))
+            return false;
+        parsed.hasMaximumFluxMwM2 = true;
+    }
+    if (object.contains("flux_grid_sha256")) {
+        if (!object.value("flux_grid_sha256").isString())
+            return fail(errorMessage, "reference flux_grid_sha256 must be a string.");
+        parsed.fluxGridSha256 = object.value("flux_grid_sha256").toString();
+        if (parsed.fluxGridSha256.trimmed().isEmpty())
+            return fail(errorMessage, "reference flux_grid_sha256 must not be empty.");
+        parsed.hasFluxGridSha256 = true;
+    }
+    if (object.contains("flux_grid_file")) {
+        if (!object.value("flux_grid_file").isString())
+            return fail(errorMessage, "reference flux_grid_file must be a string.");
+        const QString fluxGridFile = object.value("flux_grid_file").toString();
+        if (fluxGridFile.trimmed().isEmpty())
+            return fail(errorMessage, "reference flux_grid_file must not be empty.");
+        parsed.fluxGridFile = resolveRelativePath(QFileInfo(referenceFileName).absoluteDir(), fluxGridFile);
+        parsed.hasFluxGridFile = true;
+    }
 
     if (object.contains("tolerances")) {
         if (!object.value("tolerances").isObject())
@@ -279,6 +329,8 @@ bool parseReference(const QString& referenceFileName, ReferenceConfig* reference
     }
     if (parsed.totalPowerTolerancePercent < 0. || parsed.maximumFluxTolerancePercent < 0.)
         return fail(errorMessage, "reference tolerances must be non-negative.");
+    if (!parsed.hasTotalPowerMw && !parsed.hasMaximumFluxMwM2 && !parsed.hasFluxGridSha256 && !parsed.hasFluxGridFile)
+        return fail(errorMessage, "reference must define at least one comparable value.");
 
     if (reference)
         *reference = parsed;
@@ -375,25 +427,24 @@ public:
         const double yStep = (m_config.bounds.yMax - m_config.bounds.yMin) / m_config.grid.height;
         const double cellArea = xStep * yStep;
 
-        std::vector<double> fluxGrid;
-        fluxGrid.reserve(m_hits.size());
+        result.fluxGrid.reserve(m_hits.size());
 
         result.minimumFluxMwM2 = std::numeric_limits<double>::max();
         for (qulonglong hits : m_hits) {
             const double flux = cellArea > 0. ? static_cast<double>(hits) * powerPerRay / cellArea / kMegawatt : 0.;
-            fluxGrid.push_back(flux);
+            result.fluxGrid.push_back(flux);
             result.minimumFluxMwM2 = std::min(result.minimumFluxMwM2, flux);
             result.maximumFluxMwM2 = std::max(result.maximumFluxMwM2, flux);
             result.averageFluxMwM2 += flux;
         }
 
-        if (!fluxGrid.empty())
-            result.averageFluxMwM2 /= static_cast<double>(fluxGrid.size());
+        if (!result.fluxGrid.empty())
+            result.averageFluxMwM2 /= static_cast<double>(result.fluxGrid.size());
         else
             result.minimumFluxMwM2 = 0.;
 
         result.totalPowerMw = static_cast<double>(m_totalHits) * powerPerRay / kMegawatt;
-        result.fluxGridSha256 = sha256Float64LittleEndian(fluxGrid);
+        result.fluxGridSha256 = sha256Float64LittleEndian(result.fluxGrid);
         return result;
     }
 
@@ -423,6 +474,99 @@ bool writeResult(const QString& outputFileName, const QJsonObject& result, QStri
         return fail(errorMessage, QString("Cannot write output file %1: %2").arg(outputFileName, file.errorString()));
     return true;
 }
+
+bool writeFluxGridCsv(const QString& outputFileName, const Grid& grid, const std::vector<double>& fluxGrid, QString* errorMessage)
+{
+    const size_t expectedSize = static_cast<size_t>(grid.width) * static_cast<size_t>(grid.height);
+    if (fluxGrid.size() != expectedSize)
+        return fail(errorMessage, "Flux grid size does not match target_grid dimensions.");
+
+    QFileInfo info(outputFileName);
+    QDir dir;
+    if (!dir.mkpath(info.absolutePath()))
+        return fail(errorMessage, QString("Cannot create output directory %1.").arg(info.absolutePath()));
+
+    QSaveFile file(outputFileName);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text))
+        return fail(errorMessage, QString("Cannot open flux grid output file %1: %2").arg(outputFileName, file.errorString()));
+
+    QTextStream stream(&file);
+    for (int row = 0; row < grid.height; ++row) {
+        for (int column = 0; column < grid.width; ++column) {
+            if (column > 0)
+                stream << ',';
+            const double value = fluxGrid[static_cast<size_t>(row) * static_cast<size_t>(grid.width) + static_cast<size_t>(column)];
+            if (!std::isfinite(value))
+                return fail(errorMessage, "Flux grid contains a non-finite value.");
+            stream << QString::number(value, 'g', 17);
+        }
+        stream << '\n';
+    }
+    stream.flush();
+
+    if (!file.commit())
+        return fail(errorMessage, QString("Cannot write flux grid output file %1: %2").arg(outputFileName, file.errorString()));
+    return true;
+}
+
+bool readFluxGridCsv(const QString& fileName, const Grid& grid, std::vector<double>* fluxGrid, QString* errorMessage)
+{
+    QFile file(fileName);
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
+        return fail(errorMessage, QString("Cannot open reference flux grid file %1: %2").arg(fileName, file.errorString()));
+
+    std::vector<double> parsed;
+    parsed.reserve(static_cast<size_t>(grid.width) * static_cast<size_t>(grid.height));
+
+    QTextStream stream(&file);
+    int row = 0;
+    while (!stream.atEnd()) {
+        const QString line = stream.readLine();
+        if (row >= grid.height)
+            return fail(errorMessage, QString("Reference flux grid %1 has more than %2 rows.").arg(fileName).arg(grid.height));
+
+        const QStringList columns = line.split(',', Qt::KeepEmptyParts);
+        if (columns.size() != grid.width)
+            return fail(errorMessage, QString("Reference flux grid %1 row %2 has %3 columns; expected %4.")
+                .arg(fileName)
+                .arg(row + 1)
+                .arg(columns.size())
+                .arg(grid.width));
+
+        for (const QString& column : columns) {
+            bool ok = false;
+            const double value = column.trimmed().toDouble(&ok);
+            if (!ok || !std::isfinite(value))
+                return fail(errorMessage, QString("Reference flux grid %1 row %2 contains a non-finite or invalid value.").arg(fileName).arg(row + 1));
+            parsed.push_back(value);
+        }
+        ++row;
+    }
+
+    if (row != grid.height)
+        return fail(errorMessage, QString("Reference flux grid %1 has %2 rows; expected %3.").arg(fileName).arg(row).arg(grid.height));
+
+    if (fluxGrid)
+        *fluxGrid = std::move(parsed);
+    return true;
+}
+
+FluxGridComparison compareFluxGrids(const std::vector<double>& actual, const std::vector<double>& reference)
+{
+    FluxGridComparison result;
+    long double squaredErrorSum = 0.;
+    for (size_t index = 0; index < actual.size(); ++index) {
+        const double diff = actual[index] - reference[index];
+        const double absoluteError = std::abs(diff);
+        result.maximumAbsoluteErrorMwM2 = std::max(result.maximumAbsoluteErrorMwM2, absoluteError);
+        result.maximumRelativeErrorPercent = std::max(result.maximumRelativeErrorPercent, relativeErrorPercent(actual[index], reference[index]));
+        squaredErrorSum += static_cast<long double>(diff) * static_cast<long double>(diff);
+    }
+
+    if (!actual.empty())
+        result.rmsErrorMwM2 = std::sqrt(static_cast<double>(squaredErrorSum / static_cast<long double>(actual.size())));
+    return result;
+}
 }
 
 int BenchmarkRunner::run(const QString& configFileName, TSceneKit* scene, QString* errorMessage) const
@@ -444,11 +588,20 @@ int BenchmarkRunner::run(const QString& configFileName, TSceneKit* scene, QStrin
     const QDir configDir = QFileInfo(configFileName).absoluteDir();
     const QString sceneFileName = resolveRelativePath(configDir, config.sceneFile);
     const QString outputFileName = resolveRelativePath(configDir, config.outputFile);
+    const QString fluxGridOutputFileName = config.fluxGridOutputFile.isEmpty() ? QString() : resolveRelativePath(configDir, config.fluxGridOutputFile);
     const QString referenceFileName = config.referenceFile.isEmpty() ? QString() : resolveRelativePath(configDir, config.referenceFile);
+    const QString configReferenceFluxGridFileName = config.referenceFluxGridFile.isEmpty() ? QString() : resolveRelativePath(configDir, config.referenceFluxGridFile);
 
     ReferenceConfig reference;
     if (!parseReference(referenceFileName, &reference, errorMessage))
         return 1;
+    if (!configReferenceFluxGridFileName.isEmpty()) {
+        if (reference.hasFluxGridFile && QFileInfo(reference.fluxGridFile).absoluteFilePath() != QFileInfo(configReferenceFluxGridFileName).absoluteFilePath())
+            return fail(errorMessage, "reference_flux_grid_file conflicts with reference flux_grid_file."), 1;
+        reference.enabled = true;
+        reference.hasFluxGridFile = true;
+        reference.fluxGridFile = configReferenceFluxGridFileName;
+    }
 
     out << "Running benchmark: " << config.benchmark << Qt::endl;
     out << "Scene: " << sceneFileName << Qt::endl;
@@ -495,6 +648,24 @@ int BenchmarkRunner::run(const QString& configFileName, TSceneKit* scene, QStrin
         !std::isfinite(metrics.maximumFluxMwM2))
         return fail(errorMessage, "Benchmark produced non-finite metrics."), 1;
 
+    if (!fluxGridOutputFileName.isEmpty() && !writeFluxGridCsv(fluxGridOutputFileName, config.grid, metrics.fluxGrid, errorMessage))
+        return 1;
+
+    std::vector<double> referenceFluxGrid;
+    QString referenceFluxGridSha256;
+    FluxGridComparison fluxGridComparison;
+    if (reference.hasFluxGridFile) {
+        if (!readFluxGridCsv(reference.fluxGridFile, config.grid, &referenceFluxGrid, errorMessage))
+            return 1;
+        if (referenceFluxGrid.size() != metrics.fluxGrid.size())
+            return fail(errorMessage, "Reference flux grid size does not match computed flux grid size."), 1;
+
+        referenceFluxGridSha256 = sha256Float64LittleEndian(referenceFluxGrid);
+        if (reference.hasFluxGridSha256 && referenceFluxGridSha256.compare(reference.fluxGridSha256, Qt::CaseInsensitive) != 0)
+            return fail(errorMessage, "Reference flux_grid_sha256 does not match reference flux_grid_file."), 1;
+        fluxGridComparison = compareFluxGrids(metrics.fluxGrid, referenceFluxGrid);
+    }
+
     QJsonObject result;
     result["schema_version"] = 1;
     result["benchmark"] = config.benchmark;
@@ -514,20 +685,39 @@ int BenchmarkRunner::run(const QString& configFileName, TSceneKit* scene, QStrin
     result["average_flux_mw_m2"] = metrics.averageFluxMwM2;
     result["maximum_flux_mw_m2"] = metrics.maximumFluxMwM2;
     result["flux_grid_sha256"] = metrics.fluxGridSha256;
+    if (!fluxGridOutputFileName.isEmpty())
+        result["flux_grid_output_file"] = fluxGridOutputFileName;
 
     if (reference.enabled) {
-        const double totalPowerError = relativeErrorPercent(metrics.totalPowerMw, reference.totalPowerMw);
-        const double maximumFluxError = relativeErrorPercent(metrics.maximumFluxMwM2, reference.maximumFluxMwM2);
-        const bool hashMatches = metrics.fluxGridSha256.compare(reference.fluxGridSha256, Qt::CaseInsensitive) == 0;
-        const bool totalPowerPass = totalPowerError <= reference.totalPowerTolerancePercent;
-        const bool maximumFluxPass = maximumFluxError <= reference.maximumFluxTolerancePercent;
-        result["total_power_error_percent"] = totalPowerError;
-        result["maximum_flux_error_percent"] = maximumFluxError;
-        result["flux_grid_hash_matches"] = hashMatches;
-        result["total_power_pass"] = totalPowerPass;
-        result["maximum_flux_pass"] = maximumFluxPass;
-        result["flux_grid_hash_pass"] = hashMatches;
-        result["benchmark_pass"] = totalPowerPass && maximumFluxPass && hashMatches;
+        bool benchmarkPass = true;
+        if (reference.hasTotalPowerMw) {
+            const double totalPowerError = relativeErrorPercent(metrics.totalPowerMw, reference.totalPowerMw);
+            const bool totalPowerPass = totalPowerError <= reference.totalPowerTolerancePercent;
+            result["total_power_error_percent"] = totalPowerError;
+            result["total_power_pass"] = totalPowerPass;
+            benchmarkPass = benchmarkPass && totalPowerPass;
+        }
+        if (reference.hasMaximumFluxMwM2) {
+            const double maximumFluxError = relativeErrorPercent(metrics.maximumFluxMwM2, reference.maximumFluxMwM2);
+            const bool maximumFluxPass = maximumFluxError <= reference.maximumFluxTolerancePercent;
+            result["maximum_flux_error_percent"] = maximumFluxError;
+            result["maximum_flux_pass"] = maximumFluxPass;
+            benchmarkPass = benchmarkPass && maximumFluxPass;
+        }
+        if (reference.hasFluxGridSha256 || reference.hasFluxGridFile) {
+            const QString referenceHash = reference.hasFluxGridSha256 ? reference.fluxGridSha256 : referenceFluxGridSha256;
+            const bool hashMatches = metrics.fluxGridSha256.compare(referenceHash, Qt::CaseInsensitive) == 0;
+            result["flux_grid_hash_matches"] = hashMatches;
+            result["flux_grid_hash_pass"] = hashMatches;
+            benchmarkPass = benchmarkPass && hashMatches;
+        }
+        if (reference.hasFluxGridFile) {
+            result["reference_flux_grid_file"] = reference.fluxGridFile;
+            result["maximum_flux_grid_absolute_error_mw_m2"] = fluxGridComparison.maximumAbsoluteErrorMwM2;
+            result["maximum_flux_grid_relative_error_percent"] = fluxGridComparison.maximumRelativeErrorPercent;
+            result["rms_flux_grid_error_mw_m2"] = fluxGridComparison.rmsErrorMwM2;
+        }
+        result["benchmark_pass"] = benchmarkPass;
     }
 
     if (!writeResult(outputFileName, result, errorMessage))
@@ -543,6 +733,8 @@ int BenchmarkRunner::run(const QString& configFileName, TSceneKit* scene, QStrin
     out << "chunk_size: " << traceResult.chunkSize << Qt::endl;
     out << "total_power_mw: " << metrics.totalPowerMw << Qt::endl;
     out << "maximum_flux_mw_m2: " << metrics.maximumFluxMwM2 << Qt::endl;
+    if (!fluxGridOutputFileName.isEmpty())
+        out << "Flux grid written: " << fluxGridOutputFileName << Qt::endl;
     out << "Result written: " << outputFileName << Qt::endl;
     return 0;
 }

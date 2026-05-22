@@ -75,9 +75,17 @@
       "default": "benchmark_result.json",
       "description": "Result JSON path. Relative paths are resolved from the config file directory."
     },
+    "flux_grid_output_file": {
+      "type": "string",
+      "description": "Optional CSV output path for the computed flux grid in MW/m2. Relative paths are resolved from the config file directory. The CSV row-major order matches flux_grid_sha256."
+    },
     "reference_file": {
       "type": "string",
-      "description": "Optional reference JSON path for metric/hash comparison."
+      "description": "Optional reference JSON path for metric, hash, and flux-grid comparison."
+    },
+    "reference_flux_grid_file": {
+      "type": "string",
+      "description": "Optional reference flux grid CSV path. Relative paths are resolved from the config file directory. If reference_file also defines flux_grid_file, both paths must resolve to the same file."
     }
   }
 }
