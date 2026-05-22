@@ -33,7 +33,7 @@ Benchmark result JSON always includes the effective scheduling fields:
 
 Whole-file byte-for-byte equality is not expected across repeated runs because elapsed time and rays/s vary. Use `flux_grid_sha256` and the metric fields for deterministic comparisons.
 
-## Flux Grid CSV
+## Flux Grid Files
 
 Set `flux_grid_output_file` to write the computed flux grid as CSV:
 
@@ -45,13 +45,57 @@ Set `flux_grid_output_file` to write the computed flux grid as CSV:
 
 The CSV contains `target_grid.height` rows and `target_grid.width` columns. Values are MW/m2, written in the same row-major order used by `flux_grid_sha256`. The SHA256 is still computed from the deterministic little-endian float64 binary representation, not from the CSV text.
 
+Set `flux_grid_binary_output_file` to write the same grid as raw binary:
+
+```json
+{
+  "flux_grid_binary_output_file": "benchmark_flux_grid.bin"
+}
+```
+
+Binary format:
+
+- raw binary file
+- no header
+- no metadata
+- row-major order
+- dimensions from `target_grid.width` and `target_grid.height`
+- each value is IEEE 754 binary64 / double
+- little-endian byte order
+- values are flux density in MW/m2
+- byte size is `target_grid.width * target_grid.height * 8`
+
 When a grid is written, result JSON includes both fields:
 
 ```json
 {
   "flux_grid_output_file": "D:/bench/benchmark_flux_grid.csv",
+  "flux_grid_binary_output_file": "D:/bench/benchmark_flux_grid.bin",
   "flux_grid_sha256": "..."
 }
+```
+
+Read examples:
+
+Python:
+
+```python
+grid = numpy.fromfile(path, dtype="<f8").reshape((height, width))
+```
+
+Mathematica:
+
+```wolfram
+data = BinaryReadList[path, "Real64", ByteOrdering -> +1]
+grid = Partition[data, width]
+```
+
+C++:
+
+```cpp
+std::vector<double> grid(width * height);
+// Read width * height IEEE 754 binary64 values from the file.
+// Interpret each 8-byte value as little-endian and keep row-major order.
 ```
 
 ## Reference Grid Comparison
@@ -64,6 +108,11 @@ Reference JSON can compare scalar metrics, the flux-grid hash, and a separate gr
   "maximum_flux_mw_m2": 20.0,
   "flux_grid_sha256": "...",
   "flux_grid_file": "benchmark_flux_grid.csv",
+  "flux_grid_binary_file": "benchmark_flux_grid.bin",
+  "target_grid": {
+    "width": 100,
+    "height": 100
+  },
   "tolerances": {
     "total_power_relative_percent": 0.1,
     "maximum_flux_relative_percent": 5.0
@@ -71,7 +120,7 @@ Reference JSON can compare scalar metrics, the flux-grid hash, and a separate gr
 }
 ```
 
-`flux_grid_file` paths in reference JSON are resolved relative to the reference JSON file. Config-level `reference_flux_grid_file` is also supported and is resolved relative to the benchmark config file.
+`flux_grid_file` and `flux_grid_binary_file` paths in reference JSON are resolved relative to the reference JSON file. Config-level `reference_flux_grid_file` and `reference_flux_grid_binary_file` are also supported and are resolved relative to the benchmark config file. If both CSV and binary reference grid files are provided, Tonatiuh++ uses the binary file for exact comparison and ignores the CSV grid for grid-error calculations.
 
 When a reference grid is provided, result JSON adds:
 

@@ -79,6 +79,10 @@
       "type": "string",
       "description": "Optional CSV output path for the computed flux grid in MW/m2. Relative paths are resolved from the config file directory. The CSV row-major order matches flux_grid_sha256."
     },
+    "flux_grid_binary_output_file": {
+      "type": "string",
+      "description": "Optional raw binary output path for the computed flux grid in MW/m2. Values are row-major IEEE 754 binary64 doubles in little-endian byte order with no header or metadata."
+    },
     "reference_file": {
       "type": "string",
       "description": "Optional reference JSON path for metric, hash, and flux-grid comparison."
@@ -86,6 +90,10 @@
     "reference_flux_grid_file": {
       "type": "string",
       "description": "Optional reference flux grid CSV path. Relative paths are resolved from the config file directory. If reference_file also defines flux_grid_file, both paths must resolve to the same file."
+    },
+    "reference_flux_grid_binary_file": {
+      "type": "string",
+      "description": "Optional reference flux grid binary path. Relative paths are resolved from the config file directory. If reference_file also defines flux_grid_binary_file, both paths must resolve to the same file. Binary reference grids are preferred over CSV reference grids when both are provided."
     }
   }
 }

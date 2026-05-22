@@ -59,8 +59,10 @@ struct BenchmarkConfig
     bool photonExport = false;
     QString outputFile = "benchmark_result.json";
     QString fluxGridOutputFile;
+    QString fluxGridBinaryOutputFile;
     QString referenceFile;
     QString referenceFluxGridFile;
+    QString referenceFluxGridBinaryFile;
 };
 
 struct ReferenceConfig
@@ -70,10 +72,14 @@ struct ReferenceConfig
     bool hasMaximumFluxMwM2 = false;
     bool hasFluxGridSha256 = false;
     bool hasFluxGridFile = false;
+    bool hasFluxGridBinaryFile = false;
+    bool hasGrid = false;
     double totalPowerMw = 0.;
     double maximumFluxMwM2 = 0.;
     QString fluxGridSha256;
     QString fluxGridFile;
+    QString fluxGridBinaryFile;
+    Grid grid;
     double totalPowerTolerancePercent = 0.1;
     double maximumFluxTolerancePercent = 5.;
 };
@@ -262,6 +268,13 @@ bool parseConfig(const QString& configFileName, BenchmarkConfig* config, QString
         if (parsed.fluxGridOutputFile.trimmed().isEmpty())
             return fail(errorMessage, "flux_grid_output_file must not be empty.");
     }
+    if (object.contains("flux_grid_binary_output_file")) {
+        if (!object.value("flux_grid_binary_output_file").isString())
+            return fail(errorMessage, "flux_grid_binary_output_file must be a string.");
+        parsed.fluxGridBinaryOutputFile = object.value("flux_grid_binary_output_file").toString();
+        if (parsed.fluxGridBinaryOutputFile.trimmed().isEmpty())
+            return fail(errorMessage, "flux_grid_binary_output_file must not be empty.");
+    }
     if (object.contains("reference_file")) {
         if (!object.value("reference_file").isString())
             return fail(errorMessage, "reference_file must be a string.");
@@ -273,6 +286,13 @@ bool parseConfig(const QString& configFileName, BenchmarkConfig* config, QString
         parsed.referenceFluxGridFile = object.value("reference_flux_grid_file").toString();
         if (parsed.referenceFluxGridFile.trimmed().isEmpty())
             return fail(errorMessage, "reference_flux_grid_file must not be empty.");
+    }
+    if (object.contains("reference_flux_grid_binary_file")) {
+        if (!object.value("reference_flux_grid_binary_file").isString())
+            return fail(errorMessage, "reference_flux_grid_binary_file must be a string.");
+        parsed.referenceFluxGridBinaryFile = object.value("reference_flux_grid_binary_file").toString();
+        if (parsed.referenceFluxGridBinaryFile.trimmed().isEmpty())
+            return fail(errorMessage, "reference_flux_grid_binary_file must not be empty.");
     }
 
     if (config)
@@ -318,6 +338,24 @@ bool parseReference(const QString& referenceFileName, ReferenceConfig* reference
         parsed.fluxGridFile = resolveRelativePath(QFileInfo(referenceFileName).absoluteDir(), fluxGridFile);
         parsed.hasFluxGridFile = true;
     }
+    if (object.contains("flux_grid_binary_file")) {
+        if (!object.value("flux_grid_binary_file").isString())
+            return fail(errorMessage, "reference flux_grid_binary_file must be a string.");
+        const QString fluxGridBinaryFile = object.value("flux_grid_binary_file").toString();
+        if (fluxGridBinaryFile.trimmed().isEmpty())
+            return fail(errorMessage, "reference flux_grid_binary_file must not be empty.");
+        parsed.fluxGridBinaryFile = resolveRelativePath(QFileInfo(referenceFileName).absoluteDir(), fluxGridBinaryFile);
+        parsed.hasFluxGridBinaryFile = true;
+    }
+    if (object.contains("target_grid")) {
+        if (!object.value("target_grid").isObject())
+            return fail(errorMessage, "reference target_grid must be an object.");
+        const QJsonObject grid = object.value("target_grid").toObject();
+        if (!parsePositiveInt(grid, "width", &parsed.grid.width, errorMessage) ||
+            !parsePositiveInt(grid, "height", &parsed.grid.height, errorMessage))
+            return false;
+        parsed.hasGrid = true;
+    }
 
     if (object.contains("tolerances")) {
         if (!object.value("tolerances").isObject())
@@ -329,7 +367,7 @@ bool parseReference(const QString& referenceFileName, ReferenceConfig* reference
     }
     if (parsed.totalPowerTolerancePercent < 0. || parsed.maximumFluxTolerancePercent < 0.)
         return fail(errorMessage, "reference tolerances must be non-negative.");
-    if (!parsed.hasTotalPowerMw && !parsed.hasMaximumFluxMwM2 && !parsed.hasFluxGridSha256 && !parsed.hasFluxGridFile)
+    if (!parsed.hasTotalPowerMw && !parsed.hasMaximumFluxMwM2 && !parsed.hasFluxGridSha256 && !parsed.hasFluxGridFile && !parsed.hasFluxGridBinaryFile)
         return fail(errorMessage, "reference must define at least one comparable value.");
 
     if (reference)
@@ -362,13 +400,18 @@ double relativeErrorPercent(double actual, double reference)
     return std::abs((actual - reference) / reference) * 100.;
 }
 
+quint64 float64LittleEndianBits(double value)
+{
+    quint64 bits = 0;
+    std::memcpy(&bits, &value, sizeof(value));
+    return qToLittleEndian(bits);
+}
+
 QString sha256Float64LittleEndian(const std::vector<double>& values)
 {
     QCryptographicHash hash(QCryptographicHash::Sha256);
     for (double value : values) {
-        quint64 bits = 0;
-        std::memcpy(&bits, &value, sizeof(value));
-        bits = qToLittleEndian(bits);
+        const quint64 bits = float64LittleEndianBits(value);
         hash.addData(reinterpret_cast<const char*>(&bits), sizeof(bits));
     }
     return QString::fromLatin1(hash.result().toHex());
@@ -509,6 +552,34 @@ bool writeFluxGridCsv(const QString& outputFileName, const Grid& grid, const std
     return true;
 }
 
+bool writeFluxGridBinary(const QString& outputFileName, const Grid& grid, const std::vector<double>& fluxGrid, QString* errorMessage)
+{
+    const size_t expectedSize = static_cast<size_t>(grid.width) * static_cast<size_t>(grid.height);
+    if (fluxGrid.size() != expectedSize)
+        return fail(errorMessage, "Flux grid size does not match target_grid dimensions.");
+
+    QFileInfo info(outputFileName);
+    QDir dir;
+    if (!dir.mkpath(info.absolutePath()))
+        return fail(errorMessage, QString("Cannot create output directory %1.").arg(info.absolutePath()));
+
+    QSaveFile file(outputFileName);
+    if (!file.open(QIODevice::WriteOnly))
+        return fail(errorMessage, QString("Cannot open binary flux grid output file %1: %2").arg(outputFileName, file.errorString()));
+
+    for (double value : fluxGrid) {
+        if (!std::isfinite(value))
+            return fail(errorMessage, "Flux grid contains a non-finite value.");
+        const quint64 bits = float64LittleEndianBits(value);
+        if (file.write(reinterpret_cast<const char*>(&bits), sizeof(bits)) != static_cast<qint64>(sizeof(bits)))
+            return fail(errorMessage, QString("Cannot write binary flux grid output file %1: %2").arg(outputFileName, file.errorString()));
+    }
+
+    if (!file.commit())
+        return fail(errorMessage, QString("Cannot write binary flux grid output file %1: %2").arg(outputFileName, file.errorString()));
+    return true;
+}
+
 bool readFluxGridCsv(const QString& fileName, const Grid& grid, std::vector<double>* fluxGrid, QString* errorMessage)
 {
     QFile file(fileName);
@@ -545,6 +616,40 @@ bool readFluxGridCsv(const QString& fileName, const Grid& grid, std::vector<doub
 
     if (row != grid.height)
         return fail(errorMessage, QString("Reference flux grid %1 has %2 rows; expected %3.").arg(fileName).arg(row).arg(grid.height));
+
+    if (fluxGrid)
+        *fluxGrid = std::move(parsed);
+    return true;
+}
+
+bool readFluxGridBinary(const QString& fileName, const Grid& grid, std::vector<double>* fluxGrid, QString* errorMessage)
+{
+    const qint64 expectedValues = static_cast<qint64>(grid.width) * static_cast<qint64>(grid.height);
+    const qint64 expectedBytes = expectedValues * static_cast<qint64>(sizeof(double));
+
+    QFile file(fileName);
+    if (!file.open(QIODevice::ReadOnly))
+        return fail(errorMessage, QString("Cannot open reference binary flux grid file %1: %2").arg(fileName, file.errorString()));
+    if (file.size() != expectedBytes)
+        return fail(errorMessage, QString("Reference binary flux grid file %1 is %2 bytes; expected %3 bytes.")
+            .arg(fileName)
+            .arg(file.size())
+            .arg(expectedBytes));
+
+    std::vector<double> parsed;
+    parsed.reserve(static_cast<size_t>(expectedValues));
+    for (qint64 index = 0; index < expectedValues; ++index) {
+        char bytes[sizeof(double)] = {};
+        if (file.read(bytes, sizeof(bytes)) != static_cast<qint64>(sizeof(bytes)))
+            return fail(errorMessage, QString("Cannot read reference binary flux grid file %1: %2").arg(fileName, file.errorString()));
+
+        const quint64 littleEndianBits = qFromLittleEndian<quint64>(reinterpret_cast<const uchar*>(bytes));
+        double value = 0.;
+        std::memcpy(&value, &littleEndianBits, sizeof(value));
+        if (!std::isfinite(value))
+            return fail(errorMessage, QString("Reference binary flux grid file %1 contains a non-finite value at index %2.").arg(fileName).arg(index));
+        parsed.push_back(value);
+    }
 
     if (fluxGrid)
         *fluxGrid = std::move(parsed);
@@ -589,8 +694,10 @@ int BenchmarkRunner::run(const QString& configFileName, TSceneKit* scene, QStrin
     const QString sceneFileName = resolveRelativePath(configDir, config.sceneFile);
     const QString outputFileName = resolveRelativePath(configDir, config.outputFile);
     const QString fluxGridOutputFileName = config.fluxGridOutputFile.isEmpty() ? QString() : resolveRelativePath(configDir, config.fluxGridOutputFile);
+    const QString fluxGridBinaryOutputFileName = config.fluxGridBinaryOutputFile.isEmpty() ? QString() : resolveRelativePath(configDir, config.fluxGridBinaryOutputFile);
     const QString referenceFileName = config.referenceFile.isEmpty() ? QString() : resolveRelativePath(configDir, config.referenceFile);
     const QString configReferenceFluxGridFileName = config.referenceFluxGridFile.isEmpty() ? QString() : resolveRelativePath(configDir, config.referenceFluxGridFile);
+    const QString configReferenceFluxGridBinaryFileName = config.referenceFluxGridBinaryFile.isEmpty() ? QString() : resolveRelativePath(configDir, config.referenceFluxGridBinaryFile);
 
     ReferenceConfig reference;
     if (!parseReference(referenceFileName, &reference, errorMessage))
@@ -601,6 +708,13 @@ int BenchmarkRunner::run(const QString& configFileName, TSceneKit* scene, QStrin
         reference.enabled = true;
         reference.hasFluxGridFile = true;
         reference.fluxGridFile = configReferenceFluxGridFileName;
+    }
+    if (!configReferenceFluxGridBinaryFileName.isEmpty()) {
+        if (reference.hasFluxGridBinaryFile && QFileInfo(reference.fluxGridBinaryFile).absoluteFilePath() != QFileInfo(configReferenceFluxGridBinaryFileName).absoluteFilePath())
+            return fail(errorMessage, "reference_flux_grid_binary_file conflicts with reference flux_grid_binary_file."), 1;
+        reference.enabled = true;
+        reference.hasFluxGridBinaryFile = true;
+        reference.fluxGridBinaryFile = configReferenceFluxGridBinaryFileName;
     }
 
     out << "Running benchmark: " << config.benchmark << Qt::endl;
@@ -650,13 +764,22 @@ int BenchmarkRunner::run(const QString& configFileName, TSceneKit* scene, QStrin
 
     if (!fluxGridOutputFileName.isEmpty() && !writeFluxGridCsv(fluxGridOutputFileName, config.grid, metrics.fluxGrid, errorMessage))
         return 1;
+    if (!fluxGridBinaryOutputFileName.isEmpty() && !writeFluxGridBinary(fluxGridBinaryOutputFileName, config.grid, metrics.fluxGrid, errorMessage))
+        return 1;
 
     std::vector<double> referenceFluxGrid;
     QString referenceFluxGridSha256;
     FluxGridComparison fluxGridComparison;
-    if (reference.hasFluxGridFile) {
-        if (!readFluxGridCsv(reference.fluxGridFile, config.grid, &referenceFluxGrid, errorMessage))
+    const bool hasReferenceGrid = reference.hasFluxGridBinaryFile || reference.hasFluxGridFile;
+    const bool usingBinaryReferenceGrid = reference.hasFluxGridBinaryFile;
+    const Grid referenceGrid = reference.hasGrid ? reference.grid : config.grid;
+    if (hasReferenceGrid) {
+        if (usingBinaryReferenceGrid) {
+            if (!readFluxGridBinary(reference.fluxGridBinaryFile, referenceGrid, &referenceFluxGrid, errorMessage))
+                return 1;
+        } else if (!readFluxGridCsv(reference.fluxGridFile, referenceGrid, &referenceFluxGrid, errorMessage)) {
             return 1;
+        }
         if (referenceFluxGrid.size() != metrics.fluxGrid.size())
             return fail(errorMessage, "Reference flux grid size does not match computed flux grid size."), 1;
 
@@ -687,6 +810,8 @@ int BenchmarkRunner::run(const QString& configFileName, TSceneKit* scene, QStrin
     result["flux_grid_sha256"] = metrics.fluxGridSha256;
     if (!fluxGridOutputFileName.isEmpty())
         result["flux_grid_output_file"] = fluxGridOutputFileName;
+    if (!fluxGridBinaryOutputFileName.isEmpty())
+        result["flux_grid_binary_output_file"] = fluxGridBinaryOutputFileName;
 
     if (reference.enabled) {
         bool benchmarkPass = true;
@@ -704,15 +829,18 @@ int BenchmarkRunner::run(const QString& configFileName, TSceneKit* scene, QStrin
             result["maximum_flux_pass"] = maximumFluxPass;
             benchmarkPass = benchmarkPass && maximumFluxPass;
         }
-        if (reference.hasFluxGridSha256 || reference.hasFluxGridFile) {
+        if (reference.hasFluxGridSha256 || hasReferenceGrid) {
             const QString referenceHash = reference.hasFluxGridSha256 ? reference.fluxGridSha256 : referenceFluxGridSha256;
             const bool hashMatches = metrics.fluxGridSha256.compare(referenceHash, Qt::CaseInsensitive) == 0;
             result["flux_grid_hash_matches"] = hashMatches;
             result["flux_grid_hash_pass"] = hashMatches;
             benchmarkPass = benchmarkPass && hashMatches;
         }
-        if (reference.hasFluxGridFile) {
-            result["reference_flux_grid_file"] = reference.fluxGridFile;
+        if (hasReferenceGrid) {
+            if (usingBinaryReferenceGrid)
+                result["reference_flux_grid_binary_file"] = reference.fluxGridBinaryFile;
+            else
+                result["reference_flux_grid_file"] = reference.fluxGridFile;
             result["maximum_flux_grid_absolute_error_mw_m2"] = fluxGridComparison.maximumAbsoluteErrorMwM2;
             result["maximum_flux_grid_relative_error_percent"] = fluxGridComparison.maximumRelativeErrorPercent;
             result["rms_flux_grid_error_mw_m2"] = fluxGridComparison.rmsErrorMwM2;
@@ -735,6 +863,8 @@ int BenchmarkRunner::run(const QString& configFileName, TSceneKit* scene, QStrin
     out << "maximum_flux_mw_m2: " << metrics.maximumFluxMwM2 << Qt::endl;
     if (!fluxGridOutputFileName.isEmpty())
         out << "Flux grid written: " << fluxGridOutputFileName << Qt::endl;
+    if (!fluxGridBinaryOutputFileName.isEmpty())
+        out << "Binary flux grid written: " << fluxGridBinaryOutputFileName << Qt::endl;
     out << "Result written: " << outputFileName << Qt::endl;
     return 0;
 }
