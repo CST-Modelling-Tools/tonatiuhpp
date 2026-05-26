@@ -8,6 +8,16 @@ tonatiuhpp --headless benchmark benchmark_config.json
 
 The benchmark config is a JSON object. The formal schema is `docs/benchmark_config_schema_v1.json`, and an example template is available at `examples/benchmarks/benchmark_config_v1.example.json`.
 
+## Benchmark Dataset
+
+The Tonatiuh++ benchmark v1 reference dataset is archived on Zenodo:
+
+```text
+https://doi.org/10.5281/zenodo.20395328
+```
+
+Use the dataset scene, config, reference JSON, and flux-grid reference files when reproducing the published benchmark baseline.
+
 ## Scheduling Fields
 
 `worker_count` and `chunk_size` are optional RayTraceRunner tuning fields.

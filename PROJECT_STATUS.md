@@ -1,25 +1,27 @@
 # Project Status
 
-Last updated: 2026-05-22
+Last updated: 2026-05-26
 
 Purpose: lightweight handoff for current Tonatiuh++ project and release context. Keep stable agent rules in `AGENT.md`; update this file when release context changes.
 
 ## Current Priorities
 
-- Stabilize and scale benchmark v1 on top of the new headless execution foundation without adding a second executable.
-- Prepare, publish, and validate the Tonatiuh++ `v0.1.8.19` release.
+- Prepare, publish, and validate the Tonatiuh++ `v0.1.8.20` release with the headless execution and benchmark v1 infrastructure.
+- Validate the release notes, benchmark docs, schema, examples, and Zenodo dataset reference for `v0.1.8.20`.
 - Remove or reduce remaining runtime warnings visible from command-prompt launches.
-- Validate the IFW updater path from an installed `v0.1.8.18` IFW build to `v0.1.8.19` on Windows, Linux, and macOS.
+- Validate the IFW updater path from the latest published IFW baseline to `v0.1.8.20` on Windows, Linux, and macOS.
 
 ## Current Baseline
 
 - Branch: `master`.
-- Current application version in `source/CMakeLists.txt`: `0.1.8.19`.
-- Published updater baseline: `v0.1.8.18`; it already includes the IFW updater software.
-- Intended release under validation: `v0.1.8.19`, focused on proving the updater flow from installed `v0.1.8.18` IFW builds.
+- Current application version in `source/CMakeLists.txt`: `0.1.8.20`.
+- Previous release baseline for updater validation: `v0.1.8.19` if published; otherwise use the latest published IFW build with the updater software.
+- Intended release under validation: `v0.1.8.20`, focused on shipping the new headless scene validation, no-export tracing, and benchmark v1 workflow.
 - Release packaging source of truth: `.github/workflows/release.yml` and `installer/`.
 - Headless execution foundation is now implemented in the existing `tonatiuhpp` executable; there is no separate console executable or installer target.
 - Current headless commands: `tonatiuhpp --headless --help`, `tonatiuhpp --headless validate-scene <scene.tnhpp>`, `tonatiuhpp --headless trace-scene <scene.tnhpp> --rays N --seed S --no-export`, and `tonatiuhpp --headless benchmark <benchmark_config.json>`.
+- Release notes draft: `docs/release-notes-v0.1.8.20.md`.
+- Benchmark v1 dataset DOI documented in `docs/headless-benchmark.md`: `https://doi.org/10.5281/zenodo.20395328`.
 
 ## Recent Completed Milestones
 
@@ -40,6 +42,7 @@ Purpose: lightweight handoff for current Tonatiuh++ project and release context.
 - Headless benchmark config now documents optional `worker_count` and `chunk_size` scheduling controls in `docs/benchmark_config_schema_v1.json` and `docs/headless-benchmark.md`; result JSON reports effective `worker_count`, `chunk_count`, and `chunk_size`.
 - Headless benchmark reference workflow now supports optional `flux_grid_output_file`, `reference_flux_grid_file`, and reference JSON `flux_grid_file` CSV comparison while preserving the existing little-endian float64 row-major `flux_grid_sha256` hash.
 - Headless benchmark flux-grid references now support raw little-endian float64 row-major binary output/reference files through `flux_grid_binary_output_file`, `reference_flux_grid_binary_file`, and reference JSON `flux_grid_binary_file`; binary references are preferred over CSV when both are supplied.
+- Release documentation for `v0.1.8.20` now covers the headless commands, benchmark JSON schema, CSV/binary flux-grid references, deterministic comparison guidance, and Zenodo benchmark dataset DOI.
 - Runtime noise reduction: removed stray `ShapeMesh` debug prints that emitted resolved OBJ paths and project search paths during scene loading.
 - View/model stability: idempotent node sensor attaches, no nested `ParametersModel` reset, and stale `SceneTreeModel` index guards.
 - Dependency bootstrap: clearer missing Eigen/Boost diagnostics and a hardened Windows dependency path.
@@ -49,7 +52,7 @@ Purpose: lightweight handoff for current Tonatiuh++ project and release context.
 
 ## Current Release Workflow
 
-- Set the version in `source/CMakeLists.txt`, then tag the release as `v<version>`; the next intended release is `v0.1.8.19`.
+- Set the version in `source/CMakeLists.txt`, then tag the release as `v<version>`; the next intended release is `v0.1.8.20`.
 - Pushing a `v*` tag triggers the GitHub Actions `Release` workflow. `workflow_dispatch` accepts a `fake_tag` for simulation and skips the publish job.
 - The workflow resolves the version with `installer/sync_ifw_metadata.py --check-tag`, derives a UTC release date, builds Linux/macOS in a matrix, and builds Windows on `windows-2022`.
 - Packaging stages the release payload, generates per-platform IFW repositories with `repogen`, generates IFW installers with `binarycreator`, uploads assets and checksums, and deploys the IFW repositories to GitHub Pages.
@@ -83,20 +86,20 @@ Purpose: lightweight handoff for current Tonatiuh++ project and release context.
 - Confirm normal GUI startup still behaves as before after the headless `benchmark` changes.
 - Confirm `trace-scene` and `benchmark` produce no photon files from the installed application output directory on representative runs.
 - Run the full benchmark v1 target of 500,000,000 rays, generate the authoritative reference JSON, and preserve the resulting SHA256 and metric tolerances.
-- Confirm the `v0.1.8.19` `Release` workflow succeeds on Windows, Linux, and macOS from the matching tag.
-- Confirm GitHub Pages serves each generated `v0.1.8.19` IFW repository at the exact URL embedded in its installer.
+- Confirm the `v0.1.8.20` `Release` workflow succeeds on Windows, Linux, and macOS from the matching tag.
+- Confirm GitHub Pages serves each generated `v0.1.8.20` IFW repository at the exact URL embedded in its installer.
 - Confirm every generated repository has `Updates.xml` and package metadata for `com.tonatiuhpp.app`.
-- Test update detection from an installed `v0.1.8.18` IFW build to `v0.1.8.19` on Windows, Linux, and macOS.
-- Test update installation from `v0.1.8.18` to `v0.1.8.19` on Windows, Linux, and macOS, including non-blocking startup check, `Help > Updates`, install prompt, MaintenanceTool launch, application shutdown, and manual restart.
+- Test update detection from the latest published IFW baseline to `v0.1.8.20` on Windows, Linux, and macOS.
+- Test update installation from the latest published IFW baseline to `v0.1.8.20` on Windows, Linux, and macOS, including non-blocking startup check, `Help > Updates`, install prompt, MaintenanceTool launch, application shutdown, and manual restart.
 - Reconcile or explicitly re-check release documentation if URL paths or package IDs change.
 
 ## Pre-release Checklist
 
-- Install the published `v0.1.8.18` IFW build on Windows, Linux, and macOS as the update source.
-- Verify `source/CMakeLists.txt` has the intended `0.1.8.19` version.
+- Install the latest published IFW build on Windows, Linux, and macOS as the update source.
+- Verify `source/CMakeLists.txt` has the intended `0.1.8.20` version.
 - Create and push the matching `v<version>` tag.
 - Confirm the `Release` workflow and GitHub Pages deploy complete successfully.
 - Confirm release assets include Windows, Linux, and macOS IFW installers and checksums, plus any intended manual archives.
 - Verify each platform installer embeds the correct IFW repository URL and each URL serves `Updates.xml`.
-- After `v0.1.8.19` release repositories are published, confirm `Help > Updates` in the installed `v0.1.8.18` app detects `v0.1.8.19`.
-- Run manual updater installation validation from `v0.1.8.18` to `v0.1.8.19` on Windows, Linux, and macOS.
+- After `v0.1.8.20` release repositories are published, confirm `Help > Updates` in the installed baseline app detects `v0.1.8.20`.
+- Run manual updater installation validation from the installed baseline to `v0.1.8.20` on Windows, Linux, and macOS.
