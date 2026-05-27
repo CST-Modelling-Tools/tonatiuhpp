@@ -1790,6 +1790,8 @@ def build_cmake_git(dep: dict, config: str = "Release", native_flags: bool = Fal
     env = os.environ.copy()
     if platform.system() == "Windows":
         env = ensure_msvc_x64_env(env)
+    elif platform.system() == "Darwin" and env.get("CMAKE_OSX_ARCHITECTURES"):
+        cmake_cmd.append(f"-DCMAKE_OSX_ARCHITECTURES={env['CMAKE_OSX_ARCHITECTURES']}")
 
     # Boost
     boost_root = _probe_boost_root(env)

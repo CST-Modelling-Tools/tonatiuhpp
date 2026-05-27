@@ -2,12 +2,15 @@
 """Prepare Qt IFW package payload from the CMake install tree."""
 
 import argparse
+import os
+import plistlib
 import shutil
 import subprocess
 import sys
 from pathlib import Path
 
 PACKAGE_ID = "com.tonatiuhpp.app"
+MACOS_APP_BUNDLE_NAME = "TonatiuhPP.app"
 
 
 def parse_args() -> argparse.Namespace:
@@ -105,11 +108,50 @@ def copy_tree(src: Path, dst: Path, verbose: bool = False) -> None:
     shutil.copytree(src, dst, symlinks=True)
 
 
+def find_macos_app_bundle(staging_dir: Path) -> Path:
+    app_bundles = [path for path in staging_dir.rglob(MACOS_APP_BUNDLE_NAME) if path.is_dir()]
+    if len(app_bundles) != 1:
+        found = sorted(str(path.relative_to(staging_dir)) for path in staging_dir.rglob("*.app") if path.is_dir())
+        details = "\n".join(f"  - {path}" for path in found) or "  <none>"
+        raise SystemExit(
+            f"Expected exactly one macOS app bundle named {MACOS_APP_BUNDLE_NAME} in {staging_dir}.\n"
+            f"Found app bundles:\n{details}"
+        )
+    return app_bundles[0]
+
+
+def validate_macos_app_bundle(app_bundle: Path) -> None:
+    contents_dir = app_bundle / "Contents"
+    info_plist = contents_dir / "Info.plist"
+    macos_dir = contents_dir / "MacOS"
+    if not contents_dir.is_dir():
+        raise SystemExit(f"macOS app bundle is missing Contents directory: {app_bundle}")
+    if not info_plist.is_file():
+        raise SystemExit(f"macOS app bundle is missing Info.plist: {info_plist}")
+    if not macos_dir.is_dir():
+        raise SystemExit(f"macOS app bundle is missing Contents/MacOS directory: {macos_dir}")
+
+    try:
+        info = plistlib.loads(info_plist.read_bytes())
+    except Exception as exc:
+        raise SystemExit(f"macOS Info.plist is not readable: {info_plist}: {exc}") from exc
+
+    executable_name = info.get("CFBundleExecutable")
+    if not executable_name:
+        raise SystemExit(f"macOS Info.plist is missing CFBundleExecutable: {info_plist}")
+
+    executable_path = macos_dir / executable_name
+    if not executable_path.is_file():
+        raise SystemExit(f"macOS bundle executable is missing: {executable_path}")
+    if not os.access(executable_path, os.X_OK):
+        raise SystemExit(f"macOS bundle executable is not executable: {executable_path}")
+
+
 def find_staged_application(staging_dir: Path) -> tuple[Path, bool]:
-    # Search recursively for TonatiuhPP.app bundle
-    for app_bundle in staging_dir.rglob("TonatiuhPP.app"):
-        if app_bundle.is_dir():
-            return app_bundle, True
+    if sys.platform == "darwin":
+        app_bundle = find_macos_app_bundle(staging_dir)
+        validate_macos_app_bundle(app_bundle)
+        return app_bundle, True
 
     bin_dir = staging_dir / "bin"
     candidates = [
@@ -125,7 +167,7 @@ def find_staged_application(staging_dir: Path) -> tuple[Path, bool]:
 
     raise SystemExit(
         f"Staged Tonatiuh++ executable not found in {staging_dir}.\n"
-        "Ensure the CMake install step produced the application under staging/bin/ or as TonatiuhPP.app."
+        f"Ensure the CMake install step produced the application under staging/bin/ or as {MACOS_APP_BUNDLE_NAME}."
     )
 
 
@@ -274,17 +316,22 @@ def main() -> None:
         if not is_bundle:
             raise SystemExit(
                 "macOS runtime deployment requires a .app bundle."
-                " Current staging did not produce TonatiuhPP.app."
+                f" Current staging did not produce {MACOS_APP_BUNDLE_NAME}."
             )
         if args.verbose:
             print(f"Deploying Qt runtime on macOS for {staged_target}")
         deploy_macos(staged_target, verbose=args.verbose)
+        validate_macos_app_bundle(staged_target)
     else:
         if args.verbose:
             print("Verifying Linux Qt runtime bundling in staged output")
         verify_linux_bundling(staging_dir, verbose=args.verbose)
 
     copy_tree(staging_dir, package_data_dir, verbose=args.verbose)
+
+    if sys.platform == "darwin":
+        packaged_bundle = find_macos_app_bundle(package_data_dir)
+        validate_macos_app_bundle(packaged_bundle)
 
     print("Qt IFW package data staged successfully.")
     print(f"Staging directory: {staging_dir}")

@@ -197,11 +197,19 @@ else()
     add_executable(${ProjectName} ${SOURCES} ${HEADERS} ${FORMS} ${RESOURCES})
 endif()
 
-# Keep on-disk name as "tonatiuhpp"
-set_target_properties(${ProjectName} PROPERTIES
-    OUTPUT_NAME "tonatiuhpp"
-    MACOSX_BUNDLE_BUNDLE_NAME "TonatiuhPP"
-)
+# Keep on-disk name as "tonatiuhpp" except for the macOS app bundle.
+if(APPLE)
+    set_target_properties(${ProjectName} PROPERTIES
+        OUTPUT_NAME "TonatiuhPP"
+        MACOSX_BUNDLE_BUNDLE_NAME "TonatiuhPP"
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "${ProjectVersion}"
+        MACOSX_BUNDLE_BUNDLE_VERSION "${ProjectVersion}"
+    )
+else()
+    set_target_properties(${ProjectName} PROPERTIES
+        OUTPUT_NAME "tonatiuhpp"
+    )
+endif()
 
 # ----------------------------
 # Include dirs for this target

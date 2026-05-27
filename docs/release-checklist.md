@@ -30,12 +30,12 @@ The workflow currently publishes GitHub release distribution assets and IFW onli
 
 - Windows IFW installer and checksum
 - Linux IFW installer and checksum
-- macOS IFW installer and checksum
+- macOS arm64 IFW installer and checksum
 - Linux archive and checksum
-- macOS archive and checksum
-- IFW repository: `ifw/windows`
-- IFW repository: `ifw/linux`
-- IFW repository: `ifw/macos`
+- macOS arm64 archive and checksum
+- IFW repository: `windows`
+- IFW repository: `linux`
+- IFW repository: `macos`
 
 The official update-capable distribution path on every platform is the IFW installer. Archive assets may remain available as manual convenience packages, but they are not the updater-enabled installation path.
 
@@ -43,23 +43,23 @@ The official update-capable distribution path on every platform is the IFW insta
 
 Confirm GitHub Pages contains all platform repositories:
 
-- `https://cst-modelling-tools.github.io/tonatiuhpp/ifw/windows/Updates.xml`
-- `https://cst-modelling-tools.github.io/tonatiuhpp/ifw/linux/Updates.xml`
-- `https://cst-modelling-tools.github.io/tonatiuhpp/ifw/macos/Updates.xml`
+- `https://cst-modelling-tools.github.io/tonatiuhpp/windows/Updates.xml`
+- `https://cst-modelling-tools.github.io/tonatiuhpp/linux/Updates.xml`
+- `https://cst-modelling-tools.github.io/tonatiuhpp/macos/Updates.xml`
 
 Each repository must contain:
 
 - `Updates.xml`
-- generated IFW package data for `com.tonatiuh.app`
+- generated IFW package data for `com.tonatiuhpp.app`
 - package metadata for the release version
 
 ## 5. Verify installer update configuration
 
 Each IFW installer must point to its platform repository:
 
-- Windows installer: `https://cst-modelling-tools.github.io/tonatiuhpp/ifw/windows`
-- Linux installer: `https://cst-modelling-tools.github.io/tonatiuhpp/ifw/linux`
-- macOS installer: `https://cst-modelling-tools.github.io/tonatiuhpp/ifw/macos`
+- Windows installer: `https://cst-modelling-tools.github.io/tonatiuhpp/windows`
+- Linux installer: `https://cst-modelling-tools.github.io/tonatiuhpp/linux`
+- macOS arm64 installer: `https://cst-modelling-tools.github.io/tonatiuhpp/macos`
 
 The application does not implement GitHub release download logic for updates. It asks the installed IFW MaintenanceTool to check and apply updates.
 
@@ -86,7 +86,7 @@ Before publishing, verify:
 - Release workflow completed successfully
 - GitHub Pages deploy completed successfully
 - All three IFW platform repositories contain `Updates.xml`
-- Windows, Linux, and macOS IFW installers are attached to the GitHub release
+- Windows, Linux, and macOS arm64 IFW installers are attached to the GitHub release
 - Distribution assets are uploaded to the correct GitHub release
 
 ## 8. Recommended manual validation

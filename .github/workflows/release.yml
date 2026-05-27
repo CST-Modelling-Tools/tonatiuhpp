@@ -24,9 +24,20 @@ jobs:
         include:
           - os: ubuntu-24.04
             ifw_platform: linux
+            asset_arch: x64
+            macos_arch: ""
+            macos_app_bundle: ""
           - os: macos-latest
             ifw_platform: macos
+            asset_arch: arm64
+            macos_arch: arm64
+            macos_app_bundle: TonatiuhPP.app
+    name: Build ${{ matrix.ifw_platform }} ${{ matrix.asset_arch }}
     runs-on: ${{ matrix.os }}
+    env:
+      TONATIUHPP_ASSET_ARCH: ${{ matrix.asset_arch }}
+      TONATIUHPP_MACOS_ARCH: ${{ matrix.macos_arch }}
+      TONATIUHPP_MACOS_APP_BUNDLE: ${{ matrix.macos_app_bundle }}
 
     steps:
       - name: Checkout
@@ -146,13 +157,27 @@ jobs:
           brew update
           brew install boost eigen
 
+      - name: Export macOS target architecture
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ -z "${TONATIUHPP_MACOS_ARCH}" ]; then
+            echo "TONATIUHPP_MACOS_ARCH must be set for macOS release builds." >&2
+            exit 1
+          fi
+
+          echo "CMAKE_OSX_ARCHITECTURES=${TONATIUHPP_MACOS_ARCH}" >> "$GITHUB_ENV"
+          echo "macOS release architecture: ${TONATIUHPP_MACOS_ARCH}"
+
       - name: Cache third-party deps
         uses: actions/cache@v4
         with:
           path: |
             third_party/_install
             third_party/_build
-          key: release-deps-${{ runner.os }}-${{ hashFiles(
+          key: release-deps-${{ runner.os }}-${{ matrix.asset_arch }}-${{ hashFiles(
             'scripts/build_deps.py',
             'cmake/**',
             'source/CMakeLists.txt',
@@ -167,7 +192,17 @@ jobs:
       - name: Configure + build + install
         shell: bash
         run: |
-          cmake -S source -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake_args=(
+            -S source
+            -B build
+            -G Ninja
+            -DCMAKE_BUILD_TYPE=Release
+          )
+          if [ -n "${TONATIUHPP_MACOS_ARCH:-}" ]; then
+            cmake_args+=("-DCMAKE_OSX_ARCHITECTURES=${TONATIUHPP_MACOS_ARCH}")
+          fi
+
+          cmake "${cmake_args[@]}"
           cmake --build build --config Release --parallel
           cmake --install build --prefix dist
 
@@ -201,9 +236,10 @@ jobs:
         run: |
           set -euo pipefail
 
-          APP_BUNDLE="$(find dist -type d -name '*.app' -print -quit)"
-          if [ -z "${APP_BUNDLE}" ]; then
-            echo "No .app bundle found in dist after install" >&2
+          APP_BUNDLE="dist/${TONATIUHPP_MACOS_APP_BUNDLE}"
+          if [ ! -d "${APP_BUNDLE}" ]; then
+            echo "Expected macOS app bundle not found after install: ${APP_BUNDLE}" >&2
+            find dist -type d -name '*.app' -print >&2
             exit 1
           fi
 
@@ -306,7 +342,7 @@ jobs:
             rmdir dist/bin
           fi
 
-      - name: Validate macOS app-bundle artifact
+      - name: Validate macOS app bundle and IFW payload
         if: runner.os == 'macOS'
         shell: bash
         run: |
@@ -319,7 +355,13 @@ jobs:
             exit 1
           fi
 
-          APP_BUNDLE_PATH="$(find dist -mindepth 1 -maxdepth 1 -type d -name '*.app' -print | head -n 1)"
+          APP_BUNDLE_PATH="dist/${TONATIUHPP_MACOS_APP_BUNDLE}"
+          if [ ! -d "${APP_BUNDLE_PATH}" ]; then
+            echo "Expected app bundle missing: ${APP_BUNDLE_PATH}" >&2
+            find dist -mindepth 1 -maxdepth 1 -type d -name '*.app' -print >&2
+            exit 1
+          fi
+
           TOP_LEVEL_COUNT="$(find dist -mindepth 1 -maxdepth 1 | wc -l | tr -d ' ')"
 
           if [ "${TOP_LEVEL_COUNT}" -ne 1 ]; then
@@ -329,12 +371,54 @@ jobs:
             exit 1
           fi
 
+          INFO_PLIST="${APP_BUNDLE_PATH}/Contents/Info.plist"
+          if [ ! -f "${INFO_PLIST}" ]; then
+            echo "Missing Info.plist: ${INFO_PLIST}" >&2
+            exit 1
+          fi
+          plutil -lint "${INFO_PLIST}"
+
+          APP_EXEC_NAME="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "${INFO_PLIST}")"
+          if [ -z "${APP_EXEC_NAME}" ]; then
+            echo "CFBundleExecutable is empty in ${INFO_PLIST}" >&2
+            exit 1
+          fi
+
+          APP_EXEC="${APP_BUNDLE_PATH}/Contents/MacOS/${APP_EXEC_NAME}"
+          if [ ! -x "${APP_EXEC}" ]; then
+            echo "Bundle executable missing or not executable: ${APP_EXEC}" >&2
+            exit 1
+          fi
+
+          lipo -info "${APP_EXEC}"
+          APP_ARCHS="$(lipo -archs "${APP_EXEC}" | tr ' ' '\n' | sort | xargs)"
+          if [ "${APP_ARCHS}" != "${TONATIUHPP_MACOS_ARCH}" ]; then
+            echo "Unexpected app executable architecture: ${APP_ARCHS}; expected ${TONATIUHPP_MACOS_ARCH}" >&2
+            exit 1
+          fi
+          otool -L "${APP_EXEC}"
+
+          while IFS= read -r -d '' file; do
+            if file "${file}" | grep -q 'Mach-O'; then
+              lipo -info "${file}"
+              if ! lipo -archs "${file}" | tr ' ' '\n' | grep -Fxq "${TONATIUHPP_MACOS_ARCH}"; then
+                echo "Mach-O dependency does not contain ${TONATIUHPP_MACOS_ARCH}: ${file}" >&2
+                exit 1
+              fi
+              otool -L "${file}" >/dev/null
+            fi
+          done < <(find "${APP_BUNDLE_PATH}/Contents/Frameworks" "${APP_BUNDLE_PATH}/Contents/MacOS/plugins" -type f -print0 2>/dev/null)
+
           echo "Validated macOS artifact: ${APP_BUNDLE_PATH}"
 
       - name: Pack
         shell: bash
         run: |
-          asset="tonatiuhpp-${{ runner.os }}.tar.gz"
+          if [ "${{ matrix.ifw_platform }}" = "macos" ]; then
+            asset="tonatiuhpp-macos-${TONATIUHPP_ASSET_ARCH}.tar.gz"
+          else
+            asset="tonatiuhpp-${{ runner.os }}.tar.gz"
+          fi
           tar -czf "${asset}" -C dist .
           python - "${asset}" <<'PY'
           import hashlib
@@ -366,13 +450,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          case "${{ runner.arch }}" in
-            X64) asset_arch="x64" ;;
-            ARM64) asset_arch="arm64" ;;
-            *) asset_arch="$(echo "${{ runner.arch }}" | tr '[:upper:]' '[:lower:]')" ;;
-          esac
-
-          output_name="TonatiuhPP-${TONATIUHPP_VERSION}-${{ matrix.ifw_platform }}-${asset_arch}"
+          output_name="TonatiuhPP-${TONATIUHPP_VERSION}-${{ matrix.ifw_platform }}-${TONATIUHPP_ASSET_ARCH}"
           if [ "${{ matrix.ifw_platform }}" = "linux" ]; then
             output_name="${output_name}.run"
           fi
@@ -390,13 +468,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          case "${{ runner.arch }}" in
-            X64) asset_arch="x64" ;;
-            ARM64) asset_arch="arm64" ;;
-            *) asset_arch="$(echo "${{ runner.arch }}" | tr '[:upper:]' '[:lower:]')" ;;
-          esac
-
-          base="TonatiuhPP-${TONATIUHPP_VERSION}-${{ matrix.ifw_platform }}-${asset_arch}"
+          base="TonatiuhPP-${TONATIUHPP_VERSION}-${{ matrix.ifw_platform }}-${TONATIUHPP_ASSET_ARCH}"
           mkdir -p ifw-assets
 
           if [ "${{ matrix.ifw_platform }}" = "linux" ]; then
@@ -445,13 +517,24 @@ jobs:
           name: ifw-repository-${{ matrix.ifw_platform }}
           path: installer/repositories/${{ matrix.ifw_platform }}/
 
-      - name: Upload artifact
+      - name: Upload Linux artifact
+        if: runner.os == 'Linux'
         uses: actions/upload-artifact@v4
         with:
           name: asset-${{ runner.os }}
           path: |
             tonatiuhpp-${{ runner.os }}.tar.gz
             tonatiuhpp-${{ runner.os }}.tar.gz.sha256
+            ifw-assets/*
+
+      - name: Upload macOS arm64 artifact
+        if: runner.os == 'macOS'
+        uses: actions/upload-artifact@v4
+        with:
+          name: asset-macos-${{ matrix.asset_arch }}
+          path: |
+            tonatiuhpp-${{ matrix.ifw_platform }}-${{ matrix.asset_arch }}.tar.gz
+            tonatiuhpp-${{ matrix.ifw_platform }}-${{ matrix.asset_arch }}.tar.gz.sha256
             ifw-assets/*
 
   build-windows-installer:
