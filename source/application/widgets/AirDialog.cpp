@@ -28,7 +28,7 @@ AirDialog::AirDialog(TSceneKit* sceneKit, QWidget* parent):
     updateCustomPlot();
 
     ui->airParameters->getModel()->setMain((MainWindow*) parent);
-    ui->airParameters->getModel()->setNode(m_air);
+    ui->airParameters->setNode(m_air);
 
     connect(
         ui->airParameters->getModel(), SIGNAL(fieldTextModified(SoNode*, QString, QString)),

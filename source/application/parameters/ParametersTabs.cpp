@@ -13,7 +13,7 @@ ParametersTabs::ParametersTabs(QWidget* parent):
 
 void ParametersTabs::setNode(SoNode* node)
 {
-    m_view->getModel()->setNode(node);
+    m_view->setNode(node);
 
     QString name;
     if (node) {

@@ -33,7 +33,7 @@ SunDialog::SunDialog(SceneTreeModel* sceneModel, QWidget* parent):
     m_sun->ref();
 
     ui->sunParameters->getModel()->setMain((MainWindow*) parent);
-    ui->sunParameters->getModel()->setNode(m_sun);
+    ui->sunParameters->setNode(m_sun);
 
     connect(
         ui->sunParameters, SIGNAL(pressed(QModelIndex)),
