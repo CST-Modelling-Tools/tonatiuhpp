@@ -361,6 +361,9 @@ void GraphicView::mouseMoveEvent(QMouseEvent* event)
     {
     #ifdef __linux__
        m_camera->movePanAnchor(m_viewer, event->pos());
+    #elif defined(__APPLE__)
+       // Qt does not distinguish left/right Shift here; use the Linux pan path.
+       m_camera->movePanAnchor(m_viewer, event->pos());
     #elif _WIN32
        if (GetKeyState(VK_LSHIFT) < 0) // left pressed
            m_camera->movePanAnchor(m_viewer, event->pos());
@@ -923,6 +926,11 @@ void GraphicView::setCameraViewTemp(double azimuth, double elevation)
 {
 #ifdef __linux__
 
+#elif defined(__APPLE__)
+    Qt::KeyboardModifiers modifiers = QApplication::keyboardModifiers();
+    bool shift = modifiers.testFlag(Qt::ShiftModifier);
+    bool alt = modifiers.testFlag(Qt::AltModifier);
+    setCameraView(azimuth, elevation, shift, alt);
 #elif _WIN32
     bool shift = GetKeyState(VK_SHIFT) < 0;
     bool alt = GetKeyState(VK_MENU) < 0;
