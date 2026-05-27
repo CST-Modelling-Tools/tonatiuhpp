@@ -37,6 +37,8 @@ The workflow currently publishes GitHub release distribution assets and IFW onli
 - IFW repository: `linux`
 - IFW repository: `macos`
 
+The macOS release artifact is built for Apple Silicon / arm64 Mac hardware.
+
 The official update-capable distribution path on every platform is the IFW installer. Archive assets may remain available as manual convenience packages, but they are not the updater-enabled installation path.
 
 ## 4. Verify IFW repositories

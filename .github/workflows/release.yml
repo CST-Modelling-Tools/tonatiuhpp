@@ -163,6 +163,17 @@ jobs:
         run: |
           set -euo pipefail
 
+          if [ "${{ runner.arch }}" != "ARM64" ]; then
+            echo "macOS release builds require an ARM64 runner, got ${{ runner.arch }}." >&2
+            exit 1
+          fi
+
+          host_arch="$(uname -m)"
+          if [ "${host_arch}" != "arm64" ]; then
+            echo "macOS release builds must run natively on arm64, got ${host_arch}." >&2
+            exit 1
+          fi
+
           if [ -z "${TONATIUHPP_MACOS_ARCH}" ]; then
             echo "TONATIUHPP_MACOS_ARCH must be set for macOS release builds." >&2
             exit 1
