@@ -2,7 +2,17 @@
 
 #include "ParametersDelegate.h"
 #include <QApplication>
+#include <QHeaderView>
 #include <QStandardItem>
+#include <QTimer>
+
+namespace
+{
+constexpr int kMinimumParameterColumnWidth = 180;
+constexpr int kMaximumParameterColumnWidth = 320;
+constexpr int kMinimumValueColumnWidth = 120;
+const QString kPathSeparator = QStringLiteral("/");
+}
 
 
 ParametersView::ParametersView(QWidget* parent):
@@ -10,6 +20,9 @@ ParametersView::ParametersView(QWidget* parent):
 {
     ParametersModel* model = new ParametersModel(this);
     setModel(model);
+    header()->setStretchLastSection(true);
+    header()->setSectionResizeMode(0, QHeaderView::Interactive);
+    header()->setSectionResizeMode(1, QHeaderView::Stretch);
 
     setEditTriggers(QAbstractItemView::NoEditTriggers);
 
@@ -19,6 +32,8 @@ ParametersView::ParametersView(QWidget* parent):
         this, SIGNAL(pressed(QModelIndex)),
         this, SLOT(onPressed(QModelIndex))
     );
+    connect(this, &QTreeView::expanded, this, &ParametersView::onExpanded);
+    connect(this, &QTreeView::collapsed, this, &ParametersView::onCollapsed);
 
     setStyleSheet(R"(
 QLineEdit {
@@ -52,47 +67,76 @@ ParametersModel* ParametersView::getModel()
 
 void ParametersView::setNode(SoNode* node)
 {
-    if (rootIndex().isValid()) {
-        m_expandedParameterPaths = expandedParameterPaths();
-        m_hasExpansionPreference = true;
-    }
-
+    const int generation = ++m_restoreGeneration;
+    m_ignoreExpansionSignals = true;
     getModel()->setNode(node);
     updateRootIndex();
 
-    if (!rootIndex().isValid())
+    if (!rootIndex().isValid()) {
+        m_ignoreExpansionSignals = false;
         return;
+    }
 
-    if (m_hasExpansionPreference)
-        restoreExpandedParameterPaths(m_expandedParameterPaths);
-    else
-        expandDefaultParameterGroups();
+    const QPersistentModelIndex newRoot(rootIndex());
+    QTimer::singleShot(0, this, [this, newRoot, generation]() {
+        restoreExpansionAndColumnWidth(newRoot, generation);
+    });
 }
 
 void ParametersView::reset()
 {
     QTreeView::reset();
-    double w = 2.5*fontMetrics().horizontalAdvance("Parameter");
-    setColumnWidth(0, w);
     updateRootIndex();
 }
 
-QVector<QStringList> ParametersView::expandedParameterPaths() const
+void ParametersView::restoreExpansionAndColumnWidth(QPersistentModelIndex rootIndex, int generation)
 {
-    QVector<QStringList> paths;
-    collectExpandedParameterPaths(rootIndex(), QStringList(), &paths);
-    return paths;
+    if (generation != m_restoreGeneration)
+        return;
+
+    m_ignoreExpansionSignals = false;
+    if (!rootIndex.isValid() || rootIndex != this->rootIndex())
+        return;
+
+    const int restoredCount = restoreStoredExpansion();
+    if (restoredCount == 0)
+        expandDefaultParameterGroups();
+
+    applyColumnWidth();
 }
 
-void ParametersView::restoreExpandedParameterPaths(const QVector<QStringList>& paths)
+int ParametersView::restoreStoredExpansion()
 {
-    for (const QStringList& path : paths)
+    int restoredCount = 0;
+    for (const QString& key : m_expandedPathKeys) {
+        const QStringList path = pathFromKey(key);
+        if (hasCollapsedPreference(path))
+            continue;
+        const QModelIndex before = findChildByName(rootIndex(), path.value(0));
         expandParameterPath(path);
+        if (before.isValid())
+            ++restoredCount;
+    }
+    return restoredCount;
+}
+
+void ParametersView::applyColumnWidth()
+{
+    resizeColumnToContents(0);
+    int width = columnWidth(0);
+    width = qMax(width, kMinimumParameterColumnWidth);
+    width = qMin(width, qMax(kMinimumParameterColumnWidth, viewport()->width() - kMinimumValueColumnWidth));
+    width = qMin(width, kMaximumParameterColumnWidth);
+    setColumnWidth(0, width);
 }
 
 void ParametersView::expandDefaultParameterGroups()
 {
     expandParameterPath({"transform"});
+    expandParameterPath({"transform", "translation"});
+    expandParameterPath({"transform", "rotation"});
+    expandParameterPath({"transform", "scale"});
+    expandParameterPath({"transform", "scaleFactor"});
     expandParameterPath({"translation"});
     expandParameterPath({"rotation"});
     expandParameterPath({"scale"});
@@ -101,6 +145,9 @@ void ParametersView::expandDefaultParameterGroups()
 
 void ParametersView::expandParameterPath(const QStringList& path)
 {
+    if (path.isEmpty() || hasCollapsedPreference(path))
+        return;
+
     QModelIndex parent = rootIndex();
     for (const QString& name : path) {
         const QModelIndex child = findChildByName(parent, name);
@@ -111,22 +158,34 @@ void ParametersView::expandParameterPath(const QStringList& path)
     }
 }
 
-void ParametersView::collectExpandedParameterPaths(const QModelIndex& parent, QStringList path, QVector<QStringList>* paths) const
+bool ParametersView::hasCollapsedPreference(const QStringList& path) const
 {
-    if (!paths)
-        return;
-    const int rows = model() ? model()->rowCount(parent) : 0;
-    for (int row = 0; row < rows; ++row) {
-        const QModelIndex child = model()->index(row, 0, parent);
-        if (!child.isValid() || !model()->hasChildren(child))
-            continue;
-        QStringList childPath = path;
-        childPath << parameterName(child);
-        if (!isExpanded(child))
-            continue;
-        paths->append(childPath);
-        collectExpandedParameterPaths(child, childPath, paths);
+    for (int length = 1; length <= path.size(); ++length) {
+        if (m_collapsedPathKeys.contains(pathKey(path.mid(0, length))))
+            return true;
     }
+    return false;
+}
+
+QStringList ParametersView::parameterPath(const QModelIndex& index) const
+{
+    QStringList path;
+    QModelIndex current = index;
+    while (current.isValid() && current != rootIndex()) {
+        path.prepend(parameterName(current));
+        current = current.parent();
+    }
+    return path;
+}
+
+QString ParametersView::pathKey(const QStringList& path) const
+{
+    return path.join(kPathSeparator);
+}
+
+QStringList ParametersView::pathFromKey(const QString& key) const
+{
+    return key.split(kPathSeparator, Qt::SkipEmptyParts);
 }
 
 QModelIndex ParametersView::findChildByName(const QModelIndex& parent, const QString& name) const
@@ -163,5 +222,29 @@ void ParametersView::onPressed(const QModelIndex& index)
 //        selectionModel()->select(index, QItemSelectionModel::Select);
 //        setSelectionBehavior(QAbstractItemView::SelectRows);
     }
+}
+
+void ParametersView::onExpanded(const QModelIndex& index)
+{
+    if (m_ignoreExpansionSignals)
+        return;
+    const QStringList path = parameterPath(index);
+    if (path.isEmpty())
+        return;
+    const QString key = pathKey(path);
+    m_collapsedPathKeys.remove(key);
+    m_expandedPathKeys.insert(key);
+}
+
+void ParametersView::onCollapsed(const QModelIndex& index)
+{
+    if (m_ignoreExpansionSignals)
+        return;
+    const QStringList path = parameterPath(index);
+    if (path.isEmpty())
+        return;
+    const QString key = pathKey(path);
+    m_expandedPathKeys.remove(key);
+    m_collapsedPathKeys.insert(key);
 }
 

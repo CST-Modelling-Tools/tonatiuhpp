@@ -1,8 +1,9 @@
 #pragma once
 
 #include <QStringList>
+#include <QPersistentModelIndex>
+#include <QSet>
 #include <QTreeView>
-#include <QVector>
 
 #include "ParametersModel.h"
 
@@ -22,17 +23,25 @@ public:
 
 private slots:
     void onPressed(const QModelIndex &index);
+    void onExpanded(const QModelIndex& index);
+    void onCollapsed(const QModelIndex& index);
 
 private:
-    QVector<QStringList> expandedParameterPaths() const;
-    void restoreExpandedParameterPaths(const QVector<QStringList>& paths);
+    void restoreExpansionAndColumnWidth(QPersistentModelIndex rootIndex, int generation);
+    int restoreStoredExpansion();
+    void applyColumnWidth();
     void expandDefaultParameterGroups();
     void expandParameterPath(const QStringList& path);
-    void collectExpandedParameterPaths(const QModelIndex& parent, QStringList path, QVector<QStringList>* paths) const;
+    bool hasCollapsedPreference(const QStringList& path) const;
+    QStringList parameterPath(const QModelIndex& index) const;
+    QString pathKey(const QStringList& path) const;
+    QStringList pathFromKey(const QString& key) const;
     QModelIndex findChildByName(const QModelIndex& parent, const QString& name) const;
     QString parameterName(const QModelIndex& index) const;
     void updateRootIndex();
 
-    QVector<QStringList> m_expandedParameterPaths;
-    bool m_hasExpansionPreference = false;
+    QSet<QString> m_expandedPathKeys;
+    QSet<QString> m_collapsedPathKeys;
+    bool m_ignoreExpansionSignals = false;
+    int m_restoreGeneration = 0;
 };
