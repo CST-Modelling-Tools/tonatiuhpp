@@ -269,6 +269,18 @@ if(UNIX AND NOT APPLE AND TONATIUHPP_BUNDLE_RUNTIME)
 
      set(_tp_lib \"${_tp_lib}\")
 
+     file(REMOVE \"\${_installed_bindir}/qt.conf\")
+     foreach(_subdir platforms xcbglintegrations imageformats tls)
+       file(REMOVE_RECURSE \"\${_installed_bindir}/\${_subdir}\")
+     endforeach()
+     file(GLOB _stale_qt_runtime
+       \"\${_installed_libdir}/libQt6*.so*\"
+       \"\${_installed_libdir}/libicu*.so*\"
+     )
+     if(_stale_qt_runtime)
+       file(REMOVE \${_stale_qt_runtime})
+     endif()
+
      message(STATUS \"Bundling Coin/SoQt runtime libs (Linux)\")
 
      # ---- Copy Coin/SoQt/simage from our third_party prefix ----

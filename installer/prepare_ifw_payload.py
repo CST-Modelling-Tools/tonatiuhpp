@@ -223,6 +223,7 @@ def prune_windows_payload(staging_dir: Path, verbose: bool = False) -> None:
 
 def verify_linux_bundling(staging_dir: Path, verbose: bool = False) -> None:
     bin_dir = staging_dir / "bin"
+    lib_dir = staging_dir / "lib"
     launcher = bin_dir / "tonatiuhpp"
     real_binary = bin_dir / "tonatiuhpp-bin"
     qt_conf = bin_dir / "qt.conf"
@@ -250,6 +251,12 @@ def verify_linux_bundling(staging_dir: Path, verbose: bool = False) -> None:
             raise SystemExit(
                 f"Linux staging must not include bundled Qt plugin directory: {plugin_dir}\n"
                 "Ubuntu/Linux installs use system Qt plugins to match the system Qt runtime."
+            )
+    if lib_dir.exists():
+        for qt_lib in lib_dir.glob("libQt6*.so*"):
+            raise SystemExit(
+                f"Linux staging must not include bundled Qt runtime library: {qt_lib}\n"
+                "Ubuntu/Linux installs use the system Qt runtime and matching system Qt plugins."
             )
 
     launcher_text = launcher.read_text(encoding="utf-8", errors="replace")
