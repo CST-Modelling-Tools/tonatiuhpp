@@ -122,7 +122,8 @@ GraphicView::GraphicView(QWidget* parent):
 //    m_viewer->getGLWidget()->setEnabled(false);
 //m_viewer->getGLWidget()->setFocusPolicy(Qt::StrongFocus);
 QWindow * hw  = m_viewer->getGLWidget()->property("SoQtGLArea").value<QWindow*>();
-hw->installEventFilter(this);
+if (hw)
+    hw->installEventFilter(this);
 setFocusPolicy(Qt::StrongFocus);
 
 m_viewer->getGLWidget()->setFocusPolicy(Qt::NoFocus);
@@ -451,7 +452,8 @@ void GraphicView::keyReleaseEvent(QKeyEvent* event)
 void GraphicView::focusInEvent(QFocusEvent* /*event*/)
 {
     QWindow * hw  = m_viewer->getGLWidget()->property("SoQtGLArea").value<QWindow*>();
-    hw->requestActivate();
+    if (hw)
+        hw->requestActivate();
 
 //    MainWindow* mw = (MainWindow*) m_window;
 //    if (mw) {

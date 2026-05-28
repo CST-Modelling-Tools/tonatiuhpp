@@ -41,6 +41,7 @@
 #include "kernel/trackers/TrackerArmature2AwD.h"
 #include "libraries/math/gcf.h"
 #include "view/SkyNode3D.h"
+#include "view/SunNode3D.h"
 #include "view/OverlayNode.h"
 #include "view/SeparatorStyle.h"
 
@@ -49,6 +50,7 @@ PluginManager::PluginManager()
 {
     TonatiuhCore::initializeCoreTypes();
     SkyNode3D::initClass();
+    SunNode3D::initClass();
     OverlayNode::initClass();
     SeparatorStyle::initClass();
 }
