@@ -14,7 +14,7 @@ ParametersModel::ParametersModel(QObject* parent):
     QStandardItemModel(parent),
     m_node(0)
 {
-
+    setHorizontalHeaderLabels({"Parameter", "Value"});
 }
 
 void ParametersModel::setNode(SoNode* node)
