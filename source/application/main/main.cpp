@@ -8,6 +8,8 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QJSEngine>
+#include <QMessageBox>
+#include <QStringList>
 #include <QTextStream>
 
 #include <Inventor/Qt/SoQt.h>
@@ -43,6 +45,27 @@ bool hasHeadlessArgument(int argc, char** argv)
     }
 
     return false;
+}
+
+QString projectFileFromPositionalArguments(const QStringList& arguments, QString* warningMessage)
+{
+    QStringList projectFiles;
+    for (const QString& argument : arguments) {
+        if (QFileInfo(argument).suffix().compare("tnhpp", Qt::CaseInsensitive) == 0)
+            projectFiles.append(argument);
+    }
+
+    if (projectFiles.isEmpty())
+        return QString();
+
+    if (projectFiles.size() > 1 && warningMessage) {
+        *warningMessage = QString(
+            "Multiple Tonatiuh++ project files were provided.\n"
+            "Opening the first file and ignoring the rest:\n%1"
+        ).arg(projectFiles.first());
+    }
+
+    return projectFiles.first();
 }
 }
 
@@ -89,6 +112,11 @@ int main(int argc, char** argv)
         "w", "Window mode"
     );
     parser.addOption(optionWindow);
+    parser.addPositionalArgument(
+        "project",
+        "Tonatiuh++ project file to open.",
+        "[project.tnhpp]"
+    );
 
     // processing
     parser.process(app);
@@ -110,6 +138,10 @@ int main(int argc, char** argv)
 
 //    QString fileName = parser.positionalArguments()[0];
     QString fileName = parser.value(optionInput);
+    QString startupWarning;
+    if (fileName.isEmpty())
+        fileName = projectFileFromPositionalArguments(parser.positionalArguments(), &startupWarning);
+
     QFileInfo fileInfo(fileName);
     if (fileInfo.completeSuffix() != "tnhpps" || parser.isSet(optionWindow))
     {
@@ -127,6 +159,8 @@ int main(int argc, char** argv)
         MainWindow mw(fileName, &splash);
         mw.show();
         splash.setFinishWindow();
+        if (!startupWarning.isEmpty())
+            QMessageBox::warning(&mw, "Tonatiuh", startupWarning);
         if (fileInfo.completeSuffix() == "tnhpps")
             mw.openFileScript(fileName);
 
