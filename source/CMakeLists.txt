@@ -254,32 +254,9 @@ add_subdirectory(application)
 add_subdirectory(plugins)
 
 # ----------------------------
-# 🚚 Optional runtime bundling on Linux (OFF by default)
+# 🚚 Optional runtime bundling on Linux (ON by default)
 # ----------------------------
 if(UNIX AND NOT APPLE AND TONATIUHPP_BUNDLE_RUNTIME)
-  # Discover Qt lib & plugin dirs at configure time from imported targets
-  set(_qt_lib_dir "")
-  set(_qt_plugins_dir "")
-  set(_qt_core_loc "")
-  foreach(prop IMPORTED_LOCATION_RELEASE IMPORTED_LOCATION_DEBUG IMPORTED_LOCATION)
-    if(NOT _qt_core_loc)
-      get_target_property(_qt_core_loc Qt6::Core ${prop})
-    endif()
-  endforeach()
-  if(_qt_core_loc)
-    get_filename_component(_qt_lib_dir "${_qt_core_loc}" DIRECTORY)   # …/gcc_64/lib
-    get_filename_component(_qt_prefix  "${_qt_lib_dir}" DIRECTORY)    # …/gcc_64
-    set(_qt_plugins_dir "${_qt_prefix}/plugins")                      # …/gcc_64/plugins
-  endif()
-
-  # Allow explicit overrides (optional but useful for users)
-  if(DEFINED TonatiuhQtLibDir AND EXISTS "${TonatiuhQtLibDir}")
-    set(_qt_lib_dir "${TonatiuhQtLibDir}")
-  endif()
-  if(DEFINED TonatiuhQtPluginsDir AND EXISTS "${TonatiuhQtPluginsDir}")
-    set(_qt_plugins_dir "${TonatiuhQtPluginsDir}")
-  endif()
-
   # Our locally built third-party libs
   set(_tp_lib "${CMAKE_CURRENT_LIST_DIR}/../third_party/_install/${CMAKE_INSTALL_LIBDIR}")
 
@@ -290,47 +267,9 @@ if(UNIX AND NOT APPLE AND TONATIUHPP_BUNDLE_RUNTIME)
      file(MAKE_DIRECTORY \"\${_installed_libdir}\")
      file(MAKE_DIRECTORY \"\${_installed_bindir}\")
 
-     set(_qt_lib_dir     \"${_qt_lib_dir}\")
-     set(_qt_plugins_dir \"${_qt_plugins_dir}\")
-     set(_tp_lib         \"${_tp_lib}\")
+     set(_tp_lib \"${_tp_lib}\")
 
-     message(STATUS \"Bundling Qt/Coin runtime libs (Linux)\")
-
-     # ---- Copy the exact Qt libs we link against (follow symlink chains) ----
-     if(_qt_lib_dir AND EXISTS \"\${_qt_lib_dir}\")
-       set(_qt_needed
-         libQt6Core.so.6
-         libQt6Gui.so.6
-         libQt6Widgets.so.6
-         libQt6PrintSupport.so.6
-         libQt6OpenGL.so.6
-         libQt6Qml.so.6
-         libQt6Concurrent.so.6
-         libQt6DBus.so.6
-         libQt6Network.so.6
-         libQt6XcbQpa.so.6
-       )
-       file(GLOB _icu_needed \"\${_qt_lib_dir}/libicu*.so*\")
-       set(_qt_to_copy)
-       foreach(name IN LISTS _qt_needed)
-         if(EXISTS \"\${_qt_lib_dir}/\${name}\")
-           list(APPEND _qt_to_copy \"\${_qt_lib_dir}/\${name}\")
-         endif()
-       endforeach()
-       list(APPEND _qt_to_copy \${_icu_needed})
-       if(_qt_to_copy)
-         file(INSTALL
-           DESTINATION \"\${_installed_libdir}\"
-           TYPE FILE
-           FOLLOW_SYMLINK_CHAIN
-           FILES \${_qt_to_copy}
-         )
-       else()
-         message(WARNING \"No Qt libs found to copy in: \${_qt_lib_dir}\")
-       endif()
-     else()
-       message(STATUS \"Qt lib dir not set; skipping Qt lib copy\")
-     endif()
+     message(STATUS \"Bundling Coin/SoQt runtime libs (Linux)\")
 
      # ---- Copy Coin/SoQt/simage from our third_party prefix ----
      if(_tp_lib AND EXISTS \"\${_tp_lib}\")
@@ -349,33 +288,9 @@ if(UNIX AND NOT APPLE AND TONATIUHPP_BUNDLE_RUNTIME)
        endif()
      endif()
 
-     # ---- Copy essential Qt plugin folders into bin/ ----
-     if(_qt_plugins_dir AND EXISTS \"\${_qt_plugins_dir}\")
-       foreach(_subdir platforms xcbglintegrations imageformats tls)
-         if(EXISTS \"\${_qt_plugins_dir}/\${_subdir}\")
-           file(INSTALL
-             DESTINATION \"\${_installed_bindir}\"
-             TYPE DIRECTORY
-             USE_SOURCE_PERMISSIONS
-             FILES \"\${_qt_plugins_dir}/\${_subdir}\"
-           )
-
-           # Make copied Qt plugins resolve bundled Qt libs from <prefix>/lib.
-           file(GLOB _installed_plugins
-             \"\${_installed_bindir}/\${_subdir}/*.so*\"
-           )
-           foreach(_plugin IN LISTS _installed_plugins)
-             file(RPATH_SET
-               FILE \"\${_plugin}\"
-               NEW_RPATH \"\\$ORIGIN/../../${CMAKE_INSTALL_LIBDIR}\"
-             )
-           endforeach()
-         endif()
-       endforeach()
-       file(WRITE \"\${_installed_bindir}/qt.conf\" \"[Paths]\\nPlugins=.\\n\")
-     else()
-       message(STATUS \"Qt plugins directory not set; skipping plugin copy\")
-     endif()
+     # Ubuntu/Linux installs intentionally use the system Qt plugin tree.
+     # Do not install qt.conf with Plugins=. and do not copy Qt plugin folders
+     # into bin/: mixed Qt runtime/plugin versions fail during startup.
     ")
 endif()
 

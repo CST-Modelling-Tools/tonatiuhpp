@@ -217,7 +217,7 @@ jobs:
           cmake --build build --config Release --parallel
           cmake --install build --prefix dist
 
-      - name: Validate Linux bundled runtime layout
+      - name: Validate Linux Qt plugin layout
         if: runner.os == 'Linux'
         shell: bash
         run: |
@@ -225,21 +225,14 @@ jobs:
 
           test -x dist/bin/tonatiuhpp
           test -x dist/bin/tonatiuhpp-bin
-          test -f dist/bin/qt.conf
-          test -d dist/bin/platforms
-          test -f dist/lib/libQt6Core.so.6
-
-          if ldd dist/bin/tonatiuhpp-bin | grep -E '/usr/.*/libQt6'; then
-            echo "Main Linux binary resolves Qt from the system instead of dist/lib." >&2
-            exit 1
-          fi
-
-          find dist/bin/platforms -maxdepth 1 -type f -name '*.so*' -print0 | while IFS= read -r -d '' plugin; do
-            if ldd "${plugin}" | grep -E '/usr/.*/libQt6'; then
-              echo "Qt platform plugin resolves Qt from the system: ${plugin}" >&2
-              exit 1
-            fi
-          done
+          test ! -e dist/bin/qt.conf
+          test ! -d dist/bin/platforms
+          test ! -d dist/bin/xcbglintegrations
+          test ! -d dist/bin/imageformats
+          test ! -d dist/bin/tls
+          test ! -e dist/lib/libQt6Core.so.6
+          grep -q 'QT_PLUGIN_PATH' dist/bin/tonatiuhpp
+          grep -q 'QT_QPA_PLATFORM_PLUGIN_PATH' dist/bin/tonatiuhpp
 
       - name: Deploy Qt frameworks (macOS)
         if: runner.os == 'macOS'

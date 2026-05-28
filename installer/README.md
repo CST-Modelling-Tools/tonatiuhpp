@@ -47,7 +47,10 @@ This will:
 
 The script only allows the package data target under the intended Qt IFW package path, to avoid accidental staging elsewhere.
 
-On Linux, the staging step validates that Qt runtime libraries and platform plugins are present in the staged tree.
+On Linux, the staging step validates that the launcher is present, no `bin/qt.conf`
+is installed, and Qt plugin directories are not bundled under `bin/`. The launcher
+selects the system Qt plugin tree so Ubuntu packages use plugins that match the
+system Qt runtime.
 
 The staged payload is then ready for later Qt IFW packaging.
 

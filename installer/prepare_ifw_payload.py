@@ -222,29 +222,45 @@ def prune_windows_payload(staging_dir: Path, verbose: bool = False) -> None:
 
 
 def verify_linux_bundling(staging_dir: Path, verbose: bool = False) -> None:
-    lib_dir = staging_dir / "lib"
-    platforms_dir = staging_dir / "bin" / "platforms"
-    qt_lib_found = False
-    if lib_dir.exists():
-        for item in lib_dir.iterdir():
-            if item.name.startswith("libQt6"):
-                qt_lib_found = True
-                break
+    bin_dir = staging_dir / "bin"
+    launcher = bin_dir / "tonatiuhpp"
+    real_binary = bin_dir / "tonatiuhpp-bin"
+    qt_conf = bin_dir / "qt.conf"
+    bundled_plugin_dirs = [
+        bin_dir / name for name in ("platforms", "xcbglintegrations", "imageformats", "tls")
+    ]
 
-    if not qt_lib_found:
+    if not launcher.exists():
         raise SystemExit(
-            "Linux staging did not include bundled Qt runtime libraries.\n"
-            "Ensure Linux Qt deployment is enabled in the CMake install step and rerun the staging script."
+            "Linux staging did not include the Tonatiuh++ launcher script.\n"
+            "Ensure the CMake install step installed bin/tonatiuhpp."
         )
-
-    if not platforms_dir.exists():
+    if not real_binary.exists():
         raise SystemExit(
-            "Linux staging did not include Qt platform plugins.\n"
-            "Ensure Linux Qt deployment is enabled in the CMake install step and rerun the staging script."
+            "Linux staging did not include the real Tonatiuh++ binary.\n"
+            "Ensure the CMake install step installed bin/tonatiuhpp-bin."
+        )
+    if qt_conf.exists():
+        raise SystemExit(
+            "Linux staging must not include bin/qt.conf.\n"
+            "Ubuntu/Linux installs use the system Qt plugin tree selected by the launcher."
+        )
+    for plugin_dir in bundled_plugin_dirs:
+        if plugin_dir.exists():
+            raise SystemExit(
+                f"Linux staging must not include bundled Qt plugin directory: {plugin_dir}\n"
+                "Ubuntu/Linux installs use system Qt plugins to match the system Qt runtime."
+            )
+
+    launcher_text = launcher.read_text(encoding="utf-8", errors="replace")
+    if "QT_QPA_PLATFORM_PLUGIN_PATH" not in launcher_text or "QT_PLUGIN_PATH" not in launcher_text:
+        raise SystemExit(
+            "Linux launcher does not configure Qt plugin paths.\n"
+            "Ensure scripts/tonatiuhpp.sh is installed as bin/tonatiuhpp."
         )
 
     if verbose:
-        print("Linux Qt runtime deployment appears present in staging.")
+        print("Linux staging uses the system Qt plugin strategy.")
 
 
 def main() -> None:
