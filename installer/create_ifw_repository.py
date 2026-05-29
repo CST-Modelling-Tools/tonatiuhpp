@@ -15,6 +15,7 @@ from sync_ifw_metadata import (
     render_ifw_template,
     validate_release_date,
 )
+from prepare_ifw_payload import verify_linux_bundling
 
 PACKAGE_ID = "com.tonatiuhpp.app"
 APPLICATION_NAME = "Tonatiuh++"
@@ -204,6 +205,9 @@ def main() -> None:
 
     try:
         validate_packages(packages_dir)
+        if platform == "linux":
+            verify_linux_bundling(packages_dir / PACKAGE_ID / "data", verbose=args.verbose)
+
         remove_path(repository_dir, verbose=args.verbose)
         repository_dir.parent.mkdir(parents=True, exist_ok=True)
 

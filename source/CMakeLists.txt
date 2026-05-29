@@ -260,6 +260,45 @@ if(UNIX AND NOT APPLE AND TONATIUHPP_BUNDLE_RUNTIME)
   # Our locally built third-party libs
   set(_tp_lib "${CMAKE_CURRENT_LIST_DIR}/../third_party/_install/${CMAKE_INSTALL_LIBDIR}")
 
+  set(_qt_core_lib "")
+  foreach(_qt_core_prop IMPORTED_LOCATION_RELEASE IMPORTED_LOCATION_RELWITHDEBINFO IMPORTED_LOCATION_MINSIZEREL IMPORTED_LOCATION)
+    if(NOT _qt_core_lib)
+      get_target_property(_qt_core_candidate Qt6::Core ${_qt_core_prop})
+      if(_qt_core_candidate AND NOT _qt_core_candidate MATCHES "-NOTFOUND$")
+        set(_qt_core_lib "${_qt_core_candidate}")
+      endif()
+    endif()
+  endforeach()
+  if(NOT _qt_core_lib)
+    get_target_property(_qt_core_lib Qt6::Core LOCATION)
+  endif()
+  if(NOT _qt_core_lib OR _qt_core_lib MATCHES "-NOTFOUND$")
+    message(FATAL_ERROR "Could not resolve Qt6::Core library location for Linux runtime bundling.")
+  endif()
+
+  get_filename_component(_qt_lib_dir "${_qt_core_lib}" DIRECTORY)
+  get_filename_component(_qt_prefix "${_qt_lib_dir}/.." REALPATH)
+
+  set(_qt_plugin_dir "")
+  foreach(_qt_plugin_candidate
+      "${_qt_prefix}/plugins"
+      "${_qt_lib_dir}/qt6/plugins"
+      "${_qt_lib_dir}/plugins"
+      "${_qt_prefix}/${CMAKE_INSTALL_LIBDIR}/qt6/plugins"
+      "${_qt_prefix}/${CMAKE_INSTALL_LIBDIR}/plugins")
+    if(NOT _qt_plugin_dir AND EXISTS "${_qt_plugin_candidate}/platforms")
+      set(_qt_plugin_dir "${_qt_plugin_candidate}")
+    endif()
+  endforeach()
+  if(NOT _qt_plugin_dir)
+    message(FATAL_ERROR "Could not locate Qt platform plugins under Qt prefix: ${_qt_prefix}")
+  endif()
+
+  set(_qt_version "${Qt6_VERSION}")
+  if(NOT _qt_version)
+    set(_qt_version "${Qt6Core_VERSION}")
+  endif()
+
   # Hand off to install-time script; inject values NOW via ${...}
   install(CODE
     "set(_installed_bindir \"\${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR}\")
@@ -268,9 +307,15 @@ if(UNIX AND NOT APPLE AND TONATIUHPP_BUNDLE_RUNTIME)
      file(MAKE_DIRECTORY \"\${_installed_bindir}\")
 
      set(_tp_lib \"${_tp_lib}\")
+     set(_qt_lib_dir \"${_qt_lib_dir}\")
+     set(_qt_plugin_dir \"${_qt_plugin_dir}\")
+     set(_qt_version \"${_qt_version}\")
 
      file(REMOVE \"\${_installed_bindir}/qt.conf\")
-     foreach(_subdir platforms xcbglintegrations imageformats tls)
+     foreach(_subdir
+         platforms xcbglintegrations imageformats tls iconengines platformthemes styles
+         generic networkinformation egldeviceintegrations wayland-decoration-client
+         wayland-graphics-integration-client wayland-shell-integration sqldrivers)
        file(REMOVE_RECURSE \"\${_installed_bindir}/\${_subdir}\")
      endforeach()
      file(GLOB _stale_qt_runtime
@@ -280,6 +325,45 @@ if(UNIX AND NOT APPLE AND TONATIUHPP_BUNDLE_RUNTIME)
      if(_stale_qt_runtime)
        file(REMOVE \${_stale_qt_runtime})
      endif()
+
+     message(STATUS \"Bundling Qt runtime libs/plugins (Linux) from \${_qt_lib_dir} / \${_qt_plugin_dir}\")
+
+     file(GLOB _qt_runtime_libs
+       \"\${_qt_lib_dir}/libQt6*.so*\"
+       \"\${_qt_lib_dir}/libicu*.so*\"
+     )
+     if(NOT _qt_runtime_libs)
+       message(FATAL_ERROR \"No Qt runtime libraries found in \${_qt_lib_dir}\")
+     endif()
+     file(INSTALL
+       DESTINATION \"\${_installed_libdir}\"
+       TYPE FILE
+       FOLLOW_SYMLINK_CHAIN
+       FILES \${_qt_runtime_libs}
+     )
+
+     file(GLOB _qt_plugin_subdirs LIST_DIRECTORIES true \"\${_qt_plugin_dir}/*\")
+     if(NOT _qt_plugin_subdirs)
+       message(FATAL_ERROR \"No Qt plugin directories found in \${_qt_plugin_dir}\")
+     endif()
+     foreach(_qt_plugin_subdir IN LISTS _qt_plugin_subdirs)
+       if(IS_DIRECTORY \"\${_qt_plugin_subdir}\")
+         get_filename_component(_qt_plugin_name \"\${_qt_plugin_subdir}\" NAME)
+         file(REMOVE_RECURSE \"\${_installed_bindir}/\${_qt_plugin_name}\")
+         file(INSTALL
+           DESTINATION \"\${_installed_bindir}\"
+           TYPE DIRECTORY
+           FILES \"\${_qt_plugin_subdir}\"
+         )
+       endif()
+     endforeach()
+
+     if(NOT EXISTS \"\${_installed_bindir}/platforms/libqxcb.so\")
+       message(FATAL_ERROR \"Bundled Linux Qt platform plugin is missing: \${_installed_bindir}/platforms/libqxcb.so\")
+     endif()
+
+     file(WRITE \"\${_installed_bindir}/qt.conf\" \"[Paths]\\nPrefix=..\\nPlugins=${CMAKE_INSTALL_BINDIR}\\nLibraries=${CMAKE_INSTALL_LIBDIR}\\n\")
+     file(WRITE \"\${_installed_bindir}/qt-runtime-version.txt\" \"\${_qt_version}\\n\")
 
      message(STATUS \"Bundling Coin/SoQt runtime libs (Linux)\")
 
@@ -299,10 +383,6 @@ if(UNIX AND NOT APPLE AND TONATIUHPP_BUNDLE_RUNTIME)
          )
        endif()
      endif()
-
-     # Ubuntu/Linux installs intentionally use the system Qt plugin tree.
-     # Do not install qt.conf with Plugins=. and do not copy Qt plugin folders
-     # into bin/: mixed Qt runtime/plugin versions fail during startup.
     ")
 endif()
 

@@ -4,6 +4,7 @@
 import argparse
 import os
 import plistlib
+import re
 import shutil
 import subprocess
 import sys
@@ -221,15 +222,105 @@ def prune_windows_payload(staging_dir: Path, verbose: bool = False) -> None:
         print("No removable Windows payload artifacts were found.")
 
 
+def qt_version_to_integer(version: str) -> int:
+    match = re.match(r"^(\d+)\.(\d+)\.(\d+)", version)
+    if not match:
+        raise SystemExit(f"Invalid Qt version marker: {version!r}")
+    major, minor, patch = (int(part) for part in match.groups())
+    return (major << 16) | (minor << 8) | patch
+
+
+def require_relative_to(path: Path, parent: Path, description: str) -> None:
+    resolved_path = path.resolve()
+    resolved_parent = parent.resolve()
+    try:
+        resolved_path.relative_to(resolved_parent)
+    except ValueError as exc:
+        raise SystemExit(
+            f"{description} resolves outside the bundled Linux runtime:\n"
+            f"  dependency: {resolved_path}\n"
+            f"  bundled lib dir: {resolved_parent}"
+        ) from exc
+
+
+def run_linux_ldd(path: Path, lib_dir: Path) -> str:
+    ldd = shutil.which("ldd")
+    if not ldd:
+        raise SystemExit("Linux payload validation requires ldd.")
+
+    env = os.environ.copy()
+    env["LD_LIBRARY_PATH"] = f"{lib_dir}{os.pathsep}{env.get('LD_LIBRARY_PATH', '')}".rstrip(os.pathsep)
+    result = subprocess.run(
+        [ldd, str(path)],
+        check=False,
+        capture_output=True,
+        env=env,
+        text=True,
+    )
+    output = f"{result.stdout}\n{result.stderr}".strip()
+    if result.returncode != 0:
+        raise SystemExit(f"ldd failed for {path}:\n{output}")
+    return output
+
+
+def verify_linux_qt_links(path: Path, lib_dir: Path) -> None:
+    output = run_linux_ldd(path, lib_dir)
+    for line in output.splitlines():
+        if "libQt6" not in line:
+            continue
+        if "not found" in line:
+            raise SystemExit(f"Bundled Linux payload has an unresolved Qt dependency in {path}:\n{line}")
+        if "=>" not in line:
+            continue
+        resolved = line.split("=>", 1)[1].strip().split(" ", 1)[0]
+        if not resolved.startswith("/"):
+            continue
+        require_relative_to(Path(resolved), lib_dir, f"Qt dependency for {path}")
+
+
+def find_linux_qt_plugin_files(bin_dir: Path) -> list[Path]:
+    plugin_files: list[Path] = []
+    for child in sorted(bin_dir.iterdir()):
+        if child.is_dir():
+            plugin_files.extend(sorted(child.rglob("*.so")))
+    return plugin_files
+
+
+def verify_linux_qt_plugin_versions(plugin_files: list[Path], qt_version: str) -> None:
+    expected_version = qt_version_to_integer(qt_version)
+    checked = 0
+    mismatches: list[str] = []
+    version_re = re.compile(rb'"version"\s*:\s*(\d+)')
+
+    for plugin in plugin_files:
+        data = plugin.read_bytes()
+        versions = {int(match.group(1)) for match in version_re.finditer(data)}
+        if not versions:
+            continue
+        checked += 1
+        if expected_version not in versions:
+            shown_versions = ", ".join(str(version) for version in sorted(versions))
+            mismatches.append(f"  - {plugin}: plugin metadata version(s) {shown_versions}")
+
+    if mismatches:
+        details = "\n".join(mismatches)
+        raise SystemExit(
+            f"Bundled Linux Qt plugin version mismatch; expected Qt {qt_version} "
+            f"metadata value {expected_version}.\n{details}"
+        )
+    if checked == 0:
+        raise SystemExit("No Qt plugin metadata versions were found in the bundled Linux plugins.")
+
+
 def verify_linux_bundling(staging_dir: Path, verbose: bool = False) -> None:
     bin_dir = staging_dir / "bin"
     lib_dir = staging_dir / "lib"
     launcher = bin_dir / "tonatiuhpp"
     real_binary = bin_dir / "tonatiuhpp-bin"
     qt_conf = bin_dir / "qt.conf"
-    bundled_plugin_dirs = [
-        bin_dir / name for name in ("platforms", "xcbglintegrations", "imageformats", "tls")
-    ]
+    qt_version_marker = bin_dir / "qt-runtime-version.txt"
+    platform_plugin = bin_dir / "platforms" / "libqxcb.so"
+    qt_core = lib_dir / "libQt6Core.so.6"
 
     if not launcher.exists():
         raise SystemExit(
@@ -241,33 +332,76 @@ def verify_linux_bundling(staging_dir: Path, verbose: bool = False) -> None:
             "Linux staging did not include the real Tonatiuh++ binary.\n"
             "Ensure the CMake install step installed bin/tonatiuhpp-bin."
         )
-    if qt_conf.exists():
+    if not qt_conf.exists():
         raise SystemExit(
-            "Linux staging must not include bin/qt.conf.\n"
-            "Ubuntu/Linux installs use the system Qt plugin tree selected by the launcher."
+            "Linux staging did not include bin/qt.conf.\n"
+            "The release payload must point Qt at the bundled plugin directory."
         )
-    for plugin_dir in bundled_plugin_dirs:
-        if plugin_dir.exists():
-            raise SystemExit(
-                f"Linux staging must not include bundled Qt plugin directory: {plugin_dir}\n"
-                "Ubuntu/Linux installs use system Qt plugins to match the system Qt runtime."
-            )
-    if lib_dir.exists():
-        for qt_lib in lib_dir.glob("libQt6*.so*"):
-            raise SystemExit(
-                f"Linux staging must not include bundled Qt runtime library: {qt_lib}\n"
-                "Ubuntu/Linux installs use the system Qt runtime and matching system Qt plugins."
-            )
+    if not qt_core.exists():
+        raise SystemExit(
+            "Linux staging did not include bundled Qt runtime library lib/libQt6Core.so.6."
+        )
+    if not platform_plugin.exists():
+        raise SystemExit(
+            "Linux staging did not include bundled Qt xcb platform plugin "
+            "bin/platforms/libqxcb.so."
+        )
+    if not qt_version_marker.exists():
+        raise SystemExit(
+            "Linux staging did not include bin/qt-runtime-version.txt."
+        )
+
+    qt_conf_text = qt_conf.read_text(encoding="utf-8", errors="replace")
+    if not re.search(r"(?im)^\s*Prefix\s*=\s*\.\.\s*$", qt_conf_text):
+        raise SystemExit("Linux bin/qt.conf must set Prefix=..")
+    if not re.search(rf"(?im)^\s*Plugins\s*=\s*{re.escape(bin_dir.name)}\s*$", qt_conf_text):
+        raise SystemExit(f"Linux bin/qt.conf must set Plugins={bin_dir.name}")
+    if not re.search(rf"(?im)^\s*Libraries\s*=\s*{re.escape(lib_dir.name)}\s*$", qt_conf_text):
+        raise SystemExit(f"Linux bin/qt.conf must set Libraries={lib_dir.name}")
 
     launcher_text = launcher.read_text(encoding="utf-8", errors="replace")
-    if "QT_QPA_PLATFORM_PLUGIN_PATH" not in launcher_text or "QT_PLUGIN_PATH" not in launcher_text:
+    if "QT_BUNDLED_PLUGIN_DIR" not in launcher_text:
         raise SystemExit(
-            "Linux launcher does not configure Qt plugin paths.\n"
+            "Linux launcher does not configure the bundled Qt plugin directory.\n"
             "Ensure scripts/tonatiuhpp.sh is installed as bin/tonatiuhpp."
         )
+    if "/usr/lib" in launcher_text and "qt6/plugins" in launcher_text:
+        raise SystemExit(
+            "Linux launcher still contains the old system Qt plugin search path."
+        )
+
+    qt_version = qt_version_marker.read_text(encoding="utf-8", errors="replace").strip()
+    if not qt_version:
+        raise SystemExit("Linux Qt runtime version marker is empty.")
+
+    expected_qt_version = os.environ.get("TONATIUH_QT_VERSION", "").strip()
+    if expected_qt_version and qt_version != expected_qt_version:
+        raise SystemExit(
+            f"Linux staged Qt version marker ({qt_version}) does not match "
+            f"the build Qt version ({expected_qt_version})."
+        )
+
+    core_files = sorted(path.name for path in lib_dir.glob("libQt6Core.so.6*"))
+    if not any(qt_version in name for name in core_files):
+        shown_core_files = "\n".join(f"  - {name}" for name in core_files) or "  <none>"
+        raise SystemExit(
+            f"Bundled libQt6Core files do not match Qt version marker {qt_version}:\n"
+            f"{shown_core_files}"
+        )
+
+    plugin_files = find_linux_qt_plugin_files(bin_dir)
+    if not plugin_files:
+        raise SystemExit("Linux staging did not include any bundled Qt plugin .so files.")
+    verify_linux_qt_plugin_versions(plugin_files, qt_version)
+
+    qt_linked_files = [real_binary]
+    qt_linked_files.extend(sorted(bin_dir.glob("*.so")))
+    qt_linked_files.extend(plugin_files)
+    for binary in qt_linked_files:
+        verify_linux_qt_links(binary, lib_dir)
 
     if verbose:
-        print("Linux staging uses the system Qt plugin strategy.")
+        print(f"Linux staging bundles Qt {qt_version} runtime and plugins.")
 
 
 def main() -> None:

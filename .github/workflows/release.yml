@@ -76,6 +76,22 @@ jobs:
           echo "Qt6_DIR=${QT_PREFIX}/lib/cmake/Qt6" >> "$GITHUB_ENV"
           echo "CMAKE_PREFIX_PATH=${QT_PREFIX}:${CMAKE_PREFIX_PATH:-}" >> "$GITHUB_ENV"
 
+          if [ -x "${QT_PREFIX}/bin/qtpaths6" ]; then
+            QT_VERSION="$("${QT_PREFIX}/bin/qtpaths6" --qt-version)"
+          elif [ -x "${QT_PREFIX}/bin/qmake6" ]; then
+            QT_VERSION="$("${QT_PREFIX}/bin/qmake6" -query QT_VERSION)"
+          elif [ -f "${QT_PREFIX}/lib/cmake/Qt6/Qt6ConfigVersion.cmake" ]; then
+            QT_VERSION="$(sed -n 's/.*PACKAGE_VERSION \"\\([^\"]*\\)\".*/\\1/p' "${QT_PREFIX}/lib/cmake/Qt6/Qt6ConfigVersion.cmake" | head -n 1)"
+          else
+            echo "Qt version not found under ${QT_PREFIX}" >&2
+            exit 1
+          fi
+          if [ -z "${QT_VERSION}" ]; then
+            echo "Qt version is empty under ${QT_PREFIX}" >&2
+            exit 1
+          fi
+          echo "TONATIUH_QT_VERSION=${QT_VERSION}" >> "$GITHUB_ENV"
+
           if [ -d "${QT_PREFIX}/lib/pkgconfig" ]; then
             echo "PKG_CONFIG_PATH=${QT_PREFIX}/lib/pkgconfig:${PKG_CONFIG_PATH:-}" >> "$GITHUB_ENV"
           fi
@@ -217,7 +233,7 @@ jobs:
           cmake --build build --config Release --parallel
           cmake --install build --prefix dist
 
-      - name: Validate Linux Qt plugin layout
+      - name: Validate Linux bundled Qt runtime
         if: runner.os == 'Linux'
         shell: bash
         run: |
@@ -225,14 +241,20 @@ jobs:
 
           test -x dist/bin/tonatiuhpp
           test -x dist/bin/tonatiuhpp-bin
-          test ! -e dist/bin/qt.conf
-          test ! -d dist/bin/platforms
-          test ! -d dist/bin/xcbglintegrations
-          test ! -d dist/bin/imageformats
-          test ! -d dist/bin/tls
-          test ! -e dist/lib/libQt6Core.so.6
-          grep -q 'QT_PLUGIN_PATH' dist/bin/tonatiuhpp
-          grep -q 'QT_QPA_PLATFORM_PLUGIN_PATH' dist/bin/tonatiuhpp
+          test -f dist/bin/qt.conf
+          test -d dist/bin/platforms
+          test -f dist/bin/platforms/libqxcb.so
+          test -f dist/lib/libQt6Core.so.6
+          grep -q 'QT_BUNDLED_PLUGIN_DIR' dist/bin/tonatiuhpp
+          python - <<'PY'
+          import sys
+          from pathlib import Path
+
+          sys.path.insert(0, "installer")
+          from prepare_ifw_payload import verify_linux_bundling
+
+          verify_linux_bundling(Path("dist"), verbose=True)
+          PY
 
       - name: Deploy Qt frameworks (macOS)
         if: runner.os == 'macOS'
