@@ -17,12 +17,12 @@
 
 # -- Project information -----------------------------------------------------
 
-project = 'Tonatiuh'
-copyright = '2020, Team'
-author = 'Team'
+project = 'Tonatiuh++'
+copyright = '2026, Tonatiuh++ contributors'
+author = 'Tonatiuh++ contributors'
 
 # The full version, including alpha/beta/rc tags
-release = 'Cyprus'
+release = ''
 
 
 # -- General configuration ---------------------------------------------------
@@ -35,10 +35,10 @@ release = 'Cyprus'
 # ]
 
 # breathe_projects = {
-    # "Tonatiuh": "../../doxygen/xml"
+    # "Tonatiuh++": "../../doxygen/xml"
 # }
 
-# breathe_default_project = "Tonatiuh"
+# breathe_default_project = "Tonatiuh++"
 
 # # Setup the exhale extension
 # exhale_args = {
@@ -81,6 +81,8 @@ exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 html_theme = 'alabaster'
 #html_theme = 'nature'
 #html_theme = 'bootstrap'
+html_title = 'Tonatiuh++ Documentation'
+html_short_title = 'Tonatiuh++'
 html_theme_options = {
     'font_family': 'Arial',
     'font_size' : '8',
@@ -88,10 +90,11 @@ html_theme_options = {
     'footer_text' : '#FFFFFF'
 }
 #html_theme = 'sphinx_rtd_theme' # too big
-html_logo = "logo.png"
+html_logo = "../../source/application/images/about/SplashScreen.png"
+html_favicon = "../../source/application/images/about/Tonatiuh.ico"
 
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-html_static_path = ['_static']
+html_static_path = []

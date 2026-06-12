@@ -1,4 +1,4 @@
-Welcome to Tonatiuh's documentation!
+Welcome to Tonatiuh++ documentation!
 ====================================
 
 .. note:: in progress...
