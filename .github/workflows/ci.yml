@@ -235,6 +235,11 @@ jobs:
         run: |
           cmake --build build --config Release --parallel
 
+      - name: Test
+        shell: bash
+        run: |
+          ctest --test-dir build --output-on-failure
+
       - name: Upload build artifacts
         if: always()
         uses: actions/upload-artifact@v4

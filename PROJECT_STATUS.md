@@ -55,6 +55,7 @@ Purpose: lightweight handoff for current Tonatiuh++ project and release context.
 - Updater path: legacy GitHub release parsing was replaced with the Qt IFW `MaintenanceTool` flow, including `check-updates` classification and user-approved updater launch.
 - Launch/file-association hardening for `v0.1.8.23`: positional `.tnhpps` startup paths now use the GUI script window/editor and load the clicked script without automatic execution, while existing `.tnhpp` project startup and `-i script.tnhpps` execution behavior are preserved.
 - Windows file icon hardening for `v0.1.8.23`: Windows builds now embed the existing Tonatiuh++ `Tonatiuh.ico` as a native executable icon, and the IFW package registers `.tnhpp` and `.tnhpps` file types with `TonatiuhPP.Project` and `TonatiuhPP.Script` ProgIDs pointing at the installed executable icon.
+- CTest smoke-test foundation for `v0.1.8.23`: `BUILD_TESTING` now enables headless CTest coverage for `--headless --help`, invalid headless arguments with the expected failure exit code, and `validate-scene` on the plugin-free `examples/benchmarks/cylinder.tnhpp` fixture when present; `TONATIUHPP_TEST_EXECUTABLE` can point CTest at an installed runtime, and Windows skips headless tests with a clear warning when that executable is not set. No GUI or GoogleTest tests are introduced yet.
 
 ## Current Release Workflow
 
@@ -83,6 +84,7 @@ Purpose: lightweight handoff for current Tonatiuh++ project and release context.
 - Remaining runtime warnings visible from command-prompt launches need triage and reduction; current build still reports existing `FluxAnalysis.cpp` warnings C4834 and C4805.
 - Release documentation should be rechecked if IFW URL paths or package IDs change; current scripts use `https://cst-modelling-tools.github.io/tonatiuhpp/{windows,linux,macos}`, while older checklist text may still mention `/ifw/...`.
 - User-reported startup or normal-use segmentation faults remain unresolved. Current packaging evidence points away from missing bundled Qt libraries as the only explanation; next diagnostics should collect terminal output with Qt plugin diagnostics, Windows Event Viewer faulting module, GPU/OpenGL driver details, and whether headless scene validation succeeds on the same scene.
+- Automated test coverage is still limited to headless CTest smoke tests. GoogleTest unit tests, regression fixtures, GUI smoke coverage, and scientific validation tests remain pending.
 
 ## Pending Validation
 
@@ -93,6 +95,8 @@ Purpose: lightweight handoff for current Tonatiuh++ project and release context.
 - Confirm normal GUI startup still behaves as before after the headless `benchmark` changes.
 - Confirm positional `.tnhpps` startup opens the GUI script window/editor, loads the script, and does not execute it automatically.
 - Confirm Windows installed `.tnhpp` and `.tnhpps` associations use Tonatiuh++ icons in Explorer and launch the installed executable with the selected file path.
+- Confirm the new headless CTest smoke tests pass on Linux/macOS build-tree runners and on Windows when configured with `TONATIUHPP_TEST_EXECUTABLE` pointing at an installed runtime.
+- Expand CTest coverage with GoogleTest unit tests, regression fixtures, GUI smoke tests, and benchmark/scientific validation after the smoke foundation is stable.
 - Confirm `trace-scene` and `benchmark` produce no photon files from the installed application output directory on representative runs.
 - Run the full benchmark v1 target of 500,000,000 rays, generate the authoritative reference JSON, and preserve the resulting SHA256 and metric tolerances.
 - Confirm the `v0.1.8.21` `Release` workflow succeeds on Windows, Linux, and macOS from the matching tag.

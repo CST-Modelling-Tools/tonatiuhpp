@@ -16,6 +16,9 @@ set(MAIN_APP_TARGET "TonatiuhPP" CACHE STRING "Main GUI executable target name")
 
 # Options
 option(TONATIUHPP_BUNDLE_RUNTIME "Bundle Qt/Coin runtime libs on install (Linux/Windows)" ON)
+set(TONATIUHPP_TEST_EXECUTABLE "" CACHE FILEPATH "Installed Tonatiuh++ executable used by headless CTest smoke tests")
+
+include(CTest)
 
 # On Linux, force it ON in the cache so presets / old caches can't accidentally disable it
 if(UNIX AND NOT APPLE)
@@ -252,6 +255,10 @@ add_subdirectory(kernel)
 add_subdirectory(SunPath)
 add_subdirectory(application)
 add_subdirectory(plugins)
+
+if(BUILD_TESTING)
+  add_subdirectory("${CMAKE_CURRENT_LIST_DIR}/../tests" "${CMAKE_BINARY_DIR}/tests")
+endif()
 
 # ----------------------------
 # 🚚 Optional runtime bundling on Linux (ON by default)
