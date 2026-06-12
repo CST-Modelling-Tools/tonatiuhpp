@@ -197,6 +197,16 @@ else()
     add_executable(${ProjectName} ${SOURCES} ${HEADERS} ${FORMS} ${RESOURCES})
 endif()
 
+if(WIN32)
+    set(TONATIUHPP_APP_ICON "${CMAKE_CURRENT_SOURCE_DIR}/images/about/Tonatiuh.ico")
+    configure_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/tonatiuhpp.rc.in"
+        "${CMAKE_CURRENT_BINARY_DIR}/tonatiuhpp.rc"
+        @ONLY
+    )
+    target_sources(${ProjectName} PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/tonatiuhpp.rc")
+endif()
+
 # Keep on-disk name as "tonatiuhpp" except for the macOS app bundle.
 if(APPLE)
     set_target_properties(${ProjectName} PROPERTIES

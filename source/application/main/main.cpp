@@ -47,25 +47,27 @@ bool hasHeadlessArgument(int argc, char** argv)
     return false;
 }
 
-QString projectFileFromPositionalArguments(const QStringList& arguments, QString* warningMessage)
+QString startupFileFromPositionalArguments(const QStringList& arguments, QString* warningMessage)
 {
-    QStringList projectFiles;
+    QStringList startupFiles;
     for (const QString& argument : arguments) {
-        if (QFileInfo(argument).suffix().compare("tnhpp", Qt::CaseInsensitive) == 0)
-            projectFiles.append(argument);
+        const QString suffix = QFileInfo(argument).suffix();
+        if (suffix.compare("tnhpp", Qt::CaseInsensitive) == 0 ||
+            suffix.compare("tnhpps", Qt::CaseInsensitive) == 0)
+            startupFiles.append(argument);
     }
 
-    if (projectFiles.isEmpty())
+    if (startupFiles.isEmpty())
         return QString();
 
-    if (projectFiles.size() > 1 && warningMessage) {
+    if (startupFiles.size() > 1 && warningMessage) {
         *warningMessage = QString(
-            "Multiple Tonatiuh++ project files were provided.\n"
+            "Multiple Tonatiuh++ files were provided.\n"
             "Opening the first file and ignoring the rest:\n%1"
-        ).arg(projectFiles.first());
+        ).arg(startupFiles.first());
     }
 
-    return projectFiles.first();
+    return startupFiles.first();
 }
 }
 
@@ -114,8 +116,8 @@ int main(int argc, char** argv)
     parser.addOption(optionWindow);
     parser.addPositionalArgument(
         "project",
-        "Tonatiuh++ project file to open.",
-        "[project.tnhpp]"
+        "Tonatiuh++ project or script file to open.",
+        "[file.tnhpp|file.tnhpps]"
     );
 
     // processing
@@ -139,11 +141,16 @@ int main(int argc, char** argv)
 //    QString fileName = parser.positionalArguments()[0];
     QString fileName = parser.value(optionInput);
     QString startupWarning;
-    if (fileName.isEmpty())
-        fileName = projectFileFromPositionalArguments(parser.positionalArguments(), &startupWarning);
+    bool fileFromPositionalArgument = false;
+    if (fileName.isEmpty()) {
+        fileName = startupFileFromPositionalArguments(parser.positionalArguments(), &startupWarning);
+        fileFromPositionalArgument = !fileName.isEmpty();
+    }
 
     QFileInfo fileInfo(fileName);
-    if (fileInfo.completeSuffix() != "tnhpps" || parser.isSet(optionWindow))
+    const bool isScriptFile = fileInfo.suffix().compare("tnhpps", Qt::CaseInsensitive) == 0;
+    const bool openScriptWindow = isScriptFile && (fileFromPositionalArgument || parser.isSet(optionWindow));
+    if (!isScriptFile || openScriptWindow)
     {
         QPixmap pixmap(filePixmap);
 //        pixmap.setDevicePixelRatio(qApp->devicePixelRatio());
@@ -161,7 +168,7 @@ int main(int argc, char** argv)
         splash.setFinishWindow();
         if (!startupWarning.isEmpty())
             QMessageBox::warning(&mw, "Tonatiuh", startupWarning);
-        if (fileInfo.completeSuffix() == "tnhpps")
+        if (isScriptFile)
             mw.openFileScript(fileName);
 
         int code = app.exec();

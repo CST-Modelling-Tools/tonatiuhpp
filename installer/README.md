@@ -17,7 +17,7 @@ Notes:
 - The IFW `Version` fields are rendered from `project(TonatiuhPP VERSION ...)` in `source/CMakeLists.txt` when `create_installer.py` runs.
 - The IFW update repository URL is rendered by `create_installer.py`; the default base URL is `https://cst-modelling-tools.github.io/tonatiuhpp`.
 - `ReleaseDate` is rendered into package metadata at installer/repository generation time because Qt IFW requires a concrete date value.
-- `installscript.qs` is intentionally omitted; no custom installer scripting is required in this initial skeleton.
+- `installscript.qs` registers Windows `.tnhpp` and `.tnhpps` file types with Tonatiuh++ ProgIDs and the installed application icon.
 
 ## Prerequisites
 

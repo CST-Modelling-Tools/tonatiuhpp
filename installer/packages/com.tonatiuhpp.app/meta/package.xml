@@ -7,5 +7,5 @@
   <Version>@TONATIUHPP_VERSION@</Version>
   <ReleaseDate>@TONATIUHPP_RELEASE_DATE@</ReleaseDate>
   <Default>true</Default>
-  <!-- installscript.qs is omitted for now because no custom install steps are required yet. -->
+  <Script>installscript.qs</Script>
 </Package>
