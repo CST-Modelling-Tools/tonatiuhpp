@@ -31,6 +31,13 @@ Notes:
 
 ## Staging the package payload
 
+Build the runtime help HTML before staging. The GUI opens
+`help/html/index.html`, and that directory is generated from `help/Sphinx`:
+
+```bash
+python scripts/build_runtime_help.py
+```
+
 Run the helper script to stage CMake install output into the Qt IFW package data tree and deploy Qt runtime dependencies.
 
 Example:

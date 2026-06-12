@@ -78,7 +78,13 @@ jobs:
         shell: bash
         run: |
           python -m pip install --upgrade pip
-          python -m pip install pyyaml ninja
+          python -m pip install pyyaml ninja "sphinx>=7,<9"
+
+      - name: Build runtime help
+        shell: bash
+        run: |
+          python scripts/build_runtime_help.py
+          test -f help/html/index.html
 
       - name: Install Boost + Eigen + image codecs (Ubuntu)
         if: runner.os == 'Linux'

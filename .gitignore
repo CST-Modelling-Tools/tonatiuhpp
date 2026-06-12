@@ -66,6 +66,10 @@ ui_*.h
 **/QtDeploySupport-*.cmake
 **/QtDeployTargets-*.cmake
 
+# --- Generated documentation ---
+/help/html/
+/help/Sphinx/_build/
+
 # --- Visual Studio / MSBuild outputs (anywhere) ---
 **/*.sln
 **/*.vcxproj
