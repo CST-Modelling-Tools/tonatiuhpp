@@ -20,6 +20,10 @@ Thumbs.db
 venv/
 env/
 
+# --- Python bytecode/cache ---
+__pycache__/
+*.py[cod]
+
 # --- Top-level build/install dirs (if present) ---
 /build/
 /build-*/
