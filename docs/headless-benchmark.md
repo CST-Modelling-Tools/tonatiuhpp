@@ -1,5 +1,28 @@
 # Headless Benchmark
 
+Tonatiuh++ headless mode runs through the existing executable without creating the GUI application or GUI windows.
+
+## Command Inventory
+
+```text
+tonatiuhpp --headless --help
+tonatiuhpp --headless validate-scene path/to/scene.tnhpp
+tonatiuhpp --headless trace-scene path/to/scene.tnhpp --rays 10000 --seed 123456789 --no-export
+tonatiuhpp --headless benchmark path/to/benchmark_config.json
+```
+
+Exit codes are:
+
+- `0`: command completed successfully
+- `1`: scene loading, tracing, benchmark, or file I/O failed
+- `2`: command-line usage error
+
+`trace-scene` currently supports no-export execution only. It prints key-value lines suitable for logs, including `scene_file`, `rays`, `seed`, `photon_export`, `export_path`, `rays_traced`, `elapsed_seconds`, `rays_per_second`, `worker_count`, `chunk_count`, and `chunk_size`.
+
+Benchmark mode also runs without photon export and writes result JSON. Its console output includes `benchmark`, `scene_file`, `rays`, `seed`, `photon_export`, `export_path`, `output_file`, `rays_traced`, `elapsed_seconds`, `rays_per_second`, scheduling fields, and `result_file`.
+
+## Benchmark Command
+
 Tonatiuh++ runs benchmark v1 through the existing executable:
 
 ```text

@@ -83,10 +83,13 @@ int HeadlessCommandRunner::traceScene(const QStringList& args) const
         return 1;
     }
 
-    out << "Tracing scene: " << QFileInfo(parsed.sceneFileName).absoluteFilePath() << Qt::endl;
-    out << "Rays: " << parsed.rays << Qt::endl;
-    out << "Seed: " << parsed.seed << Qt::endl;
-    out << "Photon export: disabled" << Qt::endl;
+    const QString sceneFilePath = QFileInfo(parsed.sceneFileName).absoluteFilePath();
+    out << "Tracing scene: " << sceneFilePath << Qt::endl;
+    out << "scene_file: " << sceneFilePath << Qt::endl;
+    out << "rays: " << parsed.rays << Qt::endl;
+    out << "seed: " << parsed.seed << Qt::endl;
+    out << "photon_export: false" << Qt::endl;
+    out << "export_path: none" << Qt::endl;
 
     RayTraceOptions options;
     options.rays = parsed.rays;
@@ -106,6 +109,7 @@ int HeadlessCommandRunner::traceScene(const QStringList& args) const
     out.setRealNumberNotation(QTextStream::FixedNotation);
     out.setRealNumberPrecision(6);
     out << "Trace completed." << Qt::endl;
+    out << "rays_traced: " << result.raysTraced << Qt::endl;
     out << "elapsed_seconds: " << result.elapsedSeconds << Qt::endl;
     out << "rays_per_second: " << result.raysPerSecond << Qt::endl;
     out << "worker_count: " << result.workerCount << Qt::endl;

@@ -86,5 +86,29 @@ if(TONATIUHPP_ENABLE_HEADLESS_SMOKE_TESTS)
     set_tests_properties(headless.validate_cylinder_scene PROPERTIES
       PASS_REGULAR_EXPRESSION "Scene validation succeeded"
     )
+
+    add_test(
+      NAME headless.trace_cylinder_scene
+      COMMAND "${TONATIUHPP_TEST_EXE}" --headless trace-scene "${_tonatiuhpp_cylinder_scene}" --rays 10 --seed 123456789 --no-export
+    )
+    tonatiuhpp_set_headless_test_properties(headless.trace_cylinder_scene)
+    set_tests_properties(headless.trace_cylinder_scene PROPERTIES
+      PASS_REGULAR_EXPRESSION "Trace completed\\."
+      TIMEOUT 60
+    )
+
+    add_test(
+      NAME headless.benchmark_cylinder_scene
+      COMMAND "${CMAKE_COMMAND}"
+        "-DTEST_EXECUTABLE=${TONATIUHPP_TEST_EXE}"
+        "-DTEST_WORKING_DIRECTORY=${TONATIUHPP_TEST_WORKING_DIR}"
+        "-DSCENE_FILE=${_tonatiuhpp_cylinder_scene}"
+        "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/headless_benchmark_cylinder"
+        -P "${CMAKE_CURRENT_LIST_DIR}/cmake/run_headless_benchmark_smoke.cmake"
+    )
+    tonatiuhpp_set_headless_test_properties(headless.benchmark_cylinder_scene)
+    set_tests_properties(headless.benchmark_cylinder_scene PROPERTIES
+      TIMEOUT 60
+    )
   endif()
 endif()

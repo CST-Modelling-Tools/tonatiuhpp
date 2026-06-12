@@ -723,10 +723,17 @@ int BenchmarkRunner::run(const QString& configFileName, TSceneKit* scene, QStrin
     }
 
     out << "Running benchmark: " << config.benchmark << Qt::endl;
-    out << "Scene: " << sceneFileName << Qt::endl;
-    out << "Rays: " << config.rays << Qt::endl;
-    out << "Seed: " << config.seed << Qt::endl;
-    out << "Photon export: disabled" << Qt::endl;
+    out << "benchmark: " << config.benchmark << Qt::endl;
+    out << "scene_file: " << sceneFileName << Qt::endl;
+    out << "rays: " << config.rays << Qt::endl;
+    out << "seed: " << config.seed << Qt::endl;
+    out << "photon_export: false" << Qt::endl;
+    out << "export_path: none" << Qt::endl;
+    out << "output_file: " << outputFileName << Qt::endl;
+    if (!fluxGridOutputFileName.isEmpty())
+        out << "flux_grid_output_file: " << fluxGridOutputFileName << Qt::endl;
+    if (!fluxGridBinaryOutputFileName.isEmpty())
+        out << "flux_grid_binary_output_file: " << fluxGridBinaryOutputFileName << Qt::endl;
 
     RayTraceOptions options;
     options.rays = config.rays;
@@ -859,6 +866,7 @@ int BenchmarkRunner::run(const QString& configFileName, TSceneKit* scene, QStrin
     out.setRealNumberNotation(QTextStream::FixedNotation);
     out.setRealNumberPrecision(6);
     out << "Benchmark completed." << Qt::endl;
+    out << "rays_traced: " << traceResult.raysTraced << Qt::endl;
     out << "elapsed_seconds: " << traceResult.elapsedSeconds << Qt::endl;
     out << "rays_per_second: " << traceResult.raysPerSecond << Qt::endl;
     out << "worker_count: " << traceResult.workerCount << Qt::endl;
@@ -886,6 +894,7 @@ int BenchmarkRunner::run(const QString& configFileName, TSceneKit* scene, QStrin
         out << "Flux grid written: " << fluxGridOutputFileName << Qt::endl;
     if (!fluxGridBinaryOutputFileName.isEmpty())
         out << "Binary flux grid written: " << fluxGridBinaryOutputFileName << Qt::endl;
+    out << "result_file: " << outputFileName << Qt::endl;
     out << "Result written: " << outputFileName << Qt::endl;
     return 0;
 }

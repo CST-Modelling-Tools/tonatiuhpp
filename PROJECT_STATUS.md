@@ -56,6 +56,7 @@ Purpose: lightweight handoff for current Tonatiuh++ project and release context.
 - Launch/file-association hardening for `v0.1.8.23`: positional `.tnhpps` startup paths now use the GUI script window/editor and load the clicked script without automatic execution, while existing `.tnhpp` project startup and `-i script.tnhpps` execution behavior are preserved.
 - Windows file icon hardening for `v0.1.8.23`: Windows builds now embed the existing Tonatiuh++ `Tonatiuh.ico` as a native executable icon, and the IFW package registers `.tnhpp` and `.tnhpps` file types with `TonatiuhPP.Project` and `TonatiuhPP.Script` ProgIDs pointing at the installed executable icon.
 - CTest smoke-test foundation for `v0.1.8.23`: `BUILD_TESTING` now enables headless CTest coverage for `--headless --help`, invalid headless arguments with the expected failure exit code, and `validate-scene` on the plugin-free `examples/benchmarks/cylinder.tnhpp` fixture when present; `TONATIUHPP_TEST_EXECUTABLE` can point CTest at an installed runtime, and Windows skips headless tests with a clear warning when that executable is not set.
+- Headless command hardening for `v0.1.8.23`: `trace-scene` and `benchmark` now print consistent key-value summary lines for scene path, rays, seed, no-export status, elapsed time, throughput, scheduling fields, and result/output paths where applicable; CTest smoke coverage now includes small `trace-scene` and benchmark runs on the plugin-free cylinder fixture.
 - GoogleTest unit-test foundation for `v0.1.8.23`: `BUILD_TESTING` now resolves GoogleTest with `find_package(GTest CONFIG QUIET)` or a pinned `FetchContent` fallback to GoogleTest `v1.14.0`, adds small math targets under `tests/unit/libraries/math`, and registers deterministic `Interval` and `Box2D` unit tests with CTest through `gtest_discover_tests()`. GUI, Qt widget, Coin, SoQt, plugin, and ray-tracing behavior are intentionally unchanged and untested by these first targets.
 
 ## Current Release Workflow
@@ -96,7 +97,7 @@ Purpose: lightweight handoff for current Tonatiuh++ project and release context.
 - Confirm normal GUI startup still behaves as before after the headless `benchmark` changes.
 - Confirm positional `.tnhpps` startup opens the GUI script window/editor, loads the script, and does not execute it automatically.
 - Confirm Windows installed `.tnhpp` and `.tnhpps` associations use Tonatiuh++ icons in Explorer and launch the installed executable with the selected file path.
-- Confirm the new headless CTest smoke tests pass on Linux/macOS build-tree runners and on Windows when configured with `TONATIUHPP_TEST_EXECUTABLE` pointing at an installed runtime.
+- Confirm the expanded headless CTest smoke tests pass on Linux/macOS build-tree runners and on Windows when configured with `TONATIUHPP_TEST_EXECUTABLE` pointing at an installed runtime.
 - Expand GoogleTest beyond the current math `Interval` and `Box2D` coverage, then add regression fixtures, GUI smoke tests, and benchmark/scientific validation after the smoke foundation is stable.
 - Confirm `trace-scene` and `benchmark` produce no photon files from the installed application output directory on representative runs.
 - Run the full benchmark v1 target of 500,000,000 rays, generate the authoritative reference JSON, and preserve the resulting SHA256 and metric tolerances.
