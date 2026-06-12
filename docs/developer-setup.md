@@ -6,6 +6,20 @@ The tracked `.vscode/settings.json` file should contain only portable workspace 
 
 Keep local CMake values in an untracked `CMakeUserPresets.json` file or pass them on the command line.
 
+## GoogleTest Unit Tests
+
+When `BUILD_TESTING` is enabled, CMake registers unit tests with CTest through GoogleTest. Configuration first tries `find_package(GTest CONFIG QUIET)`; if no package config is found, it uses `FetchContent` to download the pinned GoogleTest `v1.14.0` release into the build tree. GoogleTest is not vendored in this repository.
+
+For offline configuration, install GoogleTest locally and make it discoverable with `CMAKE_PREFIX_PATH`, or configure with `-DBUILD_TESTING=OFF`.
+
+The initial unit-test target can be built and run with:
+
+```sh
+cmake -S source -B build -DBUILD_TESTING=ON
+cmake --build build --target tonatiuhpp_math_tests
+ctest --test-dir build --output-on-failure
+```
+
 ## Windows VS Code CTest Workflow
 
 On Windows, headless CTest smoke tests are intended to run against an installed Tonatiuh++ runtime. Keep the machine-specific configuration in `source/CMakeUserPresets.json`; this file is local to the developer machine and is ignored by Git.
