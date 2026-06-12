@@ -37,6 +37,8 @@ __pycache__/
 **/[Bb]uild/**
 
 # --- CMake generated files (anywhere) ---
+CMakeUserPresets.json
+**/CMakeUserPresets.json
 **/CMakeFiles/**
 **/CMakeCache.txt
 **/cmake_install.cmake
