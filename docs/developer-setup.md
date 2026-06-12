@@ -6,31 +6,45 @@ The tracked `.vscode/settings.json` file should contain only portable workspace 
 
 Keep local CMake values in an untracked `CMakeUserPresets.json` file or pass them on the command line.
 
-## Windows Headless CTest Runtime
+## Windows VS Code CTest Workflow
 
-On Windows, headless CTest smoke tests are intended to run against an installed Tonatiuh++ runtime. Set `TONATIUHPP_TEST_EXECUTABLE` locally so CTest can use the installed executable and its adjacent runtime files.
+On Windows, headless CTest smoke tests are intended to run against an installed Tonatiuh++ runtime. Keep the machine-specific configuration in `source/CMakeUserPresets.json`; this file is local to the developer machine and is ignored by Git.
 
-For VS Code Testing with CMake Tools, create `source/CMakeUserPresets.json` locally:
+For VS Code Testing with CMake Tools, create or update `source/CMakeUserPresets.json` locally:
 
 ```json
 {
   "version": 6,
   "configurePresets": [
     {
-      "name": "windows-installed-tests",
+      "name": "windows-installed-runtime-tests",
       "displayName": "Windows installed runtime tests",
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/../build",
       "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
         "BUILD_TESTING": "ON",
-        "TONATIUHPP_TEST_EXECUTABLE": "C:/path/to/tonatiuhpp/bin/tonatiuhpp.exe"
+        "CMAKE_INSTALL_PREFIX": "D:/tonatiuhpp",
+        "TONATIUHPP_TEST_EXECUTABLE": "D:/tonatiuhpp/bin/tonatiuhpp.exe"
       }
     }
   ]
 }
 ```
 
-Choose that configure preset in VS Code, configure the project, and then use the Testing view or run:
+The install prefix and test executable must agree:
+
+- `CMAKE_INSTALL_PREFIX=D:/tonatiuhpp` installs the current build into the local runtime tree.
+- `TONATIUHPP_TEST_EXECUTABLE=D:/tonatiuhpp/bin/tonatiuhpp.exe` tells CTest to run the installed executable with its adjacent Qt, Coin, SoQt, plugin, example, and resource files.
+
+In VS Code:
+
+1. Select the local `Windows installed runtime tests` configure preset from CMake Tools.
+2. Reconfigure the project so CMake regenerates tests with the local cache values.
+3. Build the `install` target to refresh `D:/tonatiuhpp`.
+4. Run the tests from the Testing pane.
+
+The same tests can be run from a terminal after configure/install:
 
 ```sh
 ctest --test-dir build --output-on-failure
@@ -39,6 +53,7 @@ ctest --test-dir build --output-on-failure
 The same value can be supplied without VS Code:
 
 ```sh
-cmake -S source -B build -DTONATIUHPP_TEST_EXECUTABLE=C:/path/to/tonatiuhpp/bin/tonatiuhpp.exe
+cmake -S source -B build -DBUILD_TESTING=ON -DCMAKE_INSTALL_PREFIX=D:/tonatiuhpp -DTONATIUHPP_TEST_EXECUTABLE=D:/tonatiuhpp/bin/tonatiuhpp.exe
+cmake --build build --target install
 ctest --test-dir build --output-on-failure
 ```
