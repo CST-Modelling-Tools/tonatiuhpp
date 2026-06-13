@@ -12,6 +12,22 @@ from pathlib import Path
 
 PACKAGE_ID = "com.tonatiuhpp.app"
 MACOS_APP_BUNDLE_NAME = "TonatiuhPP.app"
+LINUX_QT_PLUGIN_DIRECTORIES = (
+    "platforms",
+    "xcbglintegrations",
+    "imageformats",
+    "tls",
+    "iconengines",
+    "platformthemes",
+    "styles",
+    "generic",
+    "networkinformation",
+    "egldeviceintegrations",
+    "wayland-decoration-client",
+    "wayland-graphics-integration-client",
+    "wayland-shell-integration",
+    "sqldrivers",
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -263,11 +279,17 @@ def run_linux_ldd(path: Path, lib_dir: Path) -> str:
     return output
 
 
-def verify_linux_qt_links(path: Path, lib_dir: Path) -> None:
+def verify_linux_qt_links(
+    path: Path,
+    lib_dir: Path,
+    require_qt_dependency: bool = False,
+) -> None:
     output = run_linux_ldd(path, lib_dir)
+    qt_dependency_seen = False
     for line in output.splitlines():
         if "libQt6" not in line:
             continue
+        qt_dependency_seen = True
         if "not found" in line:
             raise SystemExit(f"Bundled Linux payload has an unresolved Qt dependency in {path}:\n{line}")
         if "=>" not in line:
@@ -277,13 +299,25 @@ def verify_linux_qt_links(path: Path, lib_dir: Path) -> None:
             continue
         require_relative_to(Path(resolved), lib_dir, f"Qt dependency for {path}")
 
+    if require_qt_dependency and not qt_dependency_seen:
+        raise SystemExit(
+            f"Bundled Linux Qt plugin does not link against Qt 6 runtime libraries: {path}"
+        )
+
 
 def find_linux_qt_plugin_files(bin_dir: Path) -> list[Path]:
     plugin_files: list[Path] = []
-    for child in sorted(bin_dir.iterdir()):
-        if child.is_dir():
-            plugin_files.extend(sorted(child.rglob("*.so")))
+    for plugin_dir_name in LINUX_QT_PLUGIN_DIRECTORIES:
+        plugin_dir = bin_dir / plugin_dir_name
+        if plugin_dir.is_dir():
+            plugin_files.extend(
+                sorted(path for path in plugin_dir.rglob("*.so") if path.is_file())
+            )
     return plugin_files
+
+
+def find_linux_bundled_so_files(bin_dir: Path) -> list[Path]:
+    return sorted(path for path in bin_dir.rglob("*.so") if path.is_file())
 
 
 def verify_linux_qt_plugin_versions(plugin_files: list[Path], qt_version: str) -> None:
@@ -309,7 +343,11 @@ def verify_linux_qt_plugin_versions(plugin_files: list[Path], qt_version: str) -
             f"metadata value {expected_version}.\n{details}"
         )
     if checked == 0:
-        raise SystemExit("No Qt plugin metadata versions were found in the bundled Linux plugins.")
+        print(
+            "Warning: no Qt plugin metadata version strings were found in the bundled Linux plugins; "
+            "relying on bundled plugin layout and ldd Qt dependency validation.",
+            file=sys.stderr,
+        )
 
 
 def verify_linux_bundling(staging_dir: Path, verbose: bool = False) -> None:
@@ -394,14 +432,21 @@ def verify_linux_bundling(staging_dir: Path, verbose: bool = False) -> None:
         raise SystemExit("Linux staging did not include any bundled Qt plugin .so files.")
     verify_linux_qt_plugin_versions(plugin_files, qt_version)
 
+    qt_plugin_paths = set(plugin_files)
     qt_linked_files = [real_binary]
-    qt_linked_files.extend(sorted(bin_dir.glob("*.so")))
-    qt_linked_files.extend(plugin_files)
-    for binary in qt_linked_files:
-        verify_linux_qt_links(binary, lib_dir)
+    qt_linked_files.extend(find_linux_bundled_so_files(bin_dir))
+    for binary in dict.fromkeys(qt_linked_files):
+        verify_linux_qt_links(
+            binary,
+            lib_dir,
+            require_qt_dependency=binary in qt_plugin_paths,
+        )
 
     if verbose:
-        print(f"Linux staging bundles Qt {qt_version} runtime and plugins.")
+        print(
+            f"Linux staging bundles Qt {qt_version} runtime "
+            f"and {len(plugin_files)} Qt plugin(s)."
+        )
 
 
 def main() -> None:

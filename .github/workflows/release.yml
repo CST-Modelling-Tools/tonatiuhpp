@@ -370,6 +370,16 @@ jobs:
             rmdir dist/bin
           fi
 
+          # The macOS release artifact is an app-bundle-only payload. CMake
+          # install may also stage development artifacts at the top level; keep
+          # them out of dist/ after all runtime files have moved into the app.
+          for dev_dir in include lib; do
+            if [ -e "dist/${dev_dir}" ]; then
+              echo "Removing macOS top-level development artifact: dist/${dev_dir}"
+              rm -rf "dist/${dev_dir}"
+            fi
+          done
+
       - name: Validate macOS app bundle and IFW payload
         if: runner.os == 'macOS'
         shell: bash
