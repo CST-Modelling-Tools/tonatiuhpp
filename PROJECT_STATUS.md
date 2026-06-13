@@ -6,7 +6,7 @@ Purpose: lightweight handoff for current Tonatiuh++ project and release context.
 
 ## Current Priorities
 
-- Prepare the Tonatiuh++ `v0.1.8.23` release metadata update; do not tag until the source version bump, release notes, and platform validation are complete.
+- Prepare the Tonatiuh++ `v0.1.8.23` release; do not tag until release notes, release workflow validation, and platform validation are complete.
 - Validate the `v0.1.8.23` release notes, release checklist, runtime help packaging, file-association hardening, headless command output, CTest coverage, and platform packaging.
 - Remove or reduce remaining runtime warnings visible from command-prompt launches.
 - Validate the IFW updater path from the latest published IFW baseline to the next tagged release on Windows, Linux, and macOS.
@@ -14,10 +14,10 @@ Purpose: lightweight handoff for current Tonatiuh++ project and release context.
 ## Current Baseline
 
 - Branch: `master`.
-- Current application version in `source/CMakeLists.txt`: `0.1.8.22`.
+- Current application version in `source/CMakeLists.txt`: `0.1.8.23`.
 - Latest existing Git tag: `v0.1.8.22`.
 - Next intended release target: `v0.1.8.23`.
-- Release readiness: not ready to tag until metadata, release notes, and Windows/Linux/macOS platform validation are complete.
+- Release readiness: source version has been bumped, but the release is not ready to tag until release notes, release workflow validation, and Windows/Linux/macOS platform validation are complete.
 - Previous release baseline for updater validation: latest published IFW build with updater support, expected to be `v0.1.8.22` if that release is published.
 - Intended release under validation: `v0.1.8.23`, focused on post-v0.1.8.22 runtime packaging, help, file-association, headless-test, and unit-test hardening.
 - Release packaging source of truth: `.github/workflows/release.yml` and `installer/`.
@@ -66,7 +66,7 @@ Purpose: lightweight handoff for current Tonatiuh++ project and release context.
 
 ## Current Release Workflow
 
-- When release metadata and validation are complete, bump the version in `source/CMakeLists.txt` to `0.1.8.23`, then tag the release as `v0.1.8.23`.
+- With the source version now bumped to `0.1.8.23`, tag the release as `v0.1.8.23` only after release workflow and platform validation are complete.
 - Pushing a `v*` tag triggers the GitHub Actions `Release` workflow. `workflow_dispatch` accepts a `fake_tag` for simulation and skips the publish job.
 - The workflow resolves the version with `installer/sync_ifw_metadata.py --check-tag`, derives a UTC release date, builds Linux/macOS in a matrix, and builds Windows on `windows-2022`.
 - Packaging stages the release payload, generates per-platform IFW repositories with `repogen`, generates IFW installers with `binarycreator`, uploads assets and checksums, and deploys the IFW repositories to GitHub Pages.
@@ -116,7 +116,7 @@ Purpose: lightweight handoff for current Tonatiuh++ project and release context.
 ## Pre-release Checklist
 
 - Install the latest published IFW build on Windows, Linux, and macOS as the update source.
-- Verify `source/CMakeLists.txt` has the intended `0.1.8.23` version after the explicit version-bump task.
+- Verify `source/CMakeLists.txt` has the intended `0.1.8.23` version.
 - Create and push the matching `v<version>` tag.
 - Confirm the `Release` workflow and GitHub Pages deploy complete successfully.
 - Confirm release assets include Windows, Linux, and macOS IFW installers and checksums, plus any intended manual archives.

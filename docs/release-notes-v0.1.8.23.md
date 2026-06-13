@@ -2,7 +2,7 @@
 
 Tonatiuh++ v0.1.8.23 is planned as a maintenance release focused on runtime packaging, installed documentation, Windows launch behavior, headless workflow hardening, and the first GoogleTest unit-test foundation.
 
-These notes are a draft until the source version is bumped, the release workflow is validated, and Windows, Linux, and macOS package checks are complete.
+These notes remain a draft until the release workflow is validated and Windows, Linux, and macOS package checks are complete.
 
 ## Highlights
 
