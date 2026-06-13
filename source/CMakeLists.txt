@@ -398,9 +398,23 @@ endif()
 # ----------------------------
 if(WIN32)
   # Put our third-party DLLs next to the exe on install (if you build them)
-  install(DIRECTORY "${CMAKE_CURRENT_LIST_DIR}/../third_party/_install/bin/"
-          DESTINATION "${CMAKE_INSTALL_BINDIR}"
-          FILES_MATCHING PATTERN "*.dll")
+  set(_windows_thirdparty_bin "${CMAKE_CURRENT_LIST_DIR}/../third_party/_install/bin")
+  install(CODE
+    "set(_thirdparty_bin \"${_windows_thirdparty_bin}\")
+     if(EXISTS \"\${_thirdparty_bin}\")
+       file(GLOB _thirdparty_dlls \"\${_thirdparty_bin}/*.dll\")
+       if(_thirdparty_dlls)
+         file(INSTALL
+           DESTINATION \"\${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR}\"
+           TYPE FILE
+           FILES \${_thirdparty_dlls}
+         )
+       else()
+         message(STATUS \"No third-party DLLs found in \${_thirdparty_bin}; skipping install copy.\")
+       endif()
+     else()
+       message(STATUS \"Third-party DLL directory not found; skipping install copy: \${_thirdparty_bin}\")
+     endif()")
 
   # Try to locate Qt bin dir via imported Qt targets.
   set(_qt_bin "")

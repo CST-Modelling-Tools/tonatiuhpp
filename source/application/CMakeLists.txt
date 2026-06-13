@@ -271,14 +271,20 @@ if(WIN32)
   else()
     # Fallback: copy third_party DLLs and set PATH so local runs work.
     set(_thirdparty_bin "${CMAKE_CURRENT_LIST_DIR}/../../third_party/_install/bin")
-    add_custom_command(TARGET ${ProjectName} POST_BUILD
-      COMMAND "${CMAKE_COMMAND}" -E echo "Copying third_party DLLs into build output (fallback)…"
-      COMMAND "${CMAKE_COMMAND}" -E copy_directory
-              "${_thirdparty_bin}"
-              "$<TARGET_FILE_DIR:${ProjectName}>"
-      VERBATIM)
+    if(EXISTS "${_thirdparty_bin}")
+      add_custom_command(TARGET ${ProjectName} POST_BUILD
+        COMMAND "${CMAKE_COMMAND}" -E echo "Copying third_party DLLs into build output (fallback)..."
+        COMMAND "${CMAKE_COMMAND}" -E copy_directory
+                "${_thirdparty_bin}"
+                "$<TARGET_FILE_DIR:${ProjectName}>"
+        VERBATIM)
+    else()
+      add_custom_command(TARGET ${ProjectName} POST_BUILD
+        COMMAND "${CMAKE_COMMAND}" -E echo "Skipping third_party DLL fallback copy; directory not found: ${_thirdparty_bin}"
+        VERBATIM)
+    endif()
 
-    if(MSVC)
+    if(MSVC AND EXISTS "${_thirdparty_bin}")
       set(_dbg_path "PATH=${_thirdparty_bin};%PATH%")
       set_property(TARGET ${ProjectName} PROPERTY VS_DEBUGGER_ENVIRONMENT "${_dbg_path}")
     endif()

@@ -32,10 +32,23 @@ function registerWindowsFileTypes()
                            "ProgId=TonatiuhPP.Script");
 }
 
+function isWindowsInstaller()
+{
+    if (typeof installer == "undefined")
+        return false;
+
+    var os = installer.value("os");
+    return os == "win" || os == "windows";
+}
+
+function Component()
+{
+}
+
 Component.prototype.createOperations = function()
 {
     component.createOperations();
 
-    if (installer.value("os") == "win")
+    if (isWindowsInstaller())
         registerWindowsFileTypes();
 }

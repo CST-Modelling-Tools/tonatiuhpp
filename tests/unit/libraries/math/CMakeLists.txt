@@ -1,3 +1,8 @@
+set(_tonatiuhpp_gtest_discovery_mode POST_BUILD)
+if(WIN32)
+  set(_tonatiuhpp_gtest_discovery_mode PRE_TEST)
+endif()
+
 add_executable(tonatiuhpp_math_tests
   IntervalTests.cpp
   "${CMAKE_SOURCE_DIR}/libraries/math/1D/Interval.cpp"
@@ -27,6 +32,7 @@ endif()
 
 gtest_discover_tests(tonatiuhpp_math_tests
   TEST_PREFIX unit.math.
+  DISCOVERY_MODE ${_tonatiuhpp_gtest_discovery_mode}
   PROPERTIES LABELS "unit;math"
 )
 
@@ -60,5 +66,6 @@ endif()
 
 gtest_discover_tests(tonatiuhpp_math_box2d_tests
   TEST_PREFIX unit.math.
+  DISCOVERY_MODE ${_tonatiuhpp_gtest_discovery_mode}
   PROPERTIES LABELS "unit;math"
 )
