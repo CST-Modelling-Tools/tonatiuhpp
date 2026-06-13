@@ -6,21 +6,24 @@ Purpose: lightweight handoff for current Tonatiuh++ project and release context.
 
 ## Current Priorities
 
-- Prepare, publish, and validate the Tonatiuh++ `v0.1.8.21` maintenance release.
-- Validate the `v0.1.8.21` release notes, Properties panel usability fixes, macOS navigation fix, macOS arm64 packaging, and About dialog link updates.
+- Prepare the Tonatiuh++ `v0.1.8.23` release metadata update; do not tag until the source version bump, release notes, and platform validation are complete.
+- Validate the `v0.1.8.23` release notes, release checklist, runtime help packaging, file-association hardening, headless command output, CTest coverage, and platform packaging.
 - Remove or reduce remaining runtime warnings visible from command-prompt launches.
-- Validate the IFW updater path from the latest published IFW baseline to `v0.1.8.21` on Windows, Linux, and macOS.
+- Validate the IFW updater path from the latest published IFW baseline to the next tagged release on Windows, Linux, and macOS.
 
 ## Current Baseline
 
 - Branch: `master`.
-- Current application version in `source/CMakeLists.txt`: `0.1.8.21`.
-- Previous release baseline for updater validation: `v0.1.8.20` if published; otherwise use the latest published IFW build with the updater software.
-- Intended release under validation: `v0.1.8.21`, focused on post-v0.1.8.20 usability fixes, macOS release hardening, and About dialog link updates.
+- Current application version in `source/CMakeLists.txt`: `0.1.8.22`.
+- Latest existing Git tag: `v0.1.8.22`.
+- Next intended release target: `v0.1.8.23`.
+- Release readiness: not ready to tag until metadata, release notes, and Windows/Linux/macOS platform validation are complete.
+- Previous release baseline for updater validation: latest published IFW build with updater support, expected to be `v0.1.8.22` if that release is published.
+- Intended release under validation: `v0.1.8.23`, focused on post-v0.1.8.22 runtime packaging, help, file-association, headless-test, and unit-test hardening.
 - Release packaging source of truth: `.github/workflows/release.yml` and `installer/`.
 - Headless execution foundation is now implemented in the existing `tonatiuhpp` executable; there is no separate console executable or installer target.
 - Current headless commands: `tonatiuhpp --headless --help`, `tonatiuhpp --headless validate-scene <scene.tnhpp>`, `tonatiuhpp --headless trace-scene <scene.tnhpp> --rays N --seed S --no-export`, and `tonatiuhpp --headless benchmark <benchmark_config.json>`.
-- Release notes draft: `docs/release-notes-v0.1.8.21.md`.
+- Release notes draft: `docs/release-notes-v0.1.8.23.md`.
 - Benchmark v1 dataset DOI documented in `docs/headless-benchmark.md`: `https://doi.org/10.5281/zenodo.20395328`.
 
 ## Recent Completed Milestones
@@ -53,7 +56,9 @@ Purpose: lightweight handoff for current Tonatiuh++ project and release context.
 - Installer/release flow: IFW repository release metadata rendering, `com.tonatiuhpp.app` package id normalization, GitHub Pages root platform repositories, and removal of unsupported `binarycreator` hybrid mode.
 - Photon export/raytracing reliability: retained photons survive export failures, fatal export failures propagate, file export is failure-aware and sequential, and photon buffer/file split limits are honored.
 - Updater path: legacy GitHub release parsing was replaced with the Qt IFW `MaintenanceTool` flow, including `check-updates` classification and user-approved updater launch.
-- Launch/file-association hardening for `v0.1.8.23`: positional `.tnhpps` startup paths now use the GUI script window/editor and load the clicked script without automatic execution, while existing `.tnhpp` project startup and `-i script.tnhpps` execution behavior are preserved.
+- Runtime help packaging for `v0.1.8.23`: Sphinx runtime help generation is wired into CI and release workflows, generated `help/html` is installed with the runtime payload, and help branding was refreshed for Tonatiuh++.
+- Linux runtime packaging for `v0.1.8.23`: Linux installs now use a launcher script, bundled Qt runtime/plugins, `qt.conf`, and validation that the bundled Qt libraries and plugins are self-consistent.
+- Launch/file-association hardening for `v0.1.8.23`: positional `.tnhpp` files open on GUI startup, positional `.tnhpps` startup paths use the GUI script window/editor and load the clicked script without automatic execution, while existing `-i script.tnhpps` execution behavior is preserved.
 - Windows file icon hardening for `v0.1.8.23`: Windows builds now embed the existing Tonatiuh++ `Tonatiuh.ico` as a native executable icon, and the IFW package registers `.tnhpp` and `.tnhpps` file types with `TonatiuhPP.Project` and `TonatiuhPP.Script` ProgIDs pointing at the installed executable icon.
 - CTest smoke-test foundation for `v0.1.8.23`: `BUILD_TESTING` now enables headless CTest coverage for `--headless --help`, invalid headless arguments with the expected failure exit code, and `validate-scene` on the plugin-free `examples/benchmarks/cylinder.tnhpp` fixture when present; `TONATIUHPP_TEST_EXECUTABLE` can point CTest at an installed runtime, and Windows skips headless tests with a clear warning when that executable is not set.
 - Headless command hardening for `v0.1.8.23`: `trace-scene` and `benchmark` now print consistent key-value summary lines for scene path, rays, seed, no-export status, elapsed time, throughput, scheduling fields, and result/output paths where applicable; CTest smoke coverage now includes small `trace-scene` and benchmark runs on the plugin-free cylinder fixture.
@@ -61,7 +66,7 @@ Purpose: lightweight handoff for current Tonatiuh++ project and release context.
 
 ## Current Release Workflow
 
-- Set the version in `source/CMakeLists.txt`, then tag the release as `v<version>`; the next intended release is `v0.1.8.21`.
+- When release metadata and validation are complete, bump the version in `source/CMakeLists.txt` to `0.1.8.23`, then tag the release as `v0.1.8.23`.
 - Pushing a `v*` tag triggers the GitHub Actions `Release` workflow. `workflow_dispatch` accepts a `fake_tag` for simulation and skips the publish job.
 - The workflow resolves the version with `installer/sync_ifw_metadata.py --check-tag`, derives a UTC release date, builds Linux/macOS in a matrix, and builds Windows on `windows-2022`.
 - Packaging stages the release payload, generates per-platform IFW repositories with `repogen`, generates IFW installers with `binarycreator`, uploads assets and checksums, and deploys the IFW repositories to GitHub Pages.
@@ -101,20 +106,20 @@ Purpose: lightweight handoff for current Tonatiuh++ project and release context.
 - Expand GoogleTest beyond the current math `Interval` and `Box2D` coverage, then add regression fixtures, GUI smoke tests, and benchmark/scientific validation after the smoke foundation is stable.
 - Confirm `trace-scene` and `benchmark` produce no photon files from the installed application output directory on representative runs.
 - Run the full benchmark v1 target of 500,000,000 rays, generate the authoritative reference JSON, and preserve the resulting SHA256 and metric tolerances.
-- Confirm the `v0.1.8.21` `Release` workflow succeeds on Windows, Linux, and macOS from the matching tag.
-- Confirm GitHub Pages serves each generated `v0.1.8.21` IFW repository at the exact URL embedded in its installer.
+- Confirm the `v0.1.8.23` `Release` workflow succeeds on Windows, Linux, and macOS from the matching tag.
+- Confirm GitHub Pages serves each generated `v0.1.8.23` IFW repository at the exact URL embedded in its installer.
 - Confirm every generated repository has `Updates.xml` and package metadata for `com.tonatiuhpp.app`.
-- Test update detection from the latest published IFW baseline to `v0.1.8.21` on Windows, Linux, and macOS.
-- Test update installation from the latest published IFW baseline to `v0.1.8.21` on Windows, Linux, and macOS, including non-blocking startup check, `Help > Updates`, install prompt, MaintenanceTool launch, application shutdown, and manual restart.
+- Test update detection from the latest published IFW baseline to `v0.1.8.23` on Windows, Linux, and macOS.
+- Test update installation from the latest published IFW baseline to `v0.1.8.23` on Windows, Linux, and macOS, including non-blocking startup check, `Help > Updates`, install prompt, MaintenanceTool launch, application shutdown, and manual restart.
 - Reconcile or explicitly re-check release documentation if URL paths or package IDs change.
 
 ## Pre-release Checklist
 
 - Install the latest published IFW build on Windows, Linux, and macOS as the update source.
-- Verify `source/CMakeLists.txt` has the intended `0.1.8.21` version.
+- Verify `source/CMakeLists.txt` has the intended `0.1.8.23` version after the explicit version-bump task.
 - Create and push the matching `v<version>` tag.
 - Confirm the `Release` workflow and GitHub Pages deploy complete successfully.
 - Confirm release assets include Windows, Linux, and macOS IFW installers and checksums, plus any intended manual archives.
 - Verify each platform installer embeds the correct IFW repository URL and each URL serves `Updates.xml`.
-- After `v0.1.8.21` release repositories are published, confirm `Help > Updates` in the installed baseline app detects `v0.1.8.21`.
-- Run manual updater installation validation from the installed baseline to `v0.1.8.21` on Windows, Linux, and macOS.
+- After `v0.1.8.23` release repositories are published, confirm `Help > Updates` in the installed baseline app detects `v0.1.8.23`.
+- Run manual updater installation validation from the installed baseline to `v0.1.8.23` on Windows, Linux, and macOS.

@@ -25,6 +25,13 @@ Example:
 Preferred path:
 
 - Let the GitHub Actions `Release` workflow build all release payloads from the exact tagged commit.
+- Before packaging, build runtime help from the Sphinx sources:
+  - `python scripts/build_runtime_help.py`
+  - Confirm `help/html/index.html` exists.
+- Build and run the test suite before tagging:
+  - `cmake --build build --target all`
+  - `ctest --test-dir build --output-on-failure`
+- On Windows installed-runtime test configurations, run CMake Install before CTest so `TONATIUHPP_TEST_EXECUTABLE` points at a fresh installed executable and matching runtime files.
 
 The workflow currently publishes GitHub release distribution assets and IFW online repositories:
 
@@ -85,11 +92,19 @@ Before publishing, verify:
 
 - App version in `source/CMakeLists.txt` is correct
 - Git tag matches the app version
+- Runtime help was built and is present under `help/html`
+- CTest passes for unit tests and supported headless smoke tests
+- Windows installed-runtime CTest was run after CMake Install
 - Release workflow completed successfully
 - GitHub Pages deploy completed successfully
 - All three IFW platform repositories contain `Updates.xml`
 - Windows, Linux, and macOS arm64 IFW installers are attached to the GitHub release
 - Distribution assets are uploaded to the correct GitHub release
+- Windows `.tnhpp` and `.tnhpps` file associations launch the installed executable
+- Windows executable and associated file types show the expected Tonatiuh++ icon
+- `Help > Documentation` opens the packaged runtime help on each platform
+- Linux and macOS artifacts launch on clean machines without developer environment variables
+- A headless benchmark smoke run succeeds from the installed runtime on each supported platform
 
 ## 8. Recommended manual validation
 
@@ -102,3 +117,5 @@ After publishing:
 - Confirm the MaintenanceTool detects the new version.
 - Click `Install Updates`.
 - Confirm Tonatiuh++ prompts for unsaved work, starts the MaintenanceTool, and closes before the update runs.
+- Run an installed-runtime headless benchmark, for example:
+  - `tonatiuhpp --headless benchmark <benchmark_config.json>`
