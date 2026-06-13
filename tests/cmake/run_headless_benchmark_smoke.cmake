@@ -11,8 +11,10 @@ if(NOT DEFINED OUTPUT_DIR OR OUTPUT_DIR STREQUAL "")
 endif()
 
 file(MAKE_DIRECTORY "${OUTPUT_DIR}")
+string(RANDOM LENGTH 8 ALPHABET "0123456789abcdef" _run_id)
+
 file(TO_CMAKE_PATH "${SCENE_FILE}" _scene_file)
-file(TO_CMAKE_PATH "${OUTPUT_DIR}/benchmark_result.json" _output_file)
+file(TO_CMAKE_PATH "${OUTPUT_DIR}/benchmark_result_${_run_id}.json" _output_file)
 file(TO_CMAKE_PATH "${OUTPUT_DIR}/benchmark_config.json" _config_file)
 
 file(WRITE "${_config_file}" "{
@@ -62,8 +64,12 @@ foreach(_pattern
     "scene_file:"
     "rays:"
     "seed:"
+    "photon_export:"
     "elapsed_seconds:"
     "rays_per_second:"
+    "worker_count:"
+    "chunk_count:"
+    "chunk_size:"
     "result_file:")
   if(NOT _stdout MATCHES "${_pattern}")
     message(STATUS "stdout:\n${_stdout}")
@@ -77,3 +83,19 @@ if(NOT EXISTS "${_output_file}")
   message(STATUS "stderr:\n${_stderr}")
   message(FATAL_ERROR "Benchmark smoke test did not write result JSON: ${_output_file}")
 endif()
+
+file(READ "${_output_file}" _result_json)
+foreach(_key
+    "scene_file"
+    "rays"
+    "seed"
+    "elapsed_seconds"
+    "rays_per_second"
+    "worker_count"
+    "chunk_count"
+    "chunk_size")
+  if(NOT _result_json MATCHES "\"${_key}\"")
+    message(STATUS "result JSON:\n${_result_json}")
+    message(FATAL_ERROR "Benchmark result JSON did not contain key: ${_key}")
+  endif()
+endforeach()

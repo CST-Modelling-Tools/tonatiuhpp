@@ -55,8 +55,11 @@ In VS Code:
 
 1. Select the local `Windows installed runtime tests` configure preset from CMake Tools.
 2. Reconfigure the project so CMake regenerates tests with the local cache values.
-3. Build the `install` target to refresh `D:/tonatiuhpp`.
-4. Run the tests from the Testing pane.
+3. Build Tonatiuh++.
+4. Run CMake Tools: `Install` to refresh `D:/tonatiuhpp`.
+5. Run the tests from the Testing pane.
+
+Installed-runtime CTest on Windows must be run after `Install`; otherwise CTest may execute a stale `D:/tonatiuhpp/bin/tonatiuhpp.exe` that does not match the current build tree tests.
 
 The same tests can be run from a terminal after configure/install:
 
