@@ -173,24 +173,16 @@ bool IfwUpdateService::startUpdater(QString* errorMessage)
     }
 
     QFileInfo toolInfo(m_maintenanceToolPath);
-    qint64 processId = 0;
+    QProcess updaterProcess;
+    updaterProcess.setProgram(toolInfo.absoluteFilePath());
+    updaterProcess.setArguments({ "--start-updater" });
+    updaterProcess.setWorkingDirectory(toolInfo.absolutePath());
 #if defined(Q_OS_LINUX)
-    const QProcessEnvironment env = maintenanceToolEnvironment(toolInfo);
-    bool started = QProcess::startDetached(
-        toolInfo.absoluteFilePath(),
-        { "--start-updater" },
-        env,
-        toolInfo.absolutePath(),
-        &processId
-    );
-#else
-    bool started = QProcess::startDetached(
-        toolInfo.absoluteFilePath(),
-        { "--start-updater" },
-        toolInfo.absolutePath(),
-        &processId
-    );
+    updaterProcess.setProcessEnvironment(maintenanceToolEnvironment(toolInfo));
 #endif
+
+    qint64 processId = 0;
+    bool started = updaterProcess.startDetached(&processId);
     if (!started && errorMessage)
         *errorMessage = QString("Could not start MaintenanceTool:\n%1").arg(toolInfo.absoluteFilePath());
 
