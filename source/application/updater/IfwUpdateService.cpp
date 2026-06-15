@@ -4,6 +4,7 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QProcess>
+#include <QProcessEnvironment>
 #include <QStringList>
 
 namespace
@@ -41,6 +42,43 @@ QString normalizedProcessText(const QByteArray& output, const QByteArray& errorO
     }
     return text.trimmed();
 }
+
+#if defined(Q_OS_LINUX)
+// The Linux launcher sets the bundled Qt runtime environment before starting
+// Tonatiuh++. MaintenanceTool is launched as a detached child process, so make
+// the same runtime paths explicit here; otherwise IFW may resolve system Qt
+// plugins such as /usr/lib/.../qt6/plugins/platforms/xcb instead of the
+// bundled plugins.
+QProcessEnvironment maintenanceToolEnvironment(const QFileInfo& toolInfo)
+{
+    QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+    QDir searchDir(toolInfo.absoluteDir());
+
+    while (!searchDir.isRoot()) {
+        if (searchDir.exists("bin/platforms") && searchDir.exists("lib"))
+            break;
+        if (!searchDir.cdUp())
+            break;
+    }
+
+    const QString libDir = searchDir.absoluteFilePath("lib");
+    if (QDir(libDir).exists()) {
+        QString ldLibraryPath = libDir;
+        const QString existing = env.value("LD_LIBRARY_PATH");
+        if (!existing.isEmpty())
+            ldLibraryPath += QDir::listSeparator() + existing;
+        env.insert("LD_LIBRARY_PATH", ldLibraryPath);
+    }
+
+    const QString binDir = searchDir.absoluteFilePath("bin");
+    if (QDir(binDir).exists()) {
+        env.insert("QT_PLUGIN_PATH", binDir);
+        env.insert("QT_QPA_PLATFORM_PLUGIN_PATH", QDir(binDir).absoluteFilePath("platforms"));
+    }
+
+    return env;
+}
+#endif
 }
 
 IfwUpdateService::IfwUpdateService(QObject* parent):
@@ -105,6 +143,9 @@ void IfwUpdateService::checkForUpdates()
 
     setStatus(Checking, "Checking for updates...");
     QFileInfo toolInfo(m_maintenanceToolPath);
+#if defined(Q_OS_LINUX)
+    m_process->setProcessEnvironment(maintenanceToolEnvironment(toolInfo));
+#endif
     m_process->setProgram(toolInfo.absoluteFilePath());
     m_process->setArguments({ "check-updates" });
     m_process->setWorkingDirectory(toolInfo.absolutePath());
@@ -133,12 +174,23 @@ bool IfwUpdateService::startUpdater(QString* errorMessage)
 
     QFileInfo toolInfo(m_maintenanceToolPath);
     qint64 processId = 0;
+#if defined(Q_OS_LINUX)
+    const QProcessEnvironment env = maintenanceToolEnvironment(toolInfo);
+    bool started = QProcess::startDetached(
+        toolInfo.absoluteFilePath(),
+        { "--start-updater" },
+        env,
+        toolInfo.absolutePath(),
+        &processId
+    );
+#else
     bool started = QProcess::startDetached(
         toolInfo.absoluteFilePath(),
         { "--start-updater" },
         toolInfo.absolutePath(),
         &processId
     );
+#endif
     if (!started && errorMessage)
         *errorMessage = QString("Could not start MaintenanceTool:\n%1").arg(toolInfo.absoluteFilePath());
 

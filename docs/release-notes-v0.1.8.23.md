@@ -7,6 +7,7 @@ These notes remain a draft until the release workflow is validated and Windows, 
 ## Highlights
 
 - Hardened Linux runtime packaging by bundling a self-consistent Qt runtime and plugin set, installing a launcher script, writing `qt.conf`, and validating that the bundled Qt libraries and plugins match the packaged runtime.
+- Fixed Linux in-app updater launch so `MaintenanceTool` starts with the same bundled Qt runtime and plugin environment as the installed Tonatiuh++ launcher.
 - Wired Sphinx runtime help generation into the CI and release workflows so packaged builds include `help/html`, and refreshed runtime help branding for Tonatiuh++.
 - Improved Windows launch behavior for installed file associations: positional `.tnhpp` project files open on GUI startup, and positional `.tnhpps` script files open in the GUI script window/editor without automatic execution.
 - Embedded the Tonatiuh++ executable icon on Windows and registered `.tnhpp` and `.tnhpps` file types with Tonatiuh++ ProgIDs pointing at the installed executable icon.
