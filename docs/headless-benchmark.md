@@ -53,32 +53,53 @@ tn.traceScene({ scene, rays, seed, noExport: true })
 
 It returns a JavaScript object with fields such as `scene_file`, `rays`, `seed`, `no_export`, `photon_export`, `export_path`, `rays_traced`, `elapsed_seconds`, `rays_per_second`, `worker_count`, `chunk_count`, `chunk_size`, `sun_aperture_area`, `irradiance`, and `power_per_ray`. Photon export remains unsupported in headless scripts.
 
+### Output Convention
+
+For `run-script`, treat stdout and stderr as human-readable logs. `print(value)` writes to stdout, API failures write diagnostics to stderr, and `tn.runBenchmark(path)` may also emit the benchmark command's key-value progress and result lines to stdout.
+
+For automation, write a structured JSON artifact explicitly with `tn.writeJson(path, value)`. Prefer a small schema/version field and keep paths to any benchmark result JSON written by the benchmark config. If the summary records a benchmark result path, keep it aligned with the benchmark config's `output_file`. Timing fields such as `elapsed_seconds` and `rays_per_second` are useful measurements but are not deterministic across runs.
+
 Example:
 
 ```js
-print("starting benchmark");
+var sceneFile = "examples/benchmarks/cylinder.tnhpp";
+var benchmarkConfig = "benchmark_config.json";
+var benchmarkResult = "benchmark_result.json";
+var summaryFile = "run-summary.json";
 
-if (!tn.validateScene("examples/benchmarks/cylinder.tnhpp")) {
+print("starting headless automation");
+
+var validated = tn.validateScene(sceneFile);
+if (!validated) {
   throw new Error("scene validation failed");
 }
 
 var trace = tn.traceScene({
-  scene: "examples/benchmarks/cylinder.tnhpp",
+  scene: sceneFile,
   rays: 1000,
   seed: 123456789,
   noExport: true
 });
 
-tn.writeJson("run-metadata.json", {
-  scene: "examples/benchmarks/cylinder.tnhpp",
-  trace: trace,
-  benchmark: "benchmark_config.json"
-});
-
-var exitCode = tn.runBenchmark("benchmark_config.json");
+var exitCode = tn.runBenchmark(benchmarkConfig);
 if (exitCode !== 0) {
   throw new Error("benchmark failed with exit code " + exitCode);
 }
+
+tn.writeJson(summaryFile, {
+  schema: "tonatiuhpp_headless_run_script_v1",
+  status: "ok",
+  scene_file: sceneFile,
+  validation: {
+    ok: validated
+  },
+  trace: trace,
+  benchmark: {
+    config_file: benchmarkConfig,
+    result_file: benchmarkResult,
+    exit_code: exitCode
+  }
+});
 ```
 
 ## Benchmark Command

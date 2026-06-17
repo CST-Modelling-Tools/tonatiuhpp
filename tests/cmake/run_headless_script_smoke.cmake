@@ -44,7 +44,8 @@ file(WRITE "${_benchmark_config_file}" "{
 
 file(WRITE "${_script_file}" "print(\"headless run-script smoke\");
 
-if (!tn.validateScene(\"${_scene_file}\")) {
+var validated = tn.validateScene(\"${_scene_file}\");
+if (!validated) {
   throw new Error(\"tn.validateScene returned false\");
 }
 
@@ -68,18 +69,25 @@ if (!traceDefaultSeed || traceDefaultSeed.rays_traced !== 1 || traceDefaultSeed.
   throw new Error(\"tn.traceScene did not use the expected default seed\");
 }
 
-tn.writeJson(\"${_script_output_file}\", {
-  ok: true,
-  scene_file: \"${_scene_file}\",
-  trace: trace,
-  trace_default_seed: traceDefaultSeed,
-  benchmark_config: \"${_benchmark_config_file}\"
-});
-
 var benchmarkExitCode = tn.runBenchmark(\"${_benchmark_config_file}\");
 if (benchmarkExitCode !== 0) {
   throw new Error(\"tn.runBenchmark returned \" + benchmarkExitCode);
 }
+
+tn.writeJson(\"${_script_output_file}\", {
+  schema: \"tonatiuhpp_headless_run_script_smoke_v1\",
+  status: \"ok\",
+  ok: true,
+  scene_file: \"${_scene_file}\",
+  validated: validated,
+  trace: trace,
+  trace_default_seed: traceDefaultSeed,
+  benchmark: {
+    config_file: \"${_benchmark_config_file}\",
+    result_file: \"${_benchmark_output_file}\",
+    exit_code: benchmarkExitCode
+  }
+});
 ")
 
 set(_working_directory)
@@ -130,14 +138,20 @@ endif()
 
 file(READ "${_script_output_file}" _script_json)
 foreach(_key
+    "schema"
+    "status"
     "ok"
     "scene_file"
+    "validated"
     "trace"
     "trace_default_seed"
     "rays_traced"
     "photon_export"
     "worker_count"
-    "benchmark_config")
+    "benchmark"
+    "config_file"
+    "result_file"
+    "exit_code")
   if(NOT _script_json MATCHES "\"${_key}\"")
     message(STATUS "script JSON:\n${_script_json}")
     message(FATAL_ERROR "Headless run-script JSON did not contain key: ${_key}")
