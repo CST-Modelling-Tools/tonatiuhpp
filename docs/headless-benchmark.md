@@ -51,7 +51,7 @@ tn.traceScene({ scene, rays, seed, noExport: true })
 - `seed`: optional integer, default `0`
 - `noExport`: required `true`
 
-It returns a JavaScript object with fields such as `scene_file`, `rays`, `seed`, `photon_export`, `export_path`, `rays_traced`, `elapsed_seconds`, `rays_per_second`, `worker_count`, `chunk_count`, `chunk_size`, `sun_aperture_area`, `irradiance`, and `power_per_ray`. Photon export remains unsupported in headless scripts.
+It returns a JavaScript object with fields such as `scene_file`, `rays`, `seed`, `no_export`, `photon_export`, `export_path`, `rays_traced`, `elapsed_seconds`, `rays_per_second`, `worker_count`, `chunk_count`, `chunk_size`, `sun_aperture_area`, `irradiance`, and `power_per_ray`. Photon export remains unsupported in headless scripts.
 
 Example:
 

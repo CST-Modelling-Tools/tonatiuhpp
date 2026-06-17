@@ -59,10 +59,20 @@ if (!trace || trace.rays_traced !== 10 || trace.photon_export !== false) {
 }
 print(\"trace rays \" + trace.rays_traced);
 
+var traceDefaultSeed = tn.traceScene({
+  scene: \"${_scene_file}\",
+  rays: 1,
+  noExport: true
+});
+if (!traceDefaultSeed || traceDefaultSeed.rays_traced !== 1 || traceDefaultSeed.seed !== 0) {
+  throw new Error(\"tn.traceScene did not use the expected default seed\");
+}
+
 tn.writeJson(\"${_script_output_file}\", {
   ok: true,
   scene_file: \"${_scene_file}\",
   trace: trace,
+  trace_default_seed: traceDefaultSeed,
   benchmark_config: \"${_benchmark_config_file}\"
 });
 
@@ -123,6 +133,10 @@ foreach(_key
     "ok"
     "scene_file"
     "trace"
+    "trace_default_seed"
+    "rays_traced"
+    "photon_export"
+    "worker_count"
     "benchmark_config")
   if(NOT _script_json MATCHES "\"${_key}\"")
     message(STATUS "script JSON:\n${_script_json}")
