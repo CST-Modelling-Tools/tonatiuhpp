@@ -48,9 +48,21 @@ if (!tn.validateScene(\"${_scene_file}\")) {
   throw new Error(\"tn.validateScene returned false\");
 }
 
+var trace = tn.traceScene({
+  scene: \"${_scene_file}\",
+  rays: 10,
+  seed: 123456789,
+  noExport: true
+});
+if (!trace || trace.rays_traced !== 10 || trace.photon_export !== false) {
+  throw new Error(\"tn.traceScene did not return the expected no-export summary\");
+}
+print(\"trace rays \" + trace.rays_traced);
+
 tn.writeJson(\"${_script_output_file}\", {
   ok: true,
   scene_file: \"${_scene_file}\",
+  trace: trace,
   benchmark_config: \"${_benchmark_config_file}\"
 });
 
@@ -81,6 +93,7 @@ endif()
 
 foreach(_pattern
     "headless run-script smoke"
+    "trace rays 10"
     "Benchmark completed\\."
     "scene_file:"
     "rays:"
@@ -109,6 +122,7 @@ file(READ "${_script_output_file}" _script_json)
 foreach(_key
     "ok"
     "scene_file"
+    "trace"
     "benchmark_config")
   if(NOT _script_json MATCHES "\"${_key}\"")
     message(STATUS "script JSON:\n${_script_json}")

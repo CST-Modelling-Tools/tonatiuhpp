@@ -39,9 +39,19 @@ print(value)
 tn.writeJson(path, value)
 tn.validateScene(path)
 tn.runBenchmark(path)
+tn.traceScene({ scene, rays, seed, noExport: true })
 ```
 
 `tonatiuh` is also available as an alias for the same limited object. GUI-only APIs such as screenshot capture, scene-tree editing, dialogs, widget access, or GUI-compatible `MainWindow` methods are not available in headless scripts. Unknown or GUI-only API calls fail with a script error instead of being silently ignored.
+
+`tn.traceScene` uses the same QCoreApplication-compatible `RayTraceRunner` path as the headless `trace-scene` command. It supports deterministic no-export tracing only:
+
+- `scene`: required `.tnhpp` scene path
+- `rays`: required positive integer
+- `seed`: optional integer, default `0`
+- `noExport`: required `true`
+
+It returns a JavaScript object with fields such as `scene_file`, `rays`, `seed`, `photon_export`, `export_path`, `rays_traced`, `elapsed_seconds`, `rays_per_second`, `worker_count`, `chunk_count`, `chunk_size`, `sun_aperture_area`, `irradiance`, and `power_per_ray`. Photon export remains unsupported in headless scripts.
 
 Example:
 
@@ -52,8 +62,16 @@ if (!tn.validateScene("examples/benchmarks/cylinder.tnhpp")) {
   throw new Error("scene validation failed");
 }
 
+var trace = tn.traceScene({
+  scene: "examples/benchmarks/cylinder.tnhpp",
+  rays: 1000,
+  seed: 123456789,
+  noExport: true
+});
+
 tn.writeJson("run-metadata.json", {
   scene: "examples/benchmarks/cylinder.tnhpp",
+  trace: trace,
   benchmark: "benchmark_config.json"
 });
 

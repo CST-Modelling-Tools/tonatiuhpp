@@ -1,5 +1,8 @@
 #include "HeadlessScriptHost.h"
 
+#include <cmath>
+#include <limits>
+
 #include <QCoreApplication>
 #include <QDir>
 #include <QFile>
@@ -7,9 +10,11 @@
 #include <QFileInfo>
 #include <QJSEngine>
 #include <QTextStream>
+#include <QThread>
 
 #include "benchmark/BenchmarkRunner.h"
 #include "core/CorePluginRegistry.h"
+#include "core/RayTraceRunner.h"
 #include "core/SceneLoader.h"
 #include "core/TonatiuhCore.h"
 
@@ -30,6 +35,58 @@ QString scriptLineAt(const QString& source, int lineNumber)
         return QString();
 
     return lines.at(lineNumber - 1).trimmed();
+}
+
+bool readIntegerOption(const QJSValue& value, const QString& name, bool allowZero, ulong* parsed, QString* errorMessage)
+{
+    auto fail = [errorMessage](const QString& message) {
+        if (errorMessage)
+            *errorMessage = message;
+        return false;
+    };
+
+    if (!parsed)
+        return fail(QString("%1 parser target is not available.").arg(name));
+    if (!value.isNumber())
+        return fail(QString("%1 must be an integer.").arg(name));
+
+    const double number = value.toNumber();
+    if (!std::isfinite(number) || std::floor(number) != number)
+        return fail(QString("%1 must be an integer.").arg(name));
+    if (number < 0.)
+        return fail(QString("%1 must not be negative.").arg(name));
+    if (!allowZero && number == 0.)
+        return fail(QString("%1 must be greater than zero.").arg(name));
+
+    constexpr double kMaxSafeInteger = 9007199254740991.;
+    const double platformMax = static_cast<double>(std::numeric_limits<ulong>::max());
+    const double maxValue = platformMax < kMaxSafeInteger ? platformMax : kMaxSafeInteger;
+    if (number > maxValue)
+        return fail(QString("%1 is outside the supported range.").arg(name));
+
+    *parsed = static_cast<ulong>(number);
+    return true;
+}
+
+QJSValue makeTraceSummary(QJSEngine* engine, const QString& sceneFilePath, ulong rays, ulong seed, const RayTraceResult& result)
+{
+    QJSValue summary = engine->newObject();
+    summary.setProperty("scene_file", QJSValue(sceneFilePath));
+    summary.setProperty("rays", QJSValue(static_cast<double>(rays)));
+    summary.setProperty("seed", QJSValue(static_cast<double>(seed)));
+    summary.setProperty("no_export", QJSValue(true));
+    summary.setProperty("photon_export", QJSValue(false));
+    summary.setProperty("export_path", QJSValue(QStringLiteral("none")));
+    summary.setProperty("rays_traced", QJSValue(static_cast<double>(result.raysTraced)));
+    summary.setProperty("elapsed_seconds", QJSValue(result.elapsedSeconds));
+    summary.setProperty("rays_per_second", QJSValue(result.raysPerSecond));
+    summary.setProperty("worker_count", QJSValue(result.workerCount));
+    summary.setProperty("chunk_count", QJSValue(static_cast<double>(result.chunkCount)));
+    summary.setProperty("chunk_size", QJSValue(static_cast<double>(result.chunkSize)));
+    summary.setProperty("sun_aperture_area", QJSValue(result.sunApertureArea));
+    summary.setProperty("irradiance", QJSValue(result.irradiance));
+    summary.setProperty("power_per_ray", QJSValue(result.powerPerRay));
+    return summary;
 }
 }
 
@@ -132,6 +189,72 @@ int HeadlessScriptApi::runBenchmark(const QString& configFileName)
         recordError(QString("tn.runBenchmark failed for %1: %2").arg(absoluteFilePath(configFileName), errorMessage));
 
     return result;
+}
+
+QJSValue HeadlessScriptApi::traceScene(const QJSValue& optionsValue)
+{
+    if (!m_engine) {
+        recordError("tn.traceScene failed: script engine is not available.");
+        return QJSValue();
+    }
+    if (!optionsValue.isObject()) {
+        recordError("tn.traceScene failed: options must be an object.");
+        return QJSValue();
+    }
+
+    const QJSValue sceneValue = optionsValue.property("scene");
+    if (!sceneValue.isString() || sceneValue.toString().trimmed().isEmpty()) {
+        recordError("tn.traceScene failed: options.scene must be a non-empty scene path.");
+        return QJSValue();
+    }
+
+    ulong rays = 0;
+    QString errorMessage;
+    const QJSValue raysValue = optionsValue.property("rays");
+    if (raysValue.isUndefined() || !readIntegerOption(raysValue, "options.rays", false, &rays, &errorMessage)) {
+        recordError(QString("tn.traceScene failed: %1").arg(errorMessage.isEmpty() ? QStringLiteral("options.rays is required.") : errorMessage));
+        return QJSValue();
+    }
+
+    ulong seed = 0;
+    const QJSValue seedValue = optionsValue.property("seed");
+    if (!seedValue.isUndefined() && !readIntegerOption(seedValue, "options.seed", true, &seed, &errorMessage)) {
+        recordError(QString("tn.traceScene failed: %1").arg(errorMessage));
+        return QJSValue();
+    }
+
+    const QJSValue noExportValue = optionsValue.property("noExport");
+    if (!noExportValue.isBool() || !noExportValue.toBool()) {
+        recordError("tn.traceScene failed: options.noExport must be true; photon export is not supported in headless scripts.");
+        return QJSValue();
+    }
+
+    const QString sceneFileName = sceneValue.toString();
+    TonatiuhCore::initializeCoin();
+    CorePluginRegistry plugins;
+    initializeSceneServices(sceneFileName, &plugins);
+
+    LoadedScene scene;
+    if (!SceneLoader::readFile(sceneFileName, &scene, &errorMessage)) {
+        recordError(QString("tn.traceScene failed while loading %1: %2").arg(absoluteFilePath(sceneFileName), errorMessage));
+        return QJSValue();
+    }
+
+    RayTraceOptions options;
+    options.rays = rays;
+    options.seed = seed;
+    options.workerCount = qMax(1, QThread::idealThreadCount());
+    options.chunkSize = 10000;
+    options.outputMode = RayTraceOutputMode::NoOutput;
+
+    RayTraceResult result;
+    RayTraceRunner runner;
+    if (!runner.trace(scene.get(), options, &result, &errorMessage)) {
+        recordError(QString("tn.traceScene failed for %1: %2").arg(absoluteFilePath(sceneFileName), errorMessage));
+        return QJSValue();
+    }
+
+    return makeTraceSummary(m_engine, absoluteFilePath(sceneFileName), rays, seed, result);
 }
 
 void HeadlessScriptApi::initializeSceneServices(const QString& fileName, CorePluginRegistry* plugins) const
@@ -258,6 +381,9 @@ int HeadlessScriptHost::runScript(const QString& fileName) const
     },
     runBenchmark: function(path) {
       return api.runBenchmark(requirePath("tn.runBenchmark", path));
+    },
+    traceScene: function(options) {
+      return api.traceScene(options);
     }
   };
 
@@ -271,7 +397,7 @@ int HeadlessScriptHost::runScript(const QString& fileName) const
           return undefined;
         }
         return function() {
-          throw new Error("Headless script API does not support '" + String(property) + "'. Available APIs: print(value), tn.writeJson(path, value), tn.validateScene(path), tn.runBenchmark(path).");
+          throw new Error("Headless script API does not support '" + String(property) + "'. Available APIs: print(value), tn.writeJson(path, value), tn.validateScene(path), tn.runBenchmark(path), tn.traceScene(options).");
         };
       }
     });

@@ -19,6 +19,7 @@ public:
     Q_INVOKABLE bool writeJson(const QString& fileName, const QJSValue& value);
     Q_INVOKABLE bool validateScene(const QString& fileName);
     Q_INVOKABLE int runBenchmark(const QString& configFileName);
+    Q_INVOKABLE QJSValue traceScene(const QJSValue& options);
 
     bool hasErrors() const { return !m_errors.isEmpty(); }
     QStringList errors() const { return m_errors; }

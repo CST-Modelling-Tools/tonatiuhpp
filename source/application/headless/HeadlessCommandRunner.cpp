@@ -278,6 +278,7 @@ void HeadlessCommandRunner::printUsage() const
     out << "  tn.writeJson(path, value)" << Qt::endl;
     out << "  tn.validateScene(path)" << Qt::endl;
     out << "  tn.runBenchmark(path)" << Qt::endl;
+    out << "  tn.traceScene({ scene, rays, seed, noExport: true })" << Qt::endl;
 }
 
 int HeadlessCommandRunner::printUsageError(const QString& message) const
