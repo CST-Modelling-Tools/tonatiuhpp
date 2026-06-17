@@ -88,6 +88,17 @@ if(TONATIUHPP_ENABLE_HEADLESS_SMOKE_TESTS)
   tonatiuhpp_set_headless_test_properties(headless.run_script_missing_path)
 
   add_test(
+    NAME headless.run_script_missing_file
+    COMMAND "${CMAKE_COMMAND}"
+      "-DTEST_EXECUTABLE=${TONATIUHPP_TEST_EXE}"
+      "-DTEST_ARGUMENTS=--headless|run-script|${CMAKE_CURRENT_BINARY_DIR}/missing_headless_script.tnhpps"
+      "-DEXPECTED_EXIT_CODE=1"
+      "-DTEST_WORKING_DIRECTORY=${TONATIUHPP_TEST_WORKING_DIR}"
+      -P "${CMAKE_CURRENT_LIST_DIR}/cmake/expect_exit_code.cmake"
+  )
+  tonatiuhpp_set_headless_test_properties(headless.run_script_missing_file)
+
+  add_test(
     NAME headless.run_script_rejects_gui_api
     COMMAND "${CMAKE_COMMAND}"
       "-DTEST_EXECUTABLE=${TONATIUHPP_TEST_EXE}"

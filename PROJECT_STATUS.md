@@ -124,7 +124,7 @@ Purpose: lightweight handoff for current Tonatiuh++ project and release context.
 
 ## Pre-release Checklist
 
-- Install the latest published IFW build on Windows, Linux, and macOS as the update source; use `v0.1.8.23` where those published artifacts are available.
+- Install the latest published IFW build on Windows, Linux, and macOS as the update source; use `v0.1.8.24` where those published artifacts are available.
 - Verify `source/CMakeLists.txt` has the intended `0.1.8.25` version.
 - Create and push the matching `v<version>` tag.
 - Confirm the `Release` workflow and GitHub Pages deploy complete successfully.

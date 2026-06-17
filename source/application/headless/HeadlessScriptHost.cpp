@@ -3,6 +3,7 @@
 #include <QCoreApplication>
 #include <QDir>
 #include <QFile>
+#include <QFileDevice>
 #include <QFileInfo>
 #include <QJSEngine>
 #include <QTextStream>
@@ -221,7 +222,13 @@ int HeadlessScriptHost::runScript(const QString& fileName) const
         return 1;
     }
 
-    const QString source = QString::fromUtf8(scriptFile.readAll());
+    const QByteArray scriptBytes = scriptFile.readAll();
+    if (scriptFile.error() != QFileDevice::NoError) {
+        err << "Cannot read script file " << scriptInfo.absoluteFilePath() << ": " << scriptFile.errorString() << Qt::endl;
+        return 1;
+    }
+
+    const QString source = QString::fromUtf8(scriptBytes);
 
     QJSEngine engine;
     HeadlessScriptApi api(&engine);
