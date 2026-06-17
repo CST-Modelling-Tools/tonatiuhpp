@@ -57,7 +57,25 @@ It returns a JavaScript object with fields such as `scene_file`, `rays`, `seed`,
 
 For `run-script`, treat stdout and stderr as human-readable logs. `print(value)` writes to stdout, API failures write diagnostics to stderr, and `tn.runBenchmark(path)` may also emit the benchmark command's key-value progress and result lines to stdout.
 
-For automation, write a structured JSON artifact explicitly with `tn.writeJson(path, value)`. Prefer a small schema/version field and keep paths to any benchmark result JSON written by the benchmark config. If the summary records a benchmark result path, keep it aligned with the benchmark config's `output_file`. Timing fields such as `elapsed_seconds` and `rays_per_second` are useful measurements but are not deterministic across runs.
+For automation, write a structured JSON artifact explicitly with `tn.writeJson(path, value)`. Use the schema string `tonatiuhpp.headless.result` and integer version `1`. Keep paths to any benchmark result JSON written by the benchmark config. If the summary records a benchmark result path, keep it aligned with the benchmark config's `output_file`. Timing fields such as `elapsed_seconds` and `rays_per_second` are useful measurements but are not deterministic across runs.
+
+Recommended top-level artifact shape:
+
+| Field | Required | Notes |
+| --- | --- | --- |
+| `schema` | yes | String value `tonatiuhpp.headless.result`. |
+| `version` | yes | Integer value `1`. |
+| `validation` | when `tn.validateScene(...)` is used | Script-authored object summarizing scene validation. |
+| `trace` | when `tn.traceScene(...)` is used | The object returned by `tn.traceScene(...)`. |
+| `benchmark` | when `tn.runBenchmark(...)` is used | Script-authored object summarizing benchmark config/result paths and exit code. |
+
+Recommended operation fields:
+
+| Operation | Required fields | Optional fields |
+| --- | --- | --- |
+| `tn.validateScene(path)` | `validation.ok` boolean | `validation.scene_file`, `validation.message` |
+| `tn.traceScene(options)` | `trace.scene_file`, `trace.rays`, `trace.seed`, `trace.no_export`, `trace.photon_export`, `trace.export_path`, `trace.rays_traced`, `trace.elapsed_seconds`, `trace.rays_per_second`, `trace.worker_count`, `trace.chunk_count`, `trace.chunk_size` | `trace.sun_aperture_area`, `trace.irradiance`, `trace.power_per_ray` |
+| `tn.runBenchmark(path)` | `benchmark.config_file`, `benchmark.exit_code` | `benchmark.result_file`, plus any copied fields from the benchmark result JSON |
 
 Example:
 
@@ -87,11 +105,13 @@ if (exitCode !== 0) {
 }
 
 tn.writeJson(summaryFile, {
-  schema: "tonatiuhpp_headless_run_script_v1",
+  schema: "tonatiuhpp.headless.result",
+  version: 1,
   status: "ok",
   scene_file: sceneFile,
   validation: {
-    ok: validated
+    ok: validated,
+    scene_file: sceneFile
   },
   trace: trace,
   benchmark: {

@@ -75,11 +75,15 @@ if (benchmarkExitCode !== 0) {
 }
 
 tn.writeJson(\"${_script_output_file}\", {
-  schema: \"tonatiuhpp_headless_run_script_smoke_v1\",
+  schema: \"tonatiuhpp.headless.result\",
+  version: 1,
   status: \"ok\",
   ok: true,
   scene_file: \"${_scene_file}\",
-  validated: validated,
+  validation: {
+    ok: validated,
+    scene_file: \"${_scene_file}\"
+  },
   trace: trace,
   trace_default_seed: traceDefaultSeed,
   benchmark: {
@@ -139,10 +143,12 @@ endif()
 file(READ "${_script_output_file}" _script_json)
 foreach(_key
     "schema"
+    "tonatiuhpp.headless.result"
+    "version"
     "status"
     "ok"
     "scene_file"
-    "validated"
+    "validation"
     "trace"
     "trace_default_seed"
     "rays_traced"
@@ -157,3 +163,8 @@ foreach(_key
     message(FATAL_ERROR "Headless run-script JSON did not contain key: ${_key}")
   endif()
 endforeach()
+
+if(NOT _script_json MATCHES "\"version\"[^\n]*:[^\n]*1")
+  message(STATUS "script JSON:\n${_script_json}")
+  message(FATAL_ERROR "Headless run-script JSON did not contain version: 1.")
+endif()
