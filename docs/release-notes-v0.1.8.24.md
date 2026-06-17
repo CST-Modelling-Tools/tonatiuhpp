@@ -1,8 +1,6 @@
-# Tonatiuh++ v0.1.8.24 Release Notes Draft
+# Tonatiuh++ v0.1.8.24 Release Notes
 
 Tonatiuh++ v0.1.8.24 supersedes v0.1.8.23. The v0.1.8.23 artifacts were published before the final release-blocker fixes were complete, so v0.1.8.24 carries forward the v0.1.8.23 maintenance work and adds packaging/build fixes needed for a reliable Windows, Linux, and macOS release.
-
-These notes remain a draft until the v0.1.8.24 release workflow is validated and Windows, Linux, and macOS package checks are complete.
 
 ## Highlights
 
@@ -16,7 +14,7 @@ These notes remain a draft until the v0.1.8.24 release workflow is validated and
 
 ## Validation Notes
 
-- The v0.1.8.24 release workflow must be rerun from a matching `v0.1.8.24` tag after the source version bump.
+- The v0.1.8.24 release is the current published baseline for the next release cycle.
 - Windows, Linux, and macOS packages should be validated from clean installs because this release exists specifically to replace the earlier v0.1.8.23 artifacts.
 - Windows installed-runtime CTest should still be run only after CMake Install refreshes the configured install prefix.
 - `Help > Documentation`, file associations/icons, Linux launcher behavior, macOS app-bundle layout, and a small installed-runtime headless benchmark should be checked before tagging or publishing replacement artifacts.

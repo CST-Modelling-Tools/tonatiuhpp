@@ -25,6 +25,7 @@ private:
     int validateScene(const QString& fileName) const;
     int traceScene(const QStringList& args) const;
     int benchmark(const QStringList& args) const;
+    int runScript(const QStringList& args) const;
     void initializeSceneServices(const QString& fileName, CorePluginRegistry* plugins) const;
     bool parseTraceSceneArguments(const QStringList& args, TraceSceneArguments* parsed, QString* errorMessage) const;
     bool parseUnsignedLongOption(const QString& optionName, const QString& value, bool allowZero, ulong* parsed, QString* errorMessage) const;

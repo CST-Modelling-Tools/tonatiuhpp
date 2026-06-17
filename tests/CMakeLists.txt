@@ -76,6 +76,27 @@ if(TONATIUHPP_ENABLE_HEADLESS_SMOKE_TESTS)
   )
   tonatiuhpp_set_headless_test_properties(headless.invalid_arguments)
 
+  add_test(
+    NAME headless.run_script_missing_path
+    COMMAND "${CMAKE_COMMAND}"
+      "-DTEST_EXECUTABLE=${TONATIUHPP_TEST_EXE}"
+      "-DTEST_ARGUMENTS=--headless|run-script"
+      "-DEXPECTED_EXIT_CODE=2"
+      "-DTEST_WORKING_DIRECTORY=${TONATIUHPP_TEST_WORKING_DIR}"
+      -P "${CMAKE_CURRENT_LIST_DIR}/cmake/expect_exit_code.cmake"
+  )
+  tonatiuhpp_set_headless_test_properties(headless.run_script_missing_path)
+
+  add_test(
+    NAME headless.run_script_rejects_gui_api
+    COMMAND "${CMAKE_COMMAND}"
+      "-DTEST_EXECUTABLE=${TONATIUHPP_TEST_EXE}"
+      "-DTEST_WORKING_DIRECTORY=${TONATIUHPP_TEST_WORKING_DIR}"
+      "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/headless_run_script_errors"
+      -P "${CMAKE_CURRENT_LIST_DIR}/cmake/run_headless_script_error_smoke.cmake"
+  )
+  tonatiuhpp_set_headless_test_properties(headless.run_script_rejects_gui_api)
+
   set(_tonatiuhpp_cylinder_scene "${CMAKE_CURRENT_LIST_DIR}/../examples/benchmarks/cylinder.tnhpp")
   if(EXISTS "${_tonatiuhpp_cylinder_scene}")
     add_test(
@@ -108,6 +129,20 @@ if(TONATIUHPP_ENABLE_HEADLESS_SMOKE_TESTS)
     )
     tonatiuhpp_set_headless_test_properties(headless.benchmark_cylinder_scene)
     set_tests_properties(headless.benchmark_cylinder_scene PROPERTIES
+      TIMEOUT 60
+    )
+
+    add_test(
+      NAME headless.run_script_cylinder_scene
+      COMMAND "${CMAKE_COMMAND}"
+        "-DTEST_EXECUTABLE=${TONATIUHPP_TEST_EXE}"
+        "-DTEST_WORKING_DIRECTORY=${TONATIUHPP_TEST_WORKING_DIR}"
+        "-DSCENE_FILE=${_tonatiuhpp_cylinder_scene}"
+        "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/headless_run_script_cylinder"
+        -P "${CMAKE_CURRENT_LIST_DIR}/cmake/run_headless_script_smoke.cmake"
+    )
+    tonatiuhpp_set_headless_test_properties(headless.run_script_cylinder_scene)
+    set_tests_properties(headless.run_script_cylinder_scene PROPERTIES
       TIMEOUT 60
     )
   endif()

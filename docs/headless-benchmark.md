@@ -9,17 +9,59 @@ tonatiuhpp --headless --help
 tonatiuhpp --headless validate-scene path/to/scene.tnhpp
 tonatiuhpp --headless trace-scene path/to/scene.tnhpp --rays 10000 --seed 123456789 --no-export
 tonatiuhpp --headless benchmark path/to/benchmark_config.json
+tonatiuhpp --headless run-script path/to/script.tnhpps
 ```
 
 Exit codes are:
 
 - `0`: command completed successfully
-- `1`: scene loading, tracing, benchmark, or file I/O failed
+- `1`: scene loading, tracing, benchmark, script execution, or file I/O failed
 - `2`: command-line usage error
 
 `trace-scene` currently supports no-export execution only. It prints key-value lines suitable for logs, including `scene_file`, `rays`, `seed`, `photon_export`, `export_path`, `rays_traced`, `elapsed_seconds`, `rays_per_second`, `worker_count`, `chunk_count`, and `chunk_size`.
 
 Benchmark mode also runs without photon export and writes result JSON. Its console output includes `benchmark`, `scene_file`, `rays`, `seed`, `photon_export`, `export_path`, `output_file`, `rays_traced`, `elapsed_seconds`, `rays_per_second`, scheduling fields, and `result_file`.
+
+## Headless Scripts
+
+`run-script` evaluates a `.tnhpps` file through a true headless `QCoreApplication` path:
+
+```text
+tonatiuhpp --headless run-script script.tnhpps
+```
+
+This is intentionally separate from legacy `tonatiuhpp -i script.tnhpps`, which still uses the GUI script infrastructure for compatibility. `tonatiuhpp --headless -i script.tnhpps` is not a supported script command; use `--headless run-script` for non-GUI automation.
+
+The first headless script API is deliberately small:
+
+```js
+print(value)
+tn.writeJson(path, value)
+tn.validateScene(path)
+tn.runBenchmark(path)
+```
+
+`tonatiuh` is also available as an alias for the same limited object. GUI-only APIs such as screenshot capture, scene-tree editing, dialogs, widget access, or GUI-compatible `MainWindow` methods are not available in headless scripts. Unknown or GUI-only API calls fail with a script error instead of being silently ignored.
+
+Example:
+
+```js
+print("starting benchmark");
+
+if (!tn.validateScene("examples/benchmarks/cylinder.tnhpp")) {
+  throw new Error("scene validation failed");
+}
+
+tn.writeJson("run-metadata.json", {
+  scene: "examples/benchmarks/cylinder.tnhpp",
+  benchmark: "benchmark_config.json"
+});
+
+var exitCode = tn.runBenchmark("benchmark_config.json");
+if (exitCode !== 0) {
+  throw new Error("benchmark failed with exit code " + exitCode);
+}
+```
 
 ## Benchmark Command
 

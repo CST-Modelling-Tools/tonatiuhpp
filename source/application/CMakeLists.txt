@@ -34,6 +34,7 @@ set(HEADERS
     core/SceneLoader.h
     core/TonatiuhCore.h
     headless/HeadlessCommandRunner.h
+    headless/HeadlessScriptHost.h
     main/CustomSplashScreen.h
     main/Document.h
     main/LineEditPlaceHolder.h
@@ -111,6 +112,7 @@ set(SOURCES
     core/SceneLoader.cpp
     core/TonatiuhCore.cpp
     headless/HeadlessCommandRunner.cpp
+    headless/HeadlessScriptHost.cpp
     main/CustomSplashScreen.cpp
     main/Document.cpp
     main/LineEditPlaceHolder.cpp

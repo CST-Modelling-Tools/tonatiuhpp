@@ -12,6 +12,7 @@
 #include "core/RayTraceRunner.h"
 #include "core/SceneLoader.h"
 #include "core/TonatiuhCore.h"
+#include "headless/HeadlessScriptHost.h"
 
 int HeadlessCommandRunner::run(const QStringList& arguments) const
 {
@@ -39,6 +40,9 @@ int HeadlessCommandRunner::run(const QStringList& arguments) const
 
     if (command == "benchmark")
         return benchmark(args.mid(1));
+
+    if (command == "run-script")
+        return runScript(args.mid(1));
 
     return printUsageError(QString("Unknown headless command: %1.").arg(command));
 }
@@ -149,6 +153,15 @@ int HeadlessCommandRunner::benchmark(const QStringList& args) const
     return result;
 }
 
+int HeadlessCommandRunner::runScript(const QStringList& args) const
+{
+    if (args.size() != 1)
+        return printUsageError("run-script requires exactly one script file path.");
+
+    HeadlessScriptHost host;
+    return host.runScript(args[0]);
+}
+
 void HeadlessCommandRunner::initializeSceneServices(const QString& fileName, CorePluginRegistry* plugins) const
 {
     if (plugins)
@@ -251,12 +264,20 @@ void HeadlessCommandRunner::printUsage() const
     out << "  tonatiuhpp --headless validate-scene <scene.tnhpp>" << Qt::endl;
     out << "  tonatiuhpp --headless trace-scene <scene.tnhpp> --rays N --seed S --no-export" << Qt::endl;
     out << "  tonatiuhpp --headless benchmark <benchmark_config.json>" << Qt::endl;
+    out << "  tonatiuhpp --headless run-script <script.tnhpps>" << Qt::endl;
     out << Qt::endl;
     out << "Commands:" << Qt::endl;
     out << "  validate-scene <scene.tnhpp>                         Validate that a Tonatiuh++ scene can be loaded." << Qt::endl;
     out << "  trace-scene <scene.tnhpp> --rays N --seed S --no-export" << Qt::endl;
     out << "                                                     Run ray tracing without photon export." << Qt::endl;
     out << "  benchmark <benchmark_config.json>                  Run a headless benchmark and write JSON results." << Qt::endl;
+    out << "  run-script <script.tnhpps>                         Run a script through the limited true-headless API." << Qt::endl;
+    out << Qt::endl;
+    out << "Headless script API:" << Qt::endl;
+    out << "  print(value)" << Qt::endl;
+    out << "  tn.writeJson(path, value)" << Qt::endl;
+    out << "  tn.validateScene(path)" << Qt::endl;
+    out << "  tn.runBenchmark(path)" << Qt::endl;
 }
 
 int HeadlessCommandRunner::printUsageError(const QString& message) const
