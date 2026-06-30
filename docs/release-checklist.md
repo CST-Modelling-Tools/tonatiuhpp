@@ -86,16 +86,16 @@ Confirm the release page is for the correct tag:
 
 Confirm uploaded assets and checksum files match the workflow output for the tagged commit.
 
-## 7. Final pre-release sanity check
+## 7. Final release-completion sanity check
 
-Before publishing, verify:
+Before declaring the release complete, verify:
 
 - App version in `source/CMakeLists.txt` is correct
 - Git tag matches the app version
 - Runtime help was built and is present under `help/html`
 - CTest passes for unit tests and supported headless smoke tests
 - Windows installed-runtime CTest was run after CMake Install
-- Release workflow completed successfully
+- Release workflow completed successfully from the matching tag
 - GitHub Pages deploy completed successfully
 - All three IFW platform repositories contain `Updates.xml`
 - Windows, Linux, and macOS arm64 IFW installers are attached to the GitHub release

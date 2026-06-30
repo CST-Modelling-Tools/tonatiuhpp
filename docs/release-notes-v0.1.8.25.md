@@ -1,8 +1,8 @@
-# Tonatiuh++ v0.1.8.25 Release Notes Draft
+# Tonatiuh++ v0.1.8.25 Release Notes RC Draft
 
 Tonatiuh++ v0.1.8.25 follows the published v0.1.8.24 release and is the next intended release target.
 
-These notes remain a draft until the source version metadata is updated to 0.1.8.25, the release workflow is validated, and Windows, Linux, and macOS package checks are complete.
+These notes remain an RC draft until the release workflow is validated and Windows, Linux, and macOS package and updater checks are complete.
 
 ## Highlights
 
@@ -15,9 +15,11 @@ These notes remain a draft until the source version metadata is updated to 0.1.8
 
 ## Validation Notes
 
+- Source metadata is set to `0.1.8.25`; IFW installer, package, and repository metadata should render that version from `source/CMakeLists.txt`.
 - Windows installed-runtime CTest should still be run only after CMake Install refreshes the configured install prefix.
 - Headless script smoke coverage should be run from the installed runtime on Windows and from the build-tree executable on Linux/macOS where supported.
-- The release workflow should be rerun from a matching `v0.1.8.25` tag only after source metadata is bumped and platform validation is complete.
+- Updater-installed runtime validation should run on Windows, Ubuntu, and macOS from the latest published IFW baseline, expected to be `v0.1.8.24`.
+- The release workflow should be rerun from a matching `v0.1.8.25` tag only after platform validation is complete.
 
 ## Known Issues
 

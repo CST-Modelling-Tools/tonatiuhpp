@@ -1,12 +1,12 @@
 # Project Status
 
-Last updated: 2026-06-17
+Last updated: 2026-06-30
 
 Purpose: lightweight handoff for current Tonatiuh++ project and release context. Keep stable agent rules in `AGENT.md`; update this file when release context changes.
 
 ## Current Priorities
 
-- Prepare the Tonatiuh++ `v0.1.8.25` release; do not tag until source metadata, release notes, release workflow validation, and platform validation are complete.
+- Prepare the Tonatiuh++ `v0.1.8.25` release; source metadata is now bumped, but do not tag until release notes, release workflow validation, and platform validation are complete.
 - Validate the `v0.1.8.25` release notes, release checklist, runtime help packaging, file-association hardening, headless command output, CTest coverage, and platform packaging.
 - Remove or reduce remaining runtime warnings visible from command-prompt launches.
 - Validate the IFW updater path from the latest published IFW baseline to the next tagged release on Windows, Linux, and macOS.
@@ -14,10 +14,10 @@ Purpose: lightweight handoff for current Tonatiuh++ project and release context.
 ## Current Baseline
 
 - Branch: `master`.
-- Current application version in `source/CMakeLists.txt`: `0.1.8.24`.
+- Current application version in `source/CMakeLists.txt`: `0.1.8.25`.
 - Latest existing Git tag: `v0.1.8.24`.
 - Next intended release target: `v0.1.8.25`.
-- Release readiness: source version metadata still needs to be bumped to `0.1.8.25`, and the release is not ready to tag until release notes, release workflow validation, and Windows/Linux/macOS platform validation are complete.
+- Release readiness: source version metadata is bumped to `0.1.8.25`; the release is not ready to tag until release notes, release workflow validation, and Windows/Linux/macOS platform validation are complete.
 - Previous release baseline for updater validation: latest published IFW build with updater support, expected to be `v0.1.8.24`.
 - Intended release under validation: `v0.1.8.25`, focused on the first minimal true-headless script runner plus validation of the post-v0.1.8.24 runtime packaging, help, file-association, headless-test, and unit-test hardening.
 - Release packaging source of truth: `.github/workflows/release.yml` and `installer/`.
@@ -69,11 +69,12 @@ Purpose: lightweight handoff for current Tonatiuh++ project and release context.
 - CTest smoke-test foundation for `v0.1.8.23`: `BUILD_TESTING` now enables headless CTest coverage for `--headless --help`, invalid headless arguments with the expected failure exit code, and `validate-scene` on the plugin-free `examples/benchmarks/cylinder.tnhpp` fixture when present; `TONATIUHPP_TEST_EXECUTABLE` can point CTest at an installed runtime, and Windows skips headless tests with a clear warning when that executable is not set.
 - Headless command hardening for `v0.1.8.23`: `trace-scene` and `benchmark` now print consistent key-value summary lines for scene path, rays, seed, no-export status, elapsed time, throughput, scheduling fields, and result/output paths where applicable; CTest smoke coverage now includes small `trace-scene` and benchmark runs on the plugin-free cylinder fixture.
 - Minimal true-headless script runner for `v0.1.8.25`: `tonatiuhpp --headless run-script <script.tnhpps>` evaluates scripts through a `QCoreApplication`/`QJSEngine` host without `QApplication`, `SoQt::init`, `MainWindow`, `ScriptWindow`, `NodeObject`, or GUI widgets. The first API is limited to `print(value)`, `tn.writeJson(path, value)`, `tn.validateScene(path)`, `tn.runBenchmark(path)`, and deterministic no-export `tn.traceScene({ scene, rays, seed, noExport: true })`; legacy `tonatiuhpp -i script.tnhpps` remains unchanged and GUI-bound.
+- RC metadata/docs retarget for `v0.1.8.25`: source version metadata now reports `0.1.8.25` so application, IFW installer, IFW package, and `Updates.xml` version rendering align with the next release candidate while `v0.1.8.24` remains the latest published updater baseline.
 - GoogleTest unit-test foundation for `v0.1.8.23`: `BUILD_TESTING` now resolves GoogleTest with `find_package(GTest CONFIG QUIET)` or a pinned `FetchContent` fallback to GoogleTest `v1.14.0`, adds small math targets under `tests/unit/libraries/math`, and registers deterministic `Interval` and `Box2D` unit tests with CTest through `gtest_discover_tests()`. GUI, Qt widget, Coin, SoQt, plugin, and ray-tracing behavior are intentionally unchanged and untested by these first targets.
 
 ## Current Release Workflow
 
-- Bump the source version metadata to `0.1.8.25` before tagging `v0.1.8.25`, and tag only after release workflow and platform validation are complete.
+- Source version metadata is set to `0.1.8.25`; tag `v0.1.8.25` only after release workflow and platform validation are complete.
 - Pushing a `v*` tag triggers the GitHub Actions `Release` workflow. `workflow_dispatch` accepts a `fake_tag` for simulation and skips the publish job.
 - The workflow resolves the version with `installer/sync_ifw_metadata.py --check-tag`, derives a UTC release date, builds Linux/macOS in a matrix, and builds Windows on `windows-2022`.
 - Packaging stages the release payload, generates per-platform IFW repositories with `repogen`, generates IFW installers with `binarycreator`, uploads assets and checksums, and deploys the IFW repositories to GitHub Pages.
