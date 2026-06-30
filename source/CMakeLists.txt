@@ -154,6 +154,100 @@ find_package(Coin  REQUIRED CONFIG)
 find_package(SoQt  REQUIRED CONFIG)
 find_package(Qt6   REQUIRED COMPONENTS Core Gui Widgets PrintSupport Qml Concurrent DBus Network)
 
+if(APPLE)
+  find_library(TONATIUHPP_AGL_FRAMEWORK AGL)
+
+  function(tonatiuh_remove_macos_agl_framework output_variable)
+    set(_cleaned)
+    set(_pending_framework FALSE)
+
+    foreach(_item IN LISTS ARGN)
+      if(_pending_framework)
+        if(NOT _item STREQUAL "AGL")
+          list(APPEND _cleaned "-framework" "${_item}")
+        endif()
+        set(_pending_framework FALSE)
+        continue()
+      endif()
+
+      if(_item STREQUAL "-framework")
+        set(_pending_framework TRUE)
+        continue()
+      endif()
+
+      if(_item STREQUAL "AGL"
+          OR _item MATCHES "^(SHELL:)?-framework[ =]+AGL$"
+          OR _item MATCHES "^-Wl,-framework,AGL$"
+          OR _item MATCHES "(^|/)AGL\\.framework($|/)")
+        continue()
+      endif()
+
+      list(APPEND _cleaned "${_item}")
+    endforeach()
+
+    if(_pending_framework)
+      list(APPEND _cleaned "-framework")
+    endif()
+
+    set(${output_variable} "${_cleaned}" PARENT_SCOPE)
+  endfunction()
+
+  function(tonatiuh_scrub_macos_agl_from_target target_name)
+    if(NOT TARGET "${target_name}")
+      return()
+    endif()
+
+    set(_properties
+      INTERFACE_LINK_LIBRARIES
+      INTERFACE_LINK_OPTIONS
+      LINK_LIBRARIES
+      LINK_OPTIONS
+      IMPORTED_LINK_INTERFACE_LIBRARIES
+      IMPORTED_LINK_DEPENDENT_LIBRARIES
+    )
+    get_property(_configs TARGET "${target_name}" PROPERTY IMPORTED_CONFIGURATIONS)
+    foreach(_config IN LISTS _configs)
+      list(APPEND _properties
+        "IMPORTED_LINK_INTERFACE_LIBRARIES_${_config}"
+        "IMPORTED_LINK_DEPENDENT_LIBRARIES_${_config}"
+      )
+    endforeach()
+
+    foreach(_property IN LISTS _properties)
+      get_property(_property_is_set TARGET "${target_name}" PROPERTY "${_property}" SET)
+      if(NOT _property_is_set)
+        continue()
+      endif()
+
+      get_target_property(_value "${target_name}" "${_property}")
+      if(NOT _value)
+        continue()
+      endif()
+
+      tonatiuh_remove_macos_agl_framework(_cleaned ${_value})
+      if(NOT "${_cleaned}" STREQUAL "${_value}")
+        set_property(TARGET "${target_name}" PROPERTY "${_property}" "${_cleaned}")
+        message(STATUS "Removed unavailable AGL framework from ${target_name} ${_property}.")
+      endif()
+    endforeach()
+  endfunction()
+
+  if(NOT TONATIUHPP_AGL_FRAMEWORK)
+    foreach(_target Coin::Coin SoQt::SoQt OpenGL::GL OpenGL::GLU)
+      tonatiuh_scrub_macos_agl_from_target("${_target}")
+    endforeach()
+
+    foreach(_variable OPENGL_LIBRARIES OPENGL_gl_LIBRARY OPENGL_LIBRARY)
+      if(DEFINED ${_variable})
+        tonatiuh_remove_macos_agl_framework(_cleaned ${${_variable}})
+        if(NOT "${_cleaned}" STREQUAL "${${_variable}}")
+          set(${_variable} "${_cleaned}")
+        endif()
+      endif()
+    endforeach()
+  endif()
+endif()
+
 # --- Eigen3 (robust: config -> module -> header-only fallback) ---
 # Allow user to point to headers
 if(DEFINED ENV{EIGEN3_ROOT} AND NOT DEFINED EIGEN3_INCLUDE_DIR)
