@@ -1930,7 +1930,8 @@ def _sanitize_generated_macos_agl_references(dep_name: str, bld_dir: Path, env: 
     Coin only needs this on SDKs without AGL. SoQt is always scrubbed on macOS
     because its generated link rule can still inherit stale AGL metadata.
     CMakeCache.txt is intentionally read-only here: malformed cache rewrites
-    break subsequent CMake/Ninja regeneration.
+    break subsequent CMake/Ninja regeneration. Cache-only AGL probes are
+    diagnostic warnings; actual generated link/build files remain fail-fast.
     """
     if platform.system() != "Darwin":
         return
@@ -1981,17 +1982,14 @@ def _sanitize_generated_macos_agl_references(dep_name: str, bld_dir: Path, env: 
         cache_remaining = _find_agl_references([cache_file], skip_cache_comments=True)
         if cache_remaining:
             print(
-                "[deps] AGL remains in SoQt CMakeCache.txt; "
-                "cache was not edited to avoid corruption:",
+                "[deps] Warning: AGL remains in SoQt CMakeCache.txt; "
+                "treating it as diagnostic-only because generated link files were scrubbed:",
                 file=sys.stderr,
             )
             for path, lines in cache_remaining:
                 print(f"  - {path.relative_to(ROOT)}", file=sys.stderr)
                 for line in lines:
                     print(f"      {line}", file=sys.stderr)
-            raise RuntimeError(
-                "AGL remains in SoQt CMakeCache.txt after configure-time overrides."
-            )
 
 
 def _sanitize_cmake_options(dep_name: str, cmake_options: list[str]) -> list[str]:
