@@ -1746,6 +1746,167 @@ def cmd_doctor():
 # Build step (CMake + Git)
 # ----------------------------
 
+def _macos_sdk_path(env: dict) -> Path | None:
+    """Return the active macOS SDK path when available."""
+    if platform.system() != "Darwin":
+        return None
+
+    sdkroot = env.get("SDKROOT")
+    if sdkroot:
+        sdk = Path(sdkroot)
+        if sdk.is_dir():
+            return sdk
+
+    xcrun = shutil.which("xcrun")
+    if not xcrun:
+        return None
+
+    try:
+        out = subprocess.check_output(
+            [xcrun, "--sdk", "macosx", "--show-sdk-path"],
+            text=True,
+            stderr=subprocess.DEVNULL,
+        ).strip()
+    except Exception:
+        return None
+
+    sdk = Path(out)
+    return sdk if sdk.is_dir() else None
+
+
+def _macos_framework_path(name: str, env: dict) -> Path | None:
+    """Find a macOS framework in the active SDK or system framework root."""
+    if platform.system() != "Darwin":
+        return None
+
+    candidates: list[Path] = []
+    sdk = _macos_sdk_path(env)
+    if sdk:
+        candidates.append(sdk / "System" / "Library" / "Frameworks" / f"{name}.framework")
+
+    candidates.extend(
+        [
+            Path("/System/Library/Frameworks") / f"{name}.framework",
+            Path("/Library/Frameworks") / f"{name}.framework",
+        ]
+    )
+
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+
+    return None
+
+
+def _macos_modern_opengl_cache_args(dep_name: str, env: dict) -> list[str]:
+    """
+    Override legacy CMake OpenGL cache values on modern macOS SDKs.
+
+    Older CMake/OpenGL metadata can inject the removed AGL framework into
+    OPENGL_LIBRARIES. SoQt links that variable directly into libSoQt, before the
+    main Tonatiuh++ imported-target sanitizer can run.
+    """
+    if platform.system() != "Darwin":
+        return []
+    if dep_name.lower() not in ("coin4tonatiuhpp", "soqt"):
+        return []
+    if _macos_framework_path("AGL", env) is not None:
+        return []
+
+    opengl_framework = _macos_framework_path("OpenGL", env)
+    if opengl_framework is None:
+        print(
+            "[deps] Warning: AGL.framework is unavailable, but OpenGL.framework "
+            "was not found for a macOS OpenGL cache override.",
+            file=sys.stderr,
+        )
+        return []
+
+    opengl_framework_arg = _normalize_to_cmake_path(str(opengl_framework))
+    args = [
+        f"-DOPENGL_gl_LIBRARY:FILEPATH={opengl_framework_arg}",
+        f"-DOPENGL_glu_LIBRARY:FILEPATH={opengl_framework_arg}",
+        "-DOPENGL_USE_COCOA:BOOL=ON",
+    ]
+
+    if dep_name.lower() == "coin4tonatiuhpp":
+        args.append("-DCOIN_BUILD_MAC_AGL:BOOL=OFF")
+
+    print(
+        f"[deps] macOS SDK has no AGL.framework; using {opengl_framework_arg} "
+        f"for {dep_name} OpenGL cache variables."
+    )
+    return args
+
+
+def _remove_macos_agl_link_flags(text: str) -> str:
+    """Remove AGL framework link flags while preserving other framework links."""
+    cleaned = text
+
+    # CMake list forms such as "-framework;AGL".
+    for token in (";-framework;AGL", "-framework;AGL;", "-framework;AGL"):
+        cleaned = cleaned.replace(token, "")
+
+    replacements = [
+        r"(?<!\S)-framework\s+AGL(?!\S)",
+        r"(?<!\S)-framework\\ AGL(?!\S)",
+        r"(?<!\S)SHELL:-framework[ =]AGL(?!\S)",
+        r"(?<!\S)-Wl,-framework,AGL(?!\S)",
+    ]
+    for pattern in replacements:
+        cleaned = re.sub(pattern, "", cleaned)
+
+    cleaned = re.sub(
+        r"(^|[=;\"'\s])(?:[^ \t\r\n;\"']*/)?AGL\.framework(?:/[^ \t\r\n;\"']*)?",
+        r"\1",
+        cleaned,
+        flags=re.MULTILINE,
+    )
+
+    return cleaned
+
+
+def _sanitize_generated_macos_agl_references(dep_name: str, bld_dir: Path, env: dict) -> None:
+    """
+    Remove stale AGL references from generated CMake/Ninja files before build.
+
+    This is intentionally limited to macOS dependency builds where the active
+    SDK no longer ships AGL.framework.
+    """
+    if platform.system() != "Darwin":
+        return
+    if dep_name.lower() not in ("coin4tonatiuhpp", "soqt"):
+        return
+    if _macos_framework_path("AGL", env) is not None:
+        return
+    if not bld_dir.exists():
+        return
+
+    candidates: list[Path] = []
+    for path in bld_dir.rglob("*"):
+        if not path.is_file():
+            continue
+        if path.name == "CMakeCache.txt" or path.suffix in (".cmake", ".ninja"):
+            candidates.append(path)
+
+    modified: list[Path] = []
+    for path in candidates:
+        try:
+            original = path.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            continue
+        cleaned = _remove_macos_agl_link_flags(original)
+        if cleaned != original:
+            path.write_text(cleaned, encoding="utf-8")
+            modified.append(path)
+
+    if modified:
+        rel = [str(p.relative_to(ROOT)) for p in modified]
+        print(f"[deps] Removed unavailable AGL framework references from {dep_name}:")
+        for path in rel:
+            print(f"  - {path}")
+
+
 def _sanitize_cmake_options(dep_name: str, cmake_options: list[str]) -> list[str]:
     """
     Remove/adjust options that are invalid on the current OS.
@@ -1792,6 +1953,8 @@ def build_cmake_git(dep: dict, config: str = "Release", native_flags: bool = Fal
         env = ensure_msvc_x64_env(env)
     elif platform.system() == "Darwin" and env.get("CMAKE_OSX_ARCHITECTURES"):
         cmake_cmd.append(f"-DCMAKE_OSX_ARCHITECTURES={env['CMAKE_OSX_ARCHITECTURES']}")
+
+    cmake_cmd.extend(_macos_modern_opengl_cache_args(name, env))
 
     # Boost
     boost_root = _probe_boost_root(env)
@@ -1842,6 +2005,7 @@ def build_cmake_git(dep: dict, config: str = "Release", native_flags: bool = Fal
             ]
 
     run(cmake_cmd, env=env)
+    _sanitize_generated_macos_agl_references(name, bld_dir, env)
 
     if platform.system() == "Windows":
         run(["cmake", "--build", str(bld_dir), "--config", config], env=env)
