@@ -176,8 +176,9 @@ if(APPLE)
       endif()
 
       if(_item STREQUAL "AGL"
-          OR _item MATCHES "^(SHELL:)?-framework[ =]+AGL$"
-          OR _item MATCHES "^-Wl,-framework,AGL$"
+          OR _item MATCHES "^\"?((LINKER:)?SHELL:)?-framework[ =]+AGL\"?$"
+          OR _item MATCHES "^\"?(LINKER:)?-Wl,-framework,AGL\"?$"
+          OR _item MATCHES "^\"?LINKER:-framework,AGL\"?$"
           OR _item MATCHES "(^|/)AGL\\.framework($|/)")
         continue()
       endif()
@@ -203,12 +204,16 @@ if(APPLE)
       LINK_LIBRARIES
       LINK_OPTIONS
       IMPORTED_LINK_INTERFACE_LIBRARIES
+      IMPORTED_LINK_OPTIONS
       IMPORTED_LINK_DEPENDENT_LIBRARIES
     )
     get_property(_configs TARGET "${target_name}" PROPERTY IMPORTED_CONFIGURATIONS)
+    list(APPEND _configs RELEASE RELWITHDEBINFO)
+    list(REMOVE_DUPLICATES _configs)
     foreach(_config IN LISTS _configs)
       list(APPEND _properties
         "IMPORTED_LINK_INTERFACE_LIBRARIES_${_config}"
+        "IMPORTED_LINK_OPTIONS_${_config}"
         "IMPORTED_LINK_DEPENDENT_LIBRARIES_${_config}"
       )
     endforeach()
@@ -224,7 +229,7 @@ if(APPLE)
         continue()
       endif()
 
-      tonatiuh_remove_macos_agl_framework(_cleaned ${_value})
+      tonatiuh_remove_macos_agl_framework(_cleaned "${_value}")
       if(NOT "${_cleaned}" STREQUAL "${_value}")
         set_property(TARGET "${target_name}" PROPERTY "${_property}" "${_cleaned}")
         message(STATUS "Removed unavailable AGL framework from ${target_name} ${_property}.")
@@ -233,13 +238,30 @@ if(APPLE)
   endfunction()
 
   if(NOT TONATIUHPP_AGL_FRAMEWORK)
-    foreach(_target Coin::Coin SoQt::SoQt OpenGL::GL OpenGL::GLU)
+    # Qt6::Gui/OpenGL can route macOS framework links through WrapOpenGL.
+    foreach(_target
+        Coin::Coin
+        SoQt::SoQt
+        Qt6::Gui
+        Qt6::OpenGL
+        Qt6::Widgets
+        OpenGL::GL
+        OpenGL::GLU
+        OpenGL::OpenGL
+        WrapOpenGL::WrapOpenGL)
       tonatiuh_scrub_macos_agl_from_target("${_target}")
     endforeach()
 
-    foreach(_variable OPENGL_LIBRARIES OPENGL_gl_LIBRARY OPENGL_LIBRARY)
+    foreach(_variable
+        OPENGL_LIBRARIES
+        OPENGL_gl_LIBRARY
+        OPENGL_LIBRARY
+        COIN_LIBRARIES
+        Coin_LIBRARIES
+        SOQT_LIBRARIES
+        SoQt_LIBRARIES)
       if(DEFINED ${_variable})
-        tonatiuh_remove_macos_agl_framework(_cleaned ${${_variable}})
+        tonatiuh_remove_macos_agl_framework(_cleaned "${${_variable}}")
         if(NOT "${_cleaned}" STREQUAL "${${_variable}}")
           set(${_variable} "${_cleaned}")
         endif()
