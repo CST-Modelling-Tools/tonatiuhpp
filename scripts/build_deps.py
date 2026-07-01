@@ -1874,7 +1874,7 @@ def _remove_macos_agl_link_flags(text: str) -> str:
 _AGL_REFERENCE_RE = re.compile(r"\bAGL\b|AGL\.framework")
 
 
-def _generated_macos_agl_candidate_files(dep_name: str, bld_dir: Path) -> list[Path]:
+def _generated_macos_agl_link_files(dep_name: str, bld_dir: Path) -> list[Path]:
     candidates: list[Path] = []
 
     def _add(path: Path) -> None:
@@ -1883,7 +1883,6 @@ def _generated_macos_agl_candidate_files(dep_name: str, bld_dir: Path) -> list[P
 
     dep_key = dep_name.lower()
     if dep_key == "soqt":
-        _add(bld_dir / "CMakeCache.txt")
         _add(bld_dir / "src" / "CMakeFiles" / "SoQt.dir" / "link.txt")
 
         if bld_dir.exists():
@@ -1899,20 +1898,26 @@ def _generated_macos_agl_candidate_files(dep_name: str, bld_dir: Path) -> list[P
         for path in bld_dir.rglob("*"):
             if not path.is_file():
                 continue
-            if path.name == "CMakeCache.txt" or path.suffix in (".cmake", ".ninja"):
+            if path.suffix in (".cmake", ".ninja"):
                 _add(path)
 
     return candidates
 
 
-def _find_agl_references(paths: list[Path]) -> list[tuple[Path, list[str]]]:
+def _find_agl_references(paths: list[Path], *, skip_cache_comments: bool = False) -> list[tuple[Path, list[str]]]:
     matches: list[tuple[Path, list[str]]] = []
     for path in paths:
         try:
             lines = path.read_text(encoding="utf-8").splitlines()
-        except UnicodeDecodeError:
+        except (OSError, UnicodeDecodeError):
             continue
-        agl_lines = [line.strip() for line in lines if _AGL_REFERENCE_RE.search(line)]
+        agl_lines = []
+        for line in lines:
+            stripped = line.strip()
+            if skip_cache_comments and (not stripped or stripped.startswith(("#", "//"))):
+                continue
+            if _AGL_REFERENCE_RE.search(line):
+                agl_lines.append(stripped)
         if agl_lines:
             matches.append((path, agl_lines[:3]))
     return matches
@@ -1924,6 +1929,8 @@ def _sanitize_generated_macos_agl_references(dep_name: str, bld_dir: Path, env: 
 
     Coin only needs this on SDKs without AGL. SoQt is always scrubbed on macOS
     because its generated link rule can still inherit stale AGL metadata.
+    CMakeCache.txt is intentionally read-only here: malformed cache rewrites
+    break subsequent CMake/Ninja regeneration.
     """
     if platform.system() != "Darwin":
         return
@@ -1934,7 +1941,7 @@ def _sanitize_generated_macos_agl_references(dep_name: str, bld_dir: Path, env: 
     if not bld_dir.exists():
         return
 
-    candidates = _generated_macos_agl_candidate_files(dep_name, bld_dir)
+    candidates = _generated_macos_agl_link_files(dep_name, bld_dir)
     modified: list[Path] = []
     for path in candidates:
         try:
@@ -1950,7 +1957,7 @@ def _sanitize_generated_macos_agl_references(dep_name: str, bld_dir: Path, env: 
         if dep_name.lower() == "soqt":
             ninja_manifest = bld_dir / "build.ninja"
             if ninja_manifest.exists():
-                # Keep Ninja from regenerating build.ninja from the scrubbed cache.
+                # Keep the post-configure scrubbed Ninja manifest current.
                 os.utime(ninja_manifest, None)
 
         rel = [str(p.relative_to(ROOT)) for p in modified]
@@ -1968,6 +1975,22 @@ def _sanitize_generated_macos_agl_references(dep_name: str, bld_dir: Path, env: 
                     print(f"      {line}", file=sys.stderr)
             raise RuntimeError(
                 "AGL framework references remain in generated SoQt build files after scrubbing."
+            )
+
+        cache_file = bld_dir / "CMakeCache.txt"
+        cache_remaining = _find_agl_references([cache_file], skip_cache_comments=True)
+        if cache_remaining:
+            print(
+                "[deps] AGL remains in SoQt CMakeCache.txt; "
+                "cache was not edited to avoid corruption:",
+                file=sys.stderr,
+            )
+            for path, lines in cache_remaining:
+                print(f"  - {path.relative_to(ROOT)}", file=sys.stderr)
+                for line in lines:
+                    print(f"      {line}", file=sys.stderr)
+            raise RuntimeError(
+                "AGL remains in SoQt CMakeCache.txt after configure-time overrides."
             )
 
 
