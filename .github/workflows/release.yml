@@ -230,6 +230,9 @@ jobs:
           fi
 
           cmake "${cmake_args[@]}"
+          if [ "$(uname -s)" = "Darwin" ]; then
+            python scripts/scrub_macos_agl_generated_links.py --build-dir build
+          fi
           cmake --build build --config Release --parallel
           python scripts/build_runtime_help.py
           test -f help/html/index.html
