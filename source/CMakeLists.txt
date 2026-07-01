@@ -157,6 +157,15 @@ find_package(Qt6   REQUIRED COMPONENTS Core Gui Widgets PrintSupport Qml Concurr
 if(APPLE)
   find_library(TONATIUHPP_AGL_FRAMEWORK AGL)
 
+  function(tonatiuh_macos_value_has_agl output_variable)
+    set(_value "${ARGN}")
+    if(_value MATCHES "(AGL\\.framework|(^|[^A-Za-z0-9_])AGL([^A-Za-z0-9_]|$)|-framework[ =]+AGL|-Wl,-framework,AGL|LINKER:-framework,AGL)")
+      set(${output_variable} TRUE PARENT_SCOPE)
+    else()
+      set(${output_variable} FALSE PARENT_SCOPE)
+    endif()
+  endfunction()
+
   function(tonatiuh_remove_macos_agl_framework output_variable)
     set(_cleaned)
     set(_pending_framework FALSE)
@@ -183,7 +192,15 @@ if(APPLE)
         continue()
       endif()
 
-      list(APPEND _cleaned "${_item}")
+      set(_cleaned_item "${_item}")
+      string(REGEX REPLACE "\"?((LINKER:)?SHELL:)?-framework[ =]+AGL\"?" "" _cleaned_item "${_cleaned_item}")
+      string(REGEX REPLACE "\"?(LINKER:)?-Wl,-framework,AGL\"?" "" _cleaned_item "${_cleaned_item}")
+      string(REGEX REPLACE "\"?LINKER:-framework,AGL\"?" "" _cleaned_item "${_cleaned_item}")
+      string(REGEX REPLACE "\"?([^ ;\"]*/)?AGL\\.framework(/[^ ;\"]*)?\"?" "" _cleaned_item "${_cleaned_item}")
+      string(STRIP "${_cleaned_item}" _cleaned_item)
+      if(NOT _cleaned_item STREQUAL "")
+        list(APPEND _cleaned "${_cleaned_item}")
+      endif()
     endforeach()
 
     if(_pending_framework)
@@ -193,30 +210,47 @@ if(APPLE)
     set(${output_variable} "${_cleaned}" PARENT_SCOPE)
   endfunction()
 
-  function(tonatiuh_scrub_macos_agl_from_target target_name)
-    if(NOT TARGET "${target_name}")
-      return()
-    endif()
-
+  function(tonatiuh_macos_agl_target_properties output_variable target_name)
     set(_properties
       INTERFACE_LINK_LIBRARIES
       INTERFACE_LINK_OPTIONS
       LINK_LIBRARIES
       LINK_OPTIONS
       IMPORTED_LINK_INTERFACE_LIBRARIES
+      IMPORTED_LINK_INTERFACE_LIBRARIES_RELEASE
+      IMPORTED_LINK_INTERFACE_LIBRARIES_RELWITHDEBINFO
       IMPORTED_LINK_OPTIONS
-      IMPORTED_LINK_DEPENDENT_LIBRARIES
+      IMPORTED_LINK_OPTIONS_RELEASE
+      IMPORTED_LINK_OPTIONS_RELWITHDEBINFO
     )
-    get_property(_configs TARGET "${target_name}" PROPERTY IMPORTED_CONFIGURATIONS)
-    list(APPEND _configs RELEASE RELWITHDEBINFO)
-    list(REMOVE_DUPLICATES _configs)
-    foreach(_config IN LISTS _configs)
-      list(APPEND _properties
-        "IMPORTED_LINK_INTERFACE_LIBRARIES_${_config}"
-        "IMPORTED_LINK_OPTIONS_${_config}"
-        "IMPORTED_LINK_DEPENDENT_LIBRARIES_${_config}"
-      )
-    endforeach()
+
+    if(TARGET "${target_name}")
+      get_property(_configs TARGET "${target_name}" PROPERTY IMPORTED_CONFIGURATIONS)
+      foreach(_config IN LISTS _configs)
+        string(TOUPPER "${_config}" _config_upper)
+        list(APPEND _properties
+          "IMPORTED_LINK_INTERFACE_LIBRARIES_${_config_upper}"
+          "IMPORTED_LINK_OPTIONS_${_config_upper}"
+        )
+      endforeach()
+    endif()
+
+    list(REMOVE_DUPLICATES _properties)
+    set(${output_variable} "${_properties}" PARENT_SCOPE)
+  endfunction()
+
+  function(tonatiuh_scrub_macos_agl_from_target target_name)
+    if(ARGC GREATER 1)
+      set(_stage "${ARGV1}")
+    else()
+      set(_stage "target scan")
+    endif()
+
+    if(NOT TARGET "${target_name}")
+      return()
+    endif()
+
+    tonatiuh_macos_agl_target_properties(_properties "${target_name}")
 
     foreach(_property IN LISTS _properties)
       get_property(_property_is_set TARGET "${target_name}" PROPERTY "${_property}" SET)
@@ -229,44 +263,124 @@ if(APPLE)
         continue()
       endif()
 
+      tonatiuh_macos_value_has_agl(_has_agl "${_value}")
+      if(NOT _has_agl)
+        continue()
+      endif()
+
+      message(STATUS "macOS AGL diagnostic [${_stage}] target ${target_name} ${_property} before sanitize: ${_value}")
       tonatiuh_remove_macos_agl_framework(_cleaned "${_value}")
       if(NOT "${_cleaned}" STREQUAL "${_value}")
         set_property(TARGET "${target_name}" PROPERTY "${_property}" "${_cleaned}")
-        message(STATUS "Removed unavailable AGL framework from ${target_name} ${_property}.")
+      endif()
+
+      get_target_property(_after_value "${target_name}" "${_property}")
+      tonatiuh_macos_value_has_agl(_after_has_agl "${_after_value}")
+      if(_after_has_agl)
+        message(STATUS "macOS AGL diagnostic [${_stage}] target ${target_name} ${_property} after sanitize: ${_after_value}")
+      else()
+        message(STATUS "macOS AGL diagnostic [${_stage}] target ${target_name} ${_property} after sanitize: <removed>")
       endif()
     endforeach()
   endfunction()
 
-  if(NOT TONATIUHPP_AGL_FRAMEWORK)
-    # Qt6::Gui/OpenGL can route macOS framework links through WrapOpenGL.
-    foreach(_target
-        Coin::Coin
-        SoQt::SoQt
-        Qt6::Gui
-        Qt6::OpenGL
-        Qt6::Widgets
-        OpenGL::GL
-        OpenGL::GLU
-        OpenGL::OpenGL
-        WrapOpenGL::WrapOpenGL)
-      tonatiuh_scrub_macos_agl_from_target("${_target}")
+  function(tonatiuh_collect_macos_known_targets output_variable)
+    set(_targets)
+    set(_pending_dirs "${CMAKE_SOURCE_DIR}")
+
+    while(_pending_dirs)
+      list(POP_FRONT _pending_dirs _dir)
+
+      get_property(_build_targets DIRECTORY "${_dir}" PROPERTY BUILDSYSTEM_TARGETS)
+      get_property(_imported_targets DIRECTORY "${_dir}" PROPERTY IMPORTED_TARGETS)
+      list(APPEND _targets ${_build_targets} ${_imported_targets})
+
+      get_property(_subdirs DIRECTORY "${_dir}" PROPERTY SUBDIRECTORIES)
+      list(APPEND _pending_dirs ${_subdirs})
+    endwhile()
+
+    if(_targets)
+      list(REMOVE_DUPLICATES _targets)
+    endif()
+    set(${output_variable} "${_targets}" PARENT_SCOPE)
+  endfunction()
+
+  function(tonatiuh_scrub_macos_agl_from_known_targets stage)
+    if(TONATIUHPP_AGL_FRAMEWORK)
+      return()
+    endif()
+
+    tonatiuh_collect_macos_known_targets(_targets)
+    foreach(_target IN LISTS _targets)
+      tonatiuh_scrub_macos_agl_from_target("${_target}" "${stage}")
     endforeach()
+  endfunction()
+
+  function(tonatiuh_scrub_macos_agl_from_variables stage)
+    if(TONATIUHPP_AGL_FRAMEWORK)
+      return()
+    endif()
 
     foreach(_variable
         OPENGL_LIBRARIES
+        COIN_LIBRARIES
+        SOQT_LIBRARIES
+        CMAKE_EXE_LINKER_FLAGS
+        CMAKE_SHARED_LINKER_FLAGS
+        CMAKE_MODULE_LINKER_FLAGS
         OPENGL_gl_LIBRARY
         OPENGL_LIBRARY
-        COIN_LIBRARIES
         Coin_LIBRARIES
-        SOQT_LIBRARIES
         SoQt_LIBRARIES)
       if(DEFINED ${_variable})
-        tonatiuh_remove_macos_agl_framework(_cleaned "${${_variable}}")
-        if(NOT "${_cleaned}" STREQUAL "${${_variable}}")
-          set(${_variable} "${_cleaned}")
+        set(_value "${${_variable}}")
+        tonatiuh_macos_value_has_agl(_has_agl "${_value}")
+        if(NOT _has_agl)
+          continue()
+        endif()
+
+        message(STATUS "macOS AGL diagnostic [${stage}] variable ${_variable} before sanitize: ${_value}")
+        tonatiuh_remove_macos_agl_framework(_cleaned "${_value}")
+        set(${_variable} "${_cleaned}" PARENT_SCOPE)
+
+        tonatiuh_macos_value_has_agl(_after_has_agl "${_cleaned}")
+        if(_after_has_agl)
+          message(STATUS "macOS AGL diagnostic [${stage}] variable ${_variable} after sanitize: ${_cleaned}")
+        else()
+          message(STATUS "macOS AGL diagnostic [${stage}] variable ${_variable} after sanitize: <removed>")
         endif()
       endif()
     endforeach()
+  endfunction()
+
+  function(tonatiuh_fail_if_macos_agl_in_target_link_properties target_name stage)
+    if(TONATIUHPP_AGL_FRAMEWORK OR NOT TARGET "${target_name}")
+      return()
+    endif()
+
+    set(_failed FALSE)
+    foreach(_property LINK_LIBRARIES LINK_OPTIONS)
+      get_property(_property_is_set TARGET "${target_name}" PROPERTY "${_property}" SET)
+      if(NOT _property_is_set)
+        continue()
+      endif()
+
+      get_target_property(_value "${target_name}" "${_property}")
+      tonatiuh_macos_value_has_agl(_has_agl "${_value}")
+      if(_has_agl)
+        message(STATUS "macOS AGL diagnostic [${stage}] target ${target_name} ${_property} still contains AGL: ${_value}")
+        set(_failed TRUE)
+      endif()
+    endforeach()
+
+    if(_failed)
+      message(FATAL_ERROR "AGL remains in ${target_name} link properties after macOS sanitizer.")
+    endif()
+  endfunction()
+
+  if(NOT TONATIUHPP_AGL_FRAMEWORK)
+    tonatiuh_scrub_macos_agl_from_known_targets("dependency import")
+    tonatiuh_scrub_macos_agl_from_variables("dependency import")
   endif()
 endif()
 
@@ -369,6 +483,11 @@ add_compile_definitions(QT_NO_DEPRECATED_WARNINGS)
 add_subdirectory(libraries)
 add_subdirectory(kernel)
 add_subdirectory(SunPath)
+if(APPLE AND COMMAND tonatiuh_scrub_macos_agl_from_known_targets)
+  tonatiuh_scrub_macos_agl_from_known_targets("SunPath post-link")
+  tonatiuh_scrub_macos_agl_from_variables("SunPath post-link")
+  tonatiuh_fail_if_macos_agl_in_target_link_properties(SunPath "SunPath post-link")
+endif()
 add_subdirectory(application)
 add_subdirectory(plugins)
 
