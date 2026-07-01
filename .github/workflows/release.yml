@@ -206,6 +206,8 @@ jobs:
             third_party/_build
           key: release-deps-${{ runner.os }}-${{ matrix.asset_arch }}-${{ hashFiles(
             'scripts/build_deps.py',
+            'scripts/scrub_macos_agl_generated_links.py',
+            'third_party/deps.yaml',
             'cmake/**',
             'source/CMakeLists.txt',
             '.github/workflows/release.yml') }}
@@ -738,6 +740,7 @@ jobs:
             third_party/_build
           key: release-deps-windows-${{ hashFiles(
             'scripts/build_deps.py',
+            'scripts/scrub_macos_agl_generated_links.py',
             'third_party/deps.yaml',
             'cmake/**',
             'source/CMakeLists.txt',
@@ -822,6 +825,21 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
 
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve release metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          notes="docs/release-notes-v${version}.md"
+          if [ ! -f "${notes}" ]; then
+            echo "Release notes not found: ${notes}" >&2
+            exit 1
+          fi
+          echo "TONATIUHPP_VERSION=${version}" >> "$GITHUB_ENV"
+
       - name: Download release assets
         uses: actions/download-artifact@v4
         with:
@@ -890,4 +908,4 @@ jobs:
         with:
           name: Tonatiuh++ v${{ env.TONATIUHPP_VERSION }}
           body_path: docs/release-notes-v${{ env.TONATIUHPP_VERSION }}.md
-          files: assets/**/* 
+          files: assets/**/*

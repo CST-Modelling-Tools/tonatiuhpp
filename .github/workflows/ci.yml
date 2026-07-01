@@ -215,8 +215,10 @@ jobs:
             third_party/_build
           key: deps-${{ runner.os }}-${{ hashFiles(
             'scripts/build_deps.py',
+            'scripts/scrub_macos_agl_generated_links.py',
+            'third_party/deps.yaml',
             'cmake/**',
-            'CMakeLists.txt',
+            'source/CMakeLists.txt',
             '.github/workflows/ci.yml') }}
 
       - name: Build third-party dependencies
@@ -229,6 +231,12 @@ jobs:
         shell: bash
         run: |
           cmake -S source -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+
+      - name: Scrub macOS generated AGL links
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          python scripts/scrub_macos_agl_generated_links.py --build-dir build
 
       - name: Build
         shell: bash
