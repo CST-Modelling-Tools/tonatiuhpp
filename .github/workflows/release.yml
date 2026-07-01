@@ -885,4 +885,6 @@ jobs:
       - name: Publish GitHub release assets
         uses: softprops/action-gh-release@v2
         with:
-          files: assets/**/*
+          name: Tonatiuh++ v${{ env.TONATIUHPP_VERSION }}
+          body_path: docs/release-notes-v${{ env.TONATIUHPP_VERSION }}.md
+          files: assets/**/* 
