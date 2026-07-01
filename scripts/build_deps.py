@@ -1844,20 +1844,25 @@ def _remove_macos_agl_link_flags(text: str) -> str:
     cleaned = text
 
     # CMake list forms such as "-framework;AGL".
-    for token in (";-framework;AGL", "-framework;AGL;", "-framework;AGL"):
+    for token in (
+        ";-framework;AGL",
+        "-framework;AGL;",
+        "-framework;AGL",
+        '";-framework;AGL"',
+        '"-framework;AGL"',
+    ):
         cleaned = cleaned.replace(token, "")
 
     replacements = [
-        r"(?<!\S)-framework\s+AGL(?!\S)",
-        r"(?<!\S)-framework\\ AGL(?!\S)",
-        r"(?<!\S)SHELL:-framework[ =]AGL(?!\S)",
-        r"(?<!\S)-Wl,-framework,AGL(?!\S)",
+        r"(^|[\s;=\"'])\"?-framework(?:\s+|\\ |\$ |[ =])AGL\"?(?=$|[\s;,\"'])",
+        r"(^|[\s;=\"'])SHELL:-framework[ =]AGL(?=$|[\s;,\"'])",
+        r"(^|[\s;=\"'])-Wl,-framework,AGL(?=$|[\s;,\"'])",
     ]
     for pattern in replacements:
-        cleaned = re.sub(pattern, "", cleaned)
+        cleaned = re.sub(pattern, r"\1", cleaned)
 
     cleaned = re.sub(
-        r"(^|[=;\"'\s])(?:[^ \t\r\n;\"']*/)?AGL\.framework(?:/[^ \t\r\n;\"']*)?",
+        r"(^|[=;\"'\s])\"?(?:[^ \t\r\n;\"']*/)?AGL\.framework(?:/[^ \t\r\n;\"']*)?\"?",
         r"\1",
         cleaned,
         flags=re.MULTILINE,
@@ -1866,29 +1871,70 @@ def _remove_macos_agl_link_flags(text: str) -> str:
     return cleaned
 
 
+_AGL_REFERENCE_RE = re.compile(r"\bAGL\b|AGL\.framework")
+
+
+def _generated_macos_agl_candidate_files(dep_name: str, bld_dir: Path) -> list[Path]:
+    candidates: list[Path] = []
+
+    def _add(path: Path) -> None:
+        if path.is_file() and path not in candidates:
+            candidates.append(path)
+
+    dep_key = dep_name.lower()
+    if dep_key == "soqt":
+        _add(bld_dir / "CMakeCache.txt")
+        _add(bld_dir / "src" / "CMakeFiles" / "SoQt.dir" / "link.txt")
+
+        if bld_dir.exists():
+            for pattern in ("*.cmake", "*.ninja"):
+                for path in bld_dir.rglob(pattern):
+                    _add(path)
+            for path in bld_dir.rglob("link.txt"):
+                _add(path)
+        _add(bld_dir / "build.ninja")
+        return candidates
+
+    if bld_dir.exists():
+        for path in bld_dir.rglob("*"):
+            if not path.is_file():
+                continue
+            if path.name == "CMakeCache.txt" or path.suffix in (".cmake", ".ninja"):
+                _add(path)
+
+    return candidates
+
+
+def _find_agl_references(paths: list[Path]) -> list[tuple[Path, list[str]]]:
+    matches: list[tuple[Path, list[str]]] = []
+    for path in paths:
+        try:
+            lines = path.read_text(encoding="utf-8").splitlines()
+        except UnicodeDecodeError:
+            continue
+        agl_lines = [line.strip() for line in lines if _AGL_REFERENCE_RE.search(line)]
+        if agl_lines:
+            matches.append((path, agl_lines[:3]))
+    return matches
+
+
 def _sanitize_generated_macos_agl_references(dep_name: str, bld_dir: Path, env: dict) -> None:
     """
     Remove stale AGL references from generated CMake/Ninja files before build.
 
-    This is intentionally limited to macOS dependency builds where the active
-    SDK no longer ships AGL.framework.
+    Coin only needs this on SDKs without AGL. SoQt is always scrubbed on macOS
+    because its generated link rule can still inherit stale AGL metadata.
     """
     if platform.system() != "Darwin":
         return
     if dep_name.lower() not in ("coin4tonatiuhpp", "soqt"):
         return
-    if _macos_framework_path("AGL", env) is not None:
+    if dep_name.lower() != "soqt" and _macos_framework_path("AGL", env) is not None:
         return
     if not bld_dir.exists():
         return
 
-    candidates: list[Path] = []
-    for path in bld_dir.rglob("*"):
-        if not path.is_file():
-            continue
-        if path.name == "CMakeCache.txt" or path.suffix in (".cmake", ".ninja"):
-            candidates.append(path)
-
+    candidates = _generated_macos_agl_candidate_files(dep_name, bld_dir)
     modified: list[Path] = []
     for path in candidates:
         try:
@@ -1901,10 +1947,28 @@ def _sanitize_generated_macos_agl_references(dep_name: str, bld_dir: Path, env: 
             modified.append(path)
 
     if modified:
+        if dep_name.lower() == "soqt":
+            ninja_manifest = bld_dir / "build.ninja"
+            if ninja_manifest.exists():
+                # Keep Ninja from regenerating build.ninja from the scrubbed cache.
+                os.utime(ninja_manifest, None)
+
         rel = [str(p.relative_to(ROOT)) for p in modified]
         print(f"[deps] Removed unavailable AGL framework references from {dep_name}:")
         for path in rel:
             print(f"  - {path}")
+
+    if dep_name.lower() == "soqt":
+        remaining = _find_agl_references(candidates)
+        if remaining:
+            print("[deps] AGL references remain in generated SoQt build files:", file=sys.stderr)
+            for path, lines in remaining:
+                print(f"  - {path.relative_to(ROOT)}", file=sys.stderr)
+                for line in lines:
+                    print(f"      {line}", file=sys.stderr)
+            raise RuntimeError(
+                "AGL framework references remain in generated SoQt build files after scrubbing."
+            )
 
 
 def _sanitize_cmake_options(dep_name: str, cmake_options: list[str]) -> list[str]:
@@ -2005,6 +2069,7 @@ def build_cmake_git(dep: dict, config: str = "Release", native_flags: bool = Fal
             ]
 
     run(cmake_cmd, env=env)
+    # CMake has generated build.ninja/cache/link metadata; scrub before build.
     _sanitize_generated_macos_agl_references(name, bld_dir, env)
 
     if platform.system() == "Windows":
