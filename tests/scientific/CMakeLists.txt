@@ -22,6 +22,10 @@ target_compile_definitions(tonatiuhpp_scientific_equivalence_tests PRIVATE
   "TONATIUHPP_EQUIVALENCE_SCENE_FILE=\"${CMAKE_CURRENT_LIST_DIR}/../../examples/benchmarks/cylinder.tnhpp\""
 )
 
+target_compile_definitions(tonatiuhpp_scientific_equivalence_tests PRIVATE
+  "TONATIUHPP_FRESNEL_SCENE_FILE=\"${CMAKE_CURRENT_LIST_DIR}/fixtures/fresnel-two-surface.tnhpp\""
+)
+
 target_link_libraries(tonatiuhpp_scientific_equivalence_tests PRIVATE
   GTest::gtest
   Coin::Coin

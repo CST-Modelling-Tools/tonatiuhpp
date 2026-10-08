@@ -1,0 +1,128 @@
+#Inventor V2.1 ascii
+
+
+TSceneKit {
+  fields [ SFString version, SFNode callbackList, SFNode cameraList, SFNode lightList, SFNode childList, SFNode world, SFNode group, SFNode topSeparator ]
+  version "2020"
+  world 
+  DEF World WorldKit {
+    fields [ SFNode callbackList, SFNode location, SFNode sun, SFNode air, SFNode terrain, SFNode camera ]
+    sun 
+    DEF Sun SunKit {
+      fields [ SFNode callbackList, SFNode position, SFNode shape, SFNode aperture ]
+      position 
+      SunPosition {
+        fields [ SFDouble azimuth, SFDouble elevation, SFDouble irradiance ]
+        azimuth 270
+        elevation 60
+        irradiance 1000
+
+      }
+      shape 
+      SunShapePillbox {
+        fields [ SFDouble thetaMax ]
+
+      }
+      aperture 
+      SunAperture {
+        fields [ SFString disabledNodes ]
+        disabledNodes "//Node/Reflected"
+
+      }
+
+    }
+    terrain 
+    DEF Terrain TerrainKit {
+      fields [ SFNode callbackList, SFNode grid ]
+      grid 
+      DEF Grid GridNode {
+        fill FALSE
+
+      }
+
+    }
+    camera 
+    DEF Camera TCameraKit {
+      fields [ SFVec3f position, SFVec2f rotation, SFDouble angle, SFBool perspective, SFNode callbackList, SFNode topSeparator ]
+      position -8.90565 -22.5026 5.75207
+      rotation 21.25 -12.25
+
+    }
+
+  }
+  group 
+  DEF Node TSeparatorKit {
+    group 
+    Group {
+
+      DEF Incident TSeparatorKit {
+        transform 
+        TTransform {
+          translation 0 0 0
+          rotation 0 0 1  0
+
+        }
+        group 
+        Group {
+
+          DEF Shape TShapeKit {
+            shapeRT 
+            ShapePlanar {
+
+            }
+            profileRT 
+            ProfileBox {
+
+            }
+            materialRT 
+            MaterialFresnelUnpolarized {
+              fields [ SFDouble nFront, SFDouble nBack, SFEnum distribution, SFDouble slope ]
+
+            }
+            material 
+            MaterialGL {
+
+            }
+
+          }
+        }
+
+      }
+      DEF Reflected TSeparatorKit {
+        transform 
+        TTransform {
+          translation 1 0 2
+
+        }
+        group 
+        Group {
+
+          DEF Shape TShapeKit {
+            shapeRT 
+            ShapePlanar {
+
+            }
+            profileRT 
+            ProfileBox {
+              uSize 2
+              vSize 2
+
+            }
+            materialRT 
+            MaterialAbsorber {
+
+            }
+            material 
+            MaterialGL {
+
+            }
+
+          }
+        }
+
+      }
+    }
+
+  }
+
+}
