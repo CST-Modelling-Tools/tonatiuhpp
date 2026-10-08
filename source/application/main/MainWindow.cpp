@@ -253,8 +253,8 @@ MainWindow::MainWindow(QString fileName, CustomSplashScreen* splash, QWidget* pa
 
     m_raysNumber(10'000),
     m_raysScreen(1'000),
-    m_raysGridWidth(200),
-    m_raysGridHeight(200),
+    m_raysGridWidth(SimulationConfig::kDefaultSunGridDivisions),
+    m_raysGridHeight(SimulationConfig::kDefaultSunGridDivisions),
 
     m_raysTracedTotal(0),
 
@@ -1997,17 +1997,17 @@ void MainWindow::Run()
     preparationInput.scene = m_document->getSceneKit();
     preparationInput.layoutRoot = instanceLayout;
     preparationInput.sunInstance = &instanceSun;
-    preparationInput.masterSeed = resolvedGuiMasterSeed();
+    preparationInput.configuration.masterSeed = resolvedGuiMasterSeed();
     preparationInput.photonBuffer = m_photonsBuffer;
     preparationInput.exportSurfaceList = exportSurfaceList;
     preparationInput.tracingAir = airTemp;
-    preparationInput.rays = m_raysNumber;
-    preparationInput.sunWidthDivisions = m_raysGridWidth;
-    preparationInput.sunHeightDivisions = m_raysGridHeight;
+    preparationInput.configuration.rays = m_raysNumber;
+    preparationInput.configuration.sunWidthDivisions = m_raysGridWidth;
+    preparationInput.configuration.sunHeightDivisions = m_raysGridHeight;
     PreparedTraceContext context;
     QString preparationError;
     if (!TracePreparation::prepareGuiTrace(preparationInput, &context, &preparationError)) {
-        emit Abort(tr("There are no surfaces defined for ray tracing"));
+        emit Abort(preparationError.isEmpty() ? tr("There are no surfaces defined for ray tracing") : preparationError);
         ShowRaysIn3DView();
         return;
     }

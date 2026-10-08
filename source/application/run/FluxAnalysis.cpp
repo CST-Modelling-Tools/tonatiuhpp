@@ -155,18 +155,20 @@ void FluxAnalysis::run(QString nodeURL, QString surfaceSide, ulong nRays, bool p
     preparationInput.scene = m_sceneKit;
     preparationInput.layoutRoot = m_instanceLayout;
     preparationInput.sunInstance = &instanceSun;
-    preparationInput.masterSeed = m_masterSeed++;
+    preparationInput.configuration.masterSeed = m_masterSeed++;
     preparationInput.photonBuffer = m_photons;
     preparationInput.exportSurfaceList = exportSuraceList;
     preparationInput.tracingAir = airTemp;
-    preparationInput.rays = nRays;
-    preparationInput.sunWidthDivisions = m_sunDivs.x;
-    preparationInput.sunHeightDivisions = m_sunDivs.y;
+    preparationInput.configuration.rays = nRays;
+    preparationInput.configuration.sunWidthDivisions = m_sunDivs.x;
+    preparationInput.configuration.sunHeightDivisions = m_sunDivs.y;
     preparationInput.synchronizeScene = [this]() { m_sceneModel->UpdateSceneModel(); };
     PreparedTraceContext context;
     QString preparationError;
-    if (!TracePreparation::prepareGuiTrace(preparationInput, &context, &preparationError))
+    if (!TracePreparation::prepareGuiTrace(preparationInput, &context, &preparationError)) {
+        qWarning() << "Flux analysis preparation failed:" << preparationError;
         return;
+    }
 
     RayTraceExecutor executor;
     RayTraceExecution execution = executor.start(std::move(context));

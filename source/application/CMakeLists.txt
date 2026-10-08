@@ -32,6 +32,7 @@ set(HEADERS
     core/RayTraceExecutor.h
     core/SceneInstanceBuilder.h
     core/SceneLoader.h
+    core/SimulationConfig.h
     core/TracePreparation.h
     core/TonatiuhCore.h
     headless/HeadlessCommandRunner.h

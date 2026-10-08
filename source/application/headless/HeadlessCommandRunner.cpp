@@ -129,8 +129,8 @@ int HeadlessCommandRunner::traceScene(const QStringList& args) const
     TextProgressReporter progress(&out);
     HeadlessTracePreparationInput preparationInput;
     preparationInput.scene = scene.get();
-    preparationInput.rays = parsed.rays;
-    preparationInput.seed = parsed.seed;
+    preparationInput.configuration.rays = parsed.rays;
+    preparationInput.configuration.masterSeed = parsed.seed;
     preparationInput.progress = progress;
     PreparedTraceContext context;
     RayTraceExecutorResult result;
