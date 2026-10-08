@@ -16,7 +16,7 @@ set(MAIN_APP_TARGET "TonatiuhPP" CACHE STRING "Main GUI executable target name")
 
 # Options
 option(TONATIUHPP_BUNDLE_RUNTIME "Bundle Qt/Coin runtime libs on install (Linux/Windows)" ON)
-set(TONATIUHPP_TEST_EXECUTABLE "" CACHE FILEPATH "Installed Tonatiuh++ executable used by headless CTest smoke tests")
+set(TONATIUHPP_TEST_EXECUTABLE "" CACHE FILEPATH "Optional executable for installed-runtime headless CTest smoke tests; default is the build-tree target")
 
 include(CTest)
 

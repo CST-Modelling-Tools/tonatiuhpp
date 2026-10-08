@@ -4,12 +4,20 @@ Last updated: 2026-10-09
 
 Purpose: lightweight handoff for current Tonatiuh++ project and release context. Keep stable agent rules in `AGENT.md`; update this file when release context changes.
 
+## Development checkpoint — Milestone 2 (2026-10-09)
+
+- Active development branch: `test/cross-platform-headless-validation-m2-20261009`, based on M1-merged master `cad20757`; PR pending review, tests not yet run.
+- Register the real headless CTest smoke suite by default against the build-tree executable on Windows as well as Linux and macOS; retain the installed executable override.
+- Add a repeatability smoke test that compares exact SHA-256 flux-grid hashes and power/flux metrics across two independent 20,001-ray benchmark processes using seed 123456789 and three scheduler chunks.
+- Enforce headless test registration in CI; Windows CI failures are no longer ignored. All existing 11 scientific regressions remain unchanged; expected Windows test selection: 21 cases.
+- No ray physics, random-number derivation, energy normalization or reference datasets changed. Validation and scientific author review pending; see `docs/headless-validation-m2.md`.
+
 ## Development checkpoint — Milestone 1 (2026-10-09)
 
-- Feature branch: `refactor/central-simulation-config-m1-20261009`, based on merged M0C master `488b9c87`. Do not commit to protected master.
+- M1 merged through PR #7 into master commit `cad20757`, preserving the validated feature source tree.
 - First bounded slice: shared `SimulationConfig` centralizes ray count, canonical master seed, 200 × 200 default sun-grid divisions and scientific input validation. Production GUI, flux, headless CLI, headless scripts and benchmark adapters supply the same configuration to trace preparation. Existing ray execution fields, photon exporter settings, and public parsing APIs are left intact.
 - Two new scientific configuration tests cover existing validation messages, defaults and rejection from both preparation entry points. Nine M0C tests retained; expected discovery count **11**.
-- Windows/MSVC builds and scientific tests are **not yet run** for M1. Cross-platform CI and scientific review are pending. No ray physics, seed derivation, chunk scheduling, photon exporter policy or benchmark reference values intentionally changed.
+- Windows/MSVC Release builds passed, 11/11 scientific tests passed, a 4,096-ray headless CLI check exited 0, and Windows/Linux/macOS CI passed before M1 was approved and merged. No ray physics, seed derivation, chunk scheduling, photon exporter policy or benchmark reference values intentionally changed.
 - Documentation: `docs/simulation-configuration-m1.md`.
 
 ## Development checkpoint — Milestone 0C (2026-10-08)

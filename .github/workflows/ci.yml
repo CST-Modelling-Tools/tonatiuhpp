@@ -11,7 +11,6 @@ jobs:
   build:
     name: build (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    continue-on-error: ${{ matrix.os == 'windows-latest' }}
     strategy:
       fail-fast: false
       matrix:
@@ -263,6 +262,15 @@ jobs:
               Add-Content -LiteralPath $env:GITHUB_PATH -Value $directory
             }
           }
+
+      - name: Verify headless tests are registered
+        shell: bash
+        run: |
+          ctest --test-dir build -N -R '^headless[.]' > build/headless-discovery.txt
+          cat build/headless-discovery.txt
+          grep -Fq 'headless.trace_cylinder_scene' build/headless-discovery.txt
+          grep -Fq 'headless.benchmark_repeatability' build/headless-discovery.txt
+          grep -Fq 'headless.run_script_cylinder_scene' build/headless-discovery.txt
 
       - name: Test
         shell: bash

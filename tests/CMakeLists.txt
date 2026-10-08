@@ -33,18 +33,13 @@ if(NOT "${TONATIUHPP_TEST_EXECUTABLE}" STREQUAL "")
   endif()
   get_filename_component(TONATIUHPP_TEST_WORKING_DIR "${TONATIUHPP_TEST_EXE}" DIRECTORY)
   message(STATUS "Headless CTest smoke tests will use TONATIUHPP_TEST_EXECUTABLE: ${TONATIUHPP_TEST_EXE}")
-elseif(WIN32)
-  message(WARNING
-    "TONATIUHPP_TEST_EXECUTABLE is not set; skipping headless CTest smoke tests "
-    "on Windows. Configure with -DTONATIUHPP_TEST_EXECUTABLE=<installed tonatiuhpp.exe> "
-    "to test an installed runtime."
-  )
-  set(TONATIUHPP_ENABLE_HEADLESS_SMOKE_TESTS OFF)
 else()
   if(NOT TARGET tonatiuhpp)
     message(FATAL_ERROR "The tonatiuhpp target must exist before enabling build-tree tests.")
   endif()
 
+  # Generator expressions resolve the configured Release executable on
+  # multi-config MSVC builds as well as Ninja/Linux/macOS builds.
   set(TONATIUHPP_TEST_EXE "$<TARGET_FILE:tonatiuhpp>")
   set(TONATIUHPP_TEST_WORKING_DIR "$<TARGET_FILE_DIR:tonatiuhpp>")
   message(STATUS "Headless CTest smoke tests will use the build-tree tonatiuhpp executable.")
@@ -144,6 +139,20 @@ if(TONATIUHPP_ENABLE_HEADLESS_SMOKE_TESTS)
     set_tests_properties(headless.benchmark_cylinder_scene PROPERTIES
       TIMEOUT 60
     )
+
+    # Check cross-process repeatability across three fixed 10,000-ray
+    # chunks, without altering benchmark reference data or runtime physics.
+    add_test(
+      NAME headless.benchmark_repeatability
+      COMMAND "${CMAKE_COMMAND}"
+        "-DTEST_EXECUTABLE=${TONATIUHPP_TEST_EXE}"
+        "-DTEST_WORKING_DIRECTORY=${TONATIUHPP_TEST_WORKING_DIR}"
+        "-DSCENE_FILE=${_tonatiuhpp_cylinder_scene}"
+        "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/headless_benchmark_repeatability"
+        -P "${CMAKE_CURRENT_LIST_DIR}/cmake/run_headless_benchmark_repeatability.cmake"
+    )
+    tonatiuhpp_set_headless_test_properties(headless.benchmark_repeatability)
+    set_tests_properties(headless.benchmark_repeatability PROPERTIES TIMEOUT 120)
 
     add_test(
       NAME headless.run_script_cylinder_scene
