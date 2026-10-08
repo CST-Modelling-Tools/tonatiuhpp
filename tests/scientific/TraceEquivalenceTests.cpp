@@ -154,11 +154,10 @@ std::uint64_t countShapeInstances(const InstanceNode* node)
     return count;
 }
 
-// Exercise prepareGuiTrace() with a borrowed scene instance tree, without widgets.
-// In this QCoreApplication test, size the sun from the ray-tracing instance
-// bounds (as headless preparation does). MainWindow::UpdateLightSize() has a
-// separate Coin scene-graph bounding-box path requiring a real GUI test.
-// This is NOT an end-to-end graphical UI test.
+// Exercise the production GUI borrowed-tree preparation without widgets.
+// The preparation itself must size the sun from analytical bounds; tests must
+// not pre-size it or they could mask a regression in the GUI path.
+// This is not an end-to-end MainWindow automation test.
 bool traceOnce(PreparationPath path, ulong rays, bool recordPhotons,
                ScientificSignature* signature, std::string* errorText,
                ScientificScene scene = ScientificScene::CylinderVacuum)
@@ -207,15 +206,6 @@ bool traceOnce(PreparationPath path, ulong rays, bool recordPhotons,
         auto* sun = static_cast<SunKit*>(loaded.get()->getPart("world.sun", false));
         if (!sun)
             return fail("GUI-style scene has no sun.");
-        // Keep the borrowed-context test independent of the GUI-only sun-box
-        // traversal. This isolates ownership/preparation for comparison with
-        // the owned headless context, without changing production code.
-        borrowedTree.layoutRoot->updateTree(Transform::Identity);
-        const Box3D& layoutBox = borrowedTree.layoutRoot->getBox();
-        if (!layoutBox.isValid())
-            return fail("GUI-style instance tree has invalid ray-tracing bounds.");
-        sun->setBox(layoutBox);
-
         auto* air = static_cast<AirTransmission*>(
             loaded.get()->getPart("world.air.transmission", false));
         GuiTracePreparationInput input;
@@ -339,8 +329,8 @@ TEST(ScientificTraceBaseline, GuiStylePreparationIsRepeatableWithoutWidgets)
     }
 }
 
-// Regression: compare borrowed and owned preparation with identical ray-tracing
-// scene bounds. MainWindow's real GUI sun-sizing path remains untested here.
+// Regression: GUI borrowed and headless owned preparation must independently
+// compute identical analytical ray-tracing sun geometry.
 TEST(ScientificTraceDiagnostic, GuiStyleMatchesHeadless)
 {
     for (const ulong rays : {1024UL, 20001UL}) {

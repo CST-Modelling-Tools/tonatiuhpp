@@ -61,6 +61,7 @@
 #include "commands/CmdSetFieldText.h"
 #include "commands/CmdPaste.h"
 #include "core/RayTraceExecutor.h"
+#include "core/SceneInstanceBuilder.h"
 #include "core/TracePreparation.h"
 
 #include "PluginManager.h"
@@ -1922,8 +1923,8 @@ void MainWindow::Run()
     QElapsedTimer timer;
     timer.start();
 
-    UpdateLightSize();// better use tree below
-
+    // TracePreparation recomputes the optical aperture from analytical
+    // ray-tracing bounds. No preview-mesh sizing is needed before tracing.
     if (!ReadyForRaytracing(instanceLayout, &instanceSun, air) ) return;
 
     if (!m_photonsBuffer->getExporter() )
@@ -2927,7 +2928,14 @@ void MainWindow::UpdateLightSize()
     SunKit* sunKit = (SunKit*) sceneKit->getPart("world.sun", false);
     if (!sunKit) return;
 
-    sunKit->setBox(sceneKit);
+    // GUI preview also uses the authoritative optical bounds. Rebuild the
+    // temporary tree so scene edits cannot leave these bounds stale.
+    SceneInstanceTree sceneTree = SceneInstanceBuilder::build(sceneKit);
+    if (!sceneTree.layoutRoot) return;
+    sceneTree.layoutRoot->updateTree(Transform::Identity);
+    const Box3D& box = sceneTree.layoutRoot->getBox();
+    if (!box.isValid()) return;
+    sunKit->setBox(box);
     m_modelScene->UpdateSceneModel();
 }
 #include <QMimeData>
