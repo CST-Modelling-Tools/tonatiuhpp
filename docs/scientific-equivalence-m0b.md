@@ -1,6 +1,6 @@
 # Scientific equivalence — Milestone 0B
 
-Status: **8/8 scientific regressions passed on Windows/MSVC Release prior to the sun-sizing correction** (4.47 seconds total, developer reported). The corrected GUI Coin traversal no longer crashes on the two standalone diagnostic fixtures, but their aperture areas differ: cylinder GUI 0.0279707 vs headless 0.147387 and Fresnel GUI 1.12908 vs headless 1.19654. Exit code 1 is the diagnostic's expected mismatch signal. The current hypothesis is that pending Coin field sensors leave preview geometry stale in a standalone executable without a GUI event loop. A diagnostic sensor-queue comparison is pending. The production GUI's numerical equivalence is **unproven**. Do not merge yet.
+Status: development branch; **8/8 scientific CTest tests passed on Windows Release before the Coin action-dispatch change** (4.47 s total, reported by developer). The native GUI diagnostic now completes without crashing after the Coin fix. Explicitly processing Coin's pending sensor queue largely reconciles GUI/headless aperture areas: the cylinder displays 0.147387 for each, while the Fresnel two-surface fixture displays 1.19088 GUI vs 1.19654 headless. Exit code 1 still reports numerical differences. Further full-precision area and cell-mask diagnostics are pending. Do not merge yet; scientific equivalence is not fully established.
 
 ## Scope
 
@@ -26,7 +26,7 @@ ctest --test-dir "C:\OpenSource\tonatiuhpp\build" -C Release -R '^scientific\.' 
 
 The scientific suite should discover **eight enabled tests**. Use the PowerShell terminal with previously established Qt and dependent DLL paths. If it fails, report the raw CTest output before any production changes.
 
-For the native graphical diagnostic, opt in explicitly at configuration time (a separate build configuration is recommended). It has not yet been run:
+For the native graphical diagnostic, opt in explicitly at configuration time (a separate build configuration is recommended). It has now been run on Windows; the initial crash is gone, but the area comparison still fails:
 
 ```powershell
 cmake -S source -B build -DTONATIUHPP_BUILD_GUI_SUN_DIAGNOSTIC=ON
@@ -42,17 +42,21 @@ The native tool needs a working Qt GUI environment and matching SoQt DLLs. It in
 
 With the corrected Coin action call, the native diagnostic completes both fixtures without an access violation, but returns 1 due to area mismatches (cylinder: 0.0279707 vs 0.147387; Fresnel two-surface: 1.12908 vs 1.19654, GUI vs headless). These are standalone diagnostic results, **not** end-to-end MainWindow measurements.
 
-The GUI box is based on Coin preview geometry; the headless box comes from `ShapeRT::getBox()` through `InstanceNode::updateTree()`. `TShapeKit` regenerates its preview meshes through delayed field sensors. Since the diagnostic never enters a GUI event loop, pending sensor updates might explain these differences; genuine graphical/analytical bound differences are another possibility. The next run logs Coin bounds before and after processing the pending sensor queue, and then optical bounds. **This does not change production tracing or reference data.**
+The new Windows diagnostic confirmed that pending Coin field sensors leave preview geometry stale unless processed. In the cylinder fixture, Coin bounds changed from approximately `(-0.1, 0, 0.9) .. (0.1, 0, 1.1)` to `(-0.2, -0.1, 0.8) .. (0.2, 0.1, 1.2)`, matching analytical ray-tracing bounds to the reported precision. The cylinder areas subsequently *display* the same six-digit value, but the strict comparison still fails, so an exact match has not been demonstrated.
 
-After pulling, rebuild `tonatiuhpp_gui_sun_diagnostic`, rerun it, and report those three bounds and the aperture values. Also rerun the eight scientific CTest regressions, because their prior pass predates the sun-sizing production fix. Investigate remaining differences rather than forcing a match.
+The Fresnel fixture has a separate remaining geometrical distinction: after the sensor flush, its Coin preview box is `(-0.5, -1, 0) .. (2, 1, 2)`, while the analytical ray-tracing box is `(-0.5, -1, -0.01) .. (2, 1, 2.02)`. The base `ShapeRT::getBox()` expands a planar surface's normal-direction bounds by 1% of its profile width; the Coin planar rendering mesh is flat. This explains why those two bounds are not identical, though the exact area effect still needs characterization.
+
+The updated diagnostic prints each aperture area using `max_digits10`, the number and indices of valid sampled cells, absolute area difference, relative difference, and the **unchanged** original tolerance. We are characterizing the discrepancy without adjusting production optics, GUI sun-sizing, ray count normalization, or scientific reference values. Processing Coin's sensor queue in this **standalone diagnostic** is not proof that `MainWindow` always processes sensors before computing its aperture.
+
+After pulling, rebuild and rerun `tonatiuhpp_gui_sun_diagnostic`. Report the full-precision areas, valid-cell counts, whether cell indices match, absolute/relative differences, and exit code. Also rerun the eight scientific CTest regressions, because their prior pass predates the production Coin action-dispatch correction. Investigate remaining differences rather than suppressing them.
 
 ### Investigating the native crash
 
 The developer reported `$LASTEXITCODE = -1073741819` (`0xC0000005`) after running the GUI diagnostic twice on Windows. The initial build emitted no area measurements. The diagnostic now prints flushed `[gui-sun]` checkpoints before and after Qt/SoQt/Coin initialization, scene loading, `SunKit::setBox(TSceneKit*)`, instance-tree creation, aperture texture generation, and area reading.
 
-A checkpointed native run reached `[gui-sun] before SunKit::setBox(TSceneKit*)` and then crashed with `0xC0000005`. This localizes the failure to that method, but does not provide a debugger call stack proving the exact instruction. The method originally called `separatorKit->getBoundingBox(action)` directly; the regression test successfully traverses the same fixture by calling `action.apply(separatorKit)`. The production method has now been updated to use the latter correctly initialized action. **This is a suspected fix, not a verified resolution**.
+A checkpointed native run originally reached `[gui-sun] before SunKit::setBox(TSceneKit*)` and then crashed with `0xC0000005`. The production method previously called `separatorKit->getBoundingBox(action)` directly and was changed to use `action.apply(separatorKit)`. Both fixtures now complete this method and the remainder of the native comparison without crashing on Windows. The precise former faulting instruction was not debugger-confirmed. The remaining exit code 1 is from the numerical aperture comparison, not a crash.
 
-After pulling the new branch commit, rebuild and rerun the diagnostic in the configured Windows DLL environment. Report the area measurements, the last printed checkpoint, and the exit code. If the fix does not resolve the crash, obtain a native debugger call stack before further production changes. Any scientific area mismatch must be investigated rather than suppressed.
+After pulling, rebuild and rerun the diagnostic in the configured Windows DLL environment. Report the full-precision aperture values, sampled cell counts, and exit code. Any remaining scientific mismatch must be investigated rather than suppressed.
 
 ## Boundaries
 

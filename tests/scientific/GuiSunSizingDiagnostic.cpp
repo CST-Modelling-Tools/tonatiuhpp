@@ -2,6 +2,7 @@
 #include <cmath>
 #include <iomanip>
 #include <iostream>
+#include <limits>
 
 #include <QApplication>
 #include <QString>
@@ -156,8 +157,18 @@ int main(int argc, char** argv)
         const double graphicalArea = graphicalAperture->getArea();
         const double opticalArea = opticalAperture->getArea();
 
-        std::cout << path << ": GUI aperture area = " << graphicalArea
-                  << "; headless optical aperture area = " << opticalArea << std::endl;
+        // Print enough digits to distinguish exact agreement from rounding.
+        // Cell masks can differ even when areas happen to match numerically.
+        const auto& graphicalCells = graphicalAperture->getCells();
+        const auto& opticalCells = opticalAperture->getCells();
+        std::cout << std::setprecision(std::numeric_limits<double>::max_digits10)
+                  << path << ": GUI aperture area = " << graphicalArea
+                  << "; headless optical aperture area = " << opticalArea << '\n'
+                  << "  valid cells: GUI=" << graphicalCells.size()
+                  << ", headless=" << opticalCells.size()
+                  << ", identical cell indices=" << std::boolalpha
+                  << (graphicalCells == opticalCells) << std::noboolalpha
+                  << std::endl;
         checkpoint("areas printed", path);
         if (!std::isfinite(graphicalArea) || !std::isfinite(opticalArea)
             || graphicalArea <= 0. || opticalArea <= 0.) {
@@ -165,8 +176,15 @@ int main(int argc, char** argv)
             return 2;
         }
 
+        const double absoluteDifference = std::abs(graphicalArea - opticalArea);
+        const double relativeDifference = absoluteDifference /
+            std::max(graphicalArea, opticalArea);
         const double tolerance = 1e-9 * std::max({1., graphicalArea, opticalArea});
-        if (std::abs(graphicalArea - opticalArea) > tolerance) {
+        std::cout << "  absolute area difference=" << absoluteDifference
+                  << ", relative difference=" << relativeDifference
+                  << ", original absolute tolerance=" << tolerance
+                  << std::endl;
+        if (absoluteDifference > tolerance) {
             std::cerr << "GUI and headless aperture calculations differ.\n";
             ++differences;
         }
