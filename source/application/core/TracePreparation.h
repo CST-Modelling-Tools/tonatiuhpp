@@ -8,6 +8,7 @@
 #include <QString>
 
 #include "core/SceneInstanceBuilder.h"
+#include "core/SimulationConfig.h"
 
 class AirTransmission;
 class InstanceNode;
@@ -27,15 +28,12 @@ struct GuiTracePreparationInput
     TSceneKit* scene = nullptr;
     InstanceNode* layoutRoot = nullptr;
     InstanceNode* sunInstance = nullptr;
-    std::uint64_t masterSeed = 0;
+    SimulationConfig configuration;
     PhotonsBuffer* photonBuffer = nullptr;
     QVector<InstanceNode*> exportSurfaceList;
     PreparedTraceHitCallback hitCallback;
     std::function<void()> synchronizeScene;
     AirTransmission* tracingAir = nullptr;
-    ulong rays = 0;
-    int sunWidthDivisions = 0;
-    int sunHeightDivisions = 0;
 };
 
 struct HeadlessTracePreparationInput
@@ -43,10 +41,7 @@ struct HeadlessTracePreparationInput
     TSceneKit* scene = nullptr;
     PreparedTraceHitCallback hitCallback;
     TracePreparationProgress progress;
-    ulong rays = 0;
-    std::uint64_t seed = 0;
-    int sunWidthDivisions = 200;
-    int sunHeightDivisions = 200;
+    SimulationConfig configuration;
 };
 
 class PreparedTraceContext

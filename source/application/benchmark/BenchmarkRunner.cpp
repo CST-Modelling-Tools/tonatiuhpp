@@ -829,8 +829,8 @@ int BenchmarkRunner::run(const QString& configFileName, TSceneKit* scene, QStrin
     TextProgressReporter progress(&out);
     HeadlessTracePreparationInput preparationInput;
     preparationInput.scene = scene;
-    preparationInput.rays = config.rays;
-    preparationInput.seed = config.seed;
+    preparationInput.configuration.rays = config.rays;
+    preparationInput.configuration.masterSeed = config.seed;
     preparationInput.hitCallback = traceHitCallback;
     preparationInput.progress = progress;
     PreparedTraceContext context;

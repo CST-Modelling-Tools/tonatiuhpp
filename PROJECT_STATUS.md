@@ -1,15 +1,23 @@
 # Project Status
 
-Last updated: 2026-10-08
+Last updated: 2026-10-09
 
 Purpose: lightweight handoff for current Tonatiuh++ project and release context. Keep stable agent rules in `AGENT.md`; update this file when release context changes.
+
+## Development checkpoint — Milestone 1 (2026-10-09)
+
+- Feature branch: `refactor/central-simulation-config-m1-20261009`, based on merged M0C master `488b9c87`. Do not commit to protected master.
+- First bounded slice: shared `SimulationConfig` centralizes ray count, canonical master seed, 200 × 200 default sun-grid divisions and scientific input validation. Production GUI, flux, headless CLI, headless scripts and benchmark adapters supply the same configuration to trace preparation. Existing ray execution fields, photon exporter settings, and public parsing APIs are left intact.
+- Two new scientific configuration tests cover existing validation messages, defaults and rejection from both preparation entry points. Nine M0C tests retained; expected discovery count **11**.
+- Windows/MSVC builds and scientific tests are **not yet run** for M1. Cross-platform CI and scientific review are pending. No ray physics, seed derivation, chunk scheduling, photon exporter policy or benchmark reference values intentionally changed.
+- Documentation: `docs/simulation-configuration-m1.md`.
 
 ## Development checkpoint — Milestone 0C (2026-10-08)
 
 - Approved policy: simulation GUI and headless modes use analytical ray-tracing geometry to size the sun aperture; legacy GUI results can change where Coin display-mesh bounds diverge.
-- Active feature branch: `feat/unified-analytical-sun-aperture-m0c-20261008`, based on the unmerged M0B draft; PR #5 remains separate and must be merged before M0C can target master.
+- M0C was merged in PR #6 to master commit `488b9c87` after Windows 9/9 scientific tests passed, a successful real Windows GUI test and three-platform CI success.
 - GUI preview resizing and both trace-preparation entry points use analytical instance-tree bounds, eliminating production dependencies on Coin graphical mesh refresh timing for sun sizing. Flux analysis uses the same GUI preparation path.
-- Added direct GUI/headless aperture-area, sampled-cell, and power-per-ray parity test on cylinder and Fresnel scenes after deliberately perturbing GUI sun sizing. Windows compilation, runtime tests, scientific numerical references, and cross-platform CI remain **pending**. This change deliberately modifies historical GUI energy normalization and must be reviewed before merging.
+- Added direct GUI/headless aperture-area, sampled-cell, and power-per-ray parity test on cylinder and Fresnel scenes after deliberately perturbing GUI sun sizing. The approved analytical geometry policy changes historical GUI energy normalization where bounds differed; further flux benchmark comparison remains a release-readiness task.
 
 ## Development checkpoint — Milestone 0B (2026-10-08)
 

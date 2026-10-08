@@ -245,8 +245,8 @@ QJSValue HeadlessScriptApi::traceScene(const QJSValue& optionsValue)
     timer.start();
     HeadlessTracePreparationInput preparationInput;
     preparationInput.scene = scene.get();
-    preparationInput.rays = rays;
-    preparationInput.seed = seed;
+    preparationInput.configuration.rays = rays;
+    preparationInput.configuration.masterSeed = seed;
     PreparedTraceContext context;
     RayTraceExecutorResult result;
     if (!TracePreparation::prepareHeadlessTrace(preparationInput, &context, &errorMessage)) {

@@ -61,14 +61,6 @@ bool resolveSun(TSceneKit* scene,
     return true;
 }
 
-bool validateCommon(ulong rays, int sunWidthDivisions, int sunHeightDivisions, QString* errorMessage)
-{
-    if (rays == 0)
-        return fail(errorMessage, "Ray count must be greater than zero.");
-    if (sunWidthDivisions <= 0 || sunHeightDivisions <= 0)
-        return fail(errorMessage, "Sun grid dimensions must be greater than zero.");
-    return true;
-}
 }
 
 PreparedTraceContext::PreparedTraceContext() = default;
@@ -97,7 +89,7 @@ bool TracePreparation::prepareGuiTrace(const GuiTracePreparationInput& input,
 {
     if (!context)
         return fail(errorMessage, "Prepared trace context is null.");
-    if (!validateCommon(input.rays, input.sunWidthDivisions, input.sunHeightDivisions, errorMessage))
+    if (!input.configuration.validate(errorMessage))
         return false;
     if (!input.layoutRoot || !input.sunInstance)
         return fail(errorMessage, "GUI trace preparation is missing its layout or sun instance.");
@@ -117,7 +109,7 @@ bool TracePreparation::prepareGuiTrace(const GuiTracePreparationInput& input,
         return fail(errorMessage, "GUI scene has no valid analytical ray-tracing bounds.");
     // Both the borrowed GUI and owned headless preparation use analytical bounds.
     sunKit->setBox(layoutBox);
-    if (!sunKit->findTexture(input.sunWidthDivisions, input.sunHeightDivisions, input.layoutRoot))
+    if (!sunKit->findTexture(input.configuration.sunWidthDivisions, input.configuration.sunHeightDivisions, input.layoutRoot))
         return fail(errorMessage, "There are no surfaces defined for ray tracing.");
 
     input.sunInstance->setNode(sunKit);
@@ -131,11 +123,11 @@ bool TracePreparation::prepareGuiTrace(const GuiTracePreparationInput& input,
     prepared.m_sunAperture = sunAperture;
     prepared.m_sunShape = sunShape;
     prepared.m_tracingAir = input.tracingAir;
-    prepared.m_masterSeed = input.masterSeed;
+    prepared.m_masterSeed = input.configuration.masterSeed;
     prepared.m_photonBuffer = input.photonBuffer;
     prepared.m_exportSurfaceList = input.exportSurfaceList;
     prepared.m_hitCallback = input.hitCallback;
-    prepared.m_rays = input.rays;
+    prepared.m_rays = input.configuration.rays;
     *context = std::move(prepared);
     return true;
 }
@@ -146,7 +138,7 @@ bool TracePreparation::prepareHeadlessTrace(const HeadlessTracePreparationInput&
 {
     if (!context)
         return fail(errorMessage, "Prepared trace context is null.");
-    if (!validateCommon(input.rays, input.sunWidthDivisions, input.sunHeightDivisions, errorMessage))
+    if (!input.configuration.validate(errorMessage))
         return false;
 
     SunKit* sunKit = nullptr;
@@ -176,7 +168,7 @@ bool TracePreparation::prepareHeadlessTrace(const HeadlessTracePreparationInput&
     sunInstance->setTransform(tgf::makeTransform(sunKit->m_transform));
 
     reportProgress(input.progress, "Finding sun aperture cells.");
-    if (!sunKit->findTexture(input.sunWidthDivisions, input.sunHeightDivisions, instanceTree.layoutRoot))
+    if (!sunKit->findTexture(input.configuration.sunWidthDivisions, input.configuration.sunHeightDivisions, instanceTree.layoutRoot))
         return fail(errorMessage, "There are no surfaces defined for ray tracing.");
 
     AirTransmission* air = static_cast<AirTransmission*>(input.scene->getPart("world.air.transmission", false));
@@ -194,9 +186,9 @@ bool TracePreparation::prepareHeadlessTrace(const HeadlessTracePreparationInput&
     prepared.m_sunAperture = sunAperture;
     prepared.m_sunShape = sunShape;
     prepared.m_tracingAir = tracingAir;
-    prepared.m_masterSeed = input.seed;
+    prepared.m_masterSeed = input.configuration.masterSeed;
     prepared.m_hitCallback = input.hitCallback;
-    prepared.m_rays = input.rays;
+    prepared.m_rays = input.configuration.rays;
     *context = std::move(prepared);
     return true;
 }

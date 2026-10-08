@@ -213,24 +213,24 @@ bool traceOnce(PreparationPath path, ulong rays, bool recordPhotons,
         input.scene = loaded.get();
         input.layoutRoot = borrowedTree.layoutRoot;
         input.sunInstance = &borrowedSun;
-        input.masterSeed = kMasterSeed;
+        input.configuration.masterSeed = kMasterSeed;
         input.photonBuffer = photonBuffer.get();
         input.tracingAir = air && air->getTypeId() != AirVacuum::getClassTypeId()
             ? air : nullptr;
         input.hitCallback = [&hits](const RayTracerHit& hit) { hits.add(hit); };
-        input.rays = rays;
-        input.sunWidthDivisions = kSunGridDivisions;
-        input.sunHeightDivisions = kSunGridDivisions;
+        input.configuration.rays = rays;
+        input.configuration.sunWidthDivisions = kSunGridDivisions;
+        input.configuration.sunHeightDivisions = kSunGridDivisions;
         if (!TracePreparation::prepareGuiTrace(input, &context, &error))
             return fail(error);
     } else {
         HeadlessTracePreparationInput input;
         input.scene = loaded.get();
         input.hitCallback = [&hits](const RayTracerHit& hit) { hits.add(hit); };
-        input.rays = rays;
-        input.seed = kMasterSeed;
-        input.sunWidthDivisions = kSunGridDivisions;
-        input.sunHeightDivisions = kSunGridDivisions;
+        input.configuration.rays = rays;
+        input.configuration.masterSeed = kMasterSeed;
+        input.configuration.sunWidthDivisions = kSunGridDivisions;
+        input.configuration.sunHeightDivisions = kSunGridDivisions;
         if (!TracePreparation::prepareHeadlessTrace(input, &context, &error))
             return fail(error);
     }
@@ -494,20 +494,20 @@ TEST(ScientificSunSizing, GuiAndHeadlessUseIdenticalAnalyticalBounds)
         guiInput.scene = guiScene.get();
         guiInput.layoutRoot = borrowed.layoutRoot;
         guiInput.sunInstance = &guiSun;
-        guiInput.rays = rays;
-        guiInput.masterSeed = kMasterSeed;
-        guiInput.sunWidthDivisions = kSunGridDivisions;
-        guiInput.sunHeightDivisions = kSunGridDivisions;
+        guiInput.configuration.rays = rays;
+        guiInput.configuration.masterSeed = kMasterSeed;
+        guiInput.configuration.sunWidthDivisions = kSunGridDivisions;
+        guiInput.configuration.sunHeightDivisions = kSunGridDivisions;
         PreparedTraceContext guiContext;
         ASSERT_TRUE(TracePreparation::prepareGuiTrace(guiInput, &guiContext, &error))
             << error.toStdString();
 
         HeadlessTracePreparationInput headlessInput;
         headlessInput.scene = headlessScene.get();
-        headlessInput.rays = rays;
-        headlessInput.seed = kMasterSeed;
-        headlessInput.sunWidthDivisions = kSunGridDivisions;
-        headlessInput.sunHeightDivisions = kSunGridDivisions;
+        headlessInput.configuration.rays = rays;
+        headlessInput.configuration.masterSeed = kMasterSeed;
+        headlessInput.configuration.sunWidthDivisions = kSunGridDivisions;
+        headlessInput.configuration.sunHeightDivisions = kSunGridDivisions;
         PreparedTraceContext headlessContext;
         ASSERT_TRUE(TracePreparation::prepareHeadlessTrace(headlessInput, &headlessContext, &error))
             << error.toStdString();
@@ -522,6 +522,50 @@ TEST(ScientificSunSizing, GuiAndHeadlessUseIdenticalAnalyticalBounds)
         EXPECT_DOUBLE_EQ(guiContext.powerPerRay(), headlessContext.powerPerRay());
         EXPECT_GT(guiContext.powerPerRay(), 0.);
     }
+}
+
+TEST(ScientificSimulationConfig, DefaultsAndValidation)
+{
+    SimulationConfig configuration;
+    EXPECT_EQ(configuration.rays, 0UL);
+    EXPECT_EQ(configuration.masterSeed, 0ULL);
+    EXPECT_EQ(configuration.sunWidthDivisions, 200);
+    EXPECT_EQ(configuration.sunHeightDivisions, 200);
+
+    QString error;
+    EXPECT_FALSE(configuration.validate(&error));
+    EXPECT_EQ(error, QStringLiteral("Ray count must be greater than zero."));
+    configuration.rays = 4096UL;
+    configuration.sunWidthDivisions = 0;
+    EXPECT_FALSE(configuration.validate(&error));
+    EXPECT_EQ(error, QStringLiteral("Sun grid dimensions must be greater than zero."));
+    configuration.sunWidthDivisions = 200;
+    configuration.sunHeightDivisions = -1;
+    EXPECT_FALSE(configuration.validate(&error));
+    EXPECT_EQ(error, QStringLiteral("Sun grid dimensions must be greater than zero."));
+    configuration.sunHeightDivisions = 200;
+    EXPECT_TRUE(configuration.validate(&error));
+    EXPECT_TRUE(error.isEmpty());
+}
+
+TEST(ScientificSimulationConfig, BothPreparationPathsRejectInvalidConfiguration)
+{
+    PreparedTraceContext context;
+    GuiTracePreparationInput gui;
+    HeadlessTracePreparationInput headless;
+    QString error;
+    EXPECT_FALSE(TracePreparation::prepareGuiTrace(gui, &context, &error));
+    EXPECT_EQ(error, QStringLiteral("Ray count must be greater than zero."));
+    EXPECT_FALSE(TracePreparation::prepareHeadlessTrace(headless, &context, &error));
+    EXPECT_EQ(error, QStringLiteral("Ray count must be greater than zero."));
+    gui.configuration.rays = 1UL;
+    headless.configuration.rays = 1UL;
+    gui.configuration.sunWidthDivisions = 0;
+    headless.configuration.sunWidthDivisions = 0;
+    EXPECT_FALSE(TracePreparation::prepareGuiTrace(gui, &context, &error));
+    EXPECT_EQ(error, QStringLiteral("Sun grid dimensions must be greater than zero."));
+    EXPECT_FALSE(TracePreparation::prepareHeadlessTrace(headless, &context, &error));
+    EXPECT_EQ(error, QStringLiteral("Sun grid dimensions must be greater than zero."));
 }
 
 int main(int argc, char** argv)
