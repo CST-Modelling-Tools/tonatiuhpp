@@ -1,9 +1,17 @@
 # Project Status
 
-Last updated: 2026-07-12
+Last updated: 2026-10-08
 
 Purpose: lightweight handoff for current Tonatiuh++ project and release context. Keep stable agent rules in `AGENT.md`; update this file when release context changes.
 
+## Development checkpoint — Milestone 0A (2026-10-08)
+
+- Active development branch: `test/scientific-equivalence-m0a-20261008`, based on the v0.1.8.26 release source.
+- Added initial `QCoreApplication` scientific tests for repeatability of GUI-style and headless-style preparation, using independent cylinder scene loads and deterministic hit histograms.
+- GUI/headless comparison and photon-recording versus no-recording comparison are explicitly opt-in diagnostics pending scientific review.
+- No ray physics, RNG, scheduling, photon exporter, or release artifact changes were made in this milestone.
+- Build, CTest, and runtime scientific validation are still pending; see `docs/scientific-equivalence.md`.
+- The July 2026 release-checklist sections below are retained as historical handoff context and should be refreshed separately.
 ## Current Priorities
 
 - Prepare the Tonatiuh++ `v0.1.8.26` release from the published `v0.1.8.25` baseline; source metadata, release notes, benchmark v2 assets, citation metadata, and the release checklist are prepared, but do not tag until build, test, packaging, and platform validation are complete.

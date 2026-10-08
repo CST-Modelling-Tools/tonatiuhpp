@@ -17,6 +17,7 @@ include(GoogleTest)
 
 add_subdirectory(unit/libraries/math)
 add_subdirectory(unit/kernel/random)
+add_subdirectory(scientific)
 
 set(TONATIUHPP_ENABLE_HEADLESS_SMOKE_TESTS ON)
 
