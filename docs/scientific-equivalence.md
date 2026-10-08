@@ -1,14 +1,20 @@
 # Scientific equivalence — Milestone 0A
 
-Status: initial regression harness; **not build- or runtime-validated yet**.
+Status: Windows/MSVC Release build succeeded. First CTest run passed the headless
+baseline, while the initial GUI-style test crashed with SEH `0xc0000005`.
+This revision removes a GUI scene-graph bounding-box call from the
+`QCoreApplication` test harness; it **still needs a local rebuild and retest**.
+The precise crash location was not established by a native debugger.
 
 ## Purpose
 
 This test-only milestone captures reproducibility in the two existing trace-preparation
 paths before any refactoring of the optical kernel, RNG or executor. It is not yet a
-GUI-end-to-end test: the GUI-style path uses a borrowed `SceneInstanceBuilder` tree
-and the `MainWindow::UpdateLightSize()` sun-box calculation, but intentionally
-creates no `QApplication`, `SceneTreeModel`, or window.
+GUI-end-to-end test: the GUI-style path uses a borrowed `SceneInstanceBuilder`
+tree and calculates sun bounds from its `InstanceNode` hierarchy, matching
+the headless bounds method for controlled comparison. It does **not** exercise
+`MainWindow::UpdateLightSize()` or its Coin scene-graph bounding-box traversal,
+and creates no `QApplication`, `SceneTreeModel`, or window.
 
 ## Coverage
 
@@ -45,14 +51,23 @@ do not change the build configuration just to run the test. With a configured
 4. On Windows, ensure the normal runtime DLL locations are available to the
    test process, as for other tests using Coin3D and TonatiuhKernel.
 
-No compilation, CTest, GUI automation, or scientific comparison has been run
-by the author of this initial milestone; their outcomes must not be presumed.
+A developer's first Windows/Release validation compiled this target and ran
+CTest: headless repeatability passed; GUI-style preparation crashed with Windows
+access violation `0xc0000005`. At that time the test called
+`SunKit::setBox(TSceneKit*)` without GUI initialization. The test harness now
+uses computed ray-tracing instance bounds for this borrowed-context test.
+That removes the suspect code path from the test; it does not establish the
+root cause of the crash or validate production GUI behavior. Rebuild/retest
+and a later real-GUI bounding-box regression test are required.
 
 ## Boundaries and known limitations
 
 - The fixture is a single simple absorber scene; it does not cover reflections,
   non-vacuum air, trackers, mesh plugins, surface selection, or GPU display.
-- The GUI path does not launch `MainWindow`; a later integration test must do that.
+- The borrowed preparation path does not launch `MainWindow` or invoke its
+  scene-graph sun-sizing operation; a later real-GUI integration test must do both.
+- GUI/headless equivalence using an identical sun-box calculation does not prove
+  that the actual GUI scene-graph bounding-box result matches the headless bounds.
 - Raw photon recording is exercised only through the GUI-style preparation
   contract, since headless preparation currently does not accept a photon buffer.
 - Photon-file formats, buffer flushing and cross-worker file ordering are not

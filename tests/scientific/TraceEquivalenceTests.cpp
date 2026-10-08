@@ -23,6 +23,7 @@
 #include "kernel/run/RayTracer.h"
 #include "kernel/scene/TSceneKit.h"
 #include "kernel/sun/SunKit.h"
+#include "libraries/math/3D/Transform.h"
 
 namespace
 {
@@ -101,8 +102,10 @@ QString fixturePath()
     return QString::fromUtf8(TONATIUHPP_EQUIVALENCE_SCENE_FILE);
 }
 
-// The GUI-style path intentionally models MainWindow::Run's scene-box sizing.
-// It borrows a separate instance tree rather than constructing any GUI objects.
+// Exercise prepareGuiTrace() with a borrowed scene instance tree, without widgets.
+// In this QCoreApplication test, size the sun from the ray-tracing instance
+// bounds (as headless preparation does). MainWindow::UpdateLightSize() has a
+// separate Coin scene-graph bounding-box path requiring a real GUI test.
 // This is NOT an end-to-end graphical UI test.
 bool traceOnce(PreparationPath path, ulong rays, bool recordPhotons,
                ScientificSignature* signature, std::string* errorText)
@@ -138,7 +141,14 @@ bool traceOnce(PreparationPath path, ulong rays, bool recordPhotons,
         auto* sun = static_cast<SunKit*>(loaded.get()->getPart("world.sun", false));
         if (!sun)
             return fail("GUI-style scene has no sun.");
-        sun->setBox(loaded.get()); // The UpdateLightSize() calculation in MainWindow.
+        // Keep the borrowed-context test independent of the GUI-only sun-box
+        // traversal. This isolates ownership/preparation for comparison with
+        // the owned headless context, without changing production code.
+        borrowedTree.layoutRoot->updateTree(Transform::Identity);
+        const Box3D& layoutBox = borrowedTree.layoutRoot->getBox();
+        if (!layoutBox.isValid())
+            return fail("GUI-style instance tree has invalid ray-tracing bounds.");
+        sun->setBox(layoutBox);
 
         auto* air = static_cast<AirTransmission*>(
             loaded.get()->getPart("world.air.transmission", false));
