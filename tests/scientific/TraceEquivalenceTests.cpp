@@ -2,8 +2,11 @@
 
 #include <QCoreApplication>
 
+#include <Inventor/actions/SoGetBoundingBoxAction.h>
+
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <cmath>
 #include <cstdint>
 #include <memory>
@@ -16,12 +19,15 @@
 #include "core/SceneLoader.h"
 #include "core/TonatiuhCore.h"
 #include "core/TracePreparation.h"
+#include "kernel/air/AirExponential.h"
 #include "kernel/air/AirTransmission.h"
 #include "kernel/air/AirVacuum.h"
 #include "kernel/photons/PhotonsBuffer.h"
 #include "kernel/run/InstanceNode.h"
 #include "kernel/run/RayTracer.h"
 #include "kernel/scene/TSceneKit.h"
+#include "kernel/scene/TSeparatorKit.h"
+#include "kernel/scene/TShapeKit.h"
 #include "kernel/sun/SunKit.h"
 #include "libraries/math/3D/Transform.h"
 
@@ -38,6 +44,33 @@ enum class PreparationPath
     HeadlessOwned
 };
 
+enum class ScientificScene
+{
+    CylinderVacuum,
+    FresnelTwoSurfaceVacuum,
+    FresnelTwoSurfaceExponentialAir
+};
+
+// Count uses of the real AirExponential model without changing its physics
+// or the random-number stream.
+class CountingExponentialAir final : public AirExponential
+{
+public:
+    double transmission(double distance) const override
+    {
+        m_calls.fetch_add(1, std::memory_order_relaxed);
+        return AirExponential::transmission(distance);
+    }
+
+    std::uint64_t calls() const
+    {
+        return m_calls.load(std::memory_order_relaxed);
+    }
+
+private:
+    mutable std::atomic<std::uint64_t> m_calls{0};
+};
+
 struct ScientificSignature
 {
     RayTraceExecutorResult result;
@@ -46,6 +79,8 @@ struct ScientificSignature
     std::uint64_t frontHitCount = 0;
     std::uint64_t invalidHitCount = 0;
     std::uint64_t recordedPhotonCount = 0;
+    std::uint64_t airTransmissionCalls = 0;
+    std::uint64_t shapeInstanceCount = 0;
 };
 
 // Quantize positions instead of comparing thread-dependent callback ordering.
@@ -102,13 +137,31 @@ QString fixturePath()
     return QString::fromUtf8(TONATIUHPP_EQUIVALENCE_SCENE_FILE);
 }
 
+QString fixturePath(ScientificScene scene)
+{
+    return scene == ScientificScene::CylinderVacuum
+        ? fixturePath()
+        : QString::fromUtf8(TONATIUHPP_FRESNEL_SCENE_FILE);
+}
+
+std::uint64_t countShapeInstances(const InstanceNode* node)
+{
+    if (!node)
+        return 0;
+    std::uint64_t count = dynamic_cast<TShapeKit*>(node->getNode()) ? 1 : 0;
+    for (const InstanceNode* child : node->children)
+        count += countShapeInstances(child);
+    return count;
+}
+
 // Exercise prepareGuiTrace() with a borrowed scene instance tree, without widgets.
 // In this QCoreApplication test, size the sun from the ray-tracing instance
 // bounds (as headless preparation does). MainWindow::UpdateLightSize() has a
 // separate Coin scene-graph bounding-box path requiring a real GUI test.
 // This is NOT an end-to-end graphical UI test.
 bool traceOnce(PreparationPath path, ulong rays, bool recordPhotons,
-               ScientificSignature* signature, std::string* errorText)
+               ScientificSignature* signature, std::string* errorText,
+               ScientificScene scene = ScientificScene::CylinderVacuum)
 {
     auto fail = [errorText](const QString& message) {
         if (errorText)
@@ -122,8 +175,21 @@ bool traceOnce(PreparationPath path, ulong rays, bool recordPhotons,
 
     LoadedScene loaded;
     QString error;
-    if (!SceneLoader::readFile(fixturePath(), &loaded, &error))
+    if (!SceneLoader::readFile(fixturePath(scene), &loaded, &error))
         return fail(error);
+
+    // The multi-surface Fresnel scene continues rays after the first hit,
+    // allowing the RayTracer's atmospheric attenuation branch to run.
+    CountingExponentialAir* countedAir = nullptr;
+    if (scene == ScientificScene::FresnelTwoSurfaceExponentialAir) {
+        countedAir = new CountingExponentialAir;
+        countedAir->constant.setValue(0.35);
+        if (!loaded.get()->setPart("world.air.transmission", countedAir))
+            return fail("Cannot set non-vacuum air transmission.");
+    }
+
+    SceneInstanceTree topology = SceneInstanceBuilder::build(loaded.get());
+    signature->shapeInstanceCount = countShapeInstances(topology.layoutRoot);
 
     HitAccumulator hits;
     SceneInstanceTree borrowedTree;
@@ -192,6 +258,8 @@ bool traceOnce(PreparationPath path, ulong rays, bool recordPhotons,
     hits.copyTo(signature);
     if (photonBuffer)
         signature->recordedPhotonCount = photonBuffer->getPhotons().size();
+    if (countedAir)
+        signature->airTransmissionCalls = countedAir->calls();
     return true;
 }
 
@@ -209,6 +277,8 @@ void expectEqualScience(const ScientificSignature& expected,
     EXPECT_EQ(expected.hitCount, actual.hitCount);
     EXPECT_EQ(expected.frontHitCount, actual.frontHitCount);
     EXPECT_EQ(expected.invalidHitCount, actual.invalidHitCount);
+    EXPECT_EQ(expected.shapeInstanceCount, actual.shapeInstanceCount);
+    EXPECT_EQ(expected.airTransmissionCalls, actual.airTransmissionCalls);
 
     std::size_t differentBins = 0;
     for (std::size_t index = 0; index < kHistogramSize; ++index) {
@@ -299,6 +369,106 @@ TEST(ScientificTraceDiagnostic, PhotonRecordingPreservesScientificHits)
                           &withRecording, &error)) << error;
     EXPECT_GT(withRecording.recordedPhotonCount, 0U);
     expectEqualScience(withoutRecording, withRecording);
+}
+
+// This stable two-surface Fresnel fixture exercises material continuation,
+// a receiver, the borrowed GUI-style contract and owned headless preparation.
+TEST(ScientificTraceExtended, FresnelTwoSurfaceIsRepeatableAndMatchesPaths)
+{
+    for (const ulong rays : {4096UL, 20001UL}) {
+        SCOPED_TRACE(rays);
+        ScientificSignature first;
+        ScientificSignature repeated;
+        ScientificSignature gui;
+        std::string error;
+        ASSERT_TRUE(traceOnce(PreparationPath::HeadlessOwned, rays, false,
+                              &first, &error, ScientificScene::FresnelTwoSurfaceVacuum)) << error;
+        ASSERT_TRUE(traceOnce(PreparationPath::HeadlessOwned, rays, false,
+                              &repeated, &error, ScientificScene::FresnelTwoSurfaceVacuum)) << error;
+        ASSERT_TRUE(traceOnce(PreparationPath::GuiBorrowed, rays, false,
+                              &gui, &error, ScientificScene::FresnelTwoSurfaceVacuum)) << error;
+
+        expectValidTrace(first, rays);
+        expectValidTrace(gui, rays);
+        EXPECT_GE(first.shapeInstanceCount, 2U);
+        EXPECT_GT(first.hitCount, 0U);
+        EXPECT_EQ(first.airTransmissionCalls, 0U);
+        expectEqualScience(first, repeated);
+        expectEqualScience(first, gui);
+    }
+}
+
+TEST(ScientificTraceExtended, ExponentialAirIsExercisedAndMatchesPaths)
+{
+    constexpr ulong rays = 4096UL;
+    ScientificSignature first;
+    ScientificSignature repeated;
+    ScientificSignature gui;
+    std::string error;
+    ASSERT_TRUE(traceOnce(PreparationPath::HeadlessOwned, rays, false,
+                          &first, &error, ScientificScene::FresnelTwoSurfaceExponentialAir)) << error;
+    ASSERT_TRUE(traceOnce(PreparationPath::HeadlessOwned, rays, false,
+                          &repeated, &error, ScientificScene::FresnelTwoSurfaceExponentialAir)) << error;
+    ASSERT_TRUE(traceOnce(PreparationPath::GuiBorrowed, rays, false,
+                          &gui, &error, ScientificScene::FresnelTwoSurfaceExponentialAir)) << error;
+
+    expectValidTrace(first, rays);
+    EXPECT_GE(first.shapeInstanceCount, 2U);
+    EXPECT_GT(first.hitCount, 0U);
+    EXPECT_GT(first.airTransmissionCalls, 0U)
+        << "A non-vacuum regression must exercise atmospheric transmission.";
+    expectEqualScience(first, repeated);
+    expectEqualScience(first, gui);
+}
+
+TEST(ScientificTraceExtended, ExponentialAirPhotonRecordingPreservesHits)
+{
+    constexpr ulong rays = 4096UL;
+    ScientificSignature withoutRecording;
+    ScientificSignature withRecording;
+    std::string error;
+    ASSERT_TRUE(traceOnce(PreparationPath::GuiBorrowed, rays, false,
+                          &withoutRecording, &error,
+                          ScientificScene::FresnelTwoSurfaceExponentialAir)) << error;
+    ASSERT_TRUE(traceOnce(PreparationPath::GuiBorrowed, rays, true,
+                          &withRecording, &error,
+                          ScientificScene::FresnelTwoSurfaceExponentialAir)) << error;
+
+    EXPECT_GT(withoutRecording.airTransmissionCalls, 0U);
+    EXPECT_GT(withRecording.recordedPhotonCount, 0U);
+    expectEqualScience(withoutRecording, withRecording);
+}
+
+// Compare independent optical scene bounds with a correctly applied Coin3D
+// action; the exact GUI production sizing call has a separate opt-in test.
+TEST(ScientificTraceExtended, InventorSceneBoundingActionTraversesFixtures)
+{
+    for (ScientificScene scene : {ScientificScene::CylinderVacuum,
+                                  ScientificScene::FresnelTwoSurfaceVacuum}) {
+        SCOPED_TRACE(fixturePath(scene).toStdString());
+        LoadedScene loaded;
+        QString error;
+        ASSERT_TRUE(SceneLoader::readFile(fixturePath(scene), &loaded, &error))
+            << error.toStdString();
+        ASSERT_NE(loaded.get()->getLayout(), nullptr);
+
+        SoGetBoundingBoxAction action{SbViewportRegion()};
+        action.apply(loaded.get()->getLayout());
+        const SbBox3f sceneBox = action.getBoundingBox();
+        ASSERT_FALSE(sceneBox.isEmpty());
+        for (int axis = 0; axis < 3; ++axis) {
+            const double minimum = sceneBox.getMin()[axis];
+            const double maximum = sceneBox.getMax()[axis];
+            EXPECT_TRUE(std::isfinite(minimum));
+            EXPECT_TRUE(std::isfinite(maximum));
+            EXPECT_GE(maximum, minimum);
+        }
+
+        SceneInstanceTree tree = SceneInstanceBuilder::build(loaded.get());
+        ASSERT_NE(tree.layoutRoot, nullptr);
+        tree.layoutRoot->updateTree(Transform::Identity);
+        EXPECT_TRUE(tree.layoutRoot->getBox().isValid());
+    }
 }
 
 int main(int argc, char** argv)

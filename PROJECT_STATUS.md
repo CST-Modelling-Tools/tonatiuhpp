@@ -4,6 +4,15 @@ Last updated: 2026-10-08
 
 Purpose: lightweight handoff for current Tonatiuh++ project and release context. Keep stable agent rules in `AGENT.md`; update this file when release context changes.
 
+## Development checkpoint — Milestone 0B (2026-10-08)
+
+- Active branch: `test/scientific-equivalence-m0b-20261008`, based on merged M0A `master`.
+- Work in progress: additional two-surface Fresnel and instrumented exponential-air scientific regressions, plus an opt-in native QApplication/SoQt sun-aperture diagnostic.
+- Windows/MSVC Release rebuilt and passed **8/8 scientific CTest tests after** the production Coin action-traversal correction (3.45 seconds total; developer-reported 2026-10-08). The native GUI diagnostic now completes both fixtures without the prior access violation; exit code 1 indicates a measured numerical aperture mismatch.
+- With pending Coin field sensors processed, the GUI and headless sampled sun-cell masks match (cylinder 60/60; Fresnel two-surface 323/323). Full-precision GUI versus headless areas: cylinder 0.14738736997989096 versus 0.14738737141625147 (relative difference ~9.7455e-9); Fresnel 1.1908791977337683 versus 1.1965395657699263 (relative difference ~0.00473062, or 0.473%). Analytical planar `ShapeRT::getBox()` thickness differs from the flat Coin mesh and can change area-based energy normalization. A GUI/headless aperture-geometry policy and latest cross-platform CI review are still required before merging PR #5.
+- Other ray-tracing physics, RNG, scheduling, and photon-export algorithms are unchanged.
+- See `docs/scientific-equivalence-m0b.md` for commands and limitations.
+
 ## Development checkpoint — Milestone 0A (2026-10-08)
 
 - Active development branch: `test/scientific-equivalence-m0a-20261008`, based on the v0.1.8.26 release source.
