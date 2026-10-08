@@ -243,6 +243,27 @@ jobs:
         run: |
           cmake --build build --config Release --parallel
 
+      # On Windows, the runtime loader does not search sibling CMake target
+      # output directories. Make the freshly built DLLs available before
+      # CTest performs PRE_TEST GoogleTest discovery.
+      - name: Add Windows test runtime DLL paths
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $runtimeDirs = @(
+            'build/libraries',
+            'build/kernel',
+            'build/SunPath',
+            'third_party/_install/bin'
+          )
+          foreach ($relativeDir in $runtimeDirs) {
+            $directory = Join-Path $env:GITHUB_WORKSPACE $relativeDir
+            if (Test-Path -LiteralPath $directory -PathType Container) {
+              Write-Host "Adding runtime DLL directory to PATH: $directory"
+              Add-Content -LiteralPath $env:GITHUB_PATH -Value $directory
+            }
+          }
+
       - name: Test
         shell: bash
         run: |
