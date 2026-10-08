@@ -107,6 +107,17 @@ jobs:
           brew update
           brew install boost eigen
 
+      # Cache version-pinned source archives, not extracted files. Revalidate ZIP
+      # signatures and extracted headers even on cache hits.
+      - name: Cache Windows Boost and Eigen archives
+        if: runner.os == 'Windows'
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ runner.temp }}/boost_1_90_0.zip
+            ${{ runner.temp }}/eigen-5.0.0.zip
+          key: windows-header-archives-v1-boost-1.90.0-eigen-5.0.0
+
       # Windows: follow the Tonatiuh++ blog approach: download + extract headers (fast, predictable)
       - name: Install Boost + Eigen headers (Windows, download)
         if: runner.os == 'Windows'
@@ -129,7 +140,6 @@ jobs:
           $boostUrlFallback = "https://archives.boost.io/release/$boostVersion/source/boost_$boostU.zip"
 
           if (Test-Path $boostRoot) { Remove-Item -Recurse -Force $boostRoot }
-          if (Test-Path $boostZip)  { Remove-Item -Force $boostZip }
 
           function Download-File($url, $outFile) {
             Write-Host "Downloading: $url"
@@ -149,11 +159,24 @@ jobs:
             }
           }
 
-          try {
-            Download-File $boostUrlPrimary $boostZip
-          } catch {
-            Write-Host "Primary Boost URL failed: $($_.Exception.Message)"
-            Download-File $boostUrlFallback $boostZip
+          if (Test-Path $boostZip) {
+            Write-Host "Using cached Boost archive; verifying its ZIP signature."
+            $fs = [System.IO.File]::OpenRead($boostZip)
+            try {
+              if ($fs.ReadByte() -ne 0x50 -or $fs.ReadByte() -ne 0x4B) {
+                Remove-Item -Force $boostZip
+              }
+            } finally {
+              $fs.Dispose()
+            }
+          }
+          if (!(Test-Path $boostZip)) {
+            try {
+              Download-File $boostUrlPrimary $boostZip
+            } catch {
+              Write-Host "Primary Boost URL failed: $($_.Exception.Message)"
+              Download-File $boostUrlFallback $boostZip
+            }
           }
 
           Expand-Archive -Path $boostZip -DestinationPath "C:\" -Force
@@ -177,8 +200,21 @@ jobs:
           if (Test-Path $eigenRoot) { Remove-Item -Recurse -Force $eigenRoot }
           New-Item -ItemType Directory -Path $eigenRoot | Out-Null
 
-          Write-Host "Downloading Eigen headers: $eigenUrl"
-          Invoke-WebRequest -Uri $eigenUrl -OutFile $eigenZip -MaximumRedirection 10 -TimeoutSec 600
+          if (Test-Path $eigenZip) {
+            Write-Host "Using cached Eigen archive; verifying its ZIP signature."
+            $fs = [System.IO.File]::OpenRead($eigenZip)
+            try {
+              if ($fs.ReadByte() -ne 0x50 -or $fs.ReadByte() -ne 0x4B) {
+                Remove-Item -Force $eigenZip
+              }
+            } finally {
+              $fs.Dispose()
+            }
+          }
+          if (!(Test-Path $eigenZip)) {
+            Write-Host "Downloading Eigen headers: $eigenUrl"
+            Download-File $eigenUrl $eigenZip
+          }
 
           # Extract into a temp folder first
           $eigenExtract = Join-Path $env:RUNNER_TEMP "eigen_extract_$eigenVersion"
@@ -213,13 +249,13 @@ jobs:
           path: |
             third_party/_install
             third_party/_build
-          key: deps-${{ runner.os }}-${{ hashFiles(
+          # Cache validity follows dependency inputs, not routine CI YAML edits.
+          key: deps-v2-qt6.6.3-${{ runner.os }}-${{ hashFiles(
             'scripts/build_deps.py',
             'scripts/scrub_macos_agl_generated_links.py',
             'third_party/deps.yaml',
             'cmake/**',
-            'source/CMakeLists.txt',
-            '.github/workflows/ci.yml') }}
+            'source/CMakeLists.txt') }}
 
       - name: Build third-party dependencies
         shell: bash
