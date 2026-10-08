@@ -1,6 +1,6 @@
 # Scientific equivalence — Milestone 0B
 
-Status: development branch. **Eight of eight automatic scientific tests passed on Windows/MSVC Release**, according to the developer's 2026-10-08 build and CTest output (4.47 seconds total). The optional native GUI diagnostic compiled, but both attempts terminated with Windows access violation `0xC0000005` before printing aperture results. This is **not a validated GUI/headless aperture comparison**; the cause and offending call remain unknown. The diagnostic now has flushed phase checkpoints for a targeted rerun. Do not merge until its scope and the crash have been reviewed.
+Status: development branch. **Eight of eight automatic scientific tests passed on Windows/MSVC Release** prior to the latest fix (4.47 seconds total, developer-reported). The optional native GUI diagnostic compiled but reproducibly crashed with `0xC0000005` inside `SunKit::setBox(TSceneKit*)` on the cylinder fixture. Source review found direct invocation of a node's `getBoundingBox(action)` instead of dispatching `SoGetBoundingBoxAction::apply(node)`. A narrowly scoped production fix now uses `apply()`, matching the already-passing Coin3D bounding-action test. **The fix has not yet been rebuilt or executed on Windows**, and no GUI-versus-headless sun-aperture areas have been validated. Do not merge before reviewing the results.
 
 ## Scope
 
@@ -11,7 +11,7 @@ Status: development branch. **Eight of eight automatic scientific tests passed o
 - Exercise a correctly applied `SoGetBoundingBoxAction` on both fixtures, separate from the production GUI's `SunKit::setBox(TSceneKit*)` method.
 - Add an **opt-in** native QApplication/SoQt executable that directly invokes that exact production GUI sun-sizing method, then compares sampled aperture area with separately prepared optical bounds. It is not a MainWindow automation test.
 
-No optical kernel, scheduler, RNG, photon-exporter, GUI production source, or scientific benchmark references are modified.
+The GUI `SunKit::setBox(TSceneKit*)` implementation now contains a targeted action-traversal correction. This is a production **GUI aperture-sizing** change whose numerical effect must be assessed before merging. No tracer propagation, scheduling, RNG, photon exporter, or benchmark reference values were changed.
 
 ## Local validation
 
@@ -36,11 +36,15 @@ cmake --build build --config Release --target tonatiuhpp_gui_sun_diagnostic
 
 The native tool needs a working Qt GUI environment and matching SoQt DLLs. It intentionally is **not** registered as an automatic CTest test, because the original M0A QCoreApplication harness crashed when invoking the GUI scene-sizing code. A mismatch or native crash requires investigation, not automatic benchmark adjustment.
 
+**After the action-dispatch fix:** update the branch, rebuild `tonatiuhpp_gui_sun_diagnostic` (which also rebuilds `TonatiuhKernel`), and rerun it. Check that both fixtures print finite, positive GUI and headless areas, and inspect the equality/mismatch result instead of assuming the numerical values must agree. Then rebuild `tonatiuhpp_scientific_equivalence_tests` and rerun all eight scientific CTest cases to confirm no regression.
+
 ### Investigating the native crash
 
 The developer reported `$LASTEXITCODE = -1073741819` (`0xC0000005`) after running the GUI diagnostic twice on Windows. The initial build emitted no area measurements. The diagnostic now prints flushed `[gui-sun]` checkpoints before and after Qt/SoQt/Coin initialization, scene loading, `SunKit::setBox(TSceneKit*)`, instance-tree creation, aperture texture generation, and area reading.
 
-After pulling the new branch commit, rebuild only `tonatiuhpp_gui_sun_diagnostic` and rerun in the configured Windows DLL environment. Report the last printed checkpoint and exit code; if the first checkpoint never appears, investigate startup/loading with a native debugger. If a checkpoint narrows the crash to a call, obtain a native debugger call stack before editing production code. No runtime fix has yet been demonstrated.
+A checkpointed native run reached `[gui-sun] before SunKit::setBox(TSceneKit*)` and then crashed with `0xC0000005`. This localizes the failure to that method, but does not provide a debugger call stack proving the exact instruction. The method originally called `separatorKit->getBoundingBox(action)` directly; the regression test successfully traverses the same fixture by calling `action.apply(separatorKit)`. The production method has now been updated to use the latter correctly initialized action. **This is a suspected fix, not a verified resolution**.
+
+After pulling the new branch commit, rebuild and rerun the diagnostic in the configured Windows DLL environment. Report the area measurements, the last printed checkpoint, and the exit code. If the fix does not resolve the crash, obtain a native debugger call stack before further production changes. Any scientific area mismatch must be investigated rather than suppressed.
 
 ## Boundaries
 

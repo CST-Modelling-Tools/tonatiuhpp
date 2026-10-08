@@ -8,8 +8,9 @@ Purpose: lightweight handoff for current Tonatiuh++ project and release context.
 
 - Active branch: `test/scientific-equivalence-m0b-20261008`, based on merged M0A `master`.
 - Work in progress: additional two-surface Fresnel and instrumented exponential-air scientific regressions, plus an opt-in native QApplication/SoQt sun-aperture diagnostic.
-- Windows/MSVC Release validated 8/8 scientific CTest cases (4.47 seconds total). The separately built opt-in GUI sun-aperture diagnostic crashes with access violation `0xC0000005` before its result output; its root cause is not yet established. The diagnostic has been instrumented with flushed phase checkpoints for a targeted rerun. Do not merge before reviewing this limitation and CI results.
-- No production ray-tracing or GUI behavior is changed.
+- Windows/MSVC Release validated 8/8 scientific CTest cases (4.47 seconds total) before the latest sun-sizing correction. The opt-in native GUI diagnostic reached `SunKit::setBox(TSceneKit*)` and then crashed with `0xC0000005`; a debugger trace has not established the precise faulting instruction.
+- The GUI sun-sizing implementation now dispatches a `SoGetBoundingBoxAction` via `action.apply(separatorKit)` instead of directly calling `separatorKit->getBoundingBox(action)`. This is a small production correction suspected to address the access violation; it is **unvalidated** pending a Windows diagnostic rerun and an 8-test CTest regression rerun. Do not merge until the results, numerical sun-aperture equivalence, and CI have been reviewed.
+- Other ray-tracing physics, RNG, scheduling, and photon-export algorithms are unchanged.
 - See `docs/scientific-equivalence-m0b.md` for commands and limitations.
 
 ## Development checkpoint — Milestone 0A (2026-10-08)

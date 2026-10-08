@@ -128,10 +128,11 @@ void SunKit::setBox(TSceneKit* scene)
     TSeparatorKit* separatorKit = scene->getLayout();
     if (!separatorKit) return;
 
-    SoGetBoundingBoxAction* action = new SoGetBoundingBoxAction(SbViewportRegion() );
-    separatorKit->getBoundingBox(action);
-    SbBox3f box = action->getBoundingBox();
-    delete action;
+    // Dispatch through SoAction::apply() to initialize Coin's traversal state.
+    // Calling getBoundingBox() on the node directly bypasses this setup.
+    SoGetBoundingBoxAction action{SbViewportRegion()};
+    action.apply(separatorKit);
+    SbBox3f box = action.getBoundingBox();
 
     if (!box.isEmpty() )
     {
