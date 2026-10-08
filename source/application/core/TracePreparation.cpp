@@ -109,11 +109,14 @@ bool TracePreparation::prepareGuiTrace(const GuiTracePreparationInput& input,
     if (!resolveSun(input.scene, &sunKit, &sunShape, &sunAperture, &sunPosition, errorMessage))
         return false;
 
-    if (input.sizeSunFromScene)
-        sunKit->setBox(input.scene);
     if (input.synchronizeScene)
         input.synchronizeScene();
     input.layoutRoot->updateTree(Transform::Identity);
+    const Box3D& layoutBox = input.layoutRoot->getBox();
+    if (!layoutBox.isValid())
+        return fail(errorMessage, "GUI scene has no valid analytical ray-tracing bounds.");
+    // Both the borrowed GUI and owned headless preparation use analytical bounds.
+    sunKit->setBox(layoutBox);
     if (!sunKit->findTexture(input.sunWidthDivisions, input.sunHeightDivisions, input.layoutRoot))
         return fail(errorMessage, "There are no surfaces defined for ray tracing.");
 

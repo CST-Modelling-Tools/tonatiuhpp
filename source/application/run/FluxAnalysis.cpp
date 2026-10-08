@@ -162,7 +162,6 @@ void FluxAnalysis::run(QString nodeURL, QString surfaceSide, ulong nRays, bool p
     preparationInput.rays = nRays;
     preparationInput.sunWidthDivisions = m_sunDivs.x;
     preparationInput.sunHeightDivisions = m_sunDivs.y;
-    preparationInput.sizeSunFromScene = true;
     preparationInput.synchronizeScene = [this]() { m_sceneModel->UpdateSceneModel(); };
     PreparedTraceContext context;
     QString preparationError;

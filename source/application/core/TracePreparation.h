@@ -36,7 +36,6 @@ struct GuiTracePreparationInput
     ulong rays = 0;
     int sunWidthDivisions = 0;
     int sunHeightDivisions = 0;
-    bool sizeSunFromScene = false;
 };
 
 struct HeadlessTracePreparationInput
