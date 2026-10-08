@@ -1,6 +1,6 @@
 # Scientific equivalence — Milestone 0B
 
-Status: development branch, **unvalidated**. All claims below are test intentions, not passed results. Milestone 0A is already merged and remains the baseline.
+Status: development branch. **Eight of eight automatic scientific tests passed on Windows/MSVC Release**, according to the developer's 2026-10-08 build and CTest output (4.47 seconds total). The optional native GUI diagnostic compiled, but both attempts terminated with Windows access violation `0xC0000005` before printing aperture results. This is **not a validated GUI/headless aperture comparison**; the cause and offending call remain unknown. The diagnostic now has flushed phase checkpoints for a targeted rerun. Do not merge until its scope and the crash have been reviewed.
 
 ## Scope
 
@@ -35,6 +35,12 @@ cmake --build build --config Release --target tonatiuhpp_gui_sun_diagnostic
 ```
 
 The native tool needs a working Qt GUI environment and matching SoQt DLLs. It intentionally is **not** registered as an automatic CTest test, because the original M0A QCoreApplication harness crashed when invoking the GUI scene-sizing code. A mismatch or native crash requires investigation, not automatic benchmark adjustment.
+
+### Investigating the native crash
+
+The developer reported `$LASTEXITCODE = -1073741819` (`0xC0000005`) after running the GUI diagnostic twice on Windows. The initial build emitted no area measurements. The diagnostic now prints flushed `[gui-sun]` checkpoints before and after Qt/SoQt/Coin initialization, scene loading, `SunKit::setBox(TSceneKit*)`, instance-tree creation, aperture texture generation, and area reading.
+
+After pulling the new branch commit, rebuild only `tonatiuhpp_gui_sun_diagnostic` and rerun in the configured Windows DLL environment. Report the last printed checkpoint and exit code; if the first checkpoint never appears, investigate startup/loading with a native debugger. If a checkpoint narrows the crash to a call, obtain a native debugger call stack before editing production code. No runtime fix has yet been demonstrated.
 
 ## Boundaries
 

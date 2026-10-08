@@ -8,7 +8,8 @@ Purpose: lightweight handoff for current Tonatiuh++ project and release context.
 
 - Active branch: `test/scientific-equivalence-m0b-20261008`, based on merged M0A `master`.
 - Work in progress: additional two-surface Fresnel and instrumented exponential-air scientific regressions, plus an opt-in native QApplication/SoQt sun-aperture diagnostic.
-- No production ray-tracing or GUI behavior is changed. All M0B tests require developer build and runtime validation; do not merge without test results and CI review.
+- Windows/MSVC Release validated 8/8 scientific CTest cases (4.47 seconds total). The separately built opt-in GUI sun-aperture diagnostic crashes with access violation `0xC0000005` before its result output; its root cause is not yet established. The diagnostic has been instrumented with flushed phase checkpoints for a targeted rerun. Do not merge before reviewing this limitation and CI results.
+- No production ray-tracing or GUI behavior is changed.
 - See `docs/scientific-equivalence-m0b.md` for commands and limitations.
 
 ## Development checkpoint — Milestone 0A (2026-10-08)

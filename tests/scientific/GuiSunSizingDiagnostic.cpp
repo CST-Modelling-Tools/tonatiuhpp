@@ -16,15 +16,34 @@
 #include "kernel/sun/SunKit.h"
 #include "libraries/math/3D/Transform.h"
 
+namespace
+{
+void checkpoint(const char* stage, const char* path = nullptr)
+{
+    std::cerr << "[gui-sun] " << stage;
+    if (path)
+        std::cerr << " | fixture: " << path;
+    std::cerr << std::endl;
+}
+}
+
 // Opt-in *native graphical* diagnostic. Reproduces MainWindow::UpdateLightSize()
 // rather than substituting instance-tree bounds as the regular tests do.
 // Any access violation here should be debugged before changing production code.
 int main(int argc, char** argv)
 {
+    checkpoint("enter main");
     QApplication app(argc, argv);
+    checkpoint("QApplication initialized");
+    checkpoint("before SoQt::init");
     SoQt::init(static_cast<QWidget*>(nullptr));
+    checkpoint("SoQt initialized");
+    checkpoint("before TonatiuhCore::initializeCoin");
     TonatiuhCore::initializeCoin();
+    checkpoint("Coin initialized");
+    checkpoint("before CorePluginRegistry");
     CorePluginRegistry plugins;
+    checkpoint("built-in scene types registered");
 
     int differences = 0;
     const char* paths[] = {
@@ -33,6 +52,7 @@ int main(int argc, char** argv)
     };
 
     for (const char* path : paths) {
+        checkpoint("begin fixture", path);
         TonatiuhCore::setProjectSearchPaths(QString::fromUtf8(path));
         LoadedScene graphical;
         LoadedScene optical;
@@ -42,6 +62,7 @@ int main(int argc, char** argv)
             std::cerr << "Cannot load fixture: " << error.toStdString() << '\n';
             return 2;
         }
+        checkpoint("both scene files loaded", path);
 
         auto* graphicalSun = static_cast<SunKit*>(
             graphical.get()->getPart("world.sun", false));
@@ -51,38 +72,49 @@ int main(int argc, char** argv)
             std::cerr << "Scene is missing the sun.\n";
             return 2;
         }
+        checkpoint("sun nodes located", path);
 
         // This is the exact sun-bounding-box method used by MainWindow.
+        checkpoint("before SunKit::setBox(TSceneKit*)", path);
         graphicalSun->setBox(graphical.get());
+        checkpoint("after SunKit::setBox(TSceneKit*)", path);
 
+        checkpoint("before SceneInstanceBuilder::build", path);
         SceneInstanceTree graphicalTree = SceneInstanceBuilder::build(graphical.get());
         SceneInstanceTree opticalTree = SceneInstanceBuilder::build(optical.get());
+        checkpoint("scene instance trees built", path);
         if (!graphicalTree.layoutRoot || !opticalTree.layoutRoot)
             return 2;
         graphicalTree.layoutRoot->updateTree(Transform::Identity);
         opticalTree.layoutRoot->updateTree(Transform::Identity);
+        checkpoint("instance bounds updated", path);
         const Box3D& box = opticalTree.layoutRoot->getBox();
         if (!box.isValid()) {
             std::cerr << "Invalid optical geometry bounds.\n";
             return 2;
         }
         opticalSun->setBox(box);
+        checkpoint("optical sun bounds set", path);
 
+        checkpoint("before both SunKit::findTexture calls", path);
         if (!graphicalSun->findTexture(200, 200, graphicalTree.layoutRoot)
             || !opticalSun->findTexture(200, 200, opticalTree.layoutRoot)) {
             std::cerr << "Cannot sample a scene's sun aperture.\n";
             return 2;
         }
+        checkpoint("both sun aperture textures found", path);
 
         auto* graphicalAperture = static_cast<SunAperture*>(
             graphicalSun->getPart("aperture", false));
         auto* opticalAperture = static_cast<SunAperture*>(
             opticalSun->getPart("aperture", false));
+        checkpoint("before reading sun aperture areas", path);
         const double graphicalArea = graphicalAperture->getArea();
         const double opticalArea = opticalAperture->getArea();
 
         std::cout << path << ": GUI aperture area = " << graphicalArea
-                  << "; headless optical aperture area = " << opticalArea << '\n';
+                  << "; headless optical aperture area = " << opticalArea << std::endl;
+        checkpoint("areas printed", path);
         if (!std::isfinite(graphicalArea) || !std::isfinite(opticalArea)
             || graphicalArea <= 0. || opticalArea <= 0.) {
             std::cerr << "Invalid aperture areas.\n";
@@ -96,5 +128,6 @@ int main(int argc, char** argv)
         }
     }
 
+    checkpoint(differences == 0 ? "completed: matching areas" : "completed: area mismatch");
     return differences == 0 ? 0 : 1;
 }
