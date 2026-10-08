@@ -1,6 +1,6 @@
 # Scientific equivalence — Milestone 0B
 
-Status: development branch. **Eight of eight automatic scientific tests passed on Windows/MSVC Release** prior to the latest fix (4.47 seconds total, developer-reported). The optional native GUI diagnostic compiled but reproducibly crashed with `0xC0000005` inside `SunKit::setBox(TSceneKit*)` on the cylinder fixture. Source review found direct invocation of a node's `getBoundingBox(action)` instead of dispatching `SoGetBoundingBoxAction::apply(node)`. A narrowly scoped production fix now uses `apply()`, matching the already-passing Coin3D bounding-action test. **The fix has not yet been rebuilt or executed on Windows**, and no GUI-versus-headless sun-aperture areas have been validated. Do not merge before reviewing the results.
+Status: **8/8 scientific regressions passed on Windows/MSVC Release prior to the sun-sizing correction** (4.47 seconds total, developer reported). The corrected GUI Coin traversal no longer crashes on the two standalone diagnostic fixtures, but their aperture areas differ: cylinder GUI 0.0279707 vs headless 0.147387 and Fresnel GUI 1.12908 vs headless 1.19654. Exit code 1 is the diagnostic's expected mismatch signal. The current hypothesis is that pending Coin field sensors leave preview geometry stale in a standalone executable without a GUI event loop. A diagnostic sensor-queue comparison is pending. The production GUI's numerical equivalence is **unproven**. Do not merge yet.
 
 ## Scope
 
@@ -37,6 +37,14 @@ cmake --build build --config Release --target tonatiuhpp_gui_sun_diagnostic
 The native tool needs a working Qt GUI environment and matching SoQt DLLs. It intentionally is **not** registered as an automatic CTest test, because the original M0A QCoreApplication harness crashed when invoking the GUI scene-sizing code. A mismatch or native crash requires investigation, not automatic benchmark adjustment.
 
 **After the action-dispatch fix:** update the branch, rebuild `tonatiuhpp_gui_sun_diagnostic` (which also rebuilds `TonatiuhKernel`), and rerun it. Check that both fixtures print finite, positive GUI and headless areas, and inspect the equality/mismatch result instead of assuming the numerical values must agree. Then rebuild `tonatiuhpp_scientific_equivalence_tests` and rerun all eight scientific CTest cases to confirm no regression.
+
+### Investigating differing aperture areas
+
+With the corrected Coin action call, the native diagnostic completes both fixtures without an access violation, but returns 1 due to area mismatches (cylinder: 0.0279707 vs 0.147387; Fresnel two-surface: 1.12908 vs 1.19654, GUI vs headless). These are standalone diagnostic results, **not** end-to-end MainWindow measurements.
+
+The GUI box is based on Coin preview geometry; the headless box comes from `ShapeRT::getBox()` through `InstanceNode::updateTree()`. `TShapeKit` regenerates its preview meshes through delayed field sensors. Since the diagnostic never enters a GUI event loop, pending sensor updates might explain these differences; genuine graphical/analytical bound differences are another possibility. The next run logs Coin bounds before and after processing the pending sensor queue, and then optical bounds. **This does not change production tracing or reference data.**
+
+After pulling, rebuild `tonatiuhpp_gui_sun_diagnostic`, rerun it, and report those three bounds and the aperture values. Also rerun the eight scientific CTest regressions, because their prior pass predates the sun-sizing production fix. Investigate remaining differences rather than forcing a match.
 
 ### Investigating the native crash
 

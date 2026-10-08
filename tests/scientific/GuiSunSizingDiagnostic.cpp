@@ -1,10 +1,14 @@
 #include <algorithm>
 #include <cmath>
+#include <iomanip>
 #include <iostream>
 
 #include <QApplication>
 #include <QString>
 #include <Inventor/Qt/SoQt.h>
+#include <Inventor/SoDB.h>
+#include <Inventor/actions/SoGetBoundingBoxAction.h>
+#include <Inventor/sensors/SoSensorManager.h>
 
 #include "core/CorePluginRegistry.h"
 #include "core/SceneInstanceBuilder.h"
@@ -12,6 +16,7 @@
 #include "core/TonatiuhCore.h"
 #include "kernel/run/InstanceNode.h"
 #include "kernel/scene/TSceneKit.h"
+#include "kernel/scene/TSeparatorKit.h"
 #include "kernel/sun/SunAperture.h"
 #include "kernel/sun/SunKit.h"
 #include "libraries/math/3D/Transform.h"
@@ -24,6 +29,35 @@ void checkpoint(const char* stage, const char* path = nullptr)
     if (path)
         std::cerr << " | fixture: " << path;
     std::cerr << std::endl;
+}
+
+void printCoinBounds(const char* stage, TSceneKit* scene)
+{
+    SoGetBoundingBoxAction action{SbViewportRegion()};
+    action.apply(scene->getLayout());
+    const SbBox3f box = action.getBoundingBox();
+    std::cerr << "[gui-sun] " << stage << ": ";
+    if (box.isEmpty()) {
+        std::cerr << "EMPTY" << std::endl;
+        return;
+    }
+    const SbVec3f& a = box.getMin();
+    const SbVec3f& b = box.getMax();
+    std::cerr << std::setprecision(12)
+              << "min=(" << a[0] << ", " << a[1] << ", " << a[2] << ")"
+              << ", max=(" << b[0] << ", " << b[1] << ", " << b[2] << ")"
+              << std::endl;
+}
+
+void printOpticalBounds(const char* stage, const Box3D& box)
+{
+    const vec3d& a = box.min();
+    const vec3d& b = box.max();
+    std::cerr << "[gui-sun] " << stage << ": "
+              << std::setprecision(12)
+              << "min=(" << a.x << ", " << a.y << ", " << a.z << ")"
+              << ", max=(" << b.x << ", " << b.y << ", " << b.z << ")"
+              << std::endl;
 }
 }
 
@@ -74,6 +108,15 @@ int main(int argc, char** argv)
         }
         checkpoint("sun nodes located", path);
 
+        // The production GUI processes Coin field sensors via its event loop.
+        // This standalone executable measures whether pending display-mesh
+        // updates account for the aperture-area difference.
+        printCoinBounds("Coin preview bounds BEFORE sensor queue", graphical.get());
+        checkpoint("processing pending Coin sensor queue", path);
+        SoDB::getSensorManager()->processDelayQueue(true);
+        checkpoint("Coin sensor queue processed", path);
+        printCoinBounds("Coin preview bounds AFTER sensor queue", graphical.get());
+
         // This is the exact sun-bounding-box method used by MainWindow.
         checkpoint("before SunKit::setBox(TSceneKit*)", path);
         graphicalSun->setBox(graphical.get());
@@ -93,6 +136,7 @@ int main(int argc, char** argv)
             std::cerr << "Invalid optical geometry bounds.\n";
             return 2;
         }
+        printOpticalBounds("Ray-tracing instance bounds", box);
         opticalSun->setBox(box);
         checkpoint("optical sun bounds set", path);
 
