@@ -4,6 +4,13 @@ Last updated: 2026-10-08
 
 Purpose: lightweight handoff for current Tonatiuh++ project and release context. Keep stable agent rules in `AGENT.md`; update this file when release context changes.
 
+## Development checkpoint — Milestone 0C (2026-10-08)
+
+- Approved policy: simulation GUI and headless modes use analytical ray-tracing geometry to size the sun aperture; legacy GUI results can change where Coin display-mesh bounds diverge.
+- Active feature branch: `feat/unified-analytical-sun-aperture-m0c-20261008`, based on the unmerged M0B draft; PR #5 remains separate and must be merged before M0C can target master.
+- GUI preview resizing and both trace-preparation entry points use analytical instance-tree bounds, eliminating production dependencies on Coin graphical mesh refresh timing for sun sizing. Flux analysis uses the same GUI preparation path.
+- Added direct GUI/headless aperture-area, sampled-cell, and power-per-ray parity test on cylinder and Fresnel scenes after deliberately perturbing GUI sun sizing. Windows compilation, runtime tests, scientific numerical references, and cross-platform CI remain **pending**. This change deliberately modifies historical GUI energy normalization and must be reviewed before merging.
+
 ## Development checkpoint — Milestone 0B (2026-10-08)
 
 - Active branch: `test/scientific-equivalence-m0b-20261008`, based on merged M0A `master`.

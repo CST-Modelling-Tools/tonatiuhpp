@@ -28,6 +28,7 @@
 #include "kernel/scene/TSceneKit.h"
 #include "kernel/scene/TSeparatorKit.h"
 #include "kernel/scene/TShapeKit.h"
+#include "kernel/sun/SunAperture.h"
 #include "kernel/sun/SunKit.h"
 #include "libraries/math/3D/Transform.h"
 
@@ -458,6 +459,68 @@ TEST(ScientificTraceExtended, InventorSceneBoundingActionTraversesFixtures)
         ASSERT_NE(tree.layoutRoot, nullptr);
         tree.layoutRoot->updateTree(Transform::Identity);
         EXPECT_TRUE(tree.layoutRoot->getBox().isValid());
+    }
+}
+
+// M0C: Both preparation entry points must overwrite any legacy/stale sun
+// sizing with the same analytical bounds before computing cells and power.
+TEST(ScientificSunSizing, GuiAndHeadlessUseIdenticalAnalyticalBounds)
+{
+    for (ScientificScene scene : {ScientificScene::CylinderVacuum,
+                                  ScientificScene::FresnelTwoSurfaceVacuum}) {
+        SCOPED_TRACE(fixturePath(scene).toStdString());
+        LoadedScene guiScene;
+        LoadedScene headlessScene;
+        QString error;
+        ASSERT_TRUE(SceneLoader::readFile(fixturePath(scene), &guiScene, &error))
+            << error.toStdString();
+        ASSERT_TRUE(SceneLoader::readFile(fixturePath(scene), &headlessScene, &error))
+            << error.toStdString();
+
+        SceneInstanceTree borrowed = SceneInstanceBuilder::build(guiScene.get());
+        ASSERT_NE(borrowed.layoutRoot, nullptr);
+        InstanceNode guiSun(nullptr);
+        auto* guiSunKit = static_cast<SunKit*>(guiScene.get()->getPart("world.sun", false));
+        auto* headlessSunKit = static_cast<SunKit*>(headlessScene.get()->getPart("world.sun", false));
+        ASSERT_NE(guiSunKit, nullptr);
+        ASSERT_NE(headlessSunKit, nullptr);
+
+        // Deliberately corrupt only the old GUI sun bounding setup; the
+        // production preparation must replace it with optical scene bounds.
+        guiSunKit->setBox(Box3D(vec3d(-9., -9., -9.), vec3d(9., 9., 9.)));
+
+        constexpr ulong rays = 4096UL;
+        GuiTracePreparationInput guiInput;
+        guiInput.scene = guiScene.get();
+        guiInput.layoutRoot = borrowed.layoutRoot;
+        guiInput.sunInstance = &guiSun;
+        guiInput.rays = rays;
+        guiInput.masterSeed = kMasterSeed;
+        guiInput.sunWidthDivisions = kSunGridDivisions;
+        guiInput.sunHeightDivisions = kSunGridDivisions;
+        PreparedTraceContext guiContext;
+        ASSERT_TRUE(TracePreparation::prepareGuiTrace(guiInput, &guiContext, &error))
+            << error.toStdString();
+
+        HeadlessTracePreparationInput headlessInput;
+        headlessInput.scene = headlessScene.get();
+        headlessInput.rays = rays;
+        headlessInput.seed = kMasterSeed;
+        headlessInput.sunWidthDivisions = kSunGridDivisions;
+        headlessInput.sunHeightDivisions = kSunGridDivisions;
+        PreparedTraceContext headlessContext;
+        ASSERT_TRUE(TracePreparation::prepareHeadlessTrace(headlessInput, &headlessContext, &error))
+            << error.toStdString();
+
+        auto* guiAperture = static_cast<SunAperture*>(guiSunKit->getPart("aperture", false));
+        auto* headlessAperture = static_cast<SunAperture*>(headlessSunKit->getPart("aperture", false));
+        ASSERT_NE(guiAperture, nullptr);
+        ASSERT_NE(headlessAperture, nullptr);
+        EXPECT_EQ(guiAperture->getCells(), headlessAperture->getCells());
+        EXPECT_GT(guiAperture->getCells().size(), 0U);
+        EXPECT_DOUBLE_EQ(guiContext.sunApertureArea(), headlessContext.sunApertureArea());
+        EXPECT_DOUBLE_EQ(guiContext.powerPerRay(), headlessContext.powerPerRay());
+        EXPECT_GT(guiContext.powerPerRay(), 0.);
     }
 }
 
