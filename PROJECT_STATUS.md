@@ -8,9 +8,9 @@ Purpose: lightweight handoff for current Tonatiuh++ project and release context.
 
 - Active development branch: `test/scientific-equivalence-m0a-20261008`, based on the v0.1.8.26 release source.
 - Added initial `QCoreApplication` scientific tests for repeatability of GUI-style and headless-style preparation, using independent cylinder scene loads and deterministic hit histograms.
-- GUI/headless comparison and photon-recording versus no-recording comparison are explicitly opt-in diagnostics pending scientific review.
+- GUI/headless borrowed-versus-owned comparison and photon-recording versus no-recording comparison both passed when run explicitly on Windows/MSVC Release and are now promoted to enabled CTest regressions, pending a final four-test run.
 - No ray physics, RNG, scheduling, photon exporter, or release artifact changes were made in this milestone.
-- The Windows/Release test target compiled; the first CTest run passed headless repeatability but GUI-style repeatability crashed with SEH `0xc0000005`. The headless-only borrowed-context harness now computes sun bounds from its instance tree rather than calling the GUI scene-graph path. The precise crash location is unconfirmed; rebuild, retest, and actual GUI validation are pending. See `docs/scientific-equivalence.md`.
+- The Windows/MSVC Release test target compiled; the two repeatability tests passed CTest and both scientific diagnostics passed when run explicitly. The initial GUI-style harness crash with SEH `0xc0000005` stopped occurring after switching test sun sizing to ray-tracing bounds, although the precise crash location was not proven by a debugger. The newly enabled four-test suite needs a final local build/CTest run; actual GUI sun sizing remains untested. See `docs/scientific-equivalence.md`.
 - The July 2026 release-checklist sections below are retained as historical handoff context and should be refreshed separately.
 ## Current Priorities
 

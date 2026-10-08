@@ -1,10 +1,11 @@
 # Scientific equivalence — Milestone 0A
 
-Status: Windows/MSVC Release build succeeded. First CTest run passed the headless
-baseline, while the initial GUI-style test crashed with SEH `0xc0000005`.
-This revision removes a GUI scene-graph bounding-box call from the
-`QCoreApplication` test harness; it **still needs a local rebuild and retest**.
-The precise crash location was not established by a native debugger.
+Status: the developer validated the Windows/MSVC Release build and ran the
+two enabled repeatability tests (both passed). The two formerly disabled
+scientific-equivalence diagnostics also passed when run explicitly. Both
+diagnostics have now been enabled for normal CTest discovery and **require a
+final developer rebuild and four-test CTest run before merge**. The precise
+cause of an earlier harness crash was not established by a native debugger.
 
 ## Purpose
 
@@ -27,16 +28,19 @@ runs (`1,024` and `20,001` rays). Assertions cover resolved sun area, irradiance
 power per ray, scheduling metadata, front/total hit counts and a coarse,
 order-independent three-dimensional hit histogram. No photon files are written.
 
-The following tests are **disabled by default** because they characterize
-potentially pre-existing differences rather than defining accepted new behavior:
+Two further tests are now **enabled by default**, following successful
+manual execution on Windows:
 
-- `ScientificTraceDiagnostic.DISABLED_GuiStyleMatchesHeadless` compares the
-  scientific signature of GUI-style and headless-style preparation.
-- `ScientificTraceDiagnostic.DISABLED_PhotonRecordingPreservesScientificHits`
-  compares the scientific hit signature with in-memory photon buffering on/off.
+- `ScientificTraceDiagnostic.GuiStyleMatchesHeadless` compares the scientific
+  signatures of borrowed and owned preparation with the **same geometric
+  sun-sizing method**. This is not a full UI-vs-CLI comparison.
+- `ScientificTraceDiagnostic.PhotonRecordingPreservesScientificHits`
+  compares the hit signature with in-memory photon recording on/off,
+  without writing any photon files.
 
-Disabled diagnostics must not be enabled in normal CI until the current
-behavior has been reviewed and any discrepancies are understood.
+These tests now fail normal CTest if this behavior changes. The scope is limited
+to the cylinder fixture and the configured trace modes; the same results have
+not yet been confirmed on other platforms.
 
 ## Suggested local validation
 
@@ -45,20 +49,20 @@ do not change the build configuration just to run the test. With a configured
 `BUILD_TESTING=ON` tree:
 
 1. Build target `tonatiuhpp_scientific_equivalence_tests` (and required dependencies).
-2. Run `ctest --test-dir <build-dir> -R "^scientific\." --output-on-failure`.
-3. To execute opt-in diagnostics, run the test executable directly with
-   `--gtest_also_run_disabled_tests --gtest_filter="ScientificTraceDiagnostic.*"`.
-4. On Windows, ensure the normal runtime DLL locations are available to the
+2. Run `ctest --test-dir <build-dir> -C Release -R "^scientific\." --output-on-failure`
+   for a Release build. CTest should now run **four enabled tests**.
+3. On Windows, ensure the normal runtime DLL locations are available to the
    test process, as for other tests using Coin3D and TonatiuhKernel.
 
-A developer's first Windows/Release validation compiled this target and ran
-CTest: headless repeatability passed; GUI-style preparation crashed with Windows
-access violation `0xc0000005`. At that time the test called
-`SunKit::setBox(TSceneKit*)` without GUI initialization. The test harness now
-uses computed ray-tracing instance bounds for this borrowed-context test.
-That removes the suspect code path from the test; it does not establish the
-root cause of the crash or validate production GUI behavior. Rebuild/retest
-and a later real-GUI bounding-box regression test are required.
+The first Windows/Release CTest run passed headless repeatability but the
+GUI-style test crashed with access violation `0xc0000005`. That test previously
+called `SunKit::setBox(TSceneKit*)` without GUI initialization. After the
+borrowed-context test was changed to use computed ray-tracing instance bounds,
+both repeatability tests passed. Both disabled diagnostics were also run
+explicitly and passed. The change removed a suspected crashing path from the
+harness; without a debugger stack trace it does not establish the root cause
+or validate production GUI sun sizing. A later real-GUI bounding-box regression
+test is still required.
 
 ## Boundaries and known limitations
 

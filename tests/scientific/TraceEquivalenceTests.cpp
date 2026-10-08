@@ -269,9 +269,9 @@ TEST(ScientificTraceBaseline, GuiStylePreparationIsRepeatableWithoutWidgets)
     }
 }
 
-// Opt in explicitly while GUI/headless sun-aperture equivalence is under review.
-// A failure here is a diagnostic; do not change a scientific reference to hide it.
-TEST(ScientificTraceDiagnostic, DISABLED_GuiStyleMatchesHeadless)
+// Regression: compare borrowed and owned preparation with identical ray-tracing
+// scene bounds. MainWindow's real GUI sun-sizing path remains untested here.
+TEST(ScientificTraceDiagnostic, GuiStyleMatchesHeadless)
 {
     for (const ulong rays : {1024UL, 20001UL}) {
         SCOPED_TRACE(rays);
@@ -286,9 +286,9 @@ TEST(ScientificTraceDiagnostic, DISABLED_GuiStyleMatchesHeadless)
     }
 }
 
-// Photon buffering exercises the other RayTracer propagation loop, without
-// starting a file exporter. This is a diagnostic until those loops are unified.
-TEST(ScientificTraceDiagnostic, DISABLED_PhotonRecordingPreservesScientificHits)
+// Regression: photon buffering exercises the other RayTracer propagation loop,
+// without starting a file exporter. Keep checking equivalence during refactoring.
+TEST(ScientificTraceDiagnostic, PhotonRecordingPreservesScientificHits)
 {
     ScientificSignature withoutRecording;
     ScientificSignature withRecording;
