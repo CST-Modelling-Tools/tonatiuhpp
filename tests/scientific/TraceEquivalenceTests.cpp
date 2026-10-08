@@ -26,6 +26,7 @@
 #include "kernel/run/InstanceNode.h"
 #include "kernel/run/RayTracer.h"
 #include "kernel/scene/TSceneKit.h"
+#include "kernel/scene/TSeparatorKit.h"
 #include "kernel/scene/TShapeKit.h"
 #include "kernel/sun/SunKit.h"
 #include "libraries/math/3D/Transform.h"
