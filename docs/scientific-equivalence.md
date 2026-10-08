@@ -1,11 +1,12 @@
 # Scientific equivalence — Milestone 0A
 
-Status: the developer validated the Windows/MSVC Release build and ran the
-two enabled repeatability tests (both passed). The two formerly disabled
-scientific-equivalence diagnostics also passed when run explicitly. Both
-diagnostics have now been enabled for normal CTest discovery and **require a
-final developer rebuild and four-test CTest run before merge**. The precise
-cause of an earlier harness crash was not established by a native debugger.
+Status: **Milestone 0A Windows/MSVC Release validation passed**. The developer
+compiled the test target, confirmed both repeatability tests, and verified
+both scientific comparisons when they were opt-in diagnostics. After enabling
+all four tests in CTest, the developer reported **4/4 passing (2.49 s total)**
+on 2026-10-08. Cross-platform and full GUI integration validation remain
+pending. The precise cause of an earlier test-harness crash was not established
+by a native debugger.
 
 ## Purpose
 
@@ -53,6 +54,10 @@ do not change the build configuration just to run the test. With a configured
    for a Release build. CTest should now run **four enabled tests**.
 3. On Windows, ensure the normal runtime DLL locations are available to the
    test process, as for other tests using Coin3D and TonatiuhKernel.
+
+The final Windows/Release CTest run passed all four enabled tests (4/4,
+2.49 seconds total as reported by the developer). No performance or official
+benchmark reference results are claimed by this milestone.
 
 The first Windows/Release CTest run passed headless repeatability but the
 GUI-style test crashed with access violation `0xc0000005`. That test previously
