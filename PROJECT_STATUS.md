@@ -4,6 +4,13 @@ Last updated: 2026-10-08
 
 Purpose: lightweight handoff for current Tonatiuh++ project and release context. Keep stable agent rules in `AGENT.md`; update this file when release context changes.
 
+## Development checkpoint — Milestone 0B (2026-10-08)
+
+- Active branch: `test/scientific-equivalence-m0b-20261008`, based on merged M0A `master`.
+- Work in progress: additional two-surface Fresnel and instrumented exponential-air scientific regressions, plus an opt-in native QApplication/SoQt sun-aperture diagnostic.
+- No production ray-tracing or GUI behavior is changed. All M0B tests require developer build and runtime validation; do not merge without test results and CI review.
+- See `docs/scientific-equivalence-m0b.md` for commands and limitations.
+
 ## Development checkpoint — Milestone 0A (2026-10-08)
 
 - Active development branch: `test/scientific-equivalence-m0a-20261008`, based on the v0.1.8.26 release source.

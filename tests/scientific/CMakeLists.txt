@@ -50,3 +50,36 @@ gtest_discover_tests(tonatiuhpp_scientific_equivalence_tests
   DISCOVERY_MODE ${_tonatiuhpp_equivalence_discovery}
   PROPERTIES LABELS "scientific;equivalence" TIMEOUT 120
 )
+
+# A real Qt/SoQt application is needed to exercise MainWindow's sun-sizing
+# method. Keep this exploratory diagnostic out of unattended CI.
+option(TONATIUHPP_BUILD_GUI_SUN_DIAGNOSTIC
+  "Build the opt-in Qt/SoQt sun-aperture comparison tool" OFF)
+
+if(TONATIUHPP_BUILD_GUI_SUN_DIAGNOSTIC)
+  add_executable(tonatiuhpp_gui_sun_diagnostic
+    GuiSunSizingDiagnostic.cpp
+    "${_tonatiuhpp_equivalence_core_dir}/CorePluginRegistry.cpp"
+    "${_tonatiuhpp_equivalence_core_dir}/SceneInstanceBuilder.cpp"
+    "${_tonatiuhpp_equivalence_core_dir}/SceneLoader.cpp"
+    "${_tonatiuhpp_equivalence_core_dir}/TonatiuhCore.cpp"
+  )
+  target_include_directories(tonatiuhpp_gui_sun_diagnostic PRIVATE
+    "${CMAKE_SOURCE_DIR}"
+    "${CMAKE_SOURCE_DIR}/application"
+    "${CMAKE_SOURCE_DIR}/libraries"
+    "${COIN3D_INCLUDE_DIR}"
+    "${SOQT_INCLUDE_DIR}"
+  )
+  target_compile_definitions(tonatiuhpp_gui_sun_diagnostic PRIVATE
+    "TONATIUHPP_EQUIVALENCE_SCENE_FILE=\"${CMAKE_CURRENT_LIST_DIR}/../../examples/benchmarks/cylinder.tnhpp\""
+    "TONATIUHPP_FRESNEL_SCENE_FILE=\"${CMAKE_CURRENT_LIST_DIR}/fixtures/fresnel-two-surface.tnhpp\""
+  )
+  target_link_libraries(tonatiuhpp_gui_sun_diagnostic PRIVATE
+    Coin::Coin SoQt::SoQt Qt6::Core Qt6::Gui Qt6::Widgets
+    TonatiuhLibraries TonatiuhKernel
+  )
+  if(MSVC)
+    target_compile_options(tonatiuhpp_gui_sun_diagnostic PRIVATE /permissive- /Zc:__cplusplus)
+  endif()
+endif()
