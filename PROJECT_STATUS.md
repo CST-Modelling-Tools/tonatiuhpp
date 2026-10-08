@@ -1,9 +1,17 @@
 # Project Status
 
-Last updated: 2026-07-12
+Last updated: 2026-10-08
 
 Purpose: lightweight handoff for current Tonatiuh++ project and release context. Keep stable agent rules in `AGENT.md`; update this file when release context changes.
 
+## Development checkpoint — Milestone 0A (2026-10-08)
+
+- Active development branch: `test/scientific-equivalence-m0a-20261008`, based on the v0.1.8.26 release source.
+- Added initial `QCoreApplication` scientific tests for repeatability of GUI-style and headless-style preparation, using independent cylinder scene loads and deterministic hit histograms.
+- GUI/headless borrowed-versus-owned comparison and photon-recording versus no-recording comparison passed explicitly and were promoted to enabled CTest regressions. Final Windows/MSVC Release CTest validation: 4/4 tests passed (2.49 seconds total) on 2026-10-08.
+- No ray physics, RNG, scheduling, photon exporter, or release artifact changes were made in this milestone.
+- The Windows/MSVC Release test target compiled and all four enabled scientific regressions passed locally. An initial GUI-style harness crash with SEH `0xc0000005` stopped occurring after switching test sun sizing to ray-tracing bounds; its precise cause was not confirmed by a debugger. Actual GUI sun sizing, other geometries, cross-platform tests, and the official benchmark remain outside this milestone. See `docs/scientific-equivalence.md`.
+- The July 2026 release-checklist sections below are retained as historical handoff context and should be refreshed separately.
 ## Current Priorities
 
 - Prepare the Tonatiuh++ `v0.1.8.26` release from the published `v0.1.8.25` baseline; source metadata, release notes, benchmark v2 assets, citation metadata, and the release checklist are prepared, but do not tag until build, test, packaging, and platform validation are complete.
