@@ -4,6 +4,13 @@ Last updated: 2026-10-09
 
 Purpose: lightweight handoff for current Tonatiuh++ project and release context. Keep stable agent rules in `AGENT.md`; update this file when release context changes.
 
+## Architectural Milestone 0 — Multi-reflection and tracker safety net (2026-10-09)
+
+- Development branch: `test/architectural-m0-multibounce-tracker-events-20261009`, based on merged PR #13 master `d048337f`. Cross-platform CI and scientific review pending.
+- Add specular two-reflection and one-axis tracker test-only fixtures and five scientific regressions. Exercise production trace preparation and execution with real scene components.
+- Strengthen within-platform equivalence by comparing sorted exact hit-event multisets (instance URL, side, raw position bits), retaining coarse histograms as diagnostics. Explicit tracker scene updates are characterized but automatic native GUI/CLI tracker synchronization remains an open gate.
+- No production physics, RNG, scheduling, photon formats or frozen scientific benchmark data altered. See `docs/architectural-m0-scientific-characterization.md`.
+
 ## Architectural Milestone 0 closeout — GUI fixed seed (2026-10-09)
 
 - Working branch: `feat/architectural-m0-gui-fixed-seed-20261009`, based on preparatory M5 master `11fcf3aa`; scientific review, three-platform CI and native GUI acceptance pending.

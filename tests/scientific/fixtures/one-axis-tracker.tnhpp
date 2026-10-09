@@ -1,0 +1,70 @@
+#Inventor V2.1 ascii
+
+# TrackerArmature1A rotates Primary around Y for the current sun, sending
+# specular light to Target. The test caller invokes updateTrackers() first.
+TSceneKit {
+  version "2020"
+  world WorldKit {
+    sun SunKit {
+      position SunPosition {
+        azimuth 90
+        elevation 60
+        irradiance 1000
+      }
+      shape SunShapePillbox {
+        thetaMax 0
+      }
+      aperture SunAperture {
+        disabledNodes "//Node/Target"
+      }
+    }
+  }
+  group DEF Node TSeparatorKit {
+    group Group {
+      DEF TrackingAssembly TSeparatorKit {
+        group Group {
+          DEF Tracker TrackerKit {
+            armature TrackerArmature1A {}
+            target TrackerTarget {
+              aimingType global
+              aimingPoint 0 0 6
+            }
+          }
+          DEF Primary TSeparatorKit {
+            transform TTransform {
+              translation 0 0 1
+            }
+            group Group {
+              DEF Shape TShapeKit {
+                shapeRT ShapePlanar {}
+                profileRT ProfileBox {
+                  uSize 2
+                  vSize 2
+                }
+                materialRT MaterialSpecular {
+                  reflectivity 0.95
+                  slope 0
+                }
+              }
+            }
+          }
+        }
+      }
+      DEF Target TSeparatorKit {
+        transform TTransform {
+          translation 0 0 6
+        }
+        group Group {
+          DEF Shape TShapeKit {
+            shapeRT ShapePlanar {}
+            profileRT ProfileBox {
+              uSize 3
+              vSize 3
+            }
+            materialRT MaterialAbsorber {}
+          }
+        }
+      }
+    }
+  }
+}

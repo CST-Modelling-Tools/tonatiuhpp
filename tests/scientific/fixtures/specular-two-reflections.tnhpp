@@ -1,0 +1,80 @@
+#Inventor V2.1 ascii
+
+# Two specular reflections: First turns -Z into +X, Second turns +X
+# back into -Z, then Receiver below the mirrors absorbs. Only First
+# is sampled by the sun. Receiver below First avoids direct shadowing.
+# TTransform uses TSFRotation: serialized scene-file angles are DEGREES.
+TSceneKit {
+  version "2020"
+  world WorldKit {
+    sun SunKit {
+      position SunPosition {
+        azimuth 0
+        elevation 90
+        irradiance 1000
+      }
+      shape SunShapePillbox {
+        thetaMax 0
+      }
+      aperture SunAperture {
+        disabledNodes "//Node/Second;//Node/Receiver"
+      }
+    }
+  }
+  group DEF Node TSeparatorKit {
+    group Group {
+      DEF First TSeparatorKit {
+        transform TTransform {
+          rotation 0 1 0 45
+        }
+        group Group {
+          DEF Shape TShapeKit {
+            shapeRT ShapePlanar {}
+            profileRT ProfileBox {
+              uSize 1.5
+              vSize 1.5
+            }
+            materialRT MaterialSpecular {
+              reflectivity 0.95
+              slope 0
+            }
+          }
+        }
+      }
+      DEF Second TSeparatorKit {
+        transform TTransform {
+          translation 1.6 0 0
+          rotation 0 1 0 45
+        }
+        group Group {
+          DEF Shape TShapeKit {
+            shapeRT ShapePlanar {}
+            profileRT ProfileBox {
+              uSize 3
+              vSize 2
+            }
+            materialRT MaterialSpecular {
+              reflectivity 0.95
+              slope 0
+            }
+          }
+        }
+      }
+      DEF Receiver TSeparatorKit {
+        transform TTransform {
+          translation 1.6 0 -2
+        }
+        group Group {
+          DEF Shape TShapeKit {
+            shapeRT ShapePlanar {}
+            profileRT ProfileBox {
+              uSize 4
+              vSize 3
+            }
+            materialRT MaterialAbsorber {}
+          }
+        }
+      }
+    }
+  }
+}

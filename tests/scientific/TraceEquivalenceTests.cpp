@@ -3,15 +3,20 @@
 #include <QCoreApplication>
 
 #include <Inventor/actions/SoGetBoundingBoxAction.h>
+#include <Inventor/nodes/SoGroup.h>
 
 #include <algorithm>
 #include <array>
 #include <atomic>
+#include <bit>
 #include <cmath>
 #include <cstdint>
 #include <memory>
 #include <mutex>
+#include <sstream>
 #include <string>
+#include <tuple>
+#include <vector>
 
 #include "core/CorePluginRegistry.h"
 #include "core/RayTraceExecutor.h"
@@ -31,6 +36,9 @@
 #include "kernel/scene/TShapeKit.h"
 #include "kernel/sun/SunAperture.h"
 #include "kernel/sun/SunKit.h"
+#include "kernel/sun/SunPosition.h"
+#include "kernel/trackers/TrackerKit.h"
+#include "kernel/trackers/TrackerTarget.h"
 #include "libraries/math/3D/Transform.h"
 
 namespace
@@ -50,7 +58,9 @@ enum class ScientificScene
 {
     CylinderVacuum,
     FresnelTwoSurfaceVacuum,
-    FresnelTwoSurfaceExponentialAir
+    FresnelTwoSurfaceExponentialAir,
+    SpecularTwoReflections,
+    TrackerOneAxis
 };
 
 // Count uses of the real AirExponential model without changing its physics
@@ -73,14 +83,39 @@ private:
     mutable std::atomic<std::uint64_t> m_calls{0};
 };
 
+// Exact callback-event multiset. Sorting after a trace removes thread-order
+// dependence; raw double bits catch within-bin changes and distinguish -0.
+// The comparison is within one platform, not across OS/compiler toolchains.
+struct HitEvent
+{
+    std::string surfaceUrl;
+    bool isFront = false;
+    std::array<std::uint64_t, 3> positionBits{};
+
+    bool operator==(const HitEvent& other) const
+    {
+        return std::tie(surfaceUrl, isFront, positionBits)
+            == std::tie(other.surfaceUrl, other.isFront, other.positionBits);
+    }
+
+    bool operator<(const HitEvent& other) const
+    {
+        return std::tie(surfaceUrl, isFront, positionBits)
+            < std::tie(other.surfaceUrl, other.isFront, other.positionBits);
+    }
+};
+
 struct ScientificSignature
 {
     RayTraceExecutorResult result;
     std::array<std::uint64_t, kHistogramSize> hitBins{};
+    std::vector<HitEvent> hitEvents;
     std::uint64_t hitCount = 0;
     std::uint64_t frontHitCount = 0;
     std::uint64_t invalidHitCount = 0;
     std::uint64_t recordedPhotonCount = 0;
+    std::uint64_t recordedTwoReflectionReceiverPaths = 0;
+    std::string recordedPhotonPreview;
     std::uint64_t airTransmissionCalls = 0;
     std::uint64_t shapeInstanceCount = 0;
 };
@@ -118,6 +153,13 @@ public:
                  + coordinateBin(hit.position.y)) * kAxisBins
                 + coordinateBin(hit.position.z));
         ++m_signature.hitBins[index];
+        m_signature.hitEvents.push_back(HitEvent{
+            hit.surface ? hit.surface->getURL().toStdString() : std::string(),
+            hit.isFront,
+            {std::bit_cast<std::uint64_t>(hit.position.x),
+             std::bit_cast<std::uint64_t>(hit.position.y),
+             std::bit_cast<std::uint64_t>(hit.position.z)}
+        });
     }
 
     void copyTo(ScientificSignature* destination) const
@@ -127,6 +169,8 @@ public:
         destination->frontHitCount = m_signature.frontHitCount;
         destination->invalidHitCount = m_signature.invalidHitCount;
         destination->hitBins = m_signature.hitBins;
+        destination->hitEvents = m_signature.hitEvents;
+        std::sort(destination->hitEvents.begin(), destination->hitEvents.end());
     }
 
 private:
@@ -141,9 +185,25 @@ QString fixturePath()
 
 QString fixturePath(ScientificScene scene)
 {
-    return scene == ScientificScene::CylinderVacuum
-        ? fixturePath()
-        : QString::fromUtf8(TONATIUHPP_FRESNEL_SCENE_FILE);
+    switch (scene) {
+    case ScientificScene::CylinderVacuum:
+        return fixturePath();
+    case ScientificScene::FresnelTwoSurfaceVacuum:
+    case ScientificScene::FresnelTwoSurfaceExponentialAir:
+        return QString::fromUtf8(TONATIUHPP_FRESNEL_SCENE_FILE);
+    case ScientificScene::SpecularTwoReflections:
+        return QString::fromUtf8(TONATIUHPP_SPECULAR_SCENE_FILE);
+    case ScientificScene::TrackerOneAxis:
+        return QString::fromUtf8(TONATIUHPP_TRACKER_SCENE_FILE);
+    }
+    return {};
+}
+
+std::uint64_t hitsOnSurface(const ScientificSignature& signature, const std::string& path)
+{
+    return static_cast<std::uint64_t>(std::count_if(
+        signature.hitEvents.begin(), signature.hitEvents.end(),
+        [&path](const HitEvent& event) { return event.surfaceUrl == path; }));
 }
 
 std::uint64_t countShapeInstances(const InstanceNode* node)
@@ -179,6 +239,14 @@ bool traceOnce(PreparationPath path, ulong rays, bool recordPhotons,
     QString error;
     if (!SceneLoader::readFile(fixturePath(scene), &loaded, &error))
         return fail(error);
+
+    // Native GUI scene updates drive trackers. Characterize the corresponding
+    // fully prepared scene here, in both the GUI-style and headless paths.
+    // TracePreparation does not currently update trackers automatically.
+    if (scene == ScientificScene::TrackerOneAxis) {
+        loaded.get()->updateParents();
+        loaded.get()->updateTrackers();
+    }
 
     // The multi-surface Fresnel scene continues rays after the first hit,
     // allowing the RayTracer's atmospheric attenuation branch to run.
@@ -249,8 +317,38 @@ bool traceOnce(PreparationPath path, ulong rays, bool recordPhotons,
         return fail(error);
 
     hits.copyTo(signature);
-    if (photonBuffer)
-        signature->recordedPhotonCount = photonBuffer->getPhotons().size();
+    if (photonBuffer) {
+        const std::vector<Photon>& photons = photonBuffer->getPhotons();
+        signature->recordedPhotonCount = photons.size();
+        if (scene == ScientificScene::SpecularTwoReflections) {
+            std::ostringstream preview;
+            const std::size_t previewCount = std::min<std::size_t>(photons.size(), 40);
+            for (std::size_t n = 0; n < previewCount; ++n) {
+                const Photon& photon = photons[n];
+                preview << " " << photon.id << ":"
+                        << (photon.surface
+                            ? photon.surface->getURL().toStdString() : "air");
+            }
+            signature->recordedPhotonPreview = preview.str();
+            // Photon ids restart at zero for each launched ray. A 0,1,2,3
+            // run proves a single ray went Sun -> First -> Second -> Receiver,
+            // unlike a global hit count that can be lower than rays launched.
+            for (std::size_t i = 0; i + 3 < photons.size(); ++i) {
+                const Photon& first = photons[i + 1];
+                const Photon& second = photons[i + 2];
+                const Photon& receiver = photons[i + 3];
+                if (photons[i].id == 0
+                    && first.id == 1 && first.surface
+                    && first.surface->getURL() == QStringLiteral("//Node/First/Shape")
+                    && second.id == 2 && second.surface
+                    && second.surface->getURL() == QStringLiteral("//Node/Second/Shape")
+                    && receiver.id == 3 && receiver.surface
+                    && receiver.surface->getURL() == QStringLiteral("//Node/Receiver/Shape")) {
+                    ++signature->recordedTwoReflectionReceiverPaths;
+                }
+            }
+        }
+    }
     if (countedAir)
         signature->airTransmissionCalls = countedAir->calls();
     return true;
@@ -284,6 +382,26 @@ void expectEqualScience(const ScientificSignature& expected,
         ++differentBins;
     }
     EXPECT_EQ(differentBins, 0U);
+
+    ASSERT_EQ(expected.hitEvents.size(), actual.hitEvents.size());
+    std::size_t differentEvents = 0;
+    for (std::size_t index = 0; index < expected.hitEvents.size(); ++index) {
+        if (expected.hitEvents[index] == actual.hitEvents[index])
+            continue;
+        if (differentEvents < 3) {
+            const HitEvent& a = expected.hitEvents[index];
+            const HitEvent& b = actual.hitEvents[index];
+            ADD_FAILURE() << "Exact hit event " << index << " differs: "
+                          << a.surfaceUrl << " (front=" << a.isFront << ") at "
+                          << a.positionBits[0] << "," << a.positionBits[1] << ","
+                          << a.positionBits[2] << " vs "
+                          << b.surfaceUrl << " (front=" << b.isFront << ") at "
+                          << b.positionBits[0] << "," << b.positionBits[1] << ","
+                          << b.positionBits[2];
+        }
+        ++differentEvents;
+    }
+    EXPECT_EQ(differentEvents, 0U);
 }
 
 void expectValidTrace(const ScientificSignature& signature, ulong rays)
@@ -412,6 +530,142 @@ TEST(ScientificTraceExtended, ExponentialAirIsExercisedAndMatchesPaths)
         << "A non-vacuum regression must exercise atmospheric transmission.";
     expectEqualScience(first, repeated);
     expectEqualScience(first, gui);
+}
+
+TEST(ScientificHitEvents, ExactMultisetDistinguishesWithinBinAndSurfaceChanges)
+{
+    EXPECT_EQ(coordinateBin(0.25), coordinateBin(0.75));
+    const HitEvent original{
+        "//Node/First/Shape", true,
+        {std::bit_cast<std::uint64_t>(0.25), std::bit_cast<std::uint64_t>(0.5),
+         std::bit_cast<std::uint64_t>(0.)}
+    };
+    HitEvent moved = original;
+    moved.positionBits[0] = std::bit_cast<std::uint64_t>(0.75);
+    EXPECT_FALSE(original == moved);
+    HitEvent otherSurface = original;
+    otherSurface.surfaceUrl = "//Node/Second/Shape";
+    EXPECT_FALSE(original == otherSurface);
+    HitEvent otherSide = original;
+    otherSide.isFront = false;
+    EXPECT_FALSE(original == otherSide);
+}
+
+TEST(ScientificTraceExtended, SpecularTwoReflectionsRepeatAndMatchPreparation)
+{
+    for (const ulong rays : {4096UL, 20001UL}) {
+        SCOPED_TRACE(rays);
+        ScientificSignature headless;
+        ScientificSignature repeated;
+        ScientificSignature gui;
+        std::string error;
+        ASSERT_TRUE(traceOnce(PreparationPath::HeadlessOwned, rays, false,
+                              &headless, &error, ScientificScene::SpecularTwoReflections)) << error;
+        ASSERT_TRUE(traceOnce(PreparationPath::HeadlessOwned, rays, false,
+                              &repeated, &error, ScientificScene::SpecularTwoReflections)) << error;
+        ASSERT_TRUE(traceOnce(PreparationPath::GuiBorrowed, rays, false,
+                              &gui, &error, ScientificScene::SpecularTwoReflections)) << error;
+
+        expectValidTrace(headless, rays);
+        EXPECT_EQ(headless.shapeInstanceCount, 3U);
+        EXPECT_GT(hitsOnSurface(headless, "//Node/First/Shape"), 0U);
+        EXPECT_GT(hitsOnSurface(headless, "//Node/Second/Shape"), 0U);
+        EXPECT_GT(hitsOnSurface(headless, "//Node/Receiver/Shape"), 0U);
+        // Total callback events need not exceed rays launched: some rays miss
+        // or terminate early. Recording tests below verify full bounce paths.
+        expectEqualScience(headless, repeated);
+        expectEqualScience(headless, gui);
+    }
+}
+
+TEST(ScientificTraceExtended, SpecularRecordingPreservesExactEvents)
+{
+    constexpr ulong rays = 4096UL;
+    ScientificSignature withoutRecording;
+    ScientificSignature withRecording;
+    std::string error;
+    ASSERT_TRUE(traceOnce(PreparationPath::GuiBorrowed, rays, false,
+                          &withoutRecording, &error,
+                          ScientificScene::SpecularTwoReflections)) << error;
+    ASSERT_TRUE(traceOnce(PreparationPath::GuiBorrowed, rays, true,
+                          &withRecording, &error,
+                          ScientificScene::SpecularTwoReflections)) << error;
+    EXPECT_GT(withRecording.recordedPhotonCount, 0U);
+    EXPECT_GT(withRecording.recordedTwoReflectionReceiverPaths, 0U)
+        << "Expected at least one complete Sun -> First -> Second -> Receiver path."
+        << "\nRecorded photons: " << withRecording.recordedPhotonCount
+        << "\nFirst photons (id:surface):" << withRecording.recordedPhotonPreview;
+    expectEqualScience(withoutRecording, withRecording);
+}
+
+TEST(ScientificTracker, OneAxisUpdateRotatesMirrorAndRespondsToSun)
+{
+    LoadedScene loaded;
+    QString error;
+    ASSERT_TRUE(SceneLoader::readFile(fixturePath(ScientificScene::TrackerOneAxis),
+                                      &loaded, &error)) << error.toStdString();
+    auto* sceneGroup = static_cast<SoGroup*>(loaded.get()->getLayout()->getPart("group", false));
+    ASSERT_NE(sceneGroup, nullptr);
+    auto* assembly = dynamic_cast<TSeparatorKit*>(sceneGroup->getChild(0));
+    ASSERT_NE(assembly, nullptr);
+    auto* assemblyGroup = static_cast<SoGroup*>(assembly->getPart("group", false));
+    ASSERT_NE(assemblyGroup, nullptr);
+    auto* tracker = dynamic_cast<TrackerKit*>(assemblyGroup->getChild(0));
+    auto* primary = dynamic_cast<TSeparatorKit*>(assemblyGroup->getChild(1));
+    ASSERT_NE(tracker, nullptr);
+    ASSERT_NE(primary, nullptr);
+    auto* target = dynamic_cast<TrackerTarget*>(tracker->target.getValue());
+    auto* primaryTransform = dynamic_cast<TTransform*>(primary->getPart("transform", false));
+    auto* sun = static_cast<SunPosition*>(
+        loaded.get()->getPart("world.sun.position", false));
+    ASSERT_NE(target, nullptr);
+    ASSERT_NE(primaryTransform, nullptr);
+    ASSERT_NE(sun, nullptr);
+
+    // The GUI scene setup initializes this backlink before tracking.
+    // Without it TrackerKit updates its target angle but silently skips
+    // the primary transform in onSensor_target().
+    loaded.get()->updateParents();
+    ASSERT_EQ(tracker->m_parent, assembly);
+    loaded.get()->updateTrackers();
+    const float initialAngle = target->angles.getValue()[0];
+    SbVec3f axis;
+    float radians = 0.f;
+    primaryTransform->rotation.getValue().getValue(axis, radians);
+    EXPECT_GT(std::abs(initialAngle), 1.f);
+    EXPECT_GT(std::abs(radians), 0.01f);
+
+    sun->azimuth.setValue(270.);
+    loaded.get()->updateTrackers();
+    const float updatedAngle = target->angles.getValue()[0];
+    EXPECT_GT(std::abs(updatedAngle - initialAngle), 1.f);
+
+    tracker->enabled = false;
+    sun->azimuth.setValue(90.);
+    loaded.get()->updateTrackers();
+    EXPECT_FLOAT_EQ(target->angles.getValue()[0], updatedAngle);
+}
+
+TEST(ScientificTracker, UpdatedSceneRepeatsAndMatchesPreparation)
+{
+    constexpr ulong rays = 4096UL;
+    ScientificSignature headless;
+    ScientificSignature repeated;
+    ScientificSignature gui;
+    std::string error;
+    ASSERT_TRUE(traceOnce(PreparationPath::HeadlessOwned, rays, false,
+                          &headless, &error, ScientificScene::TrackerOneAxis)) << error;
+    ASSERT_TRUE(traceOnce(PreparationPath::HeadlessOwned, rays, false,
+                          &repeated, &error, ScientificScene::TrackerOneAxis)) << error;
+    ASSERT_TRUE(traceOnce(PreparationPath::GuiBorrowed, rays, false,
+                          &gui, &error, ScientificScene::TrackerOneAxis)) << error;
+
+    expectValidTrace(headless, rays);
+    EXPECT_EQ(headless.shapeInstanceCount, 2U);
+    EXPECT_GT(hitsOnSurface(headless, "//Node/TrackingAssembly/Primary/Shape"), 0U);
+    EXPECT_GT(hitsOnSurface(headless, "//Node/Target/Shape"), 0U);
+    expectEqualScience(headless, repeated);
+    expectEqualScience(headless, gui);
 }
 
 TEST(ScientificTraceExtended, ExponentialAirPhotonRecordingPreservesHits)
@@ -630,6 +884,9 @@ int main(int argc, char** argv)
 
     TonatiuhCore::initializeCoin();
     CorePluginRegistry plugins;
+    // Use the known build-tree plugin root regardless of test executable
+    // placement on Windows, macOS or Linux.
+    plugins.loadScenePlugins({QString::fromUtf8(TONATIUHPP_SCIENTIFIC_PLUGIN_DIRECTORY)});
     TonatiuhCore::setProjectSearchPaths(fixturePath());
     return RUN_ALL_TESTS();
 }
