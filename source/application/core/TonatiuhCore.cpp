@@ -64,6 +64,14 @@ QStringList pluginSearchPaths(const QString& applicationDirPath)
 
     appendExistingPath(paths, appDir.absoluteFilePath("plugins"));
     appendExistingPath(paths, appDir.absoluteFilePath("../plugins"));
+#ifdef Q_OS_MACOS
+    // The uninstalled CMake bundle lives at
+    // build/application/TonatiuhPP.app/Contents/MacOS, while its scene
+    // plugins are emitted into build/plugins. Do not use this extra path
+    // for installed bundles that do not have an adjacent CMake build tree.
+    if (QFileInfo(appDir.absoluteFilePath("../../../CMakeFiles")).isDir())
+        appendExistingPath(paths, appDir.absoluteFilePath("../../../../plugins"));
+#endif
     appendExistingPath(paths, applicationDirPath);
 
     return paths;

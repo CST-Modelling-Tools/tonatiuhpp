@@ -10,17 +10,19 @@ M4 preserved the authentic frozen heliostat scene and reference. M5 exercises th
 | --- | --- | --- |
 | `headless.validate_heliostat_scene` | Windows, Ubuntu, macOS | Load authentic 1,971-heliostat scene in the real headless executable |
 | `headless.benchmark_heliostat_10k` | Windows, Ubuntu, macOS | Execute 10,000 rays with seed 123456789 and original 100x100 receiver; inspect JSON, no-export logs, 80,000-byte binary grid and SHA-256 |
-| `headless.benchmark_heliostat_1m_repeatability` | Windows | Run **two separate 1,000,000-ray processes**, compare exact within-platform total/minimum/average/maximum power/flux metrics and flux-grid SHA-256 |
+| `headless.benchmark_heliostat_1m_repeatability` | Windows, Ubuntu, macOS | Run **two separate 1,000,000-ray processes**, compare exact within-platform total/minimum/average/maximum power/flux metrics and flux-grid SHA-256 |
 
 The shared `tests/cmake/run_heliostat_benchmark_m5.cmake` derives configurations from `examples/benchmarks/benchmark_config_v2.example.json`. It keeps the published receiver side, bounds, dimensions, seed and frozen scene unchanged. For **10K and 1M** runs it removes `reference_file`, because the approved **500M reference must not be compared to different ray counts**. All outputs use a fresh directory inside the CMake build tree, never the committed examples directory.
 
-This checks **within-platform** reproducibility only. Different OS/compiler floating-point results may differ legitimately; CI does not demand cross-platform bit-for-bit identity.
+This checks **within-platform** reproducibility on all three operating systems. Different OS/compiler floating-point results may differ legitimately; CI does not demand cross-platform bit-for-bit identity.
 
-## Windows Release test commands
+On macOS, the uninstalled CMake app bundle runs from `build/application/TonatiuhPP.app/Contents/MacOS`. Plugin discovery also checks the matching CMake build-tree `build/plugins` directory, which contains the `MaterialSpecular` plugin required by the authentic scene.
 
-With a configured Release build and the runtime DLL paths available (as in CI):
+## Local CTest commands (Windows, Ubuntu, macOS)
 
-```powershell
+With a configured Release build and runtime dependencies available (as in CI):
+
+```console
 ctest --test-dir build -C Release -R "^headless[.](validate_heliostat_scene|benchmark_heliostat_10k|benchmark_heliostat_1m_repeatability)$" --output-on-failure
 ```
 

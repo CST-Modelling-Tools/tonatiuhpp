@@ -197,22 +197,20 @@ if(TONATIUHPP_ENABLE_HEADLESS_SMOKE_TESTS)
     tonatiuhpp_set_headless_test_properties(headless.benchmark_heliostat_10k)
     set_tests_properties(headless.benchmark_heliostat_10k PROPERTIES TIMEOUT 360)
 
-    # Within-platform Windows scientific regression: independent processes.
-    # No expectation of bitwise-identical floating-point across operating systems.
-    if(WIN32)
-      add_test(
-        NAME headless.benchmark_heliostat_1m_repeatability
-        COMMAND "${CMAKE_COMMAND}"
-          "-DTEST_EXECUTABLE=${TONATIUHPP_TEST_EXE}"
-          "-DTEST_WORKING_DIRECTORY=${TONATIUHPP_TEST_WORKING_DIR}"
-          "-DSOURCE_CONFIG=${_heliostat_config}"
-          "-DSCENE_FILE=${_heliostat_scene}"
-          "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/headless_benchmark_heliostat"
-          "-DMODE=repeatability"
-          -P "${CMAKE_CURRENT_LIST_DIR}/cmake/run_heliostat_benchmark_m5.cmake"
-      )
-      tonatiuhpp_set_headless_test_properties(headless.benchmark_heliostat_1m_repeatability)
-      set_tests_properties(headless.benchmark_heliostat_1m_repeatability PROPERTIES TIMEOUT 1200)
-    endif()
+    # Within-platform scientific regression on every supported OS: independent
+    # processes, without requiring cross-platform floating-point equality.
+    add_test(
+      NAME headless.benchmark_heliostat_1m_repeatability
+      COMMAND "${CMAKE_COMMAND}"
+        "-DTEST_EXECUTABLE=${TONATIUHPP_TEST_EXE}"
+        "-DTEST_WORKING_DIRECTORY=${TONATIUHPP_TEST_WORKING_DIR}"
+        "-DSOURCE_CONFIG=${_heliostat_config}"
+        "-DSCENE_FILE=${_heliostat_scene}"
+        "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/headless_benchmark_heliostat"
+        "-DMODE=repeatability"
+        -P "${CMAKE_CURRENT_LIST_DIR}/cmake/run_heliostat_benchmark_m5.cmake"
+    )
+    tonatiuhpp_set_headless_test_properties(headless.benchmark_heliostat_1m_repeatability)
+    set_tests_properties(headless.benchmark_heliostat_1m_repeatability PROPERTIES TIMEOUT 1200)
   endif()
 endif()

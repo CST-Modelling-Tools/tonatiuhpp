@@ -8,7 +8,8 @@ Purpose: lightweight handoff for current Tonatiuh++ project and release context.
 
 - Active branch: `test/heliostat-benchmark-reproduction-m5-20261009`, based on M4 merge commit `3a36ad18`; scientific review and three-platform CI pending.
 - Register authentic heliostat-scene loading and a 10,000-ray benchmark in real headless CTest on Windows, macOS and Ubuntu. Derive the smaller benchmark config from existing v2 example; preserve seed, receiver bounds/side and 100x100 grid, remove only the incompatible full-reference comparison, and direct per-run outputs into the build tree.
-- Register two independent 1,000,000-ray benchmark processes on Windows, comparing exact within-platform scientific metrics and SHA-256 hashes; validate emitted binary grids against their JSON hashes. The 500,000,000-ray reference comparison is an **explicit manual opt-in**, not ordinary CI.
+- Register two independent 1,000,000-ray benchmark processes on Windows, Ubuntu and macOS, comparing exact within-platform scientific metrics and SHA-256 hashes; validate emitted binary grids against their JSON hashes. The 500,000,000-ray reference comparison is an **explicit manual opt-in**, not ordinary CI.
+- Resolve macOS CMake build-tree scene plugins from `build/plugins` when executing the nested app bundle, allowing the authentic scene to find `MaterialSpecular` without changing the frozen scene.
 - No production optical physics, RNG, scientific reference values or frozen scene changed. See `docs/benchmark-reproduction-m5.md`.
 
 ## Development checkpoint — Milestone 4 (2026-10-09)
