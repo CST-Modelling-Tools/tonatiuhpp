@@ -1,0 +1,55 @@
+name: Import verified benchmark scene (temporary)
+
+on:
+  push:
+    branches:
+      - test/authentic-benchmark-scene-m4-20261009
+    paths:
+      - .github/workflows/import-benchmark-scene-m4.yml
+
+permissions:
+  contents: write
+
+jobs:
+  import:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Download frozen Zenodo scene and verify MD5
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib
+          import pathlib
+          import urllib.request
+
+          path = pathlib.Path("examples/benchmarks/benchmark_heliostat_field_v1.tnhpp")
+          if path.exists():
+              raise SystemExit("Refusing to overwrite an existing benchmark scene")
+          url = "https://zenodo.org/records/21325848/files/benchmark_heliostat_field_v1.tnhpp?download=1"
+          request = urllib.request.Request(url, headers={"User-Agent": "TonatiuhPP-benchmark-scene-import/1.0"})
+          with urllib.request.urlopen(request, timeout=240) as response:
+              data = response.read(12_000_000)
+              if response.read(1):
+                  raise SystemExit("Remote file unexpectedly large")
+          expected_md5 = "e42985c98b965f084a958226851ed626"
+          md5 = hashlib.md5(data).hexdigest()
+          if len(data) != 9413273 or md5 != expected_md5:
+              raise SystemExit(f"Unexpected Zenodo scene: size={len(data)} md5={md5}")
+          path.parent.mkdir(parents=True, exist_ok=True)
+          path.write_bytes(data)
+          print(f"Validated original Zenodo scene; bytes={len(data)}, md5={md5}, sha256={hashlib.sha256(data).hexdigest()}")
+          PY
+      - name: Commit exactly the authentic scene to M4 branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- examples/benchmarks/benchmark_heliostat_field_v1.tnhpp
+          git diff --cached --exit-code && exit 1 || true
+          git commit -m "test(benchmark): import exact frozen 500M heliostat scene"
+          git push origin HEAD:test/authentic-benchmark-scene-m4-20261009
