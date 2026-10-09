@@ -4,6 +4,13 @@ Last updated: 2026-10-09
 
 Purpose: lightweight handoff for current Tonatiuh++ project and release context. Keep stable agent rules in `AGENT.md`; update this file when release context changes.
 
+## Development checkpoint — Milestone 3 (2026-10-09)
+
+- Active branch: `test/benchmark-reference-integrity-m3-20261009`, from merged M2 and CI-cache master `a8d8fc7c`. Validation and review pending.
+- Add a fast, dependency-free cross-platform check of the published 500M benchmark-v2 JSON, little-endian float64 binary grid and CSV: immutable reference identity, grid dimensions and bounds, SHA-256, exact CSV/binary round trips, and numerical min/average/max agreement. No production physics, RNG, fixtures, or scientific reference values changed.
+- The repository's benchmark examples currently do not contain the `benchmark_heliostat_field_v1.tnhpp` scene referred to by the 500M configuration/reference. The check is **artifact integrity only**, not a new 500M reproduction. Full physical benchmark and release packaging validation remain pending.
+- Run the integrity test during CI on Windows, Linux and macOS; existing scientific/headless tests remain enabled. See `docs/benchmark-reference-integrity-m3.md`.
+
 ## Development checkpoint — Milestone 2 (2026-10-09)
 
 - Active development branch: `test/cross-platform-headless-validation-m2-20261009`, based on M1-merged master `cad20757`; PR pending review, tests not yet run.
