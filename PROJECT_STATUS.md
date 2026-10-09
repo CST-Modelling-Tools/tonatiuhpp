@@ -4,6 +4,13 @@ Last updated: 2026-10-09
 
 Purpose: lightweight handoff for current Tonatiuh++ project and release context. Keep stable agent rules in `AGENT.md`; update this file when release context changes.
 
+## Architectural Milestone 0 closeout — GUI fixed seed (2026-10-09)
+
+- Working branch: `feat/architectural-m0-gui-fixed-seed-20261009`, based on preparatory M5 master `11fcf3aa`; scientific review, three-platform CI and native GUI acceptance pending.
+- The GUI Ray tracing dialog provides an opt-in fixed master seed (portable 0..4294967295) while retaining the previous automatic millisecond seed policy by default. Invalid selected inputs block OK; the effective GUI seed is logged.
+- Three scientific CTests cover parser validity, automatic/fixed policy and repeatability through the GUI-style preparation path. Production optical physics, RNG, scheduling, photon export, benchmark reference and Flux Analysis are untouched.
+- This is part of the **original Architectural M0** safety net, not Architectural M1 or full M0 completion. See `docs/architectural-m0-gui-fixed-seed.md`.
+
 ## Development checkpoint — Milestone 5 (2026-10-09)
 
 - Active branch: `test/heliostat-benchmark-reproduction-m5-20261009`, based on M4 merge commit `3a36ad18`; scientific review and three-platform CI pending.

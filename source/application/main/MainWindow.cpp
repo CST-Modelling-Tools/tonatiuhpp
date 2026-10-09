@@ -91,6 +91,7 @@
 #include "main/Document.h"
 #include "run/FluxAnalysis.h"
 #include "run/FluxAnalysisDialog.h"
+#include "run/GuiTraceSeed.h"
 #include "run/RayTracingDialog.h"
 #include "script/ScriptWindow.h"
 #include "tree/SceneTreeModel.h"
@@ -843,6 +844,7 @@ void MainWindow::RunCompleteRayTracer()
     dialog.setParameters(m_raysNumber, m_raysScreen,
                          m_raysGridWidth, m_raysGridHeight,
                          m_photonBufferSize, m_photonBufferAppend);
+    dialog.setFixedSeed(m_fixedGuiMasterSeed);
     dialog.setPhotonSettings(m_modelScene, exportFactories, m_photonsSettings);
     if (!dialog.exec()) return;
 
@@ -857,6 +859,7 @@ void MainWindow::RunCompleteRayTracer()
     SetRaysNumber(dialog.raysNumber());
     SetRaysScreen(dialog.raysScreen());
     SetRaysGrid(dialog.raysGridWidth(), dialog.raysGridHeight());
+    m_fixedGuiMasterSeed = dialog.fixedSeed();
     m_photonBufferSize = photonBufferSize;
     m_photonBufferAppend = photonBufferAppend;
 
@@ -1997,7 +2000,9 @@ void MainWindow::Run()
     preparationInput.scene = m_document->getSceneKit();
     preparationInput.layoutRoot = instanceLayout;
     preparationInput.sunInstance = &instanceSun;
-    preparationInput.configuration.masterSeed = resolvedGuiMasterSeed();
+    const std::uint64_t traceSeed = GuiTraceSeed::resolve(
+        m_fixedGuiMasterSeed, [] { return resolvedGuiMasterSeed(); });
+    preparationInput.configuration.masterSeed = traceSeed;
     preparationInput.photonBuffer = m_photonsBuffer;
     preparationInput.exportSurfaceList = exportSurfaceList;
     preparationInput.tracingAir = airTemp;
@@ -2012,6 +2017,9 @@ void MainWindow::Run()
         return;
     }
 
+    std::cout << "gui_master_seed: " << traceSeed
+              << (m_fixedGuiMasterSeed ? " (fixed)" : " (automatic)")
+              << std::endl;
     RayTraceExecutor executor;
     RayTraceExecution execution = executor.start(std::move(context));
     if (!execution.started) {

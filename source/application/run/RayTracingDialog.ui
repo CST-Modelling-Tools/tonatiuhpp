@@ -147,6 +147,32 @@
             </property>
            </widget>
           </item>
+          <item row="5" column="0">
+           <widget class="QCheckBox" name="fixedSeedCheck">
+            <property name="text">
+             <string>Use fixed seed</string>
+            </property>
+            <property name="toolTip">
+             <string>When unchecked, tracing keeps the existing automatic seed behavior.</string>
+            </property>
+           </widget>
+          </item>
+          <item row="5" column="1">
+           <widget class="QLineEdit" name="fixedSeedEdit">
+            <property name="enabled">
+             <bool>false</bool>
+            </property>
+            <property name="toolTip">
+             <string>Unsigned decimal integer from 0 to 4294967295; invalid seeds disable OK.</string>
+            </property>
+            <property name="maxLength">
+             <number>10</number>
+            </property>
+            <property name="placeholderText">
+             <string>123456789</string>
+            </property>
+           </widget>
+          </item>
          </layout>
         </widget>
        </item>

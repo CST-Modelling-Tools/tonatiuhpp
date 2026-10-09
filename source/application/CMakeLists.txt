@@ -53,6 +53,7 @@ set(HEADERS
     parameters/ParametersView.h
     run/FluxAnalysis.h
     run/FluxAnalysisDialog.h
+    run/GuiTraceSeed.h
     run/RayTracingDialog.h
     run/SelectSurfaceDialog.h
     script/AboutScriptDialog.h
