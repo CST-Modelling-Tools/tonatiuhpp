@@ -240,8 +240,10 @@ bool traceOnce(PreparationPath path, ulong rays, bool recordPhotons,
     // Native GUI scene updates drive trackers. Characterize the corresponding
     // fully prepared scene here, in both the GUI-style and headless paths.
     // TracePreparation does not currently update trackers automatically.
-    if (scene == ScientificScene::TrackerOneAxis)
+    if (scene == ScientificScene::TrackerOneAxis) {
+        loaded.get()->updateParents();
         loaded.get()->updateTrackers();
+    }
 
     // The multi-surface Fresnel scene continues rays after the first hit,
     // allowing the RayTracer's atmospheric attenuation branch to run.
@@ -583,6 +585,11 @@ TEST(ScientificTracker, OneAxisUpdateRotatesMirrorAndRespondsToSun)
     ASSERT_NE(primaryTransform, nullptr);
     ASSERT_NE(sun, nullptr);
 
+    // The GUI scene setup initializes this backlink before tracking.
+    // Without it TrackerKit updates its target angle but silently skips
+    // the primary transform in onSensor_target().
+    loaded.get()->updateParents();
+    ASSERT_EQ(tracker->m_parent, assembly);
     loaded.get()->updateTrackers();
     const float initialAngle = target->angles.getValue()[0];
     SbVec3f axis;

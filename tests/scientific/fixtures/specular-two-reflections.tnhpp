@@ -1,7 +1,8 @@
 #Inventor V2.1 ascii
 
-# Two specular reflections: First turns -Z into +X, Second turns +X into
-# +Z, then Receiver absorbs. Only First is sampled by the sun.
+# Two specular reflections: First turns -Z into +X, Second turns +X
+# back into -Z, then Receiver below the mirrors absorbs. Only First
+# is sampled by the sun. Receiver below First avoids direct shadowing.
 TSceneKit {
   version "2020"
   world WorldKit {
@@ -42,7 +43,7 @@ TSceneKit {
       DEF Second TSeparatorKit {
         transform TTransform {
           translation 1.6 0 0
-          rotation 0 1 0 -0.7853981633974483
+          rotation 0 1 0 0.7853981633974483
         }
         group Group {
           DEF Shape TShapeKit {
@@ -60,7 +61,7 @@ TSceneKit {
       }
       DEF Receiver TSeparatorKit {
         transform TTransform {
-          translation 1.6 0 2
+          translation 1.6 0 -2
         }
         group Group {
           DEF Shape TShapeKit {
