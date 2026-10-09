@@ -13,6 +13,7 @@
 #include <cstdint>
 #include <memory>
 #include <mutex>
+#include <sstream>
 #include <string>
 #include <tuple>
 #include <vector>
@@ -114,6 +115,7 @@ struct ScientificSignature
     std::uint64_t invalidHitCount = 0;
     std::uint64_t recordedPhotonCount = 0;
     std::uint64_t recordedTwoReflectionReceiverPaths = 0;
+    std::string recordedPhotonPreview;
     std::uint64_t airTransmissionCalls = 0;
     std::uint64_t shapeInstanceCount = 0;
 };
@@ -319,6 +321,15 @@ bool traceOnce(PreparationPath path, ulong rays, bool recordPhotons,
         const std::vector<Photon>& photons = photonBuffer->getPhotons();
         signature->recordedPhotonCount = photons.size();
         if (scene == ScientificScene::SpecularTwoReflections) {
+            std::ostringstream preview;
+            const std::size_t previewCount = std::min<std::size_t>(photons.size(), 40);
+            for (std::size_t n = 0; n < previewCount; ++n) {
+                const Photon& photon = photons[n];
+                preview << " " << photon.id << ":"
+                        << (photon.surface
+                            ? photon.surface->getURL().toStdString() : "air");
+            }
+            signature->recordedPhotonPreview = preview.str();
             // Photon ids restart at zero for each launched ray. A 0,1,2,3
             // run proves a single ray went Sun -> First -> Second -> Receiver,
             // unlike a global hit count that can be lower than rays launched.
@@ -581,7 +592,9 @@ TEST(ScientificTraceExtended, SpecularRecordingPreservesExactEvents)
                           ScientificScene::SpecularTwoReflections)) << error;
     EXPECT_GT(withRecording.recordedPhotonCount, 0U);
     EXPECT_GT(withRecording.recordedTwoReflectionReceiverPaths, 0U)
-        << "Expected at least one complete Sun -> First -> Second -> Receiver path.";
+        << "Expected at least one complete Sun -> First -> Second -> Receiver path."
+        << "\nRecorded photons: " << withRecording.recordedPhotonCount
+        << "\nFirst photons (id:surface):" << withRecording.recordedPhotonPreview;
     expectEqualScience(withoutRecording, withRecording);
 }
 
