@@ -26,6 +26,15 @@ target_compile_definitions(tonatiuhpp_scientific_equivalence_tests PRIVATE
   "TONATIUHPP_FRESNEL_SCENE_FILE=\"${CMAKE_CURRENT_LIST_DIR}/fixtures/fresnel-two-surface.tnhpp\""
 )
 
+# The fixture uses the real MaterialSpecular scene factory plugin.
+add_dependencies(tonatiuhpp_scientific_equivalence_tests MaterialSpecular)
+
+target_compile_definitions(tonatiuhpp_scientific_equivalence_tests PRIVATE
+  "TONATIUHPP_SPECULAR_SCENE_FILE=\"${CMAKE_CURRENT_LIST_DIR}/fixtures/specular-two-reflections.tnhpp\""
+  "TONATIUHPP_TRACKER_SCENE_FILE=\"${CMAKE_CURRENT_LIST_DIR}/fixtures/one-axis-tracker.tnhpp\""
+  "TONATIUHPP_SCIENTIFIC_PLUGIN_DIRECTORY=\"${CMAKE_BINARY_DIR}/plugins\""
+)
+
 target_link_libraries(tonatiuhpp_scientific_equivalence_tests PRIVATE
   GTest::gtest
   Coin::Coin
