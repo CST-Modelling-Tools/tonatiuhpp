@@ -13,6 +13,8 @@ The two new test-only scenes exercise the actual `MaterialSpecular` plugin with 
 
 The tests explicitly call `TSceneKit::updateParents()` **then** `updateTrackers()` before the tracker trace. The former initializes the TrackerKit parent link needed to apply the calculated rotation to the primary transform. Native GUI normally prepares tracker state via its scene update lifecycle; existing headless preparation does **not** itself run these updates. These tests prove equivalence for identically prepared tracker states, not automatic GUI/CLI tracker preparation.
 
+The specular scene uses `TTransform.rotation 0 1 0 45` on both mirrors. This is **45 degrees**, not 45 radians: the project-specific `TSFRotation` parser converts serialized degrees to internal radians. An earlier attempt accidentally specified 0.785398 as though the file used radians, which made the mirrors almost horizontal and produced only single-bounce paths. Preserve this convention when editing the fixture.
+
 ## Stronger event signature
 
 Previous comparison relied on 16-bin-per-axis histograms, front/back counts, and other summaries. New comparisons also collect each real `RayTracerHit` callback event as (instance URL, side, exact 64-bit position components), sort the events, and compare the complete multisets. This detects sub-bin position changes, surface identity changes, and side changes independently of callback ordering among worker threads.

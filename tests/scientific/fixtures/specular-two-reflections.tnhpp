@@ -3,6 +3,7 @@
 # Two specular reflections: First turns -Z into +X, Second turns +X
 # back into -Z, then Receiver below the mirrors absorbs. Only First
 # is sampled by the sun. Receiver below First avoids direct shadowing.
+# TTransform uses TSFRotation: serialized scene-file angles are DEGREES.
 TSceneKit {
   version "2020"
   world WorldKit {
@@ -24,7 +25,7 @@ TSceneKit {
     group Group {
       DEF First TSeparatorKit {
         transform TTransform {
-          rotation 0 1 0 0.7853981633974483
+          rotation 0 1 0 45
         }
         group Group {
           DEF Shape TShapeKit {
@@ -43,7 +44,7 @@ TSceneKit {
       DEF Second TSeparatorKit {
         transform TTransform {
           translation 1.6 0 0
-          rotation 0 1 0 0.7853981633974483
+          rotation 0 1 0 45
         }
         group Group {
           DEF Shape TShapeKit {
