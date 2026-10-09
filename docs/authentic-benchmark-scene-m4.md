@@ -21,4 +21,4 @@ python tests/scientific/verify_reference_v2.py
 
 The repository benchmark-v2 example already references this scene by filename, so the reference and config scientific data are preserved.
 
-**Scope:** This is dataset preservation and integrity validation, **not** a 500,000,000-ray numerical repeatability test. Routine CI does not run the enormous full benchmark. Validate headless scene loading and a medium ray run on the intended installed Windows build before the release-grade 500M scientific rerun. Confirm the dataset's reuse/redistribution terms with the depositor as part of the publication review; the provenance/checksum are not themselves a license grant.
+**Scope:** This is dataset preservation and integrity validation, **not** a 500,000,000-ray numerical repeatability test. Routine CI does not run the enormous full benchmark. Validate headless scene loading and a medium ray run on the intended installed Windows build before the release-grade 500M scientific rerun. The scene's creator and rights holder explicitly confirmed authorization to redistribute it in the Tonatiuh++ project on 2026-10-09; its provenance and checksum are retained above.
