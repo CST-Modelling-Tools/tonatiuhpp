@@ -85,6 +85,11 @@ jobs:
           python scripts/build_runtime_help.py
           test -f help/html/index.html
 
+      - name: Verify benchmark v2 reference artifacts
+        shell: bash
+        run: |
+          python tests/scientific/verify_reference_v2.py
+
       - name: Install Boost + Eigen + image codecs (Ubuntu)
         if: runner.os == 'Linux'
         shell: bash
