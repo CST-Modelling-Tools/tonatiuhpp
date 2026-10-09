@@ -113,6 +113,7 @@ struct ScientificSignature
     std::uint64_t frontHitCount = 0;
     std::uint64_t invalidHitCount = 0;
     std::uint64_t recordedPhotonCount = 0;
+    std::uint64_t recordedTwoReflectionReceiverPaths = 0;
     std::uint64_t airTransmissionCalls = 0;
     std::uint64_t shapeInstanceCount = 0;
 };
@@ -314,8 +315,29 @@ bool traceOnce(PreparationPath path, ulong rays, bool recordPhotons,
         return fail(error);
 
     hits.copyTo(signature);
-    if (photonBuffer)
-        signature->recordedPhotonCount = photonBuffer->getPhotons().size();
+    if (photonBuffer) {
+        const std::vector<Photon>& photons = photonBuffer->getPhotons();
+        signature->recordedPhotonCount = photons.size();
+        if (scene == ScientificScene::SpecularTwoReflections) {
+            // Photon ids restart at zero for each launched ray. A 0,1,2,3
+            // run proves a single ray went Sun -> First -> Second -> Receiver,
+            // unlike a global hit count that can be lower than rays launched.
+            for (std::size_t i = 0; i + 3 < photons.size(); ++i) {
+                const Photon& first = photons[i + 1];
+                const Photon& second = photons[i + 2];
+                const Photon& receiver = photons[i + 3];
+                if (photons[i].id == 0
+                    && first.id == 1 && first.surface
+                    && first.surface->getURL() == QStringLiteral("//Node/First/Shape")
+                    && second.id == 2 && second.surface
+                    && second.surface->getURL() == QStringLiteral("//Node/Second/Shape")
+                    && receiver.id == 3 && receiver.surface
+                    && receiver.surface->getURL() == QStringLiteral("//Node/Receiver/Shape")) {
+                    ++signature->recordedTwoReflectionReceiverPaths;
+                }
+            }
+        }
+    }
     if (countedAir)
         signature->airTransmissionCalls = countedAir->calls();
     return true;
@@ -538,8 +560,8 @@ TEST(ScientificTraceExtended, SpecularTwoReflectionsRepeatAndMatchPreparation)
         EXPECT_GT(hitsOnSurface(headless, "//Node/First/Shape"), 0U);
         EXPECT_GT(hitsOnSurface(headless, "//Node/Second/Shape"), 0U);
         EXPECT_GT(hitsOnSurface(headless, "//Node/Receiver/Shape"), 0U);
-        EXPECT_GT(headless.hitCount, rays)
-            << "Multiple callback events per ray require propagated intersections.";
+        // Total callback events need not exceed rays launched: some rays miss
+        // or terminate early. Recording tests below verify full bounce paths.
         expectEqualScience(headless, repeated);
         expectEqualScience(headless, gui);
     }
@@ -558,6 +580,8 @@ TEST(ScientificTraceExtended, SpecularRecordingPreservesExactEvents)
                           &withRecording, &error,
                           ScientificScene::SpecularTwoReflections)) << error;
     EXPECT_GT(withRecording.recordedPhotonCount, 0U);
+    EXPECT_GT(withRecording.recordedTwoReflectionReceiverPaths, 0U)
+        << "Expected at least one complete Sun -> First -> Second -> Receiver path.";
     expectEqualScience(withoutRecording, withRecording);
 }
 
