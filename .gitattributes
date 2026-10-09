@@ -1,0 +1,2 @@
+# Keep the published benchmark scene byte-for-byte identical on Windows, macOS and Linux.
+examples/benchmarks/benchmark_heliostat_field_v1.tnhpp -text

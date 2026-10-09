@@ -81,6 +81,16 @@ def verify(directory):
     for field, value in calculated.items():
         if not math.isclose(value, IDENTITY[field], rel_tol=1e-12, abs_tol=1e-12):
             raise ValueError(f"Reference summary differs: {field}: {value}")
+    # The frozen scene is the exact input used for the published v2 reference.
+    # MD5 here matches the Zenodo deposit; SHA-256 of the grid stays separate.
+    scene_path = directory / IDENTITY["scene_file"]
+    scene_data = scene_path.read_bytes()
+    if len(scene_data) != 9413273:
+        raise ValueError(f"Unexpected frozen scene size: {len(scene_data)}")
+    scene_md5 = hashlib.md5(scene_data).hexdigest()
+    if scene_md5 != "e42985c98b965f084a958226851ed626":
+        raise ValueError(f"Frozen scene differs from Zenodo MD5: {scene_md5}")
+    print(f"PASS: authentic benchmark scene; bytes={len(scene_data)}, Zenodo MD5={scene_md5}")
     print(f"PASS: benchmark-v2 reference is internally consistent; {count} cells; SHA-256 {actual_hash}")
 
 
