@@ -312,6 +312,11 @@ jobs:
           grep -Fq 'headless.trace_cylinder_scene' build/headless-discovery.txt
           grep -Fq 'headless.benchmark_repeatability' build/headless-discovery.txt
           grep -Fq 'headless.run_script_cylinder_scene' build/headless-discovery.txt
+          grep -Fq 'headless.validate_heliostat_scene' build/headless-discovery.txt
+          grep -Fq 'headless.benchmark_heliostat_10k' build/headless-discovery.txt
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            grep -Fq 'headless.benchmark_heliostat_1m_repeatability' build/headless-discovery.txt
+          fi
 
       - name: Test
         shell: bash

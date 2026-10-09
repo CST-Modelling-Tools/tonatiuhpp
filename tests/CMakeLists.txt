@@ -168,4 +168,51 @@ if(TONATIUHPP_ENABLE_HEADLESS_SMOKE_TESTS)
       TIMEOUT 60
     )
   endif()
+
+  # Use the original frozen scene and benchmark-v2 receiver parameters.
+  set(_heliostat_scene "${CMAKE_CURRENT_LIST_DIR}/../examples/benchmarks/benchmark_heliostat_field_v1.tnhpp")
+  set(_heliostat_config "${CMAKE_CURRENT_LIST_DIR}/../examples/benchmarks/benchmark_config_v2.example.json")
+  if(EXISTS "${_heliostat_scene}" AND EXISTS "${_heliostat_config}")
+    add_test(
+      NAME headless.validate_heliostat_scene
+      COMMAND "${TONATIUHPP_TEST_EXE}" --headless validate-scene "${_heliostat_scene}"
+    )
+    tonatiuhpp_set_headless_test_properties(headless.validate_heliostat_scene)
+    set_tests_properties(headless.validate_heliostat_scene PROPERTIES
+      PASS_REGULAR_EXPRESSION "Scene validation succeeded"
+      TIMEOUT 180
+    )
+
+    add_test(
+      NAME headless.benchmark_heliostat_10k
+      COMMAND "${CMAKE_COMMAND}"
+        "-DTEST_EXECUTABLE=${TONATIUHPP_TEST_EXE}"
+        "-DTEST_WORKING_DIRECTORY=${TONATIUHPP_TEST_WORKING_DIR}"
+        "-DSOURCE_CONFIG=${_heliostat_config}"
+        "-DSCENE_FILE=${_heliostat_scene}"
+        "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/headless_benchmark_heliostat"
+        "-DMODE=smoke"
+        -P "${CMAKE_CURRENT_LIST_DIR}/cmake/run_heliostat_benchmark_m5.cmake"
+    )
+    tonatiuhpp_set_headless_test_properties(headless.benchmark_heliostat_10k)
+    set_tests_properties(headless.benchmark_heliostat_10k PROPERTIES TIMEOUT 360)
+
+    # Within-platform Windows scientific regression: independent processes.
+    # No expectation of bitwise-identical floating-point across operating systems.
+    if(WIN32)
+      add_test(
+        NAME headless.benchmark_heliostat_1m_repeatability
+        COMMAND "${CMAKE_COMMAND}"
+          "-DTEST_EXECUTABLE=${TONATIUHPP_TEST_EXE}"
+          "-DTEST_WORKING_DIRECTORY=${TONATIUHPP_TEST_WORKING_DIR}"
+          "-DSOURCE_CONFIG=${_heliostat_config}"
+          "-DSCENE_FILE=${_heliostat_scene}"
+          "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/headless_benchmark_heliostat"
+          "-DMODE=repeatability"
+          -P "${CMAKE_CURRENT_LIST_DIR}/cmake/run_heliostat_benchmark_m5.cmake"
+      )
+      tonatiuhpp_set_headless_test_properties(headless.benchmark_heliostat_1m_repeatability)
+      set_tests_properties(headless.benchmark_heliostat_1m_repeatability PROPERTIES TIMEOUT 1200)
+    endif()
+  endif()
 endif()

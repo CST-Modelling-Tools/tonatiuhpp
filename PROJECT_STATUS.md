@@ -4,6 +4,13 @@ Last updated: 2026-10-09
 
 Purpose: lightweight handoff for current Tonatiuh++ project and release context. Keep stable agent rules in `AGENT.md`; update this file when release context changes.
 
+## Development checkpoint — Milestone 5 (2026-10-09)
+
+- Active branch: `test/heliostat-benchmark-reproduction-m5-20261009`, based on M4 merge commit `3a36ad18`; scientific review and three-platform CI pending.
+- Register authentic heliostat-scene loading and a 10,000-ray benchmark in real headless CTest on Windows, macOS and Ubuntu. Derive the smaller benchmark config from existing v2 example; preserve seed, receiver bounds/side and 100x100 grid, remove only the incompatible full-reference comparison, and direct per-run outputs into the build tree.
+- Register two independent 1,000,000-ray benchmark processes on Windows, comparing exact within-platform scientific metrics and SHA-256 hashes; validate emitted binary grids against their JSON hashes. The 500,000,000-ray reference comparison is an **explicit manual opt-in**, not ordinary CI.
+- No production optical physics, RNG, scientific reference values or frozen scene changed. See `docs/benchmark-reproduction-m5.md`.
+
 ## Development checkpoint — Milestone 4 (2026-10-09)
 
 - Active branch: `test/authentic-benchmark-scene-m4-20261009`, based on M3 merge commit `eb5d5a84`; scientific review and CI pending.
