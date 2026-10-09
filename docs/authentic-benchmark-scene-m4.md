@@ -11,6 +11,8 @@ The original, frozen `examples/benchmarks/benchmark_heliostat_field_v1.tnhpp` sc
 
 The original file bytes are not edited, regenerated, or simplified. The temporary checksum-gated GitHub importer was removed after its successful verified import.
 
+**Cross-platform byte preservation:** `.gitattributes` marks this particular `.tnhpp` scene as `-text`, disabling Git's automatic LF-to-CRLF conversion on Windows. Without that rule, the checked-out file becomes larger and its original Zenodo checksum fails despite the Git blob remaining correct. Keep this rule when moving or repackaging the benchmark scene.
+
 The cross-platform `tests/scientific/verify_reference_v2.py` now checks the frozen scene size/MD5 in addition to the reference JSON, binary-grid SHA-256, CSV identity and flux summary metrics. Use:
 
 ```powershell
