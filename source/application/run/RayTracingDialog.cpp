@@ -1,8 +1,15 @@
 #include "RayTracingDialog.h"
 #include "ui_RayTracingDialog.h"
 
+#include <QCheckBox>
+#include <QDialogButtonBox>
+#include <QLineEdit>
 #include <QMessageBox>
+#include <QPushButton>
+#include <QRegularExpression>
+#include <QRegularExpressionValidator>
 
+#include "run/GuiTraceSeed.h"
 #include "kernel/photons/PhotonsAbstract.h"
 #include "kernel/photons/PhotonsWidget.h"
 #include "kernel/photons/PhotonsSettings.h"
@@ -16,6 +23,16 @@ RayTracingDialog::RayTracingDialog(QWidget* parent):
     ui(new Ui::RayTracingDialog)
 {
     ui->setupUi(this);
+
+    ui->fixedSeedEdit->setValidator(new QRegularExpressionValidator(
+        QRegularExpression(QStringLiteral("[0-9]{1,10}")), ui->fixedSeedEdit));
+    connect(ui->fixedSeedCheck, &QCheckBox::toggled,
+            ui->fixedSeedEdit, &QWidget::setEnabled);
+    connect(ui->fixedSeedCheck, &QCheckBox::toggled,
+            this, &RayTracingDialog::updateFixedSeedValidity);
+    connect(ui->fixedSeedEdit, &QLineEdit::textChanged,
+            this, &RayTracingDialog::updateFixedSeedValidity);
+    updateFixedSeedValidity();
 
     connect(ui->storeTypeCombo, SIGNAL(currentIndexChanged(int)), this, SLOT(outputChanged()) );
     connect(ui->surfaceAddButton, SIGNAL(clicked()), this, SLOT(surfaceAdd()) );
@@ -42,6 +59,35 @@ int RayTracingDialog::raysNumber() const {return ui->raysNumberSpin->value();}
 int RayTracingDialog::raysScreen() const {return ui->raysScreenSpin->value();}
 int RayTracingDialog::raysGridWidth() const {return ui->raysPlaneWidthSpin->value();}
 int RayTracingDialog::raysGridHeight() const {return ui->raysPlaneHeightSpin->value();}
+
+void RayTracingDialog::setFixedSeed(const std::optional<std::uint64_t>& seed)
+{
+    ui->fixedSeedEdit->setText(seed
+        ? QString::number(static_cast<qulonglong>(*seed))
+        : QStringLiteral("123456789"));
+    ui->fixedSeedCheck->setChecked(seed.has_value());
+    ui->fixedSeedEdit->setEnabled(seed.has_value());
+    updateFixedSeedValidity();
+}
+
+std::optional<std::uint64_t> RayTracingDialog::fixedSeed() const
+{
+    if (!ui->fixedSeedCheck->isChecked())
+        return std::nullopt;
+    std::uint64_t seed = 0;
+    if (!GuiTraceSeed::parseFixedSeed(ui->fixedSeedEdit->text(), &seed))
+        return std::nullopt;
+    return seed;
+}
+
+void RayTracingDialog::updateFixedSeedValidity()
+{
+    std::uint64_t seed = 0;
+    const bool valid = !ui->fixedSeedCheck->isChecked()
+        || GuiTraceSeed::parseFixedSeed(ui->fixedSeedEdit->text(), &seed);
+    if (QPushButton* ok = ui->buttonBox->button(QDialogButtonBox::Ok))
+        ok->setEnabled(valid);
+}
 
 int RayTracingDialog::photonBufferSize() const {return ui->photonBufferSizeSpin->value();}
 bool RayTracingDialog::photonBufferAppend() const {return ui->photonBufferAppendRadio->isChecked();}

@@ -19,6 +19,7 @@
 #include "core/SceneLoader.h"
 #include "core/TonatiuhCore.h"
 #include "core/TracePreparation.h"
+#include "run/GuiTraceSeed.h"
 #include "kernel/air/AirExponential.h"
 #include "kernel/air/AirTransmission.h"
 #include "kernel/air/AirVacuum.h"
@@ -161,7 +162,8 @@ std::uint64_t countShapeInstances(const InstanceNode* node)
 // This is not an end-to-end MainWindow automation test.
 bool traceOnce(PreparationPath path, ulong rays, bool recordPhotons,
                ScientificSignature* signature, std::string* errorText,
-               ScientificScene scene = ScientificScene::CylinderVacuum)
+               ScientificScene scene = ScientificScene::CylinderVacuum,
+               std::uint64_t masterSeed = kMasterSeed)
 {
     auto fail = [errorText](const QString& message) {
         if (errorText)
@@ -213,7 +215,7 @@ bool traceOnce(PreparationPath path, ulong rays, bool recordPhotons,
         input.scene = loaded.get();
         input.layoutRoot = borrowedTree.layoutRoot;
         input.sunInstance = &borrowedSun;
-        input.configuration.masterSeed = kMasterSeed;
+        input.configuration.masterSeed = masterSeed;
         input.photonBuffer = photonBuffer.get();
         input.tracingAir = air && air->getTypeId() != AirVacuum::getClassTypeId()
             ? air : nullptr;
@@ -228,7 +230,7 @@ bool traceOnce(PreparationPath path, ulong rays, bool recordPhotons,
         input.scene = loaded.get();
         input.hitCallback = [&hits](const RayTracerHit& hit) { hits.add(hit); };
         input.configuration.rays = rays;
-        input.configuration.masterSeed = kMasterSeed;
+        input.configuration.masterSeed = masterSeed;
         input.configuration.sunWidthDivisions = kSunGridDivisions;
         input.configuration.sunHeightDivisions = kSunGridDivisions;
         if (!TracePreparation::prepareHeadlessTrace(input, &context, &error))
@@ -522,6 +524,59 @@ TEST(ScientificSunSizing, GuiAndHeadlessUseIdenticalAnalyticalBounds)
         EXPECT_DOUBLE_EQ(guiContext.powerPerRay(), headlessContext.powerPerRay());
         EXPECT_GT(guiContext.powerPerRay(), 0.);
     }
+}
+
+TEST(ScientificGuiSeed, ParsesPortableDecimalInput)
+{
+    std::uint64_t seed = 99;
+    EXPECT_TRUE(GuiTraceSeed::parseFixedSeed(QStringLiteral("0"), &seed));
+    EXPECT_EQ(seed, 0ULL);
+    EXPECT_TRUE(GuiTraceSeed::parseFixedSeed(QStringLiteral("123456789"), &seed));
+    EXPECT_EQ(seed, 123456789ULL);
+    EXPECT_TRUE(GuiTraceSeed::parseFixedSeed(QStringLiteral("4294967295"), &seed));
+    EXPECT_EQ(seed, 4294967295ULL);
+
+    for (const char* invalid : {"", "-1", " 123", "123 ", "1.5",
+                                "0x10", "4294967296", "18446744073709551615"}) {
+        seed = 99;
+        EXPECT_FALSE(GuiTraceSeed::parseFixedSeed(QString::fromLatin1(invalid), &seed))
+            << invalid;
+        EXPECT_EQ(seed, 99ULL);
+    }
+    EXPECT_FALSE(GuiTraceSeed::parseFixedSeed(QStringLiteral("1"), nullptr));
+}
+
+TEST(ScientificGuiSeed, FixedSelectionDoesNotChangeAutomaticMode)
+{
+    int automaticCalls = 0;
+    auto automaticSeed = [&automaticCalls] {
+        ++automaticCalls;
+        return std::uint64_t{17};
+    };
+    const std::optional<std::uint64_t> automatic;
+    EXPECT_EQ(GuiTraceSeed::resolve(automatic, automaticSeed), 17ULL);
+    EXPECT_EQ(automaticCalls, 1);
+    EXPECT_EQ(GuiTraceSeed::resolve(std::optional<std::uint64_t>{0}, automaticSeed), 0ULL);
+    EXPECT_EQ(GuiTraceSeed::resolve(std::optional<std::uint64_t>{123456789ULL}, automaticSeed),
+              123456789ULL);
+    EXPECT_EQ(automaticCalls, 1);
+}
+
+TEST(ScientificGuiSeed, FixedSeedRepeatsThroughGuiStylePreparation)
+{
+    const std::uint64_t selectedSeed = GuiTraceSeed::resolve(
+        std::optional<std::uint64_t>{987654321ULL},
+        [] { return std::uint64_t{17}; });
+    ScientificSignature first;
+    ScientificSignature second;
+    std::string error;
+    constexpr ulong rays = 20001UL;
+    ASSERT_TRUE(traceOnce(PreparationPath::GuiBorrowed, rays, false, &first, &error,
+                          ScientificScene::CylinderVacuum, selectedSeed)) << error;
+    ASSERT_TRUE(traceOnce(PreparationPath::GuiBorrowed, rays, false, &second, &error,
+                          ScientificScene::CylinderVacuum, selectedSeed)) << error;
+    expectValidTrace(first, rays);
+    expectEqualScience(first, second);
 }
 
 TEST(ScientificSimulationConfig, DefaultsAndValidation)

@@ -4,6 +4,9 @@
 #include <QVariant>
 #include <QJSValue>
 
+#include <cstdint>
+#include <optional>
+
 class QItemSelectionModel;
 class QSplitter;
 class CustomSplashScreen;
@@ -263,6 +266,7 @@ private:
     ulong m_raysScreen;
     int m_raysGridWidth;
     int m_raysGridHeight;
+    std::optional<std::uint64_t> m_fixedGuiMasterSeed;
 
     ulong m_raysTracedTotal;
 

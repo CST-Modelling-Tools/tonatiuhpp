@@ -1,6 +1,10 @@
 #pragma once
 
 #include <QDialog>
+
+#include <cstdint>
+#include <optional>
+
 class SceneTreeModel;
 class PhotonsFactory;
 struct PhotonsSettings;
@@ -28,6 +32,9 @@ public:
     int raysGridWidth() const;
     int raysGridHeight() const;
 
+    void setFixedSeed(const std::optional<std::uint64_t>& seed);
+    std::optional<std::uint64_t> fixedSeed() const;
+
     int photonBufferSize() const;
     bool photonBufferAppend() const;
 
@@ -38,6 +45,7 @@ private slots:
     void outputChanged();
     void surfaceAdd();
     void surfaceDelete();
+    void updateFixedSeedValidity();
 
 private:
     Ui::RayTracingDialog* ui;
