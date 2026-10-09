@@ -4,6 +4,13 @@ Last updated: 2026-10-09
 
 Purpose: lightweight handoff for current Tonatiuh++ project and release context. Keep stable agent rules in `AGENT.md`; update this file when release context changes.
 
+## Development checkpoint — Milestone 4 (2026-10-09)
+
+- Active branch: `test/authentic-benchmark-scene-m4-20261009`, based on M3 merge commit `eb5d5a84`; scientific review and CI pending.
+- Import frozen original `benchmark_heliostat_field_v1.tnhpp` (9,413,273 bytes) from Zenodo record 21325848, preserving file bytes. Original publisher checksum MD5: `e42985c98b965f084a958226851ed626`.
+- Extend the existing cross-platform benchmark v2 artifact checker to assert the scene is present and matches its published size and MD5. No production code, 500M ray physics, RNG derivation, or reference metrics/hash changed.
+- Full 500M reproduction, GUI scene loading, deployment/licensing review, and host-specific performance comparison remain release-validation work. See `docs/authentic-benchmark-scene-m4.md`.
+
 ## Development checkpoint — Milestone 3 (2026-10-09)
 
 - Active branch: `test/benchmark-reference-integrity-m3-20261009`, from merged M2 and CI-cache master `a8d8fc7c`. Validation and review pending.
