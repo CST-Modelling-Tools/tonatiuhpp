@@ -4,6 +4,12 @@ Last updated: 2026-10-09
 
 Purpose: lightweight handoff for current Tonatiuh++ project and release context. Keep stable agent rules in `AGENT.md`; update this file when release context changes.
 
+## Architectural A0 — native GUI/headless exact-hit diagnostic (2026-10-10)
+
+- Draft branch `test/a0-native-gui-headless-signatures-20261010` based on PR #15 merge `ab35c20f`. Initial commit passed cross-platform CI and Windows 23/23 scientific tests; the first manual native GUI attempt exposed a missing MainWindow hook and requires corrective validation.
+- Add an opt-in signature of sorted exact hit callback events to native MainWindow tracing and headless trace-scene. Include source scene identity, seed, solar grid and energy normalization to prevent false equivalence.
+- The initial GUI run emitted no signature while the CLI did; this was an accidental omission of native GUI wiring, not evidence of a scientific mismatch. Corrective code adds explicit activation/success/error messages and shared build-tree plugin search paths; manual native comparison, full export-file parity and renewed CI remain open. Normal simulation, RNG/scheduling, frozen 500M benchmark and default output paths are unchanged. See `docs/a0-native-gui-headless-signatures.md`.
+
 ## Architectural A0 — opt-in headless tracker equivalence (2026-10-10)
 
 - PR #14 merged as master `dd05d2c7`; its scientific suite passed 19/19 locally and all three CI platforms.

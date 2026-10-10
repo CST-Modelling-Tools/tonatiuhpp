@@ -1,6 +1,7 @@
 #include "HeadlessCommandRunner.h"
 
 #include <limits>
+#include <memory>
 
 #include <QCoreApplication>
 #include <QElapsedTimer>
@@ -9,6 +10,7 @@
 
 #include "benchmark/BenchmarkRunner.h"
 #include "core/CorePluginRegistry.h"
+#include "core/NativeTraceSignature.h"
 #include "core/RayTraceExecutor.h"
 #include "core/SceneLoader.h"
 #include "core/TracePreparation.h"
@@ -106,6 +108,16 @@ int HeadlessCommandRunner::traceScene(const QStringList& args) const
     if (!parseTraceSceneArguments(args, &parsed, &errorMessage))
         return printUsageError(errorMessage);
 
+    const QString a0SignatureFile = NativeTraceSignature::outputPathFromEnvironment();
+    std::unique_ptr<NativeTraceSignature> a0Signature;
+    if (!a0SignatureFile.isEmpty()) {
+        if (!NativeTraceSignature::validateRayCount(parsed.rays, &errorMessage)) {
+            err << "A0 diagnostic failed: " << errorMessage << Qt::endl;
+            return 1;
+        }
+        a0Signature = std::make_unique<NativeTraceSignature>();
+    }
+
     TonatiuhCore::initializeCoin();
     CorePluginRegistry plugins;
     initializeSceneServices(parsed.sceneFileName, &plugins);
@@ -135,6 +147,11 @@ int HeadlessCommandRunner::traceScene(const QStringList& args) const
     preparationInput.configuration.masterSeed = parsed.seed;
     preparationInput.updateTrackers = parsed.updateTrackers;
     preparationInput.progress = progress;
+    if (a0Signature) {
+        preparationInput.hitCallback = [signature = a0Signature.get()](const RayTracerHit& hit) {
+            signature->add(hit);
+        };
+    }
     PreparedTraceContext context;
     RayTraceExecutorResult result;
     if (!TracePreparation::prepareHeadlessTrace(preparationInput, &context, &errorMessage)) {
@@ -142,6 +159,17 @@ int HeadlessCommandRunner::traceScene(const QStringList& args) const
         return 1;
     }
     TracePreparation::initializeResult(context, &result);
+    NativeTraceSignature::Inputs a0Inputs;
+    if (a0Signature) {
+        a0Inputs.sceneFile = parsed.sceneFileName;
+        a0Inputs.rays = parsed.rays;
+        a0Inputs.seed = parsed.seed;
+        a0Inputs.sunGridWidth = preparationInput.configuration.sunWidthDivisions;
+        a0Inputs.sunGridHeight = preparationInput.configuration.sunHeightDivisions;
+        a0Inputs.apertureArea = context.sunApertureArea();
+        a0Inputs.irradiance = context.irradiance();
+        a0Inputs.powerPerRay = context.powerPerRay();
+    }
     progress("Starting ray loop.");
     RayTraceExecutor executor;
     RayTraceExecution execution = executor.start(std::move(context));
@@ -153,6 +181,18 @@ int HeadlessCommandRunner::traceScene(const QStringList& args) const
         !TracePreparation::finalizeResult(*execution.context(), executor.exportFailed(), timer.elapsed() / 1000., &result, &errorMessage)) {
         err << "Trace failed: " << errorMessage << Qt::endl;
         return 1;
+    }
+
+    if (a0Signature) {
+        if (execution.future.isCanceled()
+            || !a0Signature->write(a0SignatureFile, "headless-cli",
+                                   a0Inputs, &errorMessage)) {
+            err << "A0 diagnostic failed: "
+                << (errorMessage.isEmpty() ? "Trace was cancelled." : errorMessage)
+                << Qt::endl;
+            return 1;
+        }
+        out << "a0_headless_signature: " << a0SignatureFile << Qt::endl;
     }
 
     out.setRealNumberNotation(QTextStream::FixedNotation);

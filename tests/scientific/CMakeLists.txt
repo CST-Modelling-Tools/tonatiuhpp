@@ -3,6 +3,7 @@ set(_tonatiuhpp_equivalence_core_dir "${CMAKE_SOURCE_DIR}/application/core")
 add_executable(tonatiuhpp_scientific_equivalence_tests
   TraceEquivalenceTests.cpp
   "${_tonatiuhpp_equivalence_core_dir}/CorePluginRegistry.cpp"
+  "${_tonatiuhpp_equivalence_core_dir}/NativeTraceSignature.cpp"
   "${_tonatiuhpp_equivalence_core_dir}/RayTraceExecutor.cpp"
   "${_tonatiuhpp_equivalence_core_dir}/SceneInstanceBuilder.cpp"
   "${_tonatiuhpp_equivalence_core_dir}/SceneLoader.cpp"
