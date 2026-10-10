@@ -20,6 +20,7 @@ private:
         bool hasRays = false;
         bool hasSeed = false;
         bool noExport = false;
+        bool updateTrackers = false;
     };
 
     int validateScene(const QString& fileName) const;

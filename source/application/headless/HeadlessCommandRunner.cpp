@@ -123,6 +123,8 @@ int HeadlessCommandRunner::traceScene(const QStringList& args) const
     out << "seed: " << parsed.seed << Qt::endl;
     out << "photon_export: false" << Qt::endl;
     out << "export_path: none" << Qt::endl;
+    if (parsed.updateTrackers)
+        out << "tracker_update: enabled" << Qt::endl;
 
     QElapsedTimer timer;
     timer.start();
@@ -131,6 +133,7 @@ int HeadlessCommandRunner::traceScene(const QStringList& args) const
     preparationInput.scene = scene.get();
     preparationInput.configuration.rays = parsed.rays;
     preparationInput.configuration.masterSeed = parsed.seed;
+    preparationInput.updateTrackers = parsed.updateTrackers;
     preparationInput.progress = progress;
     PreparedTraceContext context;
     RayTraceExecutorResult result;
@@ -248,6 +251,10 @@ bool HeadlessCommandRunner::parseTraceSceneArguments(const QStringList& args, Tr
             if (parsed->noExport)
                 return failParse(errorMessage, "--no-export was specified more than once.");
             parsed->noExport = true;
+        } else if (option == "--update-trackers") {
+            if (parsed->updateTrackers)
+                return failParse(errorMessage, "--update-trackers was specified more than once.");
+            parsed->updateTrackers = true;
         } else {
             return failParse(errorMessage, QString("Unknown trace-scene option: %1.").arg(option));
         }
@@ -298,14 +305,15 @@ void HeadlessCommandRunner::printUsage() const
     out << "Usage:" << Qt::endl;
     out << "  tonatiuhpp --headless --help" << Qt::endl;
     out << "  tonatiuhpp --headless validate-scene <scene.tnhpp>" << Qt::endl;
-    out << "  tonatiuhpp --headless trace-scene <scene.tnhpp> --rays N --seed S --no-export" << Qt::endl;
+    out << "  tonatiuhpp --headless trace-scene <scene.tnhpp> --rays N --seed S --no-export [--update-trackers]" << Qt::endl;
     out << "  tonatiuhpp --headless benchmark <benchmark_config.json>" << Qt::endl;
     out << "  tonatiuhpp --headless run-script <script.tnhpps>" << Qt::endl;
     out << Qt::endl;
     out << "Commands:" << Qt::endl;
     out << "  validate-scene <scene.tnhpp>                         Validate that a Tonatiuh++ scene can be loaded." << Qt::endl;
-    out << "  trace-scene <scene.tnhpp> --rays N --seed S --no-export" << Qt::endl;
+    out << "  trace-scene <scene.tnhpp> --rays N --seed S --no-export [--update-trackers]" << Qt::endl;
     out << "                                                     Run ray tracing without photon export." << Qt::endl;
+    out << "                                                     --update-trackers applies GUI-like tracking (opt-in)." << Qt::endl;
     out << "  benchmark <benchmark_config.json>                  Run a headless benchmark and write JSON results." << Qt::endl;
     out << "  run-script <script.tnhpps>                         Run a script through the limited true-headless API." << Qt::endl;
     out << Qt::endl;

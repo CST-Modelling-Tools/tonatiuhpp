@@ -149,6 +149,14 @@ bool TracePreparation::prepareHeadlessTrace(const HeadlessTracePreparationInput&
         return false;
 
     reportProgress(input.progress, "Preparing scene.");
+    // Native GUI loading calls these in order. Headless callers must opt in
+    // until benchmark reference impacts and CLI migration are reviewed.
+    // Apply before building the instance tree and sizing the sun aperture.
+    if (input.updateTrackers) {
+        reportProgress(input.progress, "Updating solar trackers.");
+        input.scene->updateParents();
+        input.scene->updateTrackers();
+    }
     reportProgress(input.progress, "Building ray-tracing instance tree.");
     SceneInstanceTree instanceTree = SceneInstanceBuilder::build(input.scene);
     if (!instanceTree.sceneRoot)

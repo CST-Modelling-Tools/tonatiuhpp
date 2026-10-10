@@ -4,6 +4,15 @@ Last updated: 2026-10-09
 
 Purpose: lightweight handoff for current Tonatiuh++ project and release context. Keep stable agent rules in `AGENT.md`; update this file when release context changes.
 
+## Architectural A0 — opt-in headless tracker equivalence (2026-10-10)
+
+- PR #14 merged as master `dd05d2c7`; its scientific suite passed 19/19 locally and all three CI platforms.
+- Development branch: `test/a0-opt-in-headless-tracker-equivalence-20261010`. Local Windows Release build and 21/21 scientific tests passed. Both newly added native CLI smoke tests failed to load `MaterialSpecular` from the Windows build tree; a guarded build-tree plugin search path and a Windows-only regression are being validated. Three-platform CI of initial PR commit #153 passed; updated corrective CI pending.
+- Characterize native GUI scene-load tracker initialization (`updateParents()` then `updateTrackers()`) versus unchanged legacy headless traces. An explicit `--update-trackers` CLI option applies GUI-like tracker preparation before building headless instance trees; the default remains off for frozen benchmark and CLI backward compatibility.
+- Add exact-hit comparisons across GUI-style, headless opt-in, and repeatable legacy paths, plus real CLI smoke tests. Keep production optics, RNG, scheduler, 500-million-ray benchmark reference, and photon formats unchanged.
+- Windows multi-config build-tree plugin resolution now searches `../../plugins` only when `../../CMakeFiles` identifies the build root. This does not modify installed plugin policy or scientific numerical references.
+- See `docs/a0-opt-in-headless-tracker-equivalence.md`. Native MainWindow end-to-end hit output, photon file equivalence, and full A0 scientific acceptance are still open.
+
 ## Architectural Milestone 0 — Multi-reflection and tracker safety net (2026-10-09)
 
 - Development branch: `test/architectural-m0-multibounce-tracker-events-20261009`, based on merged PR #13 master `d048337f`. Cross-platform CI and scientific review pending.
