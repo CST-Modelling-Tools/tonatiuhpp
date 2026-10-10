@@ -2,6 +2,10 @@
 
 #include <QCoreApplication>
 #include <QDir>
+#include <QFile>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QTemporaryDir>
 
 #include <Inventor/actions/SoGetBoundingBoxAction.h>
 #include <Inventor/nodes/SoGroup.h>
@@ -20,6 +24,7 @@
 #include <vector>
 
 #include "core/CorePluginRegistry.h"
+#include "core/NativeTraceSignature.h"
 #include "core/RayTraceExecutor.h"
 #include "core/SceneInstanceBuilder.h"
 #include "core/SceneLoader.h"
@@ -930,6 +935,55 @@ TEST(ScientificPluginPaths, WindowsBuildTreeIncludesMaterialPluginRoot)
                        << expected.toStdString();
 }
 #endif
+
+TEST(ScientificNativeTraceSignature, OrderIndependentAndSensitiveToCoordinates)
+{
+    QTemporaryDir temp;
+    ASSERT_TRUE(temp.isValid());
+    NativeTraceSignature::Inputs input;
+    input.sceneFile = fixturePath();
+    input.rays = 4;
+    input.seed = kMasterSeed;
+    input.sunGridWidth = 200;
+    input.sunGridHeight = 200;
+    input.apertureArea = 2.;
+    input.irradiance = 1000.;
+    input.powerPerRay = 500.;
+    const RayTracerHit a{vec3d(0.25, 0.5, 0.125), nullptr, true};
+    const RayTracerHit b{vec3d(0.75, 0.5, 0.125), nullptr, false};
+    NativeTraceSignature first, reverse, changed;
+    first.add(a);
+    first.add(b);
+    reverse.add(b);
+    reverse.add(a);
+    changed.add(a);
+    changed.add(RayTracerHit{vec3d(0.751, 0.5, 0.125), nullptr, false});
+
+    QString error;
+    const QString p1 = temp.filePath("a.json");
+    const QString p2 = temp.filePath("b.json");
+    const QString p3 = temp.filePath("c.json");
+    ASSERT_TRUE(first.write(p1, "native-gui", input, &error)) << error.toStdString();
+    ASSERT_TRUE(reverse.write(p2, "headless-cli", input, &error)) << error.toStdString();
+    ASSERT_TRUE(changed.write(p3, "headless-cli", input, &error)) << error.toStdString();
+
+    auto read = [](const QString& path) {
+        QFile file(path);
+        if (!file.open(QIODevice::ReadOnly))
+            return QJsonObject();
+        return QJsonDocument::fromJson(file.readAll()).object();
+    };
+    const QJsonObject one = read(p1), two = read(p2), three = read(p3);
+    ASSERT_FALSE(one.isEmpty());
+    EXPECT_EQ(one.value("hit_sha256"), two.value("hit_sha256"));
+    EXPECT_NE(one.value("hit_sha256"), three.value("hit_sha256"));
+    EXPECT_EQ(one.value("scene_sha256"), two.value("scene_sha256"));
+    EXPECT_EQ(one.value("hit_count").toString(), QStringLiteral("2"));
+    NativeTraceSignature empty;
+    EXPECT_FALSE(empty.write(temp.filePath("empty.json"), "headless-cli", input, &error));
+    EXPECT_FALSE(NativeTraceSignature::validateRayCount(
+        NativeTraceSignature::kMaxDiagnosticRays + 1, &error));
+}
 
 TEST(ScientificSimulationConfig, DefaultsAndValidation)
 {
