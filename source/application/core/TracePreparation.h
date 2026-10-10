@@ -39,6 +39,9 @@ struct GuiTracePreparationInput
 struct HeadlessTracePreparationInput
 {
     TSceneKit* scene = nullptr;
+    // Null by default: legacy headless execution remains non-recording.
+    // Explicit photon capture shares the existing GUI RayTracer buffer path.
+    PhotonsBuffer* photonBuffer = nullptr;
     // Opt-in to GUI-style tracker setup. False preserves existing CLI,
     // benchmark and script results, including frozen scientific references.
     bool updateTrackers = false;

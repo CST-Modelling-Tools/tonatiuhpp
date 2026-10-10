@@ -345,14 +345,14 @@ void HeadlessCommandRunner::printUsage() const
     out << "Usage:" << Qt::endl;
     out << "  tonatiuhpp --headless --help" << Qt::endl;
     out << "  tonatiuhpp --headless validate-scene <scene.tnhpp>" << Qt::endl;
-    out << "  tonatiuhpp --headless trace-scene <scene.tnhpp> --rays N --seed S --no-export [--update-trackers]" << Qt::endl;
+    out << "  tonatiuhpp --headless trace-scene <scene.tnhpp> --rays N --seed S --no-export [--update-trackers]\n  tonatiuhpp --headless trace-scene <scene.tnhpp> --rays N --seed S --photon-export-dir DIR [--update-trackers]" << Qt::endl;
     out << "  tonatiuhpp --headless benchmark <benchmark_config.json>" << Qt::endl;
     out << "  tonatiuhpp --headless run-script <script.tnhpps>" << Qt::endl;
     out << Qt::endl;
     out << "Commands:" << Qt::endl;
     out << "  validate-scene <scene.tnhpp>                         Validate that a Tonatiuh++ scene can be loaded." << Qt::endl;
-    out << "  trace-scene <scene.tnhpp> --rays N --seed S --no-export [--update-trackers]" << Qt::endl;
-    out << "                                                     Run ray tracing without photon export." << Qt::endl;
+    out << "  trace-scene <scene.tnhpp> --rays N --seed S (--no-export | --photon-export-dir DIR) [--update-trackers]" << Qt::endl;
+    out << "                                                     --photon-export-dir is opt-in A0 file-export diagnostic (max 200000 rays)." << Qt::endl;
     out << "                                                     --update-trackers applies GUI-like tracking (opt-in)." << Qt::endl;
     out << "  benchmark <benchmark_config.json>                  Run a headless benchmark and write JSON results." << Qt::endl;
     out << "  run-script <script.tnhpps>                         Run a script through the limited true-headless API." << Qt::endl;

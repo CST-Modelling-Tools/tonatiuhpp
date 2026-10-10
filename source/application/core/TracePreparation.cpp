@@ -195,6 +195,7 @@ bool TracePreparation::prepareHeadlessTrace(const HeadlessTracePreparationInput&
     prepared.m_sunShape = sunShape;
     prepared.m_tracingAir = tracingAir;
     prepared.m_masterSeed = input.configuration.masterSeed;
+    prepared.m_photonBuffer = input.photonBuffer;
     prepared.m_hitCallback = input.hitCallback;
     prepared.m_rays = input.configuration.rays;
     *context = std::move(prepared);
