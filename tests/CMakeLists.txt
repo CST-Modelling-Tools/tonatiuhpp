@@ -169,6 +169,33 @@ if(TONATIUHPP_ENABLE_HEADLESS_SMOKE_TESTS)
     )
   endif()
 
+  # Real CLI entry point on the tracked fixture. Keep the default case
+  # untouched while verifying explicit opt-in reaches scene preparation.
+  set(_tracker_scene "${CMAKE_CURRENT_LIST_DIR}/scientific/fixtures/one-axis-tracker.tnhpp")
+  if(EXISTS "${_tracker_scene}")
+    add_test(
+      NAME headless.trace_tracker_opt_in
+      COMMAND "${TONATIUHPP_TEST_EXE}" --headless trace-scene "${_tracker_scene}"
+              --rays 4096 --seed 123456789 --no-export --update-trackers
+    )
+    tonatiuhpp_set_headless_test_properties(headless.trace_tracker_opt_in)
+    set_tests_properties(headless.trace_tracker_opt_in PROPERTIES
+      PASS_REGULAR_EXPRESSION "tracker_update: enabled"
+      TIMEOUT 120
+    )
+
+    add_test(
+      NAME headless.trace_tracker_legacy
+      COMMAND "${TONATIUHPP_TEST_EXE}" --headless trace-scene "${_tracker_scene}"
+              --rays 4096 --seed 123456789 --no-export
+    )
+    tonatiuhpp_set_headless_test_properties(headless.trace_tracker_legacy)
+    set_tests_properties(headless.trace_tracker_legacy PROPERTIES
+      PASS_REGULAR_EXPRESSION "Trace completed\\."
+      TIMEOUT 120
+    )
+  endif()
+
   # Use the original frozen scene and benchmark-v2 receiver parameters.
   set(_heliostat_scene "${CMAKE_CURRENT_LIST_DIR}/../examples/benchmarks/benchmark_heliostat_field_v1.tnhpp")
   set(_heliostat_config "${CMAKE_CURRENT_LIST_DIR}/../examples/benchmarks/benchmark_config_v2.example.json")

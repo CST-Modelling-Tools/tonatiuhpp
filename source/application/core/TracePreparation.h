@@ -39,6 +39,9 @@ struct GuiTracePreparationInput
 struct HeadlessTracePreparationInput
 {
     TSceneKit* scene = nullptr;
+    // Opt-in to GUI-style tracker setup. False preserves existing CLI,
+    // benchmark and script results, including frozen scientific references.
+    bool updateTrackers = false;
     PreparedTraceHitCallback hitCallback;
     TracePreparationProgress progress;
     SimulationConfig configuration;

@@ -54,6 +54,15 @@ enum class PreparationPath
     HeadlessOwned
 };
 
+// Characterize the GUI scene-load lifecycle against the legacy and opt-in
+// headless policies without altering production optics or random streams.
+enum class TrackerScenePreparation
+{
+    GuiLifecycle,
+    AsLoaded,
+    HeadlessOptIn
+};
+
 enum class ScientificScene
 {
     CylinderVacuum,
@@ -223,7 +232,8 @@ std::uint64_t countShapeInstances(const InstanceNode* node)
 bool traceOnce(PreparationPath path, ulong rays, bool recordPhotons,
                ScientificSignature* signature, std::string* errorText,
                ScientificScene scene = ScientificScene::CylinderVacuum,
-               std::uint64_t masterSeed = kMasterSeed)
+               std::uint64_t masterSeed = kMasterSeed,
+               TrackerScenePreparation trackerPreparation = TrackerScenePreparation::GuiLifecycle)
 {
     auto fail = [errorText](const QString& message) {
         if (errorText)
@@ -234,6 +244,9 @@ bool traceOnce(PreparationPath path, ulong rays, bool recordPhotons,
         return fail("Missing result storage.");
     if (recordPhotons && path != PreparationPath::GuiBorrowed)
         return fail("Headless preparation does not currently accept a photon buffer.");
+    if (trackerPreparation == TrackerScenePreparation::HeadlessOptIn
+        && path != PreparationPath::HeadlessOwned)
+        return fail("The headless tracker option requires headless preparation.");
 
     LoadedScene loaded;
     QString error;
@@ -243,7 +256,8 @@ bool traceOnce(PreparationPath path, ulong rays, bool recordPhotons,
     // Native GUI scene updates drive trackers. Characterize the corresponding
     // fully prepared scene here, in both the GUI-style and headless paths.
     // TracePreparation does not currently update trackers automatically.
-    if (scene == ScientificScene::TrackerOneAxis) {
+    if (scene == ScientificScene::TrackerOneAxis
+        && trackerPreparation == TrackerScenePreparation::GuiLifecycle) {
         loaded.get()->updateParents();
         loaded.get()->updateTrackers();
     }
@@ -296,6 +310,8 @@ bool traceOnce(PreparationPath path, ulong rays, bool recordPhotons,
     } else {
         HeadlessTracePreparationInput input;
         input.scene = loaded.get();
+        input.updateTrackers =
+            trackerPreparation == TrackerScenePreparation::HeadlessOptIn;
         input.hitCallback = [&hits](const RayTracerHit& hit) { hits.add(hit); };
         input.configuration.rays = rays;
         input.configuration.masterSeed = masterSeed;
@@ -668,6 +684,62 @@ TEST(ScientificTracker, UpdatedSceneRepeatsAndMatchesPreparation)
     expectEqualScience(headless, gui);
 }
 
+TEST(ScientificTracker, HeadlessOptInMatchesGuiLifecycleAndDiffersFromLegacy)
+{
+    // Same fixture and master seed, separately loaded scenes. Only the
+    // tracker-preparation policy changes; check complete hit event multisets.
+    constexpr ulong rays = 20001UL;
+    ScientificSignature gui;
+    ScientificSignature headlessOptIn;
+    ScientificSignature headlessRepeated;
+    ScientificSignature legacy;
+    ScientificSignature legacyRepeated;
+    std::string error;
+
+    ASSERT_TRUE(traceOnce(PreparationPath::GuiBorrowed, rays, false,
+                          &gui, &error, ScientificScene::TrackerOneAxis)) << error;
+    ASSERT_TRUE(traceOnce(PreparationPath::HeadlessOwned, rays, false,
+                          &headlessOptIn, &error, ScientificScene::TrackerOneAxis,
+                          kMasterSeed, TrackerScenePreparation::HeadlessOptIn)) << error;
+    ASSERT_TRUE(traceOnce(PreparationPath::HeadlessOwned, rays, false,
+                          &headlessRepeated, &error, ScientificScene::TrackerOneAxis,
+                          kMasterSeed, TrackerScenePreparation::HeadlessOptIn)) << error;
+    ASSERT_TRUE(traceOnce(PreparationPath::HeadlessOwned, rays, false,
+                          &legacy, &error, ScientificScene::TrackerOneAxis,
+                          kMasterSeed, TrackerScenePreparation::AsLoaded)) << error;
+    ASSERT_TRUE(traceOnce(PreparationPath::HeadlessOwned, rays, false,
+                          &legacyRepeated, &error, ScientificScene::TrackerOneAxis,
+                          kMasterSeed, TrackerScenePreparation::AsLoaded)) << error;
+
+    expectValidTrace(gui, rays);
+    expectValidTrace(legacy, rays);
+    EXPECT_GT(hitsOnSurface(gui, "//Node/Target/Shape"), 0U);
+
+    expectEqualScience(gui, headlessOptIn);
+    expectEqualScience(headlessOptIn, headlessRepeated);
+
+    // Do not silently migrate legacy default behavior or benchmark outputs.
+    expectEqualScience(legacy, legacyRepeated);
+    EXPECT_FALSE(legacy.hitEvents == gui.hitEvents)
+        << "As-loaded headless unexpectedly matches the rotated GUI tracker.";
+}
+
+TEST(ScientificTracker, OptInPreservesNoTrackerScene)
+{
+    constexpr ulong rays = 4096UL;
+    ScientificSignature legacy;
+    ScientificSignature optIn;
+    std::string error;
+    ASSERT_TRUE(traceOnce(PreparationPath::HeadlessOwned, rays, false,
+                          &legacy, &error, ScientificScene::CylinderVacuum,
+                          kMasterSeed, TrackerScenePreparation::AsLoaded)) << error;
+    ASSERT_TRUE(traceOnce(PreparationPath::HeadlessOwned, rays, false,
+                          &optIn, &error, ScientificScene::CylinderVacuum,
+                          kMasterSeed, TrackerScenePreparation::HeadlessOptIn)) << error;
+    expectValidTrace(legacy, rays);
+    expectEqualScience(legacy, optIn);
+}
+
 TEST(ScientificTraceExtended, ExponentialAirPhotonRecordingPreservesHits)
 {
     constexpr ulong rays = 4096UL;
@@ -836,6 +908,7 @@ TEST(ScientificGuiSeed, FixedSeedRepeatsThroughGuiStylePreparation)
 TEST(ScientificSimulationConfig, DefaultsAndValidation)
 {
     SimulationConfig configuration;
+    EXPECT_FALSE(HeadlessTracePreparationInput{}.updateTrackers);
     EXPECT_EQ(configuration.rays, 0UL);
     EXPECT_EQ(configuration.masterSeed, 0ULL);
     EXPECT_EQ(configuration.sunWidthDivisions, 200);
