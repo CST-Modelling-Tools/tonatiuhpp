@@ -7,7 +7,7 @@ Purpose: lightweight handoff for current Tonatiuh++ project and release context.
 ## Architectural A0 — opt-in photon file export equivalence (2026-10-11)
 
 - PR #17 merged as master `a102ce7b`. Real native Windows GUI/headless one-axis tracker exact-hit signatures matched 36,650 events across two independent GUI runs, 20,001 rays, seed 123456789; three-platform CI and 26/26 selected Windows tests passed.
-- Development branch: `test/a0-photon-export-equivalence-20261011`, based on `a102ce7b`. Validation pending.
+- Development branch: `test/a0-photon-export-equivalence-20261011`, based on `a102ce7b`. Initial Windows Release build succeeded and 23/23 existing scientific tests passed, but the new headless export CTest failed during CLI argument parsing because the initial commit `058e242e` omitted the option parser and export-path implementation. Three-platform initial CI failed in test steps. Corrective integration and renewed CI/manual acceptance pending.
 - Add an explicitly limited native headless `--photon-export-dir` diagnostic using the existing File photon plugin and GUI's photon recording branch. Preserve `--no-export` semantics, and compare exact scientific hit signatures across two independent exported traces and a no-recording baseline.
 - Decode actual photon binary files into order-independent physical event multisets (exact coordinates, side, instance URL), while retaining power metadata checks; global file ordering and photon IDs are not scientifically stable under parallel scheduling.
 - See `docs/a0-photon-export-equivalence.md`. Manual native GUI File-plugin export and frozen full 500M benchmark checks remain open; do not change physics, RNG, scheduler, photon formats or frozen references.

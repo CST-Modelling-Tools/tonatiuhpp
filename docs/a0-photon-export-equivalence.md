@@ -1,12 +1,18 @@
 # Architectural A0 — opt-in photon file export scientific equivalence
 
-**Status:** draft PR #18; awaiting local Windows build and three-platform CI.
+**Status:** draft PR #18. Initial Windows Release build and 23/23 existing scientific tests passed, but the new export test failed during CLI argument parsing because the initial PR commit omitted the `--photon-export-dir` handler and File-plugin wiring. Corrective validation is pending.
 
 ## Purpose and limitation
 
 PRs #16–17 established real native GUI/headless exact-hit parity for the cylinder and one-axis tracker fixtures. The existing CLI `--headless trace-scene` was deliberately `--no-export` only. This change adds a **limited opt-in A0 diagnostic** with `--photon-export-dir PATH`, requiring the existing `TONATIUHPP_A0_TRACE_SIGNATURE_FILE` environment variable, and no more than 200,000 rays. The default headless CLI path and benchmark workflows remain unchanged.
 
 The diagnostic dynamically loads the existing `PhotonsFile` plugin. It uses the same `PhotonsBuffer` and production `RayTracer` photon-recording branch as the GUI, with global coordinates, surface URL/ID and side enabled. It emits `PhotonMap.dat` and `PhotonMap_parameters.txt` in a caller-selected directory. No new photon binary format, RNG operation, optics, worker scheduling or benchmark reference is introduced.
+
+## Initial integration failure and corrective implementation
+
+The initial draft commit `058e242e` added CLI help text for `--photon-export-dir` but accidentally omitted the corresponding `HeadlessCommandRunner.cpp` parser and export implementation. The Windows build succeeded, 23 existing scientific tests passed, but `headless.photon_export_scientific_equivalence` returned `Unknown trace-scene option: --photon-export-dir.` before tracing or exporting photons. Initial GitHub Actions Test steps failed on all three platforms.
+
+The corrective commit installs the option parser, opt-in real File-plugin loader, `PhotonsBuffer`-backed recording and export completion handling. This first failure was **not** a scientific mismatch. All results described below remain acceptance criteria until the corrected CI and manual checks pass.
 
 ## Scientific test contract
 
