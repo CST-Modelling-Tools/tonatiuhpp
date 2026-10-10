@@ -2,6 +2,7 @@
 #include "ui_MainWindow.h"
 
 #include <iostream>
+#include <memory>
 
 #include <QCloseEvent>
 #include <QDir>
