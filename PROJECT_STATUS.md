@@ -1,8 +1,16 @@
 # Project Status
 
-Last updated: 2026-10-09
+Last updated: 2026-10-10
 
 Purpose: lightweight handoff for current Tonatiuh++ project and release context. Keep stable agent rules in `AGENT.md`; update this file when release context changes.
+
+## Architectural A0 — native one-axis tracker scientific acceptance (2026-10-10)
+
+- PR #16 merged as master `c80d33da` after Windows, Ubuntu and macOS CI success, Windows Release 23/23 scientific tests, and actual native GUI/headless cylinder exact-hit parity (10,914 events, 20,001 rays, seed 123456789).
+- Development branch: `test/a0-native-tracker-equivalence-20261010`, based on `c80d33da`. Cross-platform CI and native GUI tracker acceptance pending.
+- Add real native-executable headless CTest: two independent opt-in tracker traces and two legacy traces must each repeat exact scientific hit signatures, while opt-in must change the scientific hit digest on the unchanged one-axis fixture.
+- Reuse existing native GUI/CLI signatures to compare two independent GUI tracker runs with tracked headless `--update-trackers`. No production optics, RNG, scheduler or frozen benchmark updates.
+- See `docs/a0-native-tracker-equivalence.md`. Photon export-file parity and full 500M benchmark closeout remain separate A0 gates.
 
 ## Architectural A0 — native GUI/headless exact-hit diagnostic (2026-10-10)
 

@@ -194,6 +194,23 @@ if(TONATIUHPP_ENABLE_HEADLESS_SMOKE_TESTS)
       PASS_REGULAR_EXPRESSION "Trace completed\\."
       TIMEOUT 120
     )
+
+    # Test exact-hit signatures from four independently launched real CLI
+    # processes. This is not native MainWindow automation.
+    add_test(
+      NAME headless.trace_tracker_exact_signatures
+      COMMAND "${CMAKE_COMMAND}"
+        "-DTEST_EXECUTABLE=${TONATIUHPP_TEST_EXE}"
+        "-DTEST_WORKING_DIRECTORY=${TONATIUHPP_TEST_WORKING_DIR}"
+        "-DSCENE_FILE=${_tracker_scene}"
+        "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/headless_tracker_signatures"
+        -P "${CMAKE_CURRENT_LIST_DIR}/cmake/run_native_tracker_signatures.cmake"
+    )
+    tonatiuhpp_set_headless_test_properties(headless.trace_tracker_exact_signatures)
+    set_tests_properties(headless.trace_tracker_exact_signatures PROPERTIES
+      LABELS "headless;smoke;scientific;equivalence"
+      TIMEOUT 480
+    )
   endif()
 
   # Use the original frozen scene and benchmark-v2 receiver parameters.
