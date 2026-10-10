@@ -61,9 +61,11 @@
 #include "commands/CmdSetFieldNode.h"
 #include "commands/CmdSetFieldText.h"
 #include "commands/CmdPaste.h"
+#include "core/NativeTraceSignature.h"
 #include "core/RayTraceExecutor.h"
 #include "core/SceneInstanceBuilder.h"
 #include "core/TracePreparation.h"
+#include "core/TonatiuhCore.h"
 
 #include "PluginManager.h"
 #include "kernel/node/TonatiuhFunctions.h"
@@ -272,9 +274,12 @@ MainWindow::MainWindow(QString fileName, CustomSplashScreen* splash, QWidget* pa
 
     if (splash) splash->setMessage("Loading plugins");
     m_pluginManager = new PluginManager;
-    QDir dir(qApp->applicationDirPath());
-    dir.cd("plugins");
-    m_pluginManager->load(dir);
+    // Installed application roots retain priority. Uninstalled multi-config
+    // CMake builds discover the same plugin root as headless execution.
+    const QStringList pluginRoots =
+        TonatiuhCore::pluginSearchPaths(qApp->applicationDirPath());
+    m_pluginManager->load(QDir(pluginRoots.isEmpty()
+        ? qApp->applicationDirPath() : pluginRoots.first()));
 
     QStringList paths = {appBundleDataPath("resources")};
     QDir::setSearchPaths("resources", paths);
@@ -1918,6 +1923,28 @@ void MainWindow::fileOpen(QString fileName)
  */
 void MainWindow::Run()
 {
+    const QString a0OutputFile = NativeTraceSignature::outputPathFromEnvironment();
+    QString a0Error;
+    if (!a0OutputFile.isEmpty()) {
+        if (!NativeTraceSignature::validateRayCount(m_raysNumber, &a0Error)) {
+            std::cerr << "a0_native_gui_signature_error: "
+                      << a0Error.toStdString() << std::endl;
+            QMessageBox::warning(this, "Tonatiuh A0 diagnostic", a0Error);
+            return;
+        }
+        // Independently loaded headless science can only be compared with
+        // a saved, unmodified scene. Do not hash stale on-disk geometry.
+        if (m_fileName.isEmpty() || m_document->isModified()) {
+            a0Error = "Save the scene to a .tnhpp file before capturing "
+                      "a native GUI/headless scientific signature.";
+            std::cerr << "a0_native_gui_signature_error: "
+                      << a0Error.toStdString() << std::endl;
+            QMessageBox::warning(this, "Tonatiuh A0 diagnostic", a0Error);
+            return;
+        }
+        std::cout << "a0_native_gui_capture: enabled" << std::endl;
+    }
+
     InstanceNode* instanceLayout = 0;
     InstanceNode instanceSun(0);
 
@@ -2010,12 +2037,33 @@ void MainWindow::Run()
     preparationInput.configuration.rays = m_raysNumber;
     preparationInput.configuration.sunWidthDivisions = m_raysGridWidth;
     preparationInput.configuration.sunHeightDivisions = m_raysGridHeight;
+    // Collect events only during the explicitly enabled diagnostic.
+    // Normal photon recording, RNG and work scheduling remain unchanged.
+    std::unique_ptr<NativeTraceSignature> a0Signature;
+    if (!a0OutputFile.isEmpty()) {
+        a0Signature = std::make_unique<NativeTraceSignature>();
+        preparationInput.hitCallback = [capture = a0Signature.get()](const RayTracerHit& hit) {
+            capture->add(hit);
+        };
+    }
     PreparedTraceContext context;
     QString preparationError;
     if (!TracePreparation::prepareGuiTrace(preparationInput, &context, &preparationError)) {
         emit Abort(preparationError.isEmpty() ? tr("There are no surfaces defined for ray tracing") : preparationError);
         ShowRaysIn3DView();
         return;
+    }
+
+    NativeTraceSignature::Inputs a0Inputs;
+    if (a0Signature) {
+        a0Inputs.sceneFile = m_fileName;
+        a0Inputs.rays = m_raysNumber;
+        a0Inputs.seed = traceSeed;
+        a0Inputs.sunGridWidth = m_raysGridWidth;
+        a0Inputs.sunGridHeight = m_raysGridHeight;
+        a0Inputs.apertureArea = context.sunApertureArea();
+        a0Inputs.irradiance = context.irradiance();
+        a0Inputs.powerPerRay = context.powerPerRay();
     }
 
     std::cout << "gui_master_seed: " << traceSeed
@@ -2035,6 +2083,7 @@ void MainWindow::Run()
         QMessageBox::warning(this, "Tonatiuh", executionError);
         return;
     }
+    const bool a0Cancelled = execution.future.isCanceled();
     std::cout << "QtConcurrent finished: " << timer.elapsed() << std::endl;
 
     bool tracingCancelledByExport = executor.exportFailed();
@@ -2051,12 +2100,31 @@ void MainWindow::Run()
     double area = sunAperture->getArea();
     double irradiance = sunPosition->irradiance.getValue();
     double power = m_raysTracedTotal > 0 ? area*irradiance/m_raysTracedTotal : 0.;
-    if (!m_photonsBuffer->endExport(power)) {
+    const bool exportSucceeded = m_photonsBuffer->endExport(power);
+    if (!exportSucceeded) {
         QMessageBox::warning(
             this,
             "Tonatiuh",
             "Photon export failed. Some photons were not written and remain buffered in memory. Check the output directory before starting a new export."
         );
+    }
+    if (a0Signature) {
+        bool saved = false;
+        if (a0Cancelled || tracingCancelledByExport || !exportSucceeded) {
+            a0Error = "Tracing was cancelled or photon export failed; "
+                      "no scientific signature can be accepted.";
+        } else {
+            saved = a0Signature->write(a0OutputFile, "native-gui",
+                                       a0Inputs, &a0Error);
+        }
+        if (saved) {
+            std::cout << "a0_native_gui_signature: "
+                      << a0OutputFile.toStdString() << std::endl;
+        } else {
+            std::cerr << "a0_native_gui_signature_error: "
+                      << a0Error.toStdString() << std::endl;
+            QMessageBox::warning(this, "Tonatiuh A0 diagnostic", a0Error);
+        }
     }
 
     std::cout << "Elapsed time (Run): " << timer.elapsed() << std::endl;
