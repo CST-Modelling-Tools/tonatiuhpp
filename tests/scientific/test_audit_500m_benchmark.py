@@ -42,7 +42,8 @@ class FrozenBenchmarkAuditTests(unittest.TestCase):
             "benchmark: benchmark_v1\nrays: 500000000\nseed: 123456789\n"
             "photon_export: false\nexport_path: none\nBenchmark completed.\n"
             "rays_traced: 500000000\nchunk_count: 50000\nchunk_size: 10000\n"
-            "benchmark_pass: true\nflux_grid_hash_matches: true\n",
+            "benchmark_pass: true\n"
+            "flux_grid_hash_matches: true, flux_grid_hash_pass: true\n",
             encoding="utf-8")
         self.config = {
             "benchmark": "benchmark_v1", "rays": RAYS, "seed": SEED,
@@ -120,6 +121,23 @@ class FrozenBenchmarkAuditTests(unittest.TestCase):
     def test_missing_native_completion_log_rejected(self):
         (self.run / "stdout_1.log").write_text("Benchmark completed.\n", encoding="utf-8")
         with self.assertRaisesRegex(AuditError, "Native benchmark stdout log"):
+            self.audit()
+
+    def test_false_native_hash_flag_rejected_even_if_json_passes(self):
+        log = self.run / "stdout_1.log"
+        log.write_text(log.read_text(encoding="utf-8").replace(
+            "flux_grid_hash_pass: true", "flux_grid_hash_pass: false"),
+            encoding="utf-8")
+        with self.assertRaisesRegex(AuditError, "combined successful flux-grid hash flags"):
+            self.audit()
+
+    def test_missing_combined_hash_line_rejected(self):
+        log = self.run / "stdout_1.log"
+        log.write_text(log.read_text(encoding="utf-8").replace(
+            "flux_grid_hash_matches: true, flux_grid_hash_pass: true",
+            "flux_grid_hash_matches: true"),
+            encoding="utf-8")
+        with self.assertRaisesRegex(AuditError, "combined successful flux-grid hash flags"):
             self.audit()
 
     def test_mismatching_csv_rejected(self):

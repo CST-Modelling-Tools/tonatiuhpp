@@ -136,10 +136,16 @@ def audit_run(run_dir, frozen_dir, reference):
         "photon_export: false", "export_path: none",
         "Benchmark completed.", "rays_traced: 500000000",
         "chunk_count: 50000", "chunk_size: 10000",
-        "benchmark_pass: true", "flux_grid_hash_matches: true",
+        "benchmark_pass: true",
     ):
         require(expected_line in stdout_lines,
                 f"Native benchmark stdout log lacks required line {expected_line!r}")
+    # BenchmarkRunner emits both hash flags on a single native stdout line.
+    # Check the real CLI line as well as the independently checked JSON flags.
+    require(any(re.fullmatch(
+        r"flux_grid_hash_matches: true, flux_grid_hash_pass: true",
+        line.strip()) for line in stdout_lines),
+        "Native benchmark stdout log lacks combined successful flux-grid hash flags")
 
     identity(config, "benchmark", "benchmark_v1")
     identity(config, "rays", RAYS)

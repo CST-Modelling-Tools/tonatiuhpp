@@ -1,6 +1,6 @@
 # Architectural A0 — frozen 500-million-ray acceptance and completion review (PR #22)
 
-**Status (2026-10-11):** PR #22 validation framework prepared; a **new full 500,000,000-ray run on the merged PR #21 baseline has not yet been demonstrated**. A0 scientific closeout is **PENDING**, not accepted by passing lightweight CI or by a synthetic auditor test.
+**Status (2026-10-11):** The new native Windows 500,000,000-ray execution **passed** at PR #22 commit `1d512e7c`, with `benchmark_pass: true` and exact frozen flux-grid SHA-256. The independent auditor's first attempt failed on the native combined-line hash status formatting; that auditor check has been corrected. **Post-fix audit of preserved artifacts and final scientific review remain pending.**
 
 ## Scientific baseline and scope
 
@@ -9,6 +9,27 @@
 - **Frozen v2 reference:** `examples/benchmarks/benchmark_reference_500M_v2.json`, 500,000,000 rays, seed 123456789, 50,000 stable chunks of 10,000 rays, target **front side 1**, bounds **[-2,2] x [-2,2]**, **100 x 100** grid. Reference binary-grid SHA-256: `36c7dc17cee8e7fdef820f08d4482e7c3dcdee3b5eed4748ea3949a6cf4af472`; total power **42.217052166502086 MW** and maximum flux **19.52519778288914 MW/m2**.
 - **Benchmark name:** executable config remains `benchmark_v1`; reference label `benchmark_v2` identifies the post-RNG-refactor scientific reference, **not** another tracing algorithm. The reference does not override the established **0.1% total-power** and **5% peak-flux** benchmark tolerances. Exact frozen grid SHA-256 agreement remains a **separate mandatory condition**.
 - `PROJECT_STATUS.md` records an earlier independent native Windows 500M reproduction of v2 before the latest A0 PRs. This is historical evidence, **not** proof of a new full run from the PR #21 merged master or PR #22 head.
+
+## Fresh full benchmark evidence and auditor correction (2026-10-11)
+
+On Windows at commit `1d512e7c84fa3969531d59793afc10909c7bad21`, the maintainer ran the actual native `MODE=full` benchmark: **500,000,000 rays**, seed `123456789`, **1,951.360 seconds**, 16 workers, 50,000 chunks of 10,000 rays. Total power: **42.217052 MW**; maximum flux: **19.525198 MW/m2**. The native result reported `benchmark_pass: true`, with all scalar and grid pass flags true. Independent PowerShell `Get-FileHash` of generated `grid_1.bin` matched frozen SHA-256 `36c7dc17cee8e7fdef820f08d4482e7c3dcdee3b5eed4748ea3949a6cf4af472`.
+
+Evidence path: `build/a0-frozen-500m-20261011-060838/m5_full_ea9eb1780f`; executable SHA-256: `9d6761b07c635ac6c8fe47b745fd9e8d73ea2f70ccea7912dbd74a55fd18c402`. Retain all files, native logs and transcript.
+
+The initial Python auditor rejected this exact legitimate output line:
+
+`flux_grid_hash_matches: true, flux_grid_hash_pass: true`
+
+The corrected auditor checks this **combined** native line while continuing to check all structured boolean flags and the generated numerical data independently. Two negative tests reject missing/false native hash flags. Reuse the original artifacts without recalculating rays:
+
+```powershell
+cd C:\OpenSource\tonatiuhpp
+git pull --ff-only
+python -m unittest discover -s tests/scientific -p test_audit_500m_benchmark.py -v
+python tests/scientific/audit_500m_benchmark.py build/a0-frozen-500m-20261011-060838/m5_full_ea9eb1780f
+```
+
+**The corrected audit and A0 closure review are pending.**
 
 ## What PR #22 adds
 
@@ -95,8 +116,8 @@ The full runner writes `config_1.json`, `result_1.json`, `grid_1.bin`, `grid_1.c
 | Original scene + frozen reference integrity | Pinned scene MD5/size, binary SHA-256 and CSV/JSON consistency | Existing CI check; rerun on PR #22 |
 | Representative three-platform scientific checks | Prior PR #21 Windows 28/28 and Windows/Ubuntu/macOS CI; renewed PR #22 CI | Prior evidence passed; PR #22 CI pending |
 | Native GUI/headless scientific equivalence | Cylinder/tracker hits, File exports, complete ordered histories | Passed for the stated fixtures on Windows in PRs #16–#21 |
-| New full 500M actual execution | Independent run on PR #22 code/baseline, original scene and reference, fixed seed/chunks | **OPEN** |
-| Post-run independent audit + provenance | `audit_500m_benchmark.py` success, native stdout/stderr, commit and executable hash | **OPEN** |
+| New full 500M actual execution | Independent run on PR #22 code/baseline, original scene and reference, fixed seed/chunks | **PASSED (native Windows)** |
+| Post-run independent audit + provenance | `audit_500m_benchmark.py` success, native stdout/stderr, commit and executable hash | **Corrected audit rerun pending** |
 | Scientific A0 review | Explicitly review above evidence, scope limits and numerical-reference ownership | **OPEN** |
 
-**Decision: BLOCKED / NOT YET CLOSED** until a fresh full 500M run and independent acceptance evidence are reviewed. Do not revise reference values, weaken tolerances or change optics to make a failing run pass. If a mismatch occurs, preserve outputs/logs and classify platform/toolchain or scientific causes. A0 closure, when justified, applies to the **defined fixtures and frozen benchmark contract**, not universal cross-platform bitwise equivalence, all tracker types, all media/materials, GUI Flux Analysis, installers or release qualification. Those remain separate scope and release gates.
+**Decision: BLOCKED / NOT YET CLOSED** until the corrected independent audit passes on the preserved full 500M run and acceptance evidence is reviewed. Do not revise reference values, weaken tolerances or change optics to make a failing run pass. If a mismatch occurs, preserve outputs/logs and classify platform/toolchain or scientific causes. A0 closure, when justified, applies to the **defined fixtures and frozen benchmark contract**, not universal cross-platform bitwise equivalence, all tracker types, all media/materials, GUI Flux Analysis, installers or release qualification. Those remain separate scope and release gates.
