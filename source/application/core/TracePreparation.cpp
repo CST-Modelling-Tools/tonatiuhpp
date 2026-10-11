@@ -91,6 +91,7 @@ bool TracePreparation::prepareResolvedTrace(PreparedTraceContext&& prepared,
                                             const SimulationConfig& configuration,
                                             const TracePreparationProgress& progress,
                                             const QString& invalidBoundsMessage,
+                                            bool sunTransformBeforeSampling,
                                             PreparedTraceContext* context,
                                             QString* errorMessage)
 {
@@ -105,15 +106,22 @@ bool TracePreparation::prepareResolvedTrace(PreparedTraceContext&& prepared,
     reportProgress(progress, "Sizing sun aperture.");
     sunKit->setBox(layoutBox);
 
-    // Both previous paths used the same sun transform. Assign it to the
-    // borrowed or owned instance before resolving sampling cells.
-    prepared.m_sunInstance->setNode(sunKit);
-    prepared.m_sunInstance->setTransform(tgf::makeTransform(sunKit->m_transform));
+    // Preserve historical observable ordering: headless assigns the sun
+    // transform before findTexture; GUI assigns it only after success.
+    if (sunTransformBeforeSampling) {
+        prepared.m_sunInstance->setNode(sunKit);
+        prepared.m_sunInstance->setTransform(tgf::makeTransform(sunKit->m_transform));
+    }
 
     reportProgress(progress, "Finding sun aperture cells.");
     if (!sunKit->findTexture(configuration.sunWidthDivisions,
                              configuration.sunHeightDivisions, prepared.m_layoutRoot))
         return fail(errorMessage, "There are no surfaces defined for ray tracing.");
+
+    if (!sunTransformBeforeSampling) {
+        prepared.m_sunInstance->setNode(sunKit);
+        prepared.m_sunInstance->setTransform(tgf::makeTransform(sunKit->m_transform));
+    }
 
     prepared.m_masterSeed = configuration.masterSeed;
     prepared.m_rays = configuration.rays;
@@ -155,7 +163,7 @@ bool TracePreparation::prepareGuiTrace(const GuiTracePreparationInput& input,
     return prepareResolvedTrace(std::move(prepared), sunKit, input.configuration,
                                 TracePreparationProgress(),
                                 "GUI scene has no valid analytical ray-tracing bounds.",
-                                context, errorMessage);
+                                false, context, errorMessage);
 }
 
 bool TracePreparation::prepareHeadlessTrace(const HeadlessTracePreparationInput& input,
@@ -208,7 +216,7 @@ bool TracePreparation::prepareHeadlessTrace(const HeadlessTracePreparationInput&
     return prepareResolvedTrace(std::move(prepared), sunKit, input.configuration,
                                 input.progress,
                                 "Scene layout has no valid ray-tracing bounds. Check that it contains ray-traceable surfaces with shape and profile data.",
-                                context, errorMessage);
+                                true, context, errorMessage);
 }
 
 void TracePreparation::initializeResult(const PreparedTraceContext& context, RayTraceExecutorResult* result)
