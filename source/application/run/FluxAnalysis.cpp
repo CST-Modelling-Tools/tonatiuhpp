@@ -155,7 +155,11 @@ void FluxAnalysis::run(QString nodeURL, QString surfaceSide, ulong nRays, bool p
     preparationInput.scene = m_sceneKit;
     preparationInput.layoutRoot = m_instanceLayout;
     preparationInput.sunInstance = &instanceSun;
-    preparationInput.configuration.masterSeed = m_masterSeed++;
+    // Surface-analysis replay and append auditing need the effective seed.
+    // Preserve the existing increment-per-run policy (also for append).
+    const std::uint64_t fluxSeed = m_masterSeed++;
+    qInfo().noquote() << "flux_analysis_master_seed:" << QString::number(static_cast<qulonglong>(fluxSeed));
+    preparationInput.configuration.masterSeed = fluxSeed;
     preparationInput.photonBuffer = m_photons;
     preparationInput.exportSurfaceList = exportSuraceList;
     preparationInput.tracingAir = airTemp;

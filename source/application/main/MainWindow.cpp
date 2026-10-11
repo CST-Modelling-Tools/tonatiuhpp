@@ -885,7 +885,11 @@ void MainWindow::RunFluxAnalysisDialog()
     TSceneKit* sceneKit = m_document->getSceneKit();
     if (!sceneKit) return;
 
-    FluxAnalysisDialog dialog(sceneKit, m_modelScene, m_raysGridWidth, m_raysGridHeight, resolvedGuiMasterSeed(), this);
+    // Honor the existing opt-in GUI fixed seed for Flux Analysis as well as
+    // ordinary tracing. The automatic seed policy remains the default.
+    const std::uint64_t fluxSeed = GuiTraceSeed::resolve(
+        m_fixedGuiMasterSeed, [] { return resolvedGuiMasterSeed(); });
+    FluxAnalysisDialog dialog(sceneKit, m_modelScene, m_raysGridWidth, m_raysGridHeight, fluxSeed, this);
     dialog.exec();
 }
 
