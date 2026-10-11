@@ -1,6 +1,6 @@
 # Architectural A0 — one-axis tracker photon File-export equivalence (PR #20)
 
-**Status:** Draft; native Windows Release, three-platform CI and actual GUI/File-export acceptance pending. Based on PR #19 merge `f1bd0e6e`. This is a test-and-documentation-only milestone.
+**Status:** Native Windows Release **28/28 selected tests passed**; three-platform CI passed; actual Windows native GUI/headless File-export parity **passed** on 2026-10-11. Based on PR #19 master `f1bd0e6e`. PR #20 final review and merge remain pending. This is a test-and-documentation-only milestone.
 
 ## Scope and earlier evidence
 
@@ -31,7 +31,7 @@ cmake --build build --config Release --parallel 16
 ctest --test-dir build -C Release -R '^scientific[.]|^headless[.]trace_tracker_|^headless[.]photon_export_' --output-on-failure
 ```
 
-## Manual actual native GUI/File-export acceptance (separate gate; pending)
+## Manual actual native GUI/File-export acceptance (separate gate; verified)
 
 The automated CTest runs **headless** processes and cannot prove that the GUI File exporter was selected or that GUI photon files match. Perform this independent GUI check on Windows with the unchanged saved scene:
 
@@ -64,8 +64,16 @@ python tests/scientific/compare_native_trace_signatures.py build/a0-tracker-phot
 python tests/scientific/compare_photon_exports.py build/a0-tracker-photon-gui build/a0-tracker-photon-headless
 ```
 
-All six paths must exist and both comparators must exit zero. The prior **36,650-event** figure is evidence from hit-only tracker validation; **do not infer a photon record count or accept GUI File-export parity without the actual export checks**.
+All six artifact paths are required, and both comparators must exit zero. This separate GUI File-export acceptance **was completed successfully** on Windows on 2026-10-11. Recorded outputs and limitations follow.
 
+## Verified scientific acceptance — 2026-10-11
+
+- Maintainer's Windows Release build succeeded; the selected scientific/tracker/photon-export CTests **28/28 passed**, including new `headless.photon_export_tracker_equivalence`, the existing cylinder File-export regression and the tracked-versus-legacy exact-signature regression.
+- [GitHub Actions run #38100894385](https://github.com/CST-Modelling-Tools/tonatiuhpp/actions/runs/38100894385) completed successfully on **Windows, Ubuntu and macOS** for PR head `5aafd878`.
+- A real native Windows GUI File-export trace and an independent native headless `--photon-export-dir ... --update-trackers` trace of unchanged `tests/scientific/fixtures/one-axis-tracker.tnhpp` used **20,001 rays**, fixed seed **123456789** and equal sun-grid/scientific-normalization metadata. Exact-hit comparator: `A0 scientific hit signatures match (36650 events, seed 123456789).`
+- Both true File-export outputs passed the canonical photon-record comparator: `Photon export canonical records match (56651 photons; power=0.2057; surfaces=3/3).` This matches **56,651** decoded physical photon records (exact global position bits, side and mapped surface instance URL) plus serialized power, without depending on file-record ordering or global sequential photon IDs.
+- The first manual GUI attempt unintentionally used **automatic seed 53** while headless used 123456789; the comparators correctly rejected different hit and photon signatures. A corrected **fixed-seed GUI run** then matched both headless scientific-hit signatures and canonical File records. The initial mismatch did **not** establish any physics/export defect.
+- This is actual **within-Windows / within-toolchain one-axis tracker** File-export parity, **not** whole ray-history equivalence, all tracker/scene coverage, raw photon-file byte identity, cross-platform exact-bit equality or frozen full 500-million-ray benchmark acceptance.
 ## Deferred A0 gates
 
 This test only establishes within-platform canonical photon-record multiset parity for one axis. It does not assert raw byte-for-byte file equality, complete per-ray histories, parity across all tracker types, cross-platform exact bit identity or full 500-million-ray benchmark acceptance.
