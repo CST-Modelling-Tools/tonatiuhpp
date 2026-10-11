@@ -160,6 +160,12 @@ jobs:
         run: |
           python -m unittest discover -s tests/scientific -p 'test_audit_500m_benchmark.py' -v
 
+      - name: Test GUI Flux Analysis export comparator
+        if: ${{ steps.changes.outputs.docs_only != 'true' }}
+        shell: bash
+        run: |
+          python -m unittest discover -s tests/scientific -p 'test_compare_gui_flux_exports.py' -v
+
       - name: Install Boost + Eigen + image codecs (Ubuntu)
         if: ${{ steps.changes.outputs.docs_only != 'true' && (runner.os == 'Linux') }}
         shell: bash
