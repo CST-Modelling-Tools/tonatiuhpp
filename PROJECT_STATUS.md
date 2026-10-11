@@ -4,6 +4,12 @@ Last updated: 2026-10-11
 
 Purpose: lightweight handoff for current Tonatiuh++ project and release context. Keep stable agent rules in `AGENT.md`; update this file when release context changes.
 
+## Change-aware CI — first Markdown-only hosted verification (2026-10-11)
+
+- **PR #24 merged as `a41d7750ed9be924a6e4b8259bdf2b6deddbb72e`.** Full Windows/Ubuntu/macOS CI passed on the change-aware workflow; the maintainer's local Windows classifier unit tests passed 15/15 and the existing branch-protection check settings were confirmed.
+- **This Markdown-only PR is the first hosted lightweight-path acceptance test.** All three stable `build (ubuntu-24.04)`, `build (macos-latest)`, and `build (windows-latest)` checks must pass with `Verify documentation-only changes` executed and Qt/dependency installation, native compilation, CTest and build-artifact uploading skipped. Until the actual GitHub Actions job steps are inspected, fast-path verification remains **pending**.
+- **Conservative fallback is mandatory.** Mixed, code, CMake, scientific fixtures/references, scripts, non-Markdown documentation, and workflow modifications continue to receive full native CI; manual dispatch runs full CI. See `docs/change-aware-ci.md`. This change modifies only `PROJECT_STATUS.md`, never frozen reference files or production physics.
+
 ## Architectural A0 — scientific acceptance closeout (2026-10-11)
 
 - **Architectural A0 scientific acceptance CLOSED within the defined test-fixture and frozen-benchmark scope.** PR #21 merged at `44b32a8a` after real native Windows cylinder and one-axis tracker GUI/headless ordered ray-history equivalence (20,001 rays per fixture; seed 123456789; 10,914 and 36,650 interactions), 28/28 selected Windows tests, and three-platform CI.
