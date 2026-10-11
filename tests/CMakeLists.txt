@@ -213,6 +213,28 @@ if(TONATIUHPP_ENABLE_HEADLESS_SMOKE_TESTS)
     )
   endif()
 
+  # True native CLI photon file-export repeatability and scientific parity.
+  # Keep this optional if Python is unavailable in a local developer build.
+  find_package(Python3 COMPONENTS Interpreter QUIET)
+  if(Python3_Interpreter_FOUND AND EXISTS "${_tonatiuhpp_cylinder_scene}")
+    add_test(
+      NAME headless.photon_export_scientific_equivalence
+      COMMAND "${CMAKE_COMMAND}"
+        "-DTEST_EXECUTABLE=${TONATIUHPP_TEST_EXE}"
+        "-DTEST_WORKING_DIRECTORY=${TONATIUHPP_TEST_WORKING_DIR}"
+        "-DSCENE_FILE=${_tonatiuhpp_cylinder_scene}"
+        "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/headless_photon_export"
+        "-DPYTHON_EXECUTABLE=${Python3_EXECUTABLE}"
+        "-DSOURCE_DIR=${CMAKE_CURRENT_LIST_DIR}"
+        -P "${CMAKE_CURRENT_LIST_DIR}/cmake/run_photon_export_scientific_equivalence.cmake"
+    )
+    tonatiuhpp_set_headless_test_properties(headless.photon_export_scientific_equivalence)
+    set_tests_properties(headless.photon_export_scientific_equivalence PROPERTIES
+      LABELS "headless;smoke;scientific;equivalence"
+      TIMEOUT 360
+    )
+  endif()
+
   # Use the original frozen scene and benchmark-v2 receiver parameters.
   set(_heliostat_scene "${CMAKE_CURRENT_LIST_DIR}/../examples/benchmarks/benchmark_heliostat_field_v1.tnhpp")
   set(_heliostat_config "${CMAKE_CURRENT_LIST_DIR}/../examples/benchmarks/benchmark_config_v2.example.json")

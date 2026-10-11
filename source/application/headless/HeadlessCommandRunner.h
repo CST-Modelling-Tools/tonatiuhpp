@@ -20,6 +20,7 @@ private:
         bool hasRays = false;
         bool hasSeed = false;
         bool noExport = false;
+        QString photonExportDirectory;
         bool updateTrackers = false;
     };
 
