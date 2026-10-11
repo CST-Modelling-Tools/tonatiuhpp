@@ -1,6 +1,6 @@
 # M1 — Effective simulation-preparation policies and first canonical pipeline
 
-**Status:** implementation proposed on `refactor/m1-canonical-trace-preparation-20261012`; native build/scientific validation pending.
+**Status:** implementation proposed in draft PR #28 (`refactor/m1-canonical-trace-preparation-20261012`); Windows Release native build and targeted scientific/headless checks passed (maintainer-reported 2026-10-12); hosted CI and end-to-end GUI acceptance remain pending.
 **Governing roadmap:** [GUI/Core Separation and Scientific Equivalence Plan](gui-core-separation-scientific-equivalence-plan.md), packages M1.1–M1.3.
 
 ## Effective inputs by invocation (source baseline: `master` at `abf54d4`)
@@ -28,7 +28,14 @@
 
 ## Acceptance and known limitations
 
-- **Not yet run:** local C++ compilation, scientific CTests, real GUI smoke tests, cross-platform CI. The code must not be labelled scientifically accepted merely because it is committed.
+- **Windows/MSVC Release local validation PASSED (maintainer-supplied console output, 2026-10-12):** `cmake --build build --config Release --target tonatiuhpp tonatiuhpp_scientific_equivalence_tests --parallel 8` compiled both targets successfully. The application compiled the modified preparation and its GUI/CLI/benchmark/script callers; the scientific test executable compiled its new regression. Observed existing warnings `C4834` and `C4805` in `FluxAnalysis.cpp`, with no errors.
+- **Scientific tests PASSED:** `ctest --test-dir build -C Release -R '^scientific[.]' --output-on-failure`: **24/24 passed**, including new `ScientificTracePreparation.CommonPipelinePreservesAdapterContracts`, GUI/headless equivalence, sun-aperture, tracker opt-in/legacy, fixed seed, Fresnel, air and specular regressions. Total real time 19.10 s.
+- **Headless tests PASSED:** `ctest --test-dir build -C Release -R '^headless[.](trace_cylinder_scene|trace_tracker_opt_in|trace_tracker_legacy)
+- **Completed local gate:** the incremental Release build, 24 scientific CTests, and 3 headless trace/tracker smoke tests listed above. No frozen 500-million-ray benchmark rerun.
+- **Next migration:** complete M1.3 by verifying caller-level effective inputs/outputs and removing any remaining preparation duplication, then close M1 only after the scientific regression gate. Existing callers continue to use the two compatibility adapter names; both now lead to one implementation.
+- **Not in this PR:** M2 propagation unification; M3 shared scripting host; M4 exporter redesign; M5 build target separation; changes to reference fixtures, 500M reference or ray-tracing physics.
+ --output-on-failure`: **3/3 passed**, total real time 2.15 s.
+- **Still pending:** native interactive GUI smoke and representative GUI Flux Analysis run, hosted Windows/Ubuntu/macOS CI verification, any missing caller-level regressions. This evidence applies only to this proposed PR head, not general M1 completion.
 - **Required local check:** incremental Release build of `tonatiuhpp` and `tonatiuhpp_scientific_equivalence_tests`; `ctest --test-dir build -C Release -R '^scientific[.]' --output-on-failure`, plus relevant short headless `trace-scene`/tracker tests.
 - **Next migration:** complete M1.3 by verifying caller-level effective inputs/outputs and removing any remaining preparation duplication, then close M1 only after the scientific regression gate. Existing callers continue to use the two compatibility adapter names; both now lead to one implementation.
 - **Not in this PR:** M2 propagation unification; M3 shared scripting host; M4 exporter redesign; M5 build target separation; changes to reference fixtures, 500M reference or ray-tracing physics.
