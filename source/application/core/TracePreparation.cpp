@@ -83,6 +83,52 @@ double PreparedTraceContext::powerPerRay() const
     return m_rays > 0 ? sunApertureArea() * irradiance() / m_rays : 0.;
 }
 
+// Adapt an already available GUI instance tree or a freshly built headless
+// tree to the same numerical preparation pipeline. Ownership remains in
+// PreparedTraceContext; this method never creates an extra instance tree.
+bool TracePreparation::prepareResolvedTrace(PreparedTraceContext&& prepared,
+                                            SunKit* sunKit,
+                                            const SimulationConfig& configuration,
+                                            const TracePreparationProgress& progress,
+                                            const QString& invalidBoundsMessage,
+                                            bool sunTransformBeforeSampling,
+                                            PreparedTraceContext* context,
+                                            QString* errorMessage)
+{
+    // The adapters validate the configuration and resolve the sun before
+    // scene synchronization, preserving their original initialization order.
+    reportProgress(progress, "Updating ray-tracing instance tree.");
+    prepared.m_layoutRoot->updateTree(Transform::Identity);
+    const Box3D& layoutBox = prepared.m_layoutRoot->getBox();
+    if (!layoutBox.isValid())
+        return fail(errorMessage, invalidBoundsMessage);
+
+    reportProgress(progress, "Sizing sun aperture.");
+    sunKit->setBox(layoutBox);
+
+    // Preserve historical observable ordering: headless assigns the sun
+    // transform before findTexture; GUI assigns it only after success.
+    if (sunTransformBeforeSampling) {
+        prepared.m_sunInstance->setNode(sunKit);
+        prepared.m_sunInstance->setTransform(tgf::makeTransform(sunKit->m_transform));
+    }
+
+    reportProgress(progress, "Finding sun aperture cells.");
+    if (!sunKit->findTexture(configuration.sunWidthDivisions,
+                             configuration.sunHeightDivisions, prepared.m_layoutRoot))
+        return fail(errorMessage, "There are no surfaces defined for ray tracing.");
+
+    if (!sunTransformBeforeSampling) {
+        prepared.m_sunInstance->setNode(sunKit);
+        prepared.m_sunInstance->setTransform(tgf::makeTransform(sunKit->m_transform));
+    }
+
+    prepared.m_masterSeed = configuration.masterSeed;
+    prepared.m_rays = configuration.rays;
+    *context = std::move(prepared);
+    return true;
+}
+
 bool TracePreparation::prepareGuiTrace(const GuiTracePreparationInput& input,
                                        PreparedTraceContext* context,
                                        QString* errorMessage)
@@ -94,43 +140,30 @@ bool TracePreparation::prepareGuiTrace(const GuiTracePreparationInput& input,
     if (!input.layoutRoot || !input.sunInstance)
         return fail(errorMessage, "GUI trace preparation is missing its layout or sun instance.");
 
+    PreparedTraceContext prepared;
     SunKit* sunKit = nullptr;
-    SunShape* sunShape = nullptr;
-    SunAperture* sunAperture = nullptr;
-    SunPosition* sunPosition = nullptr;
-    if (!resolveSun(input.scene, &sunKit, &sunShape, &sunAperture, &sunPosition, errorMessage))
+    if (!resolveSun(input.scene, &sunKit, &prepared.m_sunShape, &prepared.m_sunAperture,
+                    &prepared.m_sunPosition, errorMessage))
         return false;
 
+    // GUI owns the tree and sun instance; synchronization updates its scene
+    // before the one shared analytical preparation pipeline runs.
     if (input.synchronizeScene)
         input.synchronizeScene();
-    input.layoutRoot->updateTree(Transform::Identity);
-    const Box3D& layoutBox = input.layoutRoot->getBox();
-    if (!layoutBox.isValid())
-        return fail(errorMessage, "GUI scene has no valid analytical ray-tracing bounds.");
-    // Both the borrowed GUI and owned headless preparation use analytical bounds.
-    sunKit->setBox(layoutBox);
-    if (!sunKit->findTexture(input.configuration.sunWidthDivisions, input.configuration.sunHeightDivisions, input.layoutRoot))
-        return fail(errorMessage, "There are no surfaces defined for ray tracing.");
 
-    input.sunInstance->setNode(sunKit);
-    input.sunInstance->setTransform(tgf::makeTransform(sunKit->m_transform));
-
-    PreparedTraceContext prepared;
     prepared.m_scene = input.scene;
     prepared.m_layoutRoot = input.layoutRoot;
     prepared.m_sunInstance = input.sunInstance;
-    prepared.m_sunPosition = sunPosition;
-    prepared.m_sunAperture = sunAperture;
-    prepared.m_sunShape = sunShape;
     prepared.m_tracingAir = input.tracingAir;
-    prepared.m_masterSeed = input.configuration.masterSeed;
     prepared.m_photonBuffer = input.photonBuffer;
     prepared.m_exportSurfaceList = input.exportSurfaceList;
     prepared.m_hitCallback = input.hitCallback;
     prepared.m_historyCallback = input.historyCallback;
-    prepared.m_rays = input.configuration.rays;
-    *context = std::move(prepared);
-    return true;
+
+    return prepareResolvedTrace(std::move(prepared), sunKit, input.configuration,
+                                TracePreparationProgress(),
+                                "GUI scene has no valid analytical ray-tracing bounds.",
+                                false, context, errorMessage);
 }
 
 bool TracePreparation::prepareHeadlessTrace(const HeadlessTracePreparationInput& input,
@@ -142,66 +175,48 @@ bool TracePreparation::prepareHeadlessTrace(const HeadlessTracePreparationInput&
     if (!input.configuration.validate(errorMessage))
         return false;
 
+    PreparedTraceContext prepared;
     SunKit* sunKit = nullptr;
-    SunShape* sunShape = nullptr;
-    SunAperture* sunAperture = nullptr;
-    SunPosition* sunPosition = nullptr;
-    if (!resolveSun(input.scene, &sunKit, &sunShape, &sunAperture, &sunPosition, errorMessage))
+    if (!resolveSun(input.scene, &sunKit, &prepared.m_sunShape, &prepared.m_sunAperture,
+                    &prepared.m_sunPosition, errorMessage))
         return false;
 
     reportProgress(input.progress, "Preparing scene.");
-    // Native GUI loading calls these in order. Headless callers must opt in
-    // until benchmark reference impacts and CLI migration are reviewed.
-    // Apply before building the instance tree and sizing the sun aperture.
+    // Keep historical opt-in: callers controlling the headless scene choose
+    // whether to initialize trackers before building the instance tree.
     if (input.updateTrackers) {
         reportProgress(input.progress, "Updating solar trackers.");
         input.scene->updateParents();
         input.scene->updateTrackers();
     }
+
     reportProgress(input.progress, "Building ray-tracing instance tree.");
-    SceneInstanceTree instanceTree = SceneInstanceBuilder::build(input.scene);
-    if (!instanceTree.sceneRoot)
+    prepared.m_ownedInstanceTree = SceneInstanceBuilder::build(input.scene);
+    if (!prepared.m_ownedInstanceTree.sceneRoot)
         return fail(errorMessage, "Could not create ray-tracing scene root.");
-    if (!instanceTree.layoutRoot)
+    if (!prepared.m_ownedInstanceTree.layoutRoot)
         return fail(errorMessage, "Scene has no layout at group.");
 
-    reportProgress(input.progress, "Updating ray-tracing instance tree.");
-    instanceTree.layoutRoot->updateTree(Transform::Identity);
-    const Box3D& layoutBox = instanceTree.layoutRoot->getBox();
-    if (!layoutBox.isValid())
-        return fail(errorMessage, "Scene layout has no valid ray-tracing bounds. Check that it contains ray-traceable surfaces with shape and profile data.");
-
-    reportProgress(input.progress, "Sizing sun aperture.");
-    sunKit->setBox(layoutBox);
-    auto sunInstance = std::make_unique<InstanceNode>(sunKit);
-    sunInstance->setTransform(tgf::makeTransform(sunKit->m_transform));
-
-    reportProgress(input.progress, "Finding sun aperture cells.");
-    if (!sunKit->findTexture(input.configuration.sunWidthDivisions, input.configuration.sunHeightDivisions, instanceTree.layoutRoot))
-        return fail(errorMessage, "There are no surfaces defined for ray tracing.");
-
-    AirTransmission* air = static_cast<AirTransmission*>(input.scene->getPart("world.air.transmission", false));
-    AirTransmission* tracingAir = nullptr;
-    if (air && air->getTypeId() != AirVacuum::getClassTypeId())
-        tracingAir = air;
-
-    PreparedTraceContext prepared;
     prepared.m_scene = input.scene;
-    prepared.m_ownedInstanceTree = std::move(instanceTree);
-    prepared.m_ownedSunInstance = std::move(sunInstance);
     prepared.m_layoutRoot = prepared.m_ownedInstanceTree.layoutRoot;
+    prepared.m_ownedSunInstance = std::make_unique<InstanceNode>(sunKit);
     prepared.m_sunInstance = prepared.m_ownedSunInstance.get();
-    prepared.m_sunPosition = sunPosition;
-    prepared.m_sunAperture = sunAperture;
-    prepared.m_sunShape = sunShape;
-    prepared.m_tracingAir = tracingAir;
-    prepared.m_masterSeed = input.configuration.masterSeed;
+
+    AirTransmission* air = static_cast<AirTransmission*>(
+        input.scene->getPart("world.air.transmission", false));
+    // Preserve the headless vacuum policy; GUI adapters continue to supply
+    // their own effective non-vacuum air object.
+    if (air && air->getTypeId() != AirVacuum::getClassTypeId())
+        prepared.m_tracingAir = air;
+
     prepared.m_photonBuffer = input.photonBuffer;
     prepared.m_hitCallback = input.hitCallback;
     prepared.m_historyCallback = input.historyCallback;
-    prepared.m_rays = input.configuration.rays;
-    *context = std::move(prepared);
-    return true;
+
+    return prepareResolvedTrace(std::move(prepared), sunKit, input.configuration,
+                                input.progress,
+                                "Scene layout has no valid ray-tracing bounds. Check that it contains ray-traceable surfaces with shape and profile data.",
+                                true, context, errorMessage);
 }
 
 void TracePreparation::initializeResult(const PreparedTraceContext& context, RayTraceExecutorResult* result)

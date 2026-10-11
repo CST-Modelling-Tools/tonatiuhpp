@@ -6,6 +6,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QTemporaryDir>
+#include <QStringList>
 
 #include <Inventor/actions/SoGetBoundingBoxAction.h>
 #include <Inventor/nodes/SoGroup.h>
@@ -856,6 +857,69 @@ TEST(ScientificSunSizing, GuiAndHeadlessUseIdenticalAnalyticalBounds)
         EXPECT_DOUBLE_EQ(guiContext.powerPerRay(), headlessContext.powerPerRay());
         EXPECT_GT(guiContext.powerPerRay(), 0.);
     }
+}
+
+// M1: adapters must converge on shared geometry/sun setup while preserving
+// borrowed GUI ownership and owned headless preparation progress.
+TEST(ScientificTracePreparation, CommonPipelinePreservesAdapterContracts)
+{
+    LoadedScene guiScene;
+    LoadedScene headlessScene;
+    QString error;
+    ASSERT_TRUE(SceneLoader::readFile(fixturePath(), &guiScene, &error))
+        << error.toStdString();
+    ASSERT_TRUE(SceneLoader::readFile(fixturePath(), &headlessScene, &error))
+        << error.toStdString();
+
+    SceneInstanceTree borrowedTree = SceneInstanceBuilder::build(guiScene.get());
+    ASSERT_NE(borrowedTree.layoutRoot, nullptr);
+    InstanceNode borrowedSun(nullptr);
+    int synchronizeCalls = 0;
+
+    GuiTracePreparationInput gui;
+    gui.scene = guiScene.get();
+    gui.layoutRoot = borrowedTree.layoutRoot;
+    gui.sunInstance = &borrowedSun;
+    gui.configuration.rays = 4096;
+    gui.configuration.masterSeed = kMasterSeed;
+    gui.synchronizeScene = [&synchronizeCalls] { ++synchronizeCalls; };
+
+    PreparedTraceContext guiContext;
+    ASSERT_TRUE(TracePreparation::prepareGuiTrace(gui, &guiContext, &error))
+        << error.toStdString();
+    EXPECT_EQ(synchronizeCalls, 1);
+    EXPECT_EQ(guiContext.rays(), 4096UL);
+    EXPECT_EQ(guiContext.photonBuffer(), nullptr);
+
+    HeadlessTracePreparationInput headless;
+    headless.scene = headlessScene.get();
+    headless.configuration = gui.configuration;
+    QStringList progress;
+    headless.progress = [&progress](const QString& message) { progress << message; };
+
+    PreparedTraceContext headlessContext;
+    ASSERT_TRUE(TracePreparation::prepareHeadlessTrace(headless, &headlessContext, &error))
+        << error.toStdString();
+    EXPECT_EQ(headlessContext.rays(), 4096UL);
+    EXPECT_EQ(headlessContext.photonBuffer(), nullptr);
+    EXPECT_EQ(progress, (QStringList{
+        QStringLiteral("Preparing scene."),
+        QStringLiteral("Building ray-tracing instance tree."),
+        QStringLiteral("Updating ray-tracing instance tree."),
+        QStringLiteral("Sizing sun aperture."),
+        QStringLiteral("Finding sun aperture cells.")
+    }));
+
+    auto* guiAperture = static_cast<SunAperture*>(
+        guiScene.get()->getPart("world.sun.aperture", false));
+    auto* headlessAperture = static_cast<SunAperture*>(
+        headlessScene.get()->getPart("world.sun.aperture", false));
+    ASSERT_NE(guiAperture, nullptr);
+    ASSERT_NE(headlessAperture, nullptr);
+    EXPECT_EQ(guiAperture->getCells(), headlessAperture->getCells());
+    EXPECT_DOUBLE_EQ(guiContext.sunApertureArea(), headlessContext.sunApertureArea());
+    EXPECT_DOUBLE_EQ(guiContext.irradiance(), headlessContext.irradiance());
+    EXPECT_DOUBLE_EQ(guiContext.powerPerRay(), headlessContext.powerPerRay());
 }
 
 TEST(ScientificGuiSeed, ParsesPortableDecimalInput)
