@@ -4,6 +4,13 @@ Last updated: 2026-10-11
 
 Purpose: lightweight handoff for current Tonatiuh++ project and release context. Keep stable agent rules in `AGENT.md`; update this file when release context changes.
 
+## Architectural A0 — frozen 500M verification and completion review (2026-10-11)
+
+- PR #21 merged as master `44b32a8a`. Native Windows actual GUI/headless cylinder and one-axis tracker ordered ray histories passed (20,001 rays, seed 123456789; 10,914 and 36,650 interactions); 28/28 selected Windows CTests and Windows/Ubuntu/macOS CI passed.
+- PR #22 draft branch `test/a0-frozen-500m-acceptance-20261011`: add independent post-run benchmark artifact auditor, synthetic negative tests in three-platform CI and persistent stdout/stderr logs in the existing manual `MODE=full` runner. Preserve frozen scene, reference, reference flux grid, RNG, optics and scheduler.
+- **Fresh Windows PR #22 native 500M run passed** at `1d512e7c`: 500,000,000 rays, 1,951.360 s, seed 123456789, 50,000 chunks; `benchmark_pass: true` and exact frozen flux grid SHA-256 `36c7dc17cee8e7fdef820f08d4482e7c3dcdee3b5eed4748ea3949a6cf4af472`. Evidence directory: `build/a0-frozen-500m-20261011-060838/m5_full_ea9eb1780f`. Executable SHA-256: `9d6761b07c635ac6c8fe47b745fd9e8d73ea2f70ccea7912dbd74a55fd18c402`.
+- The initial independent audit rejected a *native log-format detail*, not numerical disagreement: the runner emits `flux_grid_hash_matches: true, flux_grid_hash_pass: true` on a single line. Auditor and synthetic tests corrected; **rerun auditor on existing artifacts and review before A0 closure**. Do not rerun the 500M simulation or change the frozen reference. See `docs/a0-frozen-500m-acceptance.md`.
+
 ## Architectural A0 — native complete ordered ray histories (2026-10-11)
 
 - PR #20 merged to master `7657954e` with Windows 28/28 scientific/headless checks, three-platform CI and actual GUI/headless tracker photon equivalence (36,650 hits, 56,651 canonical exported photons).
