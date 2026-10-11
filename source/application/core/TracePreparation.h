@@ -14,6 +14,7 @@ class AirTransmission;
 class InstanceNode;
 class PhotonsBuffer;
 class SunAperture;
+class SunKit;
 class SunPosition;
 class SunShape;
 class TSceneKit;
@@ -107,4 +108,16 @@ public:
                                double elapsedSeconds,
                                RayTraceExecutorResult* result,
                                QString* errorMessage = nullptr);
+
+private:
+    // Both owned headless and borrowed GUI adapters converge here. All
+    // scientific preparation (bounds, aperture, sampling and normalization
+    // inputs) must be performed by this single implementation.
+    static bool prepareResolvedTrace(PreparedTraceContext&& prepared,
+                                     SunKit* sunKit,
+                                     const SimulationConfig& configuration,
+                                     const TracePreparationProgress& progress,
+                                     const QString& invalidBoundsMessage,
+                                     PreparedTraceContext* context,
+                                     QString* errorMessage);
 };
