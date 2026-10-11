@@ -16,6 +16,7 @@
 #include "benchmark/BenchmarkRunner.h"
 #include "core/CorePluginRegistry.h"
 #include "core/NativeTraceSignature.h"
+#include "core/NativeRayHistorySignature.h"
 #include "core/RayTraceExecutor.h"
 #include "core/SceneLoader.h"
 #include "core/TracePreparation.h"
@@ -169,6 +170,15 @@ int HeadlessCommandRunner::traceScene(const QStringList& args) const
         return printUsageError(errorMessage);
 
     const QString a0SignatureFile = NativeTraceSignature::outputPathFromEnvironment();
+    const QString historyFile = NativeRayHistorySignature::outputPathFromEnvironment();
+    std::unique_ptr<NativeRayHistorySignature> history;
+    if (!historyFile.isEmpty()) {
+        if (!NativeTraceSignature::validateRayCount(parsed.rays, &errorMessage)) {
+            err << "Ray history diagnostic failed: " << errorMessage << Qt::endl;
+            return 1;
+        }
+        history = std::make_unique<NativeRayHistorySignature>();
+    }
     std::unique_ptr<NativeTraceSignature> a0Signature;
     if (!a0SignatureFile.isEmpty()) {
         if (!NativeTraceSignature::validateRayCount(parsed.rays, &errorMessage)) {
@@ -238,6 +248,11 @@ int HeadlessCommandRunner::traceScene(const QStringList& args) const
             signature->add(hit);
         };
     }
+    if (history) {
+        preparationInput.historyCallback = [capture = history.get()](const RayTracerHistory& ray) {
+            capture->add(ray);
+        };
+    }
     PreparedTraceContext context;
     RayTraceExecutorResult result;
     if (!TracePreparation::prepareHeadlessTrace(preparationInput, &context, &errorMessage)) {
@@ -273,6 +288,22 @@ int HeadlessCommandRunner::traceScene(const QStringList& args) const
         !photonBuffer->endExport(result.powerPerRay)) {
         err << "Photon export diagnostic failed to finish writing." << Qt::endl;
         return 1;
+    }
+    if (history) {
+        NativeTraceSignature::Inputs historyInputs;
+        historyInputs.sceneFile = parsed.sceneFileName;
+        historyInputs.rays = parsed.rays;
+        historyInputs.seed = parsed.seed;
+        historyInputs.sunGridWidth = preparationInput.configuration.sunWidthDivisions;
+        historyInputs.sunGridHeight = preparationInput.configuration.sunHeightDivisions;
+        historyInputs.apertureArea = result.sunApertureArea;
+        historyInputs.irradiance = result.irradiance;
+        historyInputs.powerPerRay = result.powerPerRay;
+        if (execution.future.isCanceled() || !history->write(historyFile, "headless-cli", historyInputs, &errorMessage)) {
+            err << "Ray history diagnostic failed: " << (errorMessage.isEmpty() ? "Trace cancelled." : errorMessage) << Qt::endl;
+            return 1;
+        }
+        out << "a0_headless_ray_history: " << historyFile << Qt::endl;
     }
     if (a0Signature) {
         if (execution.future.isCanceled()

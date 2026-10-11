@@ -62,6 +62,7 @@
 #include "commands/CmdSetFieldText.h"
 #include "commands/CmdPaste.h"
 #include "core/NativeTraceSignature.h"
+#include "core/NativeRayHistorySignature.h"
 #include "core/RayTraceExecutor.h"
 #include "core/SceneInstanceBuilder.h"
 #include "core/TracePreparation.h"
@@ -1924,8 +1925,9 @@ void MainWindow::fileOpen(QString fileName)
 void MainWindow::Run()
 {
     const QString a0OutputFile = NativeTraceSignature::outputPathFromEnvironment();
+    const QString historyFile = NativeRayHistorySignature::outputPathFromEnvironment();
     QString a0Error;
-    if (!a0OutputFile.isEmpty()) {
+    if (!a0OutputFile.isEmpty() || !historyFile.isEmpty()) {
         if (!NativeTraceSignature::validateRayCount(m_raysNumber, &a0Error)) {
             std::cerr << "a0_native_gui_signature_error: "
                       << a0Error.toStdString() << std::endl;
@@ -2046,6 +2048,13 @@ void MainWindow::Run()
             capture->add(hit);
         };
     }
+    std::unique_ptr<NativeRayHistorySignature> history;
+    if (!historyFile.isEmpty()) {
+        history = std::make_unique<NativeRayHistorySignature>();
+        preparationInput.historyCallback = [capture = history.get()](const RayTracerHistory& ray) {
+            capture->add(ray);
+        };
+    }
     PreparedTraceContext context;
     QString preparationError;
     if (!TracePreparation::prepareGuiTrace(preparationInput, &context, &preparationError)) {
@@ -2055,7 +2064,7 @@ void MainWindow::Run()
     }
 
     NativeTraceSignature::Inputs a0Inputs;
-    if (a0Signature) {
+    if (a0Signature || history) {
         a0Inputs.sceneFile = m_fileName;
         a0Inputs.rays = m_raysNumber;
         a0Inputs.seed = traceSeed;
@@ -2107,6 +2116,20 @@ void MainWindow::Run()
             "Tonatiuh",
             "Photon export failed. Some photons were not written and remain buffered in memory. Check the output directory before starting a new export."
         );
+    }
+    if (history) {
+        bool saved = false;
+        if (a0Cancelled || tracingCancelledByExport || !exportSucceeded) {
+            a0Error = "Tracing was cancelled or photon export failed; no ray history can be accepted.";
+        } else {
+            saved = history->write(historyFile, "native-gui", a0Inputs, &a0Error);
+        }
+        if (saved) {
+            std::cout << "a0_native_gui_ray_history: " << historyFile.toStdString() << std::endl;
+        } else {
+            std::cerr << "a0_native_gui_ray_history_error: " << a0Error.toStdString() << std::endl;
+            QMessageBox::warning(this, "Tonatiuh A0 diagnostic", a0Error);
+        }
     }
     if (a0Signature) {
         bool saved = false;

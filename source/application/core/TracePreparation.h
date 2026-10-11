@@ -21,6 +21,8 @@ struct RayTraceExecutorResult;
 struct RayTracerHit;
 
 using PreparedTraceHitCallback = std::function<void(const RayTracerHit&)>;
+struct RayTracerHistory;
+using PreparedTraceHistoryCallback = std::function<void(const RayTracerHistory&)>;
 using TracePreparationProgress = std::function<void(const QString&)>;
 
 struct GuiTracePreparationInput
@@ -32,6 +34,7 @@ struct GuiTracePreparationInput
     PhotonsBuffer* photonBuffer = nullptr;
     QVector<InstanceNode*> exportSurfaceList;
     PreparedTraceHitCallback hitCallback;
+    PreparedTraceHistoryCallback historyCallback;
     std::function<void()> synchronizeScene;
     AirTransmission* tracingAir = nullptr;
 };
@@ -46,6 +49,7 @@ struct HeadlessTracePreparationInput
     // benchmark and script results, including frozen scientific references.
     bool updateTrackers = false;
     PreparedTraceHitCallback hitCallback;
+    PreparedTraceHistoryCallback historyCallback;
     TracePreparationProgress progress;
     SimulationConfig configuration;
 };
@@ -81,6 +85,7 @@ private:
     PhotonsBuffer* m_photonBuffer = nullptr;
     QVector<InstanceNode*> m_exportSurfaceList;
     PreparedTraceHitCallback m_hitCallback;
+    PreparedTraceHistoryCallback m_historyCallback;
     ulong m_rays = 0;
 
     friend class TracePreparation;

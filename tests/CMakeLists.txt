@@ -258,6 +258,44 @@ if(TONATIUHPP_ENABLE_HEADLESS_SMOKE_TESTS)
     )
   endif()
 
+  # A0 complete ordered per-ray history diagnostic. Each CTest launches
+  # three independent native processes and compares recorded, exported, and
+  # non-recorded histories. No frozen benchmark path runs this diagnostic.
+  if(Python3_Interpreter_FOUND)
+    set(_ray_history_specular_scene "${CMAKE_CURRENT_LIST_DIR}/scientific/fixtures/specular-two-reflections.tnhpp")
+    foreach(_case IN ITEMS cylinder specular tracker)
+      set(_ray_history_scene "")
+      set(_ray_history_tracker OFF)
+      if(_case STREQUAL "cylinder")
+        set(_ray_history_scene "${_tonatiuhpp_cylinder_scene}")
+      elseif(_case STREQUAL "specular")
+        set(_ray_history_scene "${_ray_history_specular_scene}")
+      else()
+        set(_ray_history_scene "${_tracker_scene}")
+        set(_ray_history_tracker ON)
+      endif()
+      if(EXISTS "${_ray_history_scene}")
+        add_test(
+          NAME "headless.ray_history_${_case}_equivalence"
+          COMMAND "${CMAKE_COMMAND}"
+            "-DTEST_EXECUTABLE=${TONATIUHPP_TEST_EXE}"
+            "-DTEST_WORKING_DIRECTORY=${TONATIUHPP_TEST_WORKING_DIR}"
+            "-DSCENE_FILE=${_ray_history_scene}"
+            "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/headless_ray_history_${_case}"
+            "-DPYTHON_EXECUTABLE=${Python3_EXECUTABLE}"
+            "-DSOURCE_DIR=${CMAKE_CURRENT_LIST_DIR}"
+            "-DUPDATE_TRACKERS=${_ray_history_tracker}"
+            -P "${CMAKE_CURRENT_LIST_DIR}/cmake/run_native_ray_history_equivalence.cmake"
+        )
+        tonatiuhpp_set_headless_test_properties("headless.ray_history_${_case}_equivalence")
+        set_tests_properties("headless.ray_history_${_case}_equivalence" PROPERTIES
+          LABELS "headless;smoke;scientific;equivalence"
+          TIMEOUT 480
+        )
+      endif()
+    endforeach()
+  endif()
+
   # Use the original frozen scene and benchmark-v2 receiver parameters.
   set(_heliostat_scene "${CMAKE_CURRENT_LIST_DIR}/../examples/benchmarks/benchmark_heliostat_field_v1.tnhpp")
   set(_heliostat_config "${CMAKE_CURRENT_LIST_DIR}/../examples/benchmarks/benchmark_config_v2.example.json")

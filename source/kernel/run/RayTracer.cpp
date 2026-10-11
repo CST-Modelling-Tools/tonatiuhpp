@@ -18,7 +18,9 @@ RayTracer::RayTracer(InstanceNode* instanceRoot,
     QMutex* mutexPhotons,
     QVector<InstanceNode*> exportSuraceList,
     std::atomic_bool* exportFailed,
-    HitCallback hitCallback
+    HitCallback hitCallback,
+    HistoryCallback historyCallback,
+    std::uint64_t firstRayIndex
 ):
     m_instanceLayout(instanceRoot),
     m_instanceSun(instanceSun),
@@ -31,6 +33,8 @@ RayTracer::RayTracer(InstanceNode* instanceRoot,
     m_mutexPhotonsBuffer(mutexPhotons),
     m_exportFailed(exportFailed),
     m_hitCallback(hitCallback),
+    m_historyCallback(historyCallback),
+    m_firstRayIndex(firstRayIndex),
     m_exportSurfaceList(exportSuraceList),
     m_sunCells(sunAperture->getCells())
 {
@@ -44,6 +48,50 @@ void RayTracer::operator()(ulong nRays)
         return;
 
     Random& rand = *m_rand;
+
+    // The optional history hook observes complete per-ray propagation without
+    // drawing random numbers, changing rays or depending on worker completion
+    // order. It is never installed during normal tracing or frozen benchmarks.
+    auto beginHistory = [this](RayTracerHistory& history, ulong index, const Ray& ray) {
+        if (!m_historyCallback)
+            return;
+        history.rayIndex = m_firstRayIndex + static_cast<std::uint64_t>(index);
+        history.sunOrigin = ray.origin;
+        history.sunDirection = ray.direction();
+    };
+    auto reflectedHistory = [this](RayTracerHistory& history, const Ray& ray,
+                                   const Ray& outgoing, InstanceNode* surface, bool front) {
+        if (!m_historyCallback)
+            return;
+        history.steps.push_back(RayTracerHistoryStep{
+            ray.point(ray.tMax), ray.origin, ray.direction(),
+            outgoing.origin, outgoing.direction(), surface, front, true
+        });
+    };
+    auto endHistory = [this](RayTracerHistory& history, const Ray& ray,
+                             InstanceNode* surface, bool front,
+                             bool airAbsorbed, double airDistance) {
+        if (!m_historyCallback)
+            return;
+        const bool surfaceTerminated =
+            !airAbsorbed && surface && ray.tMax != gcf::infinity;
+        if (surfaceTerminated) {
+            history.steps.push_back(RayTracerHistoryStep{
+                ray.point(ray.tMax), ray.origin, ray.direction(),
+                vec3d(), vec3d(), surface, front, false
+            });
+        }
+        history.termination = airAbsorbed ? RayTracerHistoryTermination::Air
+            : surfaceTerminated ? RayTracerHistoryTermination::Surface
+            : RayTracerHistoryTermination::Escaped;
+        history.terminalOrigin = ray.origin;
+        history.terminalDirection = ray.direction();
+        // In the air-loss branch tMax is reset to the infinity sentinel
+        // after transmission. Preserve the actual sampled segment distance.
+        history.terminalDistance = airAbsorbed ? airDistance : ray.tMax;
+        m_historyCallback(history);
+    };
+
     const bool recordPhotons = m_photonBuffer && m_mutexPhotonsBuffer;
     if (!recordPhotons) {
         for (ulong n = 0; n < nRays; ++n) {
@@ -52,9 +100,13 @@ void RayTracer::operator()(ulong nRays)
 
             Ray ray;
             NewPrimitiveRay(&ray, rand);
+            RayTracerHistory history;
+            beginHistory(history, n, ray);
             bool isFront = true;
             int rayLength = 0;
             InstanceNode* intersectedSurface = nullptr;
+            bool airAbsorbed = false;
+            double airDistance = 0.;
 
             bool isReflected = true;
             while (isReflected) {
@@ -64,6 +116,10 @@ void RayTracer::operator()(ulong nRays)
                 isReflected = m_instanceLayout->intersect(ray, rand, isFront, intersectedSurface, rayReflected);
 
                 if (m_air && rayLength > 0 && m_air->transmission(ray.tMax) < rand.RandomDouble()) {
+                    if (m_historyCallback) {
+                        airAbsorbed = true;
+                        airDistance = ray.tMax;
+                    }
                     intersectedSurface = nullptr;
                     ray.tMax = gcf::infinity;
                     break;
@@ -72,6 +128,7 @@ void RayTracer::operator()(ulong nRays)
                 if (!isReflected)
                     break;
 
+                reflectedHistory(history, ray, rayReflected, intersectedSurface, isFront);
                 if (m_hitCallback && intersectedSurface)
                     m_hitCallback(RayTracerHit{ray.point(ray.tMax), intersectedSurface, isFront});
 
@@ -81,6 +138,7 @@ void RayTracer::operator()(ulong nRays)
 
             if (m_hitCallback && intersectedSurface && ray.tMax != gcf::infinity)
                 m_hitCallback(RayTracerHit{ray.point(ray.tMax), intersectedSurface, isFront});
+            endHistory(history, ray, intersectedSurface, isFront, airAbsorbed, airDistance);
 
         }
         return;
@@ -101,9 +159,13 @@ void RayTracer::operator()(ulong nRays)
         // Part 1: first photon point (on sun surface)
         Ray ray;
         NewPrimitiveRay(&ray, rand);
+        RayTracerHistory history;
+        beginHistory(history, n, ray);
         bool isFront = true;
         int rayLength = 0;
         InstanceNode* intersectedSurface = m_instanceSun;
+        bool airAbsorbed = false;
+        double airDistance = 0.;
         if (bExportLight)
             photons.push_back(Photon(rayLength, ray.origin, m_instanceSun, isFront));
 
@@ -118,6 +180,10 @@ void RayTracer::operator()(ulong nRays)
             // check absorption after the first reflection
             if (m_air && rayLength > 0) {
                 if (m_air->transmission(ray.tMax) < rand.RandomDouble()) {
+                    if (m_historyCallback) {
+                        airAbsorbed = true;
+                        airDistance = ray.tMax;
+                    }
                     ++rayLength;
                     intersectedSurface = 0;
                     ray.tMax = gcf::infinity;
@@ -127,6 +193,7 @@ void RayTracer::operator()(ulong nRays)
 
             // save intersection
             if (!isReflected) break;
+            reflectedHistory(history, ray, rayReflected, intersectedSurface, isFront);
             if (m_hitCallback && intersectedSurface)
                 m_hitCallback(RayTracerHit{ray.point(ray.tMax), intersectedSurface, isFront});
             ++rayLength;
@@ -134,6 +201,10 @@ void RayTracer::operator()(ulong nRays)
                 photons.push_back(Photon(rayLength, ray.point(ray.tMax), intersectedSurface, isFront, true));
             ray = rayReflected;
         }
+
+        // Record terminal surface/escape/air state before export-only code
+        // changes tMax to a display coordinate or filters selected surfaces.
+        endHistory(history, ray, intersectedSurface, isFront, airAbsorbed, airDistance);
 
         // Part 3: last photon point (absorption in air)
         // skip rays without intersections

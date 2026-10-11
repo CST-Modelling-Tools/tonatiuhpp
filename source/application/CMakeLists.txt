@@ -30,6 +30,7 @@ set(HEADERS
     commands/CmdSetFieldText.h
     core/CorePluginRegistry.h
     core/NativeTraceSignature.h
+    core/NativeRayHistorySignature.h
     core/RayTraceExecutor.h
     core/SceneInstanceBuilder.h
     core/SceneLoader.h
@@ -112,6 +113,7 @@ set(SOURCES
     commands/CmdSetFieldText.cpp
     core/CorePluginRegistry.cpp
     core/NativeTraceSignature.cpp
+    core/NativeRayHistorySignature.cpp
     core/RayTraceExecutor.cpp
     core/SceneInstanceBuilder.cpp
     core/SceneLoader.cpp
