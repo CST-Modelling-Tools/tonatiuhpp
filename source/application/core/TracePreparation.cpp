@@ -127,6 +127,7 @@ bool TracePreparation::prepareGuiTrace(const GuiTracePreparationInput& input,
     prepared.m_photonBuffer = input.photonBuffer;
     prepared.m_exportSurfaceList = input.exportSurfaceList;
     prepared.m_hitCallback = input.hitCallback;
+    prepared.m_historyCallback = input.historyCallback;
     prepared.m_rays = input.configuration.rays;
     *context = std::move(prepared);
     return true;
@@ -197,6 +198,7 @@ bool TracePreparation::prepareHeadlessTrace(const HeadlessTracePreparationInput&
     prepared.m_masterSeed = input.configuration.masterSeed;
     prepared.m_photonBuffer = input.photonBuffer;
     prepared.m_hitCallback = input.hitCallback;
+    prepared.m_historyCallback = input.historyCallback;
     prepared.m_rays = input.configuration.rays;
     *context = std::move(prepared);
     return true;

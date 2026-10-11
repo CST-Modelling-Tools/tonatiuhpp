@@ -4,6 +4,13 @@ Last updated: 2026-10-11
 
 Purpose: lightweight handoff for current Tonatiuh++ project and release context. Keep stable agent rules in `AGENT.md`; update this file when release context changes.
 
+## Architectural A0 — native complete ordered ray histories (2026-10-11)
+
+- PR #20 merged to master `7657954e` with Windows 28/28 scientific/headless checks, three-platform CI and actual GUI/headless tracker photon equivalence (36,650 hits, 56,651 canonical exported photons).
+- Development branch `test/a0-native-ray-history-equivalence-20261011`; proposed draft PR #21. CI and native GUI/manual scientific acceptance **pending**.
+- Add separate opt-in bounded per-ray propagation diagnostic `TONATIUHPP_A0_RAY_HISTORY_FILE` recording launch origin/direction, ordered interactions, outgoing ray geometry and surface/air/escape termination with stable per-ray identity. Require real three-process headless repetition and recorded-vs-unrecorded equivalence for cylinder, specular two-reflection and one-axis tracked scenes. Keep exact-hit and photon-export comparators as independent checks.
+- See `docs/a0-native-ray-history-equivalence.md`. No frozen 500-million-ray benchmark, production RNG, worker scheduling, optics, photon-file format or default CLI behavior changes. GUI parity, other scenes/optics and final A0 closeout remain open.
+
 ## Architectural A0 — tracker photon File-export equivalence (2026-10-11)
 
 - Baseline is PR #19 merged master `f1bd0e6e`. PR #17 verified 36,650 exact hit events for a one-axis tracker in the actual Windows native GUI versus tracked headless, while PR #18 verified 30,915 canonical photon records for the separate cylinder fixture.

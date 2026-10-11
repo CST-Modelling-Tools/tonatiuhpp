@@ -197,7 +197,9 @@ RayTraceExecution RayTraceExecutor::start(PreparedTraceContext&& context)
                              workerContext->m_photonBuffer ? &m_photonBufferMutex : nullptr,
                              workerContext->m_exportSurfaceList,
                              &m_exportFailed,
-                             workerContext->m_hitCallback);
+                             workerContext->m_hitCallback,
+                             workerContext->m_historyCallback,
+                             chunkIndex * static_cast<qulonglong>(kRayChunkSize));
             tracer(raysThisChunk);
         };
 
