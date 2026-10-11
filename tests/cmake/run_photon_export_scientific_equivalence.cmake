@@ -3,6 +3,13 @@ foreach(_key IN ITEMS TEST_EXECUTABLE TEST_WORKING_DIRECTORY SCENE_FILE OUTPUT_D
     message(FATAL_ERROR "${_key} is required")
   endif()
 endforeach()
+# Optional test-only GUI-lifecycle tracker preparation. Omitted for the
+# established cylinder regression, preserving its original CLI behavior.
+set(_tracker_args)
+if(UPDATE_TRACKERS)
+  list(APPEND _tracker_args --update-trackers)
+endif()
+
 file(MAKE_DIRECTORY "${OUTPUT_DIR}")
 foreach(_run IN ITEMS first second baseline)
   set(_signature "${OUTPUT_DIR}/${_run}_signature.json")
@@ -19,13 +26,17 @@ foreach(_run IN ITEMS first second baseline)
     COMMAND "${CMAKE_COMMAND}" -E env
       "TONATIUHPP_A0_TRACE_SIGNATURE_FILE=${_signature}"
       "${TEST_EXECUTABLE}" --headless trace-scene "${SCENE_FILE}"
-      --rays 20001 --seed 123456789 ${_export_args}
+      --rays 20001 --seed 123456789 ${_export_args} ${_tracker_args}
     WORKING_DIRECTORY "${TEST_WORKING_DIRECTORY}"
     RESULT_VARIABLE _exit OUTPUT_VARIABLE _stdout ERROR_VARIABLE _stderr
     TIMEOUT 120
   )
   string(FIND "${_stdout}" "Trace completed." _completed)
-  if(NOT "${_exit}" STREQUAL "0" OR _completed EQUAL -1 OR NOT EXISTS "${_signature}")
+  string(FIND "${_stdout}" "tracker_update: enabled" _tracker_updated)
+  if(NOT "${_exit}" STREQUAL "0" OR _completed EQUAL -1
+      OR NOT EXISTS "${_signature}"
+      OR (UPDATE_TRACKERS AND _tracker_updated EQUAL -1)
+      OR (NOT UPDATE_TRACKERS AND NOT _tracker_updated EQUAL -1))
     message(STATUS "${_run} stdout: ${_stdout}")
     message(STATUS "${_run} stderr: ${_stderr}")
     message(FATAL_ERROR "${_run}: photon trace process failed")

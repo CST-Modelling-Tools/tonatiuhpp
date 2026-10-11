@@ -4,6 +4,13 @@ Last updated: 2026-10-11
 
 Purpose: lightweight handoff for current Tonatiuh++ project and release context. Keep stable agent rules in `AGENT.md`; update this file when release context changes.
 
+## Architectural A0 — tracker photon File-export equivalence (2026-10-11)
+
+- Baseline is PR #19 merged master `f1bd0e6e`. PR #17 verified 36,650 exact hit events for a one-axis tracker in the actual Windows native GUI versus tracked headless, while PR #18 verified 30,915 canonical photon records for the separate cylinder fixture.
+- Development branch: `test/a0-tracker-photon-export-equivalence-20261011` for PR #20. Automated CI and manual GUI File-export parity **pending**.
+- Extend the three-process real native headless File-export regression to the unchanged `one-axis-tracker.tnhpp` fixture. Both independently exported runs and the `--no-export` baseline explicitly use `--update-trackers`; exact hit signatures and photon-power metadata must match, and the two File outputs must have identical canonical physical photon-record multisets. Retain the cylinder regression and the distinct opt-in versus legacy tracking tests.
+- See `docs/a0-tracker-photon-export-equivalence.md` for CTest and separate actual GUI acceptance steps. No production optics, RNG, scheduling, exporter format, fixture or frozen 500M reference changes. Per-ray histories and full benchmark closeout remain open.
+
 ## Architectural A0 — opt-in photon file export equivalence (2026-10-11)
 
 - PR #17 merged as master `a102ce7b`. Real native Windows GUI/headless one-axis tracker exact-hit signatures matched 36,650 events across two independent GUI runs, 20,001 rays, seed 123456789; three-platform CI and 26/26 selected Windows tests passed.

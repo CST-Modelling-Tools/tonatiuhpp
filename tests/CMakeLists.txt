@@ -235,6 +235,29 @@ if(TONATIUHPP_ENABLE_HEADLESS_SMOKE_TESTS)
     )
   endif()
 
+  # PR #20: real tracker recording/export regression, independent native
+  # subprocesses. Each must apply GUI-style tracker preparation, including
+  # the non-recording baseline; the older cylinder test stays unchanged.
+  if(Python3_Interpreter_FOUND AND EXISTS "${_tracker_scene}")
+    add_test(
+      NAME headless.photon_export_tracker_equivalence
+      COMMAND "${CMAKE_COMMAND}"
+        "-DTEST_EXECUTABLE=${TONATIUHPP_TEST_EXE}"
+        "-DTEST_WORKING_DIRECTORY=${TONATIUHPP_TEST_WORKING_DIR}"
+        "-DSCENE_FILE=${_tracker_scene}"
+        "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/headless_tracker_photon_export"
+        "-DPYTHON_EXECUTABLE=${Python3_EXECUTABLE}"
+        "-DSOURCE_DIR=${CMAKE_CURRENT_LIST_DIR}"
+        "-DUPDATE_TRACKERS=ON"
+        -P "${CMAKE_CURRENT_LIST_DIR}/cmake/run_photon_export_scientific_equivalence.cmake"
+    )
+    tonatiuhpp_set_headless_test_properties(headless.photon_export_tracker_equivalence)
+    set_tests_properties(headless.photon_export_tracker_equivalence PROPERTIES
+      LABELS "headless;smoke;scientific;equivalence"
+      TIMEOUT 360
+    )
+  endif()
+
   # Use the original frozen scene and benchmark-v2 receiver parameters.
   set(_heliostat_scene "${CMAKE_CURRENT_LIST_DIR}/../examples/benchmarks/benchmark_heliostat_field_v1.tnhpp")
   set(_heliostat_config "${CMAKE_CURRENT_LIST_DIR}/../examples/benchmarks/benchmark_config_v2.example.json")
