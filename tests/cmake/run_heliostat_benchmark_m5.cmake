@@ -84,6 +84,12 @@ foreach(_run RANGE 1 ${_runs})
     ERROR_VARIABLE _stderr
     TIMEOUT ${_timeout}
   )
+  # Preserve the actual native stdout/stderr of the opt-in full run.
+  # This is external acceptance evidence, not an alteration to ray tracing.
+  if(MODE STREQUAL "full")
+    file(WRITE "${_folder}/stdout_${_run}.log" "${_stdout}")
+    file(WRITE "${_folder}/stderr_${_run}.log" "${_stderr}")
+  endif()
   if(NOT "${_exit}" STREQUAL "0")
     message(STATUS "stdout:\n${_stdout}\nstderr:\n${_stderr}")
     message(FATAL_ERROR "M5 ${MODE} process ${_run} exited ${_exit}")

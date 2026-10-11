@@ -4,6 +4,12 @@ Last updated: 2026-10-11
 
 Purpose: lightweight handoff for current Tonatiuh++ project and release context. Keep stable agent rules in `AGENT.md`; update this file when release context changes.
 
+## Architectural A0 — frozen 500M verification and completion review (2026-10-11)
+
+- PR #21 merged as master `44b32a8a`. Native Windows actual GUI/headless cylinder and one-axis tracker ordered ray histories passed (20,001 rays, seed 123456789; 10,914 and 36,650 interactions); 28/28 selected Windows CTests and Windows/Ubuntu/macOS CI passed.
+- PR #22 draft branch `test/a0-frozen-500m-acceptance-20261011`: add independent post-run benchmark artifact auditor, synthetic negative tests in three-platform CI and persistent stdout/stderr logs in the existing manual `MODE=full` runner. Preserve frozen scene, reference, reference flux grid, RNG, optics and scheduler.
+- Historical Windows 500M reference reproduction already exists in earlier project records, but **a fresh 500M execution and independent artifact audit against PR #22 are still pending**. Do not announce A0 closed from CI integrity checks, prior 500M runs or synthetic audit fixtures. See `docs/a0-frozen-500m-acceptance.md` for exact commands, reference integrity, acceptance checklist and scope exclusions.
+
 ## Architectural A0 — native complete ordered ray histories (2026-10-11)
 
 - PR #20 merged to master `7657954e` with Windows 28/28 scientific/headless checks, three-platform CI and actual GUI/headless tracker photon equivalence (36,650 hits, 56,651 canonical exported photons).

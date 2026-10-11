@@ -90,6 +90,13 @@ jobs:
         run: |
           python tests/scientific/verify_reference_v2.py
 
+      # Synthetic fixture checks only the offline *auditor* logic.
+      # It does not run 500 million rays and cannot close the full A0 gate.
+      - name: Test frozen 500M artifact auditor
+        shell: bash
+        run: |
+          python -m unittest discover -s tests/scientific -p 'test_audit_500m_benchmark.py' -v
+
       - name: Install Boost + Eigen + image codecs (Ubuntu)
         if: runner.os == 'Linux'
         shell: bash
