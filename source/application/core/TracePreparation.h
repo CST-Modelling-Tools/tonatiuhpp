@@ -118,6 +118,7 @@ private:
                                      const SimulationConfig& configuration,
                                      const TracePreparationProgress& progress,
                                      const QString& invalidBoundsMessage,
+                                     bool sunTransformBeforeSampling,
                                      PreparedTraceContext* context,
                                      QString* errorMessage);
 };
