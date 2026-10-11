@@ -1,6 +1,6 @@
 # Architectural A0 — frozen 500-million-ray acceptance and completion review (PR #22)
 
-**Status (2026-10-11):** The new native Windows 500,000,000-ray execution **passed** at PR #22 commit `1d512e7c`, with `benchmark_pass: true` and exact frozen flux-grid SHA-256. The independent auditor's first attempt failed on the native combined-line hash status formatting; that auditor check has been corrected. **Post-fix audit of preserved artifacts and final scientific review remain pending.**
+**Status (2026-10-11): ACCEPTED within the defined Architectural A0 scientific scope.** The native Windows 500-million-ray run, exact frozen flux-grid SHA-256, independent post-run artifact audit and 13/13 corrected auditor unit tests passed. PR #22 merged at `400b971f` after [CI #38116645525](https://github.com/CST-Modelling-Tools/tonatiuhpp/actions/runs/38116645525) passed Windows, Ubuntu and macOS. Release/installer and wider physics validation remain separate.
 
 ## Scientific baseline and scope
 
@@ -29,7 +29,7 @@ python -m unittest discover -s tests/scientific -p test_audit_500m_benchmark.py 
 python tests/scientific/audit_500m_benchmark.py build/a0-frozen-500m-20261011-060838/m5_full_ea9eb1780f
 ```
 
-**The corrected audit and A0 closure review are pending.**
+**Final result:** The corrected independent auditor PASSED against the original preserved 500M artifacts, with 13/13 synthetic regression tests passing. The accepted outputs exactly match the frozen binary reference and its power/flux metrics. No 500M rerun was required.
 
 ## What PR #22 adds
 
@@ -44,7 +44,7 @@ PR #22 makes this manual gate independently auditable:
 
 ## Routine preflight (not the 500M run)
 
-From a configured Windows Release checkout of the PR #22 branch:
+From a configured Windows Release checkout of the merged project:
 
 ```powershell
 cd C:\OpenSource\tonatiuhpp
@@ -105,19 +105,19 @@ finally {
 }
 ```
 
-The full runner writes `config_1.json`, `result_1.json`, `grid_1.bin`, `grid_1.csv`, `stdout_1.log` and `stderr_1.log` within a new `m5_full_*` directory. It must exit zero, report `500000000` traced rays, `benchmark_pass: true` and `flux_grid_hash_matches: true`. The independent Python audit must also **exit zero**. Preserve the complete logs and commit/executable provenance when reporting this acceptance to PR #22.
+The full runner writes `config_1.json`, `result_1.json`, `grid_1.bin`, `grid_1.csv`, `stdout_1.log` and `stderr_1.log` within a new `m5_full_*` directory. It must exit zero, report `500000000` traced rays, `benchmark_pass: true` and `flux_grid_hash_matches: true`. The independent Python audit must also **exit zero**. Preserve the complete logs and commit/executable provenance when preserving or reviewing scientific evidence.
 
 **Important limit:** A matching JSON/CSV/bin artifact alone cannot cryptographically prove it came from a fresh run of the claimed executable. Store the native log, commit identifier, executable SHA-256 and full command alongside the artifact audit. Do not report complete 500M acceptance if the native process failed, did not execute, or produced only copied reference files.
 
 ## A0 scientific closeout decision
 
-| Gate | Evidence required | State at draft |
+| Gate | Evidence required | Final state |
 | --- | --- | --- |
-| Original scene + frozen reference integrity | Pinned scene MD5/size, binary SHA-256 and CSV/JSON consistency | Existing CI check; rerun on PR #22 |
-| Representative three-platform scientific checks | Prior PR #21 Windows 28/28 and Windows/Ubuntu/macOS CI; renewed PR #22 CI | Prior evidence passed; PR #22 CI pending |
-| Native GUI/headless scientific equivalence | Cylinder/tracker hits, File exports, complete ordered histories | Passed for the stated fixtures on Windows in PRs #16–#21 |
-| New full 500M actual execution | Independent run on PR #22 code/baseline, original scene and reference, fixed seed/chunks | **PASSED (native Windows)** |
-| Post-run independent audit + provenance | `audit_500m_benchmark.py` success, native stdout/stderr, commit and executable hash | **Corrected audit rerun pending** |
-| Scientific A0 review | Explicitly review above evidence, scope limits and numerical-reference ownership | **OPEN** |
+| Frozen original scene and reference | Pinned scene size/MD5, grid SHA-256, CSV/JSON consistency | **PASS** |
+| Native and three-platform scientific checks | PR #21 acceptance, PR #22 latest CI | **PASS** — Windows 28/28 for PR #21; Windows 26/26 preflight and three-platform CI for PR #22 |
+| GUI/headless native scientific equivalence | Exact hits, File exports, complete ordered ray histories for tested fixtures | **PASS** (defined Windows fixtures) |
+| Native 500M original-heliostat execution | Fixed seed/chunks, published input and native reference checks | **PASS** — 500,000,000 rays; exact frozen grid SHA-256 |
+| Independent artifact audit and provenance | Corrected auditor, native logs, commit and binary identity | **PASS** — original preserved artifacts, 13/13 auditor regressions |
+| A0 bounded scientific review | Evidence matches stated scientific contracts and exclusions | **ACCEPTED**; PR #22 merged |
 
-**Decision: BLOCKED / NOT YET CLOSED** until the corrected independent audit passes on the preserved full 500M run and acceptance evidence is reviewed. Do not revise reference values, weaken tolerances or change optics to make a failing run pass. If a mismatch occurs, preserve outputs/logs and classify platform/toolchain or scientific causes. A0 closure, when justified, applies to the **defined fixtures and frozen benchmark contract**, not universal cross-platform bitwise equivalence, all tracker types, all media/materials, GUI Flux Analysis, installers or release qualification. Those remain separate scope and release gates.
+**Decision: PASS — Architectural A0 scientific acceptance is closed within the defined fixtures and frozen heliostat benchmark contract.** No production optical, RNG, worker scheduling, photon format, frozen scene or reference changes were needed. This does not establish universal cross-platform bitwise results, every tracker/media/material variant, GUI Flux Analysis, packaging, installers or release readiness.
