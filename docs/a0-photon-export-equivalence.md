@@ -1,6 +1,6 @@
 # Architectural A0 — opt-in photon file export scientific equivalence
 
-**Status:** draft PR #18. Initial Windows Release build and 23/23 existing scientific tests passed, but the new export test failed during CLI argument parsing because the initial PR commit omitted the `--photon-export-dir` handler and File-plugin wiring. Corrective validation is pending.
+**Status:** PR #18 merged as master `3e6c03ad` (2026-10-11). Corrected Windows Release 24/24 selected CTests, three-platform CI and manual native GUI/headless photon File-export parity passed for the cylinder fixture; other A0 gates remain open.
 
 ## Purpose and limitation
 
@@ -12,7 +12,7 @@ The diagnostic dynamically loads the existing `PhotonsFile` plugin. It uses the 
 
 The initial draft commit `058e242e` added CLI help text for `--photon-export-dir` but accidentally omitted the corresponding `HeadlessCommandRunner.cpp` parser and export implementation. The Windows build succeeded, 23 existing scientific tests passed, but `headless.photon_export_scientific_equivalence` returned `Unknown trace-scene option: --photon-export-dir.` before tracing or exporting photons. Initial GitHub Actions Test steps failed on all three platforms.
 
-The corrective commit installs the option parser, opt-in real File-plugin loader, `PhotonsBuffer`-backed recording and export completion handling. This first failure was **not** a scientific mismatch. All results described below remain acceptance criteria until the corrected CI and manual checks pass.
+Corrective commit `a3b1057f` installed the option parser, opt-in File-plugin loader, `PhotonsBuffer`-backed recording and export completion handling. The first failure was **not** a scientific mismatch; corrected CI and native GUI/File-export acceptance subsequently passed.
 
 ## Scientific test contract
 
@@ -29,7 +29,7 @@ ctest --test-dir build -C Release -R '^scientific[.]|^headless[.]photon_export_s
 
 ## Manual native GUI photon export acceptance
 
-For this PR, the automated gate verifies the **actual existing file exporter plugin** through native headless processes; the GUI's real plugin dialog/export path has not been automatically exercised. For a native GUI check, open `examples/benchmarks/cylinder.tnhpp`, select 20,001 rays, fixed seed 123456789, 200 × 200 grid, `File` output, a new empty export directory, and the global-coordinate/surface-ID/surface-side fields. Leave previous/next IDs disabled and use one output file. Run the trace with the A0 signature environment variable pointing at a distinct signature JSON.
+The automated gate verifies the **actual existing file exporter plugin** through native headless processes. The GUI File-export dialog and resulting files were verified separately by a successful manual Windows acceptance test. For a native GUI check, open `examples/benchmarks/cylinder.tnhpp`, select 20,001 rays, fixed seed 123456789, 200 × 200 grid, `File` output, a new empty export directory, and the global-coordinate/surface-ID/surface-side fields. Leave previous/next IDs disabled and use one output file. Run the trace with the A0 signature environment variable pointing at a distinct signature JSON.
 
 Independently run the new headless export diagnostic for the same fixture, seed, ray count and grid:
 
@@ -43,6 +43,14 @@ Remove-Item Env:TONATIUHPP_A0_TRACE_SIGNATURE_FILE
 
 Compare native GUI versus headless scientific signature using the existing `compare_native_trace_signatures.py`, and decoded real photon records via `compare_photon_exports.py`. Preserve the original GUI export-directory contents if debugging a mismatch, and do not reset the frozen reference.
 
+## Verified native photon File-export scientific acceptance (Windows, 2026-10-11)
+
+- Corrected commit `a3b1057f` passed a Windows Release build and **24/24 selected CTests**, including the native three-process File-export regression.
+- [GitHub Actions run #163](https://github.com/CST-Modelling-Tools/tonatiuhpp/actions/runs/38095905833) passed on **Windows, Ubuntu and macOS**.
+- Actual native GUI and independently launched headless File-export execution on unchanged `examples/benchmarks/cylinder.tnhpp` matched with **20,001 rays**, seed **123456789**, and matching **200 × 200** sun grid and normalization metadata: `A0 scientific hit signatures match (10914 events, seed 123456789).`
+- GUI files `PhotonMap.dat` (**1,483,920 bytes**), `PhotonMap_parameters.txt` (**127 bytes**) and its signature JSON were generated. The exact canonical record comparator returned `Photon export canonical records match (30915 photons; power=0.007369; surfaces=2/2).`
+- Comparison covers order-independent physical photon records (exact global-coordinate bits, front/back side, mapped surface instance URL) and serialized photon power; **not** raw-file byte identity, ordered global IDs, complete ray histories, all tracker/scene exports or the frozen full 500M benchmark.
+- Earlier missing GUI output artifacts were resolved by setting the GUI File exporter directory, basename `PhotonMap`, single-file mode, global coordinates, and surface ID/side; this was an export configuration issue rather than a scientific mismatch.
 ## Out of scope
 
 Complete per-ray history matching, cross-platform bitwise identity, tracker export-file acceptance, GUI-export automatic automation and the full 500M benchmark reference validation remain separate milestones. No claim of completed A0 closeout is made here.
