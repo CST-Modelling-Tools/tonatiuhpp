@@ -2,7 +2,20 @@
 
 Last updated: 2026-10-11
 
-Purpose: lightweight handoff for current Tonatiuh++ project and release context. Keep stable agent rules in `AGENT.md`; update this file when release context changes.
+Purpose: lightweight handoff for current Tonatiuh++ project and release context. Keep stable agent rules in `AGENT.md`; use `docs/gui-core-separation-scientific-equivalence-plan.md` as the canonical architectural plan and the status section below as the active M0-M5 execution tracker. Update this file with each architectural PR and relevant release-context changes.
+
+## Architecture roadmap execution status (M0-M5) — governing handoff (2026-10-11)
+
+- **Canonical execution plan:** [`docs/gui-core-separation-scientific-equivalence-plan.md`](docs/gui-core-separation-scientific-equivalence-plan.md). Objective: **one GUI-independent ray-tracing engine and one scripting engine shared by GUI and CLI**. Read the plan, this status section and `AGENT.md` before selecting the next task. The plan defines work packages, execution order, acceptance gates, compatibility rules and new-chat handoff.
+- **Current baseline:** `master` at `de33955a`, after PR #26; roadmap/status documentation proposed on branch `docs/gui-core-separation-roadmap-20261011`. This documentation change does not implement M1-M5 and does not establish additional scientific acceptance. Keep version/release progress separately below.
+- **M0 — Scientific safety net:** **CLOSED for documented A0 fixture/frozen-benchmark scope**; preserve the accepted cylinder/specular/tracker histories, photon exports and 500M evidence. A1 GUI Flux Analysis fixed-seed characterization is supporting evidence, not a new governing milestone.
+- **M1 — Unified inputs and preparation:** **PARTIAL**. `SimulationConfig` merged previously, but `prepareGuiTrace` and `prepareHeadlessTrace` remain distinct. **Next: M1.1 inventory effective policies; M1.2 consolidate preparation; M1.3 migrate/verify callers.** No M1.1-M1.3 completion is claimed.
+- **M2 — One ray-propagation algorithm:** **NOT STARTED**. Recording and non-recording propagation loops remain separate in `RayTracer.cpp`; package order M2.1 characterization, M2.2 consolidation and equivalence.
+- **M3 — One simulation session and one scripting host:** **NOT STARTED**. Existing `RayTraceExecutor` is shared, but lifecycle orchestration is fragmented, and GUI `MainWindow` scripts and limited true-headless scripts expose different APIs. Package order M3.1 session lifecycle, M3.2 shared script host/scene API, M3.3 GUI/CLI script parity.
+- **M4 — Shared photon export and analysis:** **PARTIAL FOUNDATION**. Shared `PhotonsBuffer` and opt-in native headless File export exist, but UI-coupled exporter errors, limited CLI capabilities and missing scripted parity remain. Package order M4.1 separate export backend, M4.2 full parity/script integration.
+- **M5 — Enforced build separation:** **NOT STARTED**. Kernel/application/plugin dependencies still pull GUI libraries; package order M5.1 independent GUI-free targets/guards, M5.2 end-to-end acceptance.
+- **Evidence and state discipline:** Update this section *in the same PR as any architectural implementation*: affected package ID, implemented changes, local build/test results, hosted CI results, PR/commit, outstanding risks and first unfinished package. Distinguish proposed, implemented, locally tested, CI tested and merged. Mark package done only after its acceptance gate and merge. This branch's documentation-only checks have **not yet been run**; no science/build/test result is asserted.
+- **Naming warning:** Historical dated “Development checkpoint — Milestone 2/3/4/5” headings below concern benchmark/CI work, **not** completion of architecture M2-M5. Do not use them to advance the roadmap.
 
 ## Change-aware CI — first Markdown-only hosted verification (2026-10-11)
 
