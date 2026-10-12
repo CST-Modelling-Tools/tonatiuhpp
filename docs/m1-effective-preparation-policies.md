@@ -1,6 +1,6 @@
 # M1 — Effective simulation-preparation policies and first canonical pipeline
 
-**Status:** implementation proposed in draft PR #28 (`refactor/m1-canonical-trace-preparation-20261012`); Windows Release native build and targeted scientific/headless checks passed (maintainer-reported 2026-10-12); hosted CI and end-to-end GUI acceptance remain pending.
+**Status:** first bounded M1.1/M1.2 preparation consolidation **MERGED** in [PR #28](https://github.com/CST-Modelling-Tools/tonatiuhpp/pull/28), merge commit `95f0ece14ec499f3d7b0d0a2bb20b7357527b9a0` (2026-10-12 Europe/Madrid). Local Windows Release build, 27 targeted tests, and all three hosted CI jobs passed. A real GUI tracing/Flux Analysis execution smoke also completed. **M1.3 and full M1 acceptance remain open.**
 **Governing roadmap:** [GUI/Core Separation and Scientific Equivalence Plan](gui-core-separation-scientific-equivalence-plan.md), packages M1.1–M1.3.
 
 ## Effective inputs by invocation (source baseline: `master` at `abf54d4`)
@@ -17,7 +17,7 @@
 
 **Compatibility warning:** GUI/headless tracker defaults and seed defaults differ intentionally today. M1 unifies the **computational preparation implementation** without silently changing these effective inputs. Standardizing invocation defaults is a separate, explicit policy decision. Script API parity belongs to M3 and exporter parity to M4.
 
-## Changes in this PR (M1.1 and M1.2 first bounded slice)
+## Changes merged by PR #28 (M1.1 and M1.2 first bounded slice)
 
 1. Preserve the existing public `prepareGuiTrace` and `prepareHeadlessTrace` adapters so current callers remain source-compatible.
 2. Keep GUI borrowed-tree synchronization before common preparation. Keep headless opt-in tracker update and owned instance-tree construction before common preparation.
@@ -28,14 +28,11 @@
 
 ## Acceptance and known limitations
 
-- **Windows/MSVC Release local validation PASSED (maintainer-supplied console output, 2026-10-12):** `cmake --build build --config Release --target tonatiuhpp tonatiuhpp_scientific_equivalence_tests --parallel 8` compiled both targets successfully. The application compiled the modified preparation and its GUI/CLI/benchmark/script callers; the scientific test executable compiled its new regression. Observed existing warnings `C4834` and `C4805` in `FluxAnalysis.cpp`, with no errors.
-- **Scientific tests PASSED:** `ctest --test-dir build -C Release -R '^scientific[.]' --output-on-failure`: **24/24 passed**, including new `ScientificTracePreparation.CommonPipelinePreservesAdapterContracts`, GUI/headless equivalence, sun-aperture, tracker opt-in/legacy, fixed seed, Fresnel, air and specular regressions. Total real time 19.10 s.
-- **Headless tests PASSED:** `ctest --test-dir build -C Release -R '^headless[.](trace_cylinder_scene|trace_tracker_opt_in|trace_tracker_legacy)
-- **Completed local gate:** the incremental Release build, 24 scientific CTests, and 3 headless trace/tracker smoke tests listed above. No frozen 500-million-ray benchmark rerun.
-- **Next migration:** complete M1.3 by verifying caller-level effective inputs/outputs and removing any remaining preparation duplication, then close M1 only after the scientific regression gate. Existing callers continue to use the two compatibility adapter names; both now lead to one implementation.
-- **Not in this PR:** M2 propagation unification; M3 shared scripting host; M4 exporter redesign; M5 build target separation; changes to reference fixtures, 500M reference or ray-tracing physics.
- --output-on-failure`: **3/3 passed**, total real time 2.15 s.
-- **Still pending:** native interactive GUI smoke and representative GUI Flux Analysis run, hosted Windows/Ubuntu/macOS CI verification, any missing caller-level regressions. This evidence applies only to this proposed PR head, not general M1 completion.
-- **Required local check:** incremental Release build of `tonatiuhpp` and `tonatiuhpp_scientific_equivalence_tests`; `ctest --test-dir build -C Release -R '^scientific[.]' --output-on-failure`, plus relevant short headless `trace-scene`/tracker tests.
-- **Next migration:** complete M1.3 by verifying caller-level effective inputs/outputs and removing any remaining preparation duplication, then close M1 only after the scientific regression gate. Existing callers continue to use the two compatibility adapter names; both now lead to one implementation.
-- **Not in this PR:** M2 propagation unification; M3 shared scripting host; M4 exporter redesign; M5 build target separation; changes to reference fixtures, 500M reference or ray-tracing physics.
+- **Windows/MSVC Release local build PASSED** (maintainer-reported, 2026-10-12): `cmake --build build --config Release --target tonatiuhpp tonatiuhpp_scientific_equivalence_tests --parallel 8`. The application and scientific tests compiled. Existing nonfatal `FluxAnalysis.cpp` warnings `C4834` and `C4805` were observed.
+- **Scientific CTests PASSED:** `ctest --test-dir build -C Release -R '^scientific[.]' --output-on-failure`: **24/24**, including `ScientificTracePreparation.CommonPipelinePreservesAdapterContracts`; real test time **19.10 s**.
+- **Headless CTests PASSED:** `ctest --test-dir build -C Release -R '^headless[.](trace_cylinder_scene|trace_tracker_opt_in|trace_tracker_legacy)$' --output-on-failure`: **3/3**, real test time **2.15 s**.
+- **Hosted CI PASSED:** [Actions run #38183984014](https://github.com/CST-Modelling-Tools/tonatiuhpp/actions/runs/38183984014), successful full native build/test jobs for **Ubuntu 24.04, Windows, and macOS**, at PR head `33219d15337d0e954843b7bc29b7cc459ef73e02`.
+- **Native GUI execution smoke PASSED** (maintainer-reported): unchanged `examples/benchmarks/cylinder.tnhpp`, console output `gui_master_seed: 123456789 (fixed)` followed by `QtConcurrent finished` and `Elapsed time (Run): 73`; Flux Analysis reported `flux_analysis_master_seed: 123456789` and `Elapsed time: 31`, with no error text. The console transcript confirms execution but **not** whether the Flux Analysis map contained nonzero values; previous A1 real-GUI export characterization is separate evidence.
+- **Scientific scope:** this gate validates the **bounded preparation consolidation**, not full GUI/CLI/script equivalence. No 500-million-ray benchmark rerun, frozen reference change, propagation algorithm change, RNG change, or photon-file format change was made.
+- **Next package: M1.3**, verifying caller-level effective inputs/outputs and eliminating remaining preparation duplication without changing historical effective policies. Existing callers retain the public GUI/headless adapter names, both converging on one numerical preparation helper.
+- **Deferred packages:** M2 propagation-loop consolidation, M3 shared scripting/session lifecycle, M4 export and flux parity, and M5 independent GUI-free core build.
