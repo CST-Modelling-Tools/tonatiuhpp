@@ -136,6 +136,47 @@ struct ScientificSignature
     std::uint64_t shapeInstanceCount = 0;
 };
 
+// Characterize observable propagation decisions without changing RayTracer.
+// Histories retain live InstanceNode pointers, so capture surface URLs before
+// the LoadedScene goes out of scope. Diagnostic tests use <= one 10k-ray chunk.
+struct PropagationObservation
+{
+    struct CapturedHistory
+    {
+        RayTracerHistory history;
+        std::vector<QString> surfaceUrls;
+    };
+    struct PhotonPoint
+    {
+        int id = 0;
+        QString surfaceUrl;
+        bool isFront = false;
+        bool isAbsorbed = false;
+    };
+
+    void hit()
+    {
+        std::lock_guard<std::mutex> lock(mutex);
+        callbacks.push_back('H');
+    }
+
+    void history(const RayTracerHistory& value)
+    {
+        CapturedHistory captured;
+        captured.history = value;
+        for (const RayTracerHistoryStep& step : value.steps)
+            captured.surfaceUrls.push_back(step.surface ? step.surface->getURL() : QString());
+        std::lock_guard<std::mutex> lock(mutex);
+        callbacks.push_back('R');
+        histories.push_back(std::move(captured));
+    }
+
+    std::mutex mutex;
+    std::vector<char> callbacks;
+    std::vector<CapturedHistory> histories;
+    std::vector<PhotonPoint> photons;
+};
+
 // Quantize positions instead of comparing thread-dependent callback ordering.
 // The bins intentionally characterize a scene; they are not a flux calculation.
 int coordinateBin(double coordinate)
@@ -236,11 +277,26 @@ std::uint64_t countShapeInstances(const InstanceNode* node)
 // The preparation itself must size the sun from analytical bounds; tests must
 // not pre-size it or they could mask a regression in the GUI path.
 // This is not an end-to-end MainWindow automation test.
+InstanceNode* findInstanceByUrl(InstanceNode* instance, const QString& url)
+{
+    if (!instance)
+        return nullptr;
+    if (instance->getURL() == url)
+        return instance;
+    for (InstanceNode* child : instance->children) {
+        if (InstanceNode* found = findInstanceByUrl(child, url))
+            return found;
+    }
+    return nullptr;
+}
+
 bool traceOnce(PreparationPath path, ulong rays, bool recordPhotons,
                ScientificSignature* signature, std::string* errorText,
                ScientificScene scene = ScientificScene::CylinderVacuum,
                std::uint64_t masterSeed = kMasterSeed,
-               TrackerScenePreparation trackerPreparation = TrackerScenePreparation::GuiLifecycle)
+               TrackerScenePreparation trackerPreparation = TrackerScenePreparation::GuiLifecycle,
+               const QString& exportSurfaceUrl = QString(),
+               PropagationObservation* observation = nullptr)
 {
     auto fail = [errorText](const QString& message) {
         if (errorText)
@@ -306,9 +362,24 @@ bool traceOnce(PreparationPath path, ulong rays, bool recordPhotons,
         input.sunInstance = &borrowedSun;
         input.configuration.masterSeed = masterSeed;
         input.photonBuffer = photonBuffer.get();
+        if (!exportSurfaceUrl.isEmpty()) {
+            InstanceNode* selected = findInstanceByUrl(borrowedTree.layoutRoot, exportSurfaceUrl);
+            if (!selected)
+                return fail(QString("Unknown test export surface: %1").arg(exportSurfaceUrl));
+            input.exportSurfaceList.push_back(selected);
+        }
         input.tracingAir = air && air->getTypeId() != AirVacuum::getClassTypeId()
             ? air : nullptr;
-        input.hitCallback = [&hits](const RayTracerHit& hit) { hits.add(hit); };
+        input.hitCallback = [&hits, observation](const RayTracerHit& hit) {
+            hits.add(hit);
+            if (observation)
+                observation->hit();
+        };
+        if (observation) {
+            input.historyCallback = [observation](const RayTracerHistory& history) {
+                observation->history(history);
+            };
+        }
         input.configuration.rays = rays;
         input.configuration.sunWidthDivisions = kSunGridDivisions;
         input.configuration.sunHeightDivisions = kSunGridDivisions;
@@ -319,7 +390,16 @@ bool traceOnce(PreparationPath path, ulong rays, bool recordPhotons,
         input.scene = loaded.get();
         input.updateTrackers =
             trackerPreparation == TrackerScenePreparation::HeadlessOptIn;
-        input.hitCallback = [&hits](const RayTracerHit& hit) { hits.add(hit); };
+        input.hitCallback = [&hits, observation](const RayTracerHit& hit) {
+            hits.add(hit);
+            if (observation)
+                observation->hit();
+        };
+        if (observation) {
+            input.historyCallback = [observation](const RayTracerHistory& history) {
+                observation->history(history);
+            };
+        }
         input.configuration.rays = rays;
         input.configuration.masterSeed = masterSeed;
         input.configuration.sunWidthDivisions = kSunGridDivisions;
@@ -343,6 +423,16 @@ bool traceOnce(PreparationPath path, ulong rays, bool recordPhotons,
     if (photonBuffer) {
         const std::vector<Photon>& photons = photonBuffer->getPhotons();
         signature->recordedPhotonCount = photons.size();
+        if (observation) {
+            for (const Photon& photon : photons) {
+                observation->photons.push_back(PropagationObservation::PhotonPoint{
+                    photon.id,
+                    photon.surface ? photon.surface->getURL() : QString(),
+                    photon.isFront,
+                    photon.isAbsorbed
+                });
+            }
+        }
         if (scene == ScientificScene::SpecularTwoReflections) {
             std::ostringstream preview;
             const std::size_t previewCount = std::min<std::size_t>(photons.size(), 40);
@@ -437,6 +527,70 @@ void expectValidTrace(const ScientificSignature& signature, ulong rays)
     EXPECT_EQ(signature.invalidHitCount, 0U);
 }
 
+std::array<std::uint64_t, 3> vectorBits(const vec3d& vector)
+{
+    return {std::bit_cast<std::uint64_t>(vector.x),
+            std::bit_cast<std::uint64_t>(vector.y),
+            std::bit_cast<std::uint64_t>(vector.z)};
+}
+
+// Compare full per-ray geometry, termination and surface identity. Do not
+// compare raw InstanceNode pointers from independently loaded scenes.
+void expectSamePropagation(const PropagationObservation& expected,
+                           const PropagationObservation& actual)
+{
+    ASSERT_EQ(expected.histories.size(), actual.histories.size());
+    for (std::size_t i = 0; i < expected.histories.size(); ++i) {
+        SCOPED_TRACE(i);
+        const auto& first = expected.histories[i];
+        const auto& second = actual.histories[i];
+        EXPECT_EQ(first.history.rayIndex, second.history.rayIndex);
+        EXPECT_EQ(first.history.termination, second.history.termination);
+        EXPECT_EQ(vectorBits(first.history.sunOrigin), vectorBits(second.history.sunOrigin));
+        EXPECT_EQ(vectorBits(first.history.sunDirection), vectorBits(second.history.sunDirection));
+        EXPECT_EQ(vectorBits(first.history.terminalOrigin), vectorBits(second.history.terminalOrigin));
+        EXPECT_EQ(vectorBits(first.history.terminalDirection), vectorBits(second.history.terminalDirection));
+        EXPECT_EQ(std::bit_cast<std::uint64_t>(first.history.terminalDistance),
+                  std::bit_cast<std::uint64_t>(second.history.terminalDistance));
+        EXPECT_EQ(first.surfaceUrls, second.surfaceUrls);
+        ASSERT_EQ(first.history.steps.size(), second.history.steps.size());
+        for (std::size_t j = 0; j < first.history.steps.size(); ++j) {
+            const auto& a = first.history.steps[j];
+            const auto& b = second.history.steps[j];
+            EXPECT_EQ(a.continued, b.continued);
+            EXPECT_EQ(a.isFront, b.isFront);
+            EXPECT_EQ(vectorBits(a.position), vectorBits(b.position));
+            EXPECT_EQ(vectorBits(a.incomingOrigin), vectorBits(b.incomingOrigin));
+            EXPECT_EQ(vectorBits(a.incomingDirection), vectorBits(b.incomingDirection));
+            EXPECT_EQ(vectorBits(a.outgoingOrigin), vectorBits(b.outgoingOrigin));
+            EXPECT_EQ(vectorBits(a.outgoingDirection), vectorBits(b.outgoingDirection));
+        }
+    }
+}
+
+// One chunk, hence one worker: hit and per-ray history callbacks cannot
+// interleave with callbacks from another ray. This is the CURRENT ordering,
+// not an architectural requirement to retain the ordering after M2.2.
+void expectLegacyCallbackOrder(const PropagationObservation& observation, bool recording)
+{
+    std::vector<char> expected;
+    for (std::size_t i = 0; i < observation.histories.size(); ++i) {
+        const RayTracerHistory& history = observation.histories[i].history;
+        ASSERT_EQ(history.rayIndex, i);
+        for (const RayTracerHistoryStep& step : history.steps) {
+            if (step.continued)
+                expected.push_back('H');
+        }
+        const bool terminalHit = history.termination == RayTracerHistoryTermination::Surface;
+        if (!recording && terminalHit)
+            expected.push_back('H');
+        expected.push_back('R');
+        if (recording && terminalHit)
+            expected.push_back('H');
+    }
+    EXPECT_EQ(observation.callbacks, expected);
+}
+
 } // namespace
 
 TEST(ScientificTraceBaseline, HeadlessIsRepeatableAcrossIndependentScenes)
@@ -503,6 +657,97 @@ TEST(ScientificTraceDiagnostic, PhotonRecordingPreservesScientificHits)
                           &withRecording, &error)) << error;
     EXPECT_GT(withRecording.recordedPhotonCount, 0U);
     expectEqualScience(withoutRecording, withRecording);
+}
+
+// M2.1: A0 already checks identical exact hits; characterize the observable
+// callback ordering difference on terminal surface interactions as well.
+TEST(ScientificPropagationSemantics, TerminalCallbackOrderDiffersByRecordingMode)
+{
+    constexpr ulong rays = 1024UL;  // exactly one worker chunk
+    ScientificSignature noRecord, recorded;
+    PropagationObservation noRecordEvents, recordedEvents;
+    std::string error;
+    ASSERT_TRUE(traceOnce(PreparationPath::GuiBorrowed, rays, false, &noRecord, &error,
+                          ScientificScene::CylinderVacuum, kMasterSeed,
+                          TrackerScenePreparation::GuiLifecycle, QString(), &noRecordEvents)) << error;
+    ASSERT_TRUE(traceOnce(PreparationPath::GuiBorrowed, rays, true, &recorded, &error,
+                          ScientificScene::CylinderVacuum, kMasterSeed,
+                          TrackerScenePreparation::GuiLifecycle, QString(), &recordedEvents)) << error;
+    expectEqualScience(noRecord, recorded);
+    ASSERT_EQ(noRecordEvents.histories.size(), rays);
+    ASSERT_EQ(recordedEvents.histories.size(), rays);
+    expectSamePropagation(noRecordEvents, recordedEvents);
+    expectLegacyCallbackOrder(noRecordEvents, false);
+    expectLegacyCallbackOrder(recordedEvents, true);
+    EXPECT_GT(std::count_if(noRecordEvents.histories.begin(), noRecordEvents.histories.end(),
+                             [](const auto& event) {
+                                 return event.history.termination == RayTracerHistoryTermination::Surface;
+                             }), 0);
+    EXPECT_GT(recorded.recordedPhotonCount, 0U);
+    EXPECT_TRUE(std::any_of(recordedEvents.photons.begin(), recordedEvents.photons.end(),
+                            [](const auto& photon) {
+                                return photon.id == 0 && photon.isFront;
+                            }));
+}
+
+// M2.1: Export-surface filtering currently affects recording-mode terminal
+// hit callbacks but NOT non-recording terminal hits or intermediate hits.
+// This is a measured legacy divergence; M2.2 must decide its explicit policy.
+TEST(ScientificPropagationSemantics, FilteredExportSuppressesRecordedTerminalHits)
+{
+    constexpr ulong rays = 4096UL;
+    const QString firstSurface = QStringLiteral("//Node/First/Shape");
+    const std::string receiverSurface = "//Node/Receiver/Shape";
+    ScientificSignature noRecord, recorded;
+    PropagationObservation noRecordEvents, recordedEvents;
+    std::string error;
+    ASSERT_TRUE(traceOnce(PreparationPath::GuiBorrowed, rays, false, &noRecord, &error,
+                          ScientificScene::SpecularTwoReflections, kMasterSeed,
+                          TrackerScenePreparation::GuiLifecycle, firstSurface, &noRecordEvents)) << error;
+    ASSERT_TRUE(traceOnce(PreparationPath::GuiBorrowed, rays, true, &recorded, &error,
+                          ScientificScene::SpecularTwoReflections, kMasterSeed,
+                          TrackerScenePreparation::GuiLifecycle, firstSurface, &recordedEvents)) << error;
+    ASSERT_EQ(noRecordEvents.histories.size(), rays);
+    ASSERT_EQ(recordedEvents.histories.size(), rays);
+    expectSamePropagation(noRecordEvents, recordedEvents);
+    EXPECT_EQ(hitsOnSurface(noRecord, "//Node/First/Shape"),
+              hitsOnSurface(recorded, "//Node/First/Shape"));
+    EXPECT_GT(hitsOnSurface(noRecord, receiverSurface), 0U);
+    EXPECT_EQ(hitsOnSurface(recorded, receiverSurface), 0U);
+    EXPECT_GT(hitsOnSurface(recorded, "//Node/Second/Shape"), 0U)
+        << "Intermediate reflected hits remain visible despite export filtering.";
+    ASSERT_FALSE(recordedEvents.photons.empty());
+    for (const auto& photon : recordedEvents.photons) {
+        EXPECT_EQ(photon.surfaceUrl, firstSurface);
+        EXPECT_GT(photon.id, 0) << "Filtering must not renumber path interaction IDs.";
+    }
+}
+
+// M2.1: Atmospheric loss must carry the same sampled segment distance and
+// terminal geometry with or without photon recording, including escape paths.
+TEST(ScientificPropagationSemantics, AirLossTerminalRecordsMatchWithRecording)
+{
+    constexpr ulong rays = 4096UL;
+    ScientificSignature noRecord, recorded;
+    PropagationObservation noRecordEvents, recordedEvents;
+    std::string error;
+    ASSERT_TRUE(traceOnce(PreparationPath::GuiBorrowed, rays, false, &noRecord, &error,
+                          ScientificScene::FresnelTwoSurfaceExponentialAir, kMasterSeed,
+                          TrackerScenePreparation::GuiLifecycle, QString(), &noRecordEvents)) << error;
+    ASSERT_TRUE(traceOnce(PreparationPath::GuiBorrowed, rays, true, &recorded, &error,
+                          ScientificScene::FresnelTwoSurfaceExponentialAir, kMasterSeed,
+                          TrackerScenePreparation::GuiLifecycle, QString(), &recordedEvents)) << error;
+    expectEqualScience(noRecord, recorded);
+    ASSERT_EQ(noRecordEvents.histories.size(), rays);
+    ASSERT_EQ(recordedEvents.histories.size(), rays);
+    expectSamePropagation(noRecordEvents, recordedEvents);
+    expectLegacyCallbackOrder(noRecordEvents, false);
+    expectLegacyCallbackOrder(recordedEvents, true);
+    EXPECT_GT(noRecord.airTransmissionCalls, 0U);
+    EXPECT_GT(std::count_if(noRecordEvents.histories.begin(), noRecordEvents.histories.end(),
+                             [](const auto& event) {
+                                 return event.history.termination == RayTracerHistoryTermination::Air;
+                             }), 0);
 }
 
 // This stable two-surface Fresnel fixture exercises material continuation,

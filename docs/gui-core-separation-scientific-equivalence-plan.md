@@ -78,7 +78,7 @@ The packages below are ordered. A package can occupy one substantive PR (or a sm
 
 **M0 preservation gate:** Existing relevant scientific CTests pass; no reference, fixture or benchmark-value edits masquerade as refactoring. New tests are justified by a newly migrated boundary, not added merely for activity.
 
-### M1 — Unified simulation inputs and preparation (PARTIAL; NEXT)
+### M1 — Unified simulation inputs and preparation (COMPLETE; PRs #28 and #30)
 
 **M1.1 — Specify effective preparation inputs**
 1. Map inputs and default policies for GUI Run, GUI Flux Analysis, direct headless trace, benchmark and `tn.traceScene`: seed resolution, ray count, sun grid, tracker updates, air, photon selection and scene ownership.
@@ -98,7 +98,7 @@ The packages below are ordered. A package can occupy one substantive PR (or a sm
 
 **M1 exit:** One shared computational preparation path; GUI/CLI/script/benchmark callers provide equivalent effective inputs where intended; all relevant M0 scientific tests pass. No physics, RNG, photon format or default CLI policy change.
 
-### M2 — One ray-propagation algorithm (NOT STARTED)
+### M2 — One ray-propagation algorithm (LOCAL WINDOWS VALIDATION PASSED; HOSTED CI PENDING)
 
 **M2.1 — Preserve current observable semantics**
 1. Compare both existing `RayTracer::operator()` branches for random draws, intersections, air termination, hit/history callbacks, photon path IDs and terminal records.

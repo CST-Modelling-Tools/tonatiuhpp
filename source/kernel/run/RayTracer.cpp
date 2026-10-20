@@ -92,144 +92,103 @@ void RayTracer::operator()(ulong nRays)
         m_historyCallback(history);
     };
 
+    // Both modes now use the same ray launch, intersection, air-transmission,
+    // reflection and termination loop. Photon capture is observation only.
     const bool recordPhotons = m_photonBuffer && m_mutexPhotonsBuffer;
-    if (!recordPhotons) {
-        for (ulong n = 0; n < nRays; ++n) {
-            if (m_exportFailed && m_exportFailed->load())
-                return;
-
-            Ray ray;
-            NewPrimitiveRay(&ray, rand);
-            RayTracerHistory history;
-            beginHistory(history, n, ray);
-            bool isFront = true;
-            int rayLength = 0;
-            InstanceNode* intersectedSurface = nullptr;
-            bool airAbsorbed = false;
-            double airDistance = 0.;
-
-            bool isReflected = true;
-            while (isReflected) {
-                Ray rayReflected;
-                isFront = false;
-                intersectedSurface = nullptr;
-                isReflected = m_instanceLayout->intersect(ray, rand, isFront, intersectedSurface, rayReflected);
-
-                if (m_air && rayLength > 0 && m_air->transmission(ray.tMax) < rand.RandomDouble()) {
-                    if (m_historyCallback) {
-                        airAbsorbed = true;
-                        airDistance = ray.tMax;
-                    }
-                    intersectedSurface = nullptr;
-                    ray.tMax = gcf::infinity;
-                    break;
-                }
-
-                if (!isReflected)
-                    break;
-
-                reflectedHistory(history, ray, rayReflected, intersectedSurface, isFront);
-                if (m_hitCallback && intersectedSurface)
-                    m_hitCallback(RayTracerHit{ray.point(ray.tMax), intersectedSurface, isFront});
-
-                ++rayLength;
-                ray = rayReflected;
-            }
-
-            if (m_hitCallback && intersectedSurface && ray.tMax != gcf::infinity)
-                m_hitCallback(RayTracerHit{ray.point(ray.tMax), intersectedSurface, isFront});
-            endHistory(history, ray, intersectedSurface, isFront, airAbsorbed, airDistance);
-
-        }
-        return;
-    }
-
-    bool bExportAll = m_exportSurfaceList.empty();
-    bool bExportLight = bExportAll ? true : m_exportSurfaceList.contains(m_instanceSun);
+    const bool bExportAll = recordPhotons && m_exportSurfaceList.empty();
+    const bool bExportLight = recordPhotons
+        && (bExportAll || m_exportSurfaceList.contains(m_instanceSun));
 
     std::vector<Photon> photons;
-    photons.reserve(2*nRays);
-    // Photon(Point3D pos, int side, double id = 0, InstanceNode* intersectedSurface = 0, int absorbedPhoton = 0);
+    if (recordPhotons)
+        photons.reserve(2*nRays);
 
-    for (ulong n = 0; n < nRays; ++n)
-    {
+    for (ulong n = 0; n < nRays; ++n) {
         if (m_exportFailed && m_exportFailed->load())
             return;
 
-        // Part 1: first photon point (on sun surface)
         Ray ray;
         NewPrimitiveRay(&ray, rand);
         RayTracerHistory history;
         beginHistory(history, n, ray);
         bool isFront = true;
         int rayLength = 0;
-        InstanceNode* intersectedSurface = m_instanceSun;
+        InstanceNode* intersectedSurface = recordPhotons ? m_instanceSun : nullptr;
         bool airAbsorbed = false;
         double airDistance = 0.;
+
         if (bExportLight)
             photons.push_back(Photon(rayLength, ray.origin, m_instanceSun, isFront));
 
-        // Part 2: middle photon points (intersection with shapes)
         bool isReflected = true;
         while (isReflected) {
-            Ray rayReflected; // scattered?
+            Ray rayReflected;
             isFront = false;
-            intersectedSurface = 0;
+            intersectedSurface = nullptr;
             isReflected = m_instanceLayout->intersect(ray, rand, isFront, intersectedSurface, rayReflected);
 
-            // check absorption after the first reflection
-            if (m_air && rayLength > 0) {
-                if (m_air->transmission(ray.tMax) < rand.RandomDouble()) {
-                    if (m_historyCallback) {
-                        airAbsorbed = true;
-                        airDistance = ray.tMax;
-                    }
-                    ++rayLength;
-                    intersectedSurface = 0;
-                    ray.tMax = gcf::infinity;
-                    break;
+            // Air absorption is checked after the first reflection in both
+            // modes, with exactly one RandomDouble draw per eligible segment.
+            if (m_air && rayLength > 0 && m_air->transmission(ray.tMax) < rand.RandomDouble()) {
+                if (m_historyCallback) {
+                    airAbsorbed = true;
+                    airDistance = ray.tMax;
                 }
+                // The recording path's terminal photon ID includes this air
+                // interaction; the unrecorded path does not expose that ID.
+                if (recordPhotons)
+                    ++rayLength;
+                intersectedSurface = nullptr;
+                ray.tMax = gcf::infinity;
+                break;
             }
 
-            // save intersection
-            if (!isReflected) break;
+            if (!isReflected)
+                break;
+
             reflectedHistory(history, ray, rayReflected, intersectedSurface, isFront);
             if (m_hitCallback && intersectedSurface)
                 m_hitCallback(RayTracerHit{ray.point(ray.tMax), intersectedSurface, isFront});
             ++rayLength;
-            if (bExportAll || m_exportSurfaceList.contains(intersectedSurface))
+            if (recordPhotons && (bExportAll || m_exportSurfaceList.contains(intersectedSurface)))
                 photons.push_back(Photon(rayLength, ray.point(ray.tMax), intersectedSurface, isFront, true));
             ray = rayReflected;
         }
 
-        // Record terminal surface/escape/air state before export-only code
-        // changes tMax to a display coordinate or filters selected surfaces.
+        // Preserve the M2.1-observed callback contract. The no-recording
+        // terminal hit precedes history; recording emits history first, then
+        // its legacy export-filtered terminal hit. Neither alters propagation.
+        if (!recordPhotons) {
+            if (m_hitCallback && intersectedSurface && ray.tMax != gcf::infinity)
+                m_hitCallback(RayTracerHit{ray.point(ray.tMax), intersectedSurface, isFront});
+            endHistory(history, ray, intersectedSurface, isFront, airAbsorbed, airDistance);
+            continue;
+        }
+
+        // Observe the physical terminal state before export-only tMax changes.
         endHistory(history, ray, intersectedSurface, isFront, airAbsorbed, airDistance);
 
-        // Part 3: last photon point (absorption in air)
-        // skip rays without intersections
-        if (rayLength == 0 && ray.tMax == gcf::infinity) {
+        // Retain the historical photon-selection and local path-ID policy.
+        if (rayLength == 0 && ray.tMax == gcf::infinity)
             continue;
-        }
-        if (!bExportAll && !m_exportSurfaceList.contains(intersectedSurface)) {
+        if (!bExportAll && !m_exportSurfaceList.contains(intersectedSurface))
             continue;
-        }
-        // limit length of other rays
-        if (ray.tMax == gcf::infinity) {// always true?
+        if (ray.tMax == gcf::infinity) {
             ray.tMax = 1.;
-            isFront = 0; // ? back for air
+            isFront = false;
         }
         if (m_hitCallback && intersectedSurface)
             m_hitCallback(RayTracerHit{ray.point(ray.tMax), intersectedSurface, isFront});
         photons.push_back(Photon(++rayLength, ray.point(ray.tMax), intersectedSurface, isFront));
-
     }
 
-    m_mutexPhotonsBuffer->lock();
-    bool photonsSaved = m_photonBuffer->addPhotons(photons);
-    m_mutexPhotonsBuffer->unlock();
-    if (!photonsSaved && m_exportFailed)
-        m_exportFailed->store(true);
+    if (recordPhotons) {
+        m_mutexPhotonsBuffer->lock();
+        const bool photonsSaved = m_photonBuffer->addPhotons(photons);
+        m_mutexPhotonsBuffer->unlock();
+        if (!photonsSaved && m_exportFailed)
+            m_exportFailed->store(true);
+    }
 }
 
 bool RayTracer::NewPrimitiveRay(Ray* ray, Random& rand)
