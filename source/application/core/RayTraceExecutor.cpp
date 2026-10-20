@@ -142,7 +142,7 @@ RayTraceExecution RayTraceExecutor::start(PreparedTraceContext&& context)
 {
     RayTraceExecution execution;
     if (!context.m_layoutRoot || !context.m_sunInstance || !context.m_sunAperture
-        || !context.m_sunShape || context.m_rays == 0) {
+        || !context.m_sunShape || context.m_configuration.rays == 0) {
         execution.errorMessage = "RayTraceExecutor requires a valid prepared trace context.";
         return execution;
     }
@@ -159,8 +159,8 @@ RayTraceExecution RayTraceExecutor::start(PreparedTraceContext&& context)
         m_activeContext = std::make_shared<PreparedTraceContext>(std::move(context));
         execution.preparedContext = m_activeContext;
         PreparedTraceContext& prepared = *m_activeContext;
-        const qulonglong chunkCount = taskCountForRays(prepared.m_rays);
-        const int workerCount = workerCountForRays(prepared.m_rays);
+        const qulonglong chunkCount = taskCountForRays(prepared.m_configuration.rays);
+        const int workerCount = workerCountForRays(prepared.m_configuration.rays);
 
         auto promise = std::make_shared<QPromise<void>>();
         promise->start();
@@ -182,11 +182,11 @@ RayTraceExecution RayTraceExecutor::start(PreparedTraceContext&& context)
         m_workerState->exportFailed = &m_exportFailed;
         m_workerState->chunkCount = chunkCount;
         m_workerState->chunkSize = kRayChunkSize;
-        m_workerState->totalRays = prepared.m_rays;
+        m_workerState->totalRays = prepared.m_configuration.rays;
         m_workerState->remainingWorkers.store(workerCount);
         const std::shared_ptr<PreparedTraceContext> workerContext = m_activeContext;
         m_workerState->traceChunk = [this, workerContext](qulonglong chunkIndex, ulong raysThisChunk) {
-            StandardRandom random(StandardRandom::deriveChunkSeed(workerContext->m_masterSeed, chunkIndex));
+            StandardRandom random(StandardRandom::deriveChunkSeed(workerContext->m_configuration.masterSeed, chunkIndex));
             RayTracer tracer(workerContext->m_layoutRoot,
                              workerContext->m_sunInstance,
                              workerContext->m_sunAperture,

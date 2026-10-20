@@ -2068,16 +2068,8 @@ void MainWindow::Run()
     }
 
     NativeTraceSignature::Inputs a0Inputs;
-    if (a0Signature || history) {
-        a0Inputs.sceneFile = m_fileName;
-        a0Inputs.rays = m_raysNumber;
-        a0Inputs.seed = traceSeed;
-        a0Inputs.sunGridWidth = m_raysGridWidth;
-        a0Inputs.sunGridHeight = m_raysGridHeight;
-        a0Inputs.apertureArea = context.sunApertureArea();
-        a0Inputs.irradiance = context.irradiance();
-        a0Inputs.powerPerRay = context.powerPerRay();
-    }
+    if (a0Signature || history)
+        a0Inputs = NativeTraceSignature::inputsForPreparedTrace(m_fileName, context);
 
     std::cout << "gui_master_seed: " << traceSeed
               << (m_fixedGuiMasterSeed ? " (fixed)" : " (automatic)")

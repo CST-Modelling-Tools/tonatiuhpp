@@ -261,16 +261,8 @@ int HeadlessCommandRunner::traceScene(const QStringList& args) const
     }
     TracePreparation::initializeResult(context, &result);
     NativeTraceSignature::Inputs a0Inputs;
-    if (a0Signature) {
-        a0Inputs.sceneFile = parsed.sceneFileName;
-        a0Inputs.rays = parsed.rays;
-        a0Inputs.seed = parsed.seed;
-        a0Inputs.sunGridWidth = preparationInput.configuration.sunWidthDivisions;
-        a0Inputs.sunGridHeight = preparationInput.configuration.sunHeightDivisions;
-        a0Inputs.apertureArea = context.sunApertureArea();
-        a0Inputs.irradiance = context.irradiance();
-        a0Inputs.powerPerRay = context.powerPerRay();
-    }
+    if (a0Signature || history)
+        a0Inputs = NativeTraceSignature::inputsForPreparedTrace(parsed.sceneFileName, context);
     progress("Starting ray loop.");
     RayTraceExecutor executor;
     RayTraceExecution execution = executor.start(std::move(context));
@@ -290,16 +282,7 @@ int HeadlessCommandRunner::traceScene(const QStringList& args) const
         return 1;
     }
     if (history) {
-        NativeTraceSignature::Inputs historyInputs;
-        historyInputs.sceneFile = parsed.sceneFileName;
-        historyInputs.rays = parsed.rays;
-        historyInputs.seed = parsed.seed;
-        historyInputs.sunGridWidth = preparationInput.configuration.sunWidthDivisions;
-        historyInputs.sunGridHeight = preparationInput.configuration.sunHeightDivisions;
-        historyInputs.apertureArea = result.sunApertureArea;
-        historyInputs.irradiance = result.irradiance;
-        historyInputs.powerPerRay = result.powerPerRay;
-        if (execution.future.isCanceled() || !history->write(historyFile, "headless-cli", historyInputs, &errorMessage)) {
+        if (execution.future.isCanceled() || !history->write(historyFile, "headless-cli", a0Inputs, &errorMessage)) {
             err << "Ray history diagnostic failed: " << (errorMessage.isEmpty() ? "Trace cancelled." : errorMessage) << Qt::endl;
             return 1;
         }

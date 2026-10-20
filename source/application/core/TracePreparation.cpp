@@ -80,7 +80,8 @@ double PreparedTraceContext::irradiance() const
 
 double PreparedTraceContext::powerPerRay() const
 {
-    return m_rays > 0 ? sunApertureArea() * irradiance() / m_rays : 0.;
+    return m_configuration.rays > 0
+        ? sunApertureArea() * irradiance() / m_configuration.rays : 0.;
 }
 
 // Adapt an already available GUI instance tree or a freshly built headless
@@ -123,8 +124,9 @@ bool TracePreparation::prepareResolvedTrace(PreparedTraceContext&& prepared,
         prepared.m_sunInstance->setTransform(tgf::makeTransform(sunKit->m_transform));
     }
 
-    prepared.m_masterSeed = configuration.masterSeed;
-    prepared.m_rays = configuration.rays;
+    // Store the entire validated effective configuration once: propagation,
+    // result normalization and diagnostics must agree on rays, seed and grid.
+    prepared.m_configuration = configuration;
     *context = std::move(prepared);
     return true;
 }
@@ -224,11 +226,11 @@ void TracePreparation::initializeResult(const PreparedTraceContext& context, Ray
     if (!result)
         return;
     *result = RayTraceExecutorResult();
-    const QVector<ulong> workItems = RayTraceExecutor::guiRaysPerThread(context.m_rays);
+    const QVector<ulong> workItems = RayTraceExecutor::guiRaysPerThread(context.m_configuration.rays);
     result->sunApertureArea = context.sunApertureArea();
     result->irradiance = context.irradiance();
     result->powerPerRay = context.powerPerRay();
-    result->workerCount = RayTraceExecutor::workerCountForRays(context.m_rays);
+    result->workerCount = RayTraceExecutor::workerCountForRays(context.m_configuration.rays);
     result->chunkSize = workItems.isEmpty() ? 0 : workItems.first();
     result->chunkCount = static_cast<qulonglong>(workItems.size());
 }
@@ -241,7 +243,7 @@ bool TracePreparation::finalizeResult(const PreparedTraceContext& context,
 {
     if (result) {
         result->elapsedSeconds = elapsedSeconds;
-        result->raysTraced = exportFailed ? 0 : context.m_rays;
+        result->raysTraced = exportFailed ? 0 : context.m_configuration.rays;
         result->raysPerSecond = elapsedSeconds > 0.
             ? static_cast<double>(result->raysTraced) / elapsedSeconds
             : 0.;
