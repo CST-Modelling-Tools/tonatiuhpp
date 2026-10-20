@@ -922,6 +922,101 @@ TEST(ScientificTracePreparation, CommonPipelinePreservesAdapterContracts)
     EXPECT_DOUBLE_EQ(guiContext.powerPerRay(), headlessContext.powerPerRay());
 }
 
+// M1.3: each caller provides effective values to the same prepared-scene
+// contract. Compare borrowed GUI and owned headless state before tracing,
+// including a non-default grid and opt-in tracker synchronization.
+TEST(ScientificTracePreparation, EffectiveInputsAndDiagnosticMetadataMatchAcrossAdapters)
+{
+    struct Case
+    {
+        ScientificScene scene;
+        int width;
+        int height;
+    };
+    const std::array<Case, 3> cases = {{{ScientificScene::CylinderVacuum, 119, 121},
+                                        {ScientificScene::SpecularTwoReflections, 200, 200},
+                                        {ScientificScene::TrackerOneAxis, 200, 200}}};
+    for (const Case& scenario : cases) {
+        const QString path = fixturePath(scenario.scene);
+        SCOPED_TRACE(path.toStdString());
+        LoadedScene guiScene;
+        LoadedScene headlessScene;
+        QString error;
+        ASSERT_TRUE(SceneLoader::readFile(path, &guiScene, &error)) << error.toStdString();
+        ASSERT_TRUE(SceneLoader::readFile(path, &headlessScene, &error)) << error.toStdString();
+
+        const bool tracker = scenario.scene == ScientificScene::TrackerOneAxis;
+        if (tracker) {
+            // Match the native GUI scene lifecycle; headless only updates
+            // trackers when the caller explicitly opts in.
+            guiScene.get()->updateParents();
+            guiScene.get()->updateTrackers();
+        }
+        SceneInstanceTree borrowed = SceneInstanceBuilder::build(guiScene.get());
+        ASSERT_NE(borrowed.layoutRoot, nullptr);
+        InstanceNode guiSun(nullptr);
+
+        SimulationConfig configuration;
+        configuration.rays = 20001UL;
+        configuration.masterSeed = kMasterSeed;
+        configuration.sunWidthDivisions = scenario.width;
+        configuration.sunHeightDivisions = scenario.height;
+
+        GuiTracePreparationInput gui;
+        gui.scene = guiScene.get();
+        gui.layoutRoot = borrowed.layoutRoot;
+        gui.sunInstance = &guiSun;
+        gui.configuration = configuration;
+        PreparedTraceContext guiContext;
+        ASSERT_TRUE(TracePreparation::prepareGuiTrace(gui, &guiContext, &error))
+            << error.toStdString();
+
+        HeadlessTracePreparationInput headless;
+        headless.scene = headlessScene.get();
+        headless.configuration = configuration;
+        headless.updateTrackers = tracker;
+        PreparedTraceContext headlessContext;
+        ASSERT_TRUE(TracePreparation::prepareHeadlessTrace(headless, &headlessContext, &error))
+            << error.toStdString();
+
+        const auto guiInputs = NativeTraceSignature::inputsForPreparedTrace(path, guiContext);
+        const auto headlessInputs = NativeTraceSignature::inputsForPreparedTrace(path, headlessContext);
+        EXPECT_EQ(guiContext.rays(), configuration.rays);
+        EXPECT_EQ(headlessContext.rays(), configuration.rays);
+        EXPECT_EQ(guiContext.configuration().masterSeed, kMasterSeed);
+        EXPECT_EQ(headlessContext.configuration().masterSeed, kMasterSeed);
+        EXPECT_EQ(guiInputs.sceneFile, path);
+        EXPECT_EQ(guiInputs.sceneFile, headlessInputs.sceneFile);
+        EXPECT_EQ(guiInputs.rays, headlessInputs.rays);
+        EXPECT_EQ(guiInputs.seed, headlessInputs.seed);
+        EXPECT_EQ(guiInputs.sunGridWidth, scenario.width);
+        EXPECT_EQ(guiInputs.sunGridHeight, scenario.height);
+        EXPECT_EQ(guiInputs.sunGridWidth, headlessInputs.sunGridWidth);
+        EXPECT_EQ(guiInputs.sunGridHeight, headlessInputs.sunGridHeight);
+        EXPECT_DOUBLE_EQ(guiInputs.apertureArea, headlessInputs.apertureArea);
+        EXPECT_DOUBLE_EQ(guiInputs.irradiance, headlessInputs.irradiance);
+        EXPECT_DOUBLE_EQ(guiInputs.powerPerRay, headlessInputs.powerPerRay);
+        EXPECT_GT(guiInputs.powerPerRay, 0.);
+
+        auto* guiAperture = static_cast<SunAperture*>(
+            guiScene.get()->getPart("world.sun.aperture", false));
+        auto* headlessAperture = static_cast<SunAperture*>(
+            headlessScene.get()->getPart("world.sun.aperture", false));
+        ASSERT_NE(guiAperture, nullptr);
+        ASSERT_NE(headlessAperture, nullptr);
+        EXPECT_EQ(guiAperture->getCells(), headlessAperture->getCells());
+
+        RayTraceExecutorResult guiResult;
+        RayTraceExecutorResult headlessResult;
+        TracePreparation::initializeResult(guiContext, &guiResult);
+        TracePreparation::initializeResult(headlessContext, &headlessResult);
+        EXPECT_EQ(guiResult.chunkCount, 3ULL);
+        EXPECT_EQ(guiResult.chunkCount, headlessResult.chunkCount);
+        EXPECT_EQ(guiResult.chunkSize, headlessResult.chunkSize);
+        EXPECT_DOUBLE_EQ(guiResult.powerPerRay, headlessResult.powerPerRay);
+    }
+}
+
 TEST(ScientificGuiSeed, ParsesPortableDecimalInput)
 {
     std::uint64_t seed = 99;

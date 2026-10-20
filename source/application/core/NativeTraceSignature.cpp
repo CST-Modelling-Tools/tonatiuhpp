@@ -12,6 +12,7 @@
 #include <QJsonObject>
 #include <QSaveFile>
 
+#include "core/TracePreparation.h"
 #include "kernel/run/InstanceNode.h"
 #include "kernel/run/RayTracer.h"
 
@@ -33,6 +34,22 @@ QString doubleBits(double value)
 {
     return QString::fromLatin1(hexBits(std::bit_cast<std::uint64_t>(value)));
 }
+}
+
+NativeTraceSignature::Inputs NativeTraceSignature::inputsForPreparedTrace(
+    const QString& sceneFile, const PreparedTraceContext& context)
+{
+    const SimulationConfig& effective = context.configuration();
+    Inputs inputs;
+    inputs.sceneFile = sceneFile;
+    inputs.rays = effective.rays;
+    inputs.seed = effective.masterSeed;
+    inputs.sunGridWidth = effective.sunWidthDivisions;
+    inputs.sunGridHeight = effective.sunHeightDivisions;
+    inputs.apertureArea = context.sunApertureArea();
+    inputs.irradiance = context.irradiance();
+    inputs.powerPerRay = context.powerPerRay();
+    return inputs;
 }
 
 bool NativeTraceSignature::Event::operator<(const Event& other) const

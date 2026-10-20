@@ -9,6 +9,7 @@
 #include <qglobal.h>
 
 struct RayTracerHit;
+class PreparedTraceContext;
 
 // Opt-in A0 diagnostic only. Never attached to production ray tracing unless
 // TONATIUHPP_A0_TRACE_SIGNATURE_FILE is set. Comparisons are within-platform.
@@ -29,6 +30,10 @@ public:
         double powerPerRay = 0.;
     };
 
+    // Both GUI and headless diagnostics derive their metadata from the
+    // successfully prepared scientific context, not duplicated caller state.
+    static Inputs inputsForPreparedTrace(const QString& sceneFile,
+                                         const PreparedTraceContext& context);
     static QString outputPathFromEnvironment();
     static bool validateRayCount(ulong rays, QString* errorMessage);
 

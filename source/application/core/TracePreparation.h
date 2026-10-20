@@ -65,7 +65,10 @@ public:
     PreparedTraceContext(PreparedTraceContext&&) noexcept;
     PreparedTraceContext& operator=(PreparedTraceContext&&) noexcept;
 
-    ulong rays() const { return m_rays; }
+    ulong rays() const { return m_configuration.rays; }
+    // Effective inputs preserved from the caller after successful preparation.
+    // The executor and optional diagnostics read this same immutable contract.
+    const SimulationConfig& configuration() const { return m_configuration; }
     double sunApertureArea() const;
     double irradiance() const;
     double powerPerRay() const;
@@ -82,12 +85,11 @@ private:
     SunAperture* m_sunAperture = nullptr;
     SunShape* m_sunShape = nullptr;
     AirTransmission* m_tracingAir = nullptr;
-    std::uint64_t m_masterSeed = 0;
+    SimulationConfig m_configuration;
     PhotonsBuffer* m_photonBuffer = nullptr;
     QVector<InstanceNode*> m_exportSurfaceList;
     PreparedTraceHitCallback m_hitCallback;
     PreparedTraceHistoryCallback m_historyCallback;
-    ulong m_rays = 0;
 
     friend class TracePreparation;
     friend class RayTraceExecutor;
