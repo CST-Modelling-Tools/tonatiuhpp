@@ -240,7 +240,12 @@ void FluxAnalysisDialog::run()
     QString surfaceSide = ui->surfaceSideCombo->currentText();
     bool increasePhotonMap = ui->raysAppendCheck->isEnabled() && ui->raysAppendCheck->isChecked();
 
-    m_fluxAnalysis->run(m_fluxSurfaceURL, surfaceSide, ui->raysSpin->value(), increasePhotonMap, ui->surfaceXSpin->value(), ui->surfaceYSpin->value());
+    if (!m_fluxAnalysis->run(m_fluxSurfaceURL, surfaceSide, ui->raysSpin->value(), increasePhotonMap, ui->surfaceXSpin->value(), ui->surfaceYSpin->value())) {
+        ui->raysAppendCheck->setChecked(false);
+        ui->raysAppendCheck->setEnabled(false);
+        ClearAnalysis();
+        return;
+    }
     UpdateAnalysis();
     ui->raysAppendCheck->setEnabled(true);
 

@@ -64,6 +64,7 @@
 #include "core/NativeTraceSignature.h"
 #include "core/NativeRayHistorySignature.h"
 #include "core/RayTraceExecutor.h"
+#include "core/SimulationSession.h"
 #include "core/SceneInstanceBuilder.h"
 #include "core/TracePreparation.h"
 #include "core/TonatiuhCore.h"
@@ -2059,9 +2060,9 @@ void MainWindow::Run()
             capture->add(ray);
         };
     }
-    PreparedTraceContext context;
+    SimulationSession session;
     QString preparationError;
-    if (!TracePreparation::prepareGuiTrace(preparationInput, &context, &preparationError)) {
+    if (!session.prepareGui(preparationInput, &preparationError)) {
         emit Abort(preparationError.isEmpty() ? tr("There are no surfaces defined for ray tracing") : preparationError);
         ShowRaysIn3DView();
         return;
@@ -2069,33 +2070,28 @@ void MainWindow::Run()
 
     NativeTraceSignature::Inputs a0Inputs;
     if (a0Signature || history)
-        a0Inputs = NativeTraceSignature::inputsForPreparedTrace(m_fileName, context);
+        a0Inputs = NativeTraceSignature::inputsForPreparedTrace(m_fileName, *session.preparedContext());
 
     std::cout << "gui_master_seed: " << traceSeed
               << (m_fixedGuiMasterSeed ? " (fixed)" : " (automatic)")
               << std::endl;
-    RayTraceExecutor executor;
-    RayTraceExecution execution = executor.start(std::move(context));
-    if (!execution.started) {
-        QMessageBox::warning(this, "Tonatiuh", execution.errorMessage);
-        return;
-    }
-    watcher.setFuture(execution.future);
-
-    dialog.exec();
     QString executionError;
-    if (!executor.waitForFinished(&execution, &executionError)) {
+    if (!session.start(&executionError)) {
         QMessageBox::warning(this, "Tonatiuh", executionError);
         return;
     }
-    const bool a0Cancelled = execution.future.isCanceled();
+    watcher.setFuture(session.future());
+
+    dialog.exec();
+    const bool traceCompleted = session.waitForFinished(&executionError);
+    const bool a0Cancelled = session.state() == SimulationSession::State::Cancelled;
     std::cout << "QtConcurrent finished: " << timer.elapsed() << std::endl;
 
-    bool tracingCancelledByExport = executor.exportFailed();
-    if (!tracingCancelledByExport)
-        m_raysTracedTotal += m_raysNumber;
+    const bool tracingCancelledByExport = session.exportFailed();
+    if (traceCompleted)
+        m_raysTracedTotal += session.result().raysTraced;
 
-    if (exportSurfaceList.empty())
+    if (traceCompleted && exportSurfaceList.empty())
         ShowRaysIn3DView(); // all photons must be stored
     else {
         //            ui->actionViewRays->setEnabled(false);
@@ -2105,7 +2101,10 @@ void MainWindow::Run()
     double area = sunAperture->getArea();
     double irradiance = sunPosition->irradiance.getValue();
     double power = m_raysTracedTotal > 0 ? area*irradiance/m_raysTracedTotal : 0.;
-    const bool exportSucceeded = m_photonsBuffer->endExport(power);
+    // A cancelled/failed run must not normalize partial photons as a complete run.
+    const bool exportSucceeded = m_photonsBuffer->endExport(traceCompleted ? power : 0.);
+    if (!traceCompleted)
+        QMessageBox::warning(this, "Tonatiuh", executionError);
     if (!exportSucceeded) {
         QMessageBox::warning(
             this,
@@ -2115,7 +2114,7 @@ void MainWindow::Run()
     }
     if (history) {
         bool saved = false;
-        if (a0Cancelled || tracingCancelledByExport || !exportSucceeded) {
+        if (!traceCompleted || a0Cancelled || tracingCancelledByExport || !exportSucceeded) {
             a0Error = "Tracing was cancelled or photon export failed; no ray history can be accepted.";
         } else {
             saved = history->write(historyFile, "native-gui", a0Inputs, &a0Error);
@@ -2129,7 +2128,7 @@ void MainWindow::Run()
     }
     if (a0Signature) {
         bool saved = false;
-        if (a0Cancelled || tracingCancelledByExport || !exportSucceeded) {
+        if (!traceCompleted || a0Cancelled || tracingCancelledByExport || !exportSucceeded) {
             a0Error = "Tracing was cancelled or photon export failed; "
                       "no scientific signature can be accepted.";
         } else {

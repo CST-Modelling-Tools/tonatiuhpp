@@ -52,6 +52,8 @@ public:
         started(other.started),
         future(std::move(other.future)),
         errorMessage(std::move(other.errorMessage)),
+        fullyCompletedRays(other.fullyCompletedRays),
+        fullyCompletedChunks(other.fullyCompletedChunks),
         owner(other.owner)
     {
         other.started = false;
@@ -62,6 +64,9 @@ public:
     bool started = false;
     QFuture<void> future;
     QString errorMessage;
+    // Only full chunks count. A failed mid-chunk exporter never inflates these.
+    qulonglong fullyCompletedRays = 0;
+    qulonglong fullyCompletedChunks = 0;
     const PreparedTraceContext* context() const { return preparedContext.get(); }
 
 private:

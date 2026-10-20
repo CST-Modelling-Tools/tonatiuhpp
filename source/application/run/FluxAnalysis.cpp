@@ -14,6 +14,7 @@
 
 #include "tree/SceneTreeModel.h"
 #include "core/RayTraceExecutor.h"
+#include "core/SimulationSession.h"
 #include "core/TracePreparation.h"
 #include "kernel/air/AirTransmission.h"
 #include "kernel/run/InstanceNode.h"
@@ -83,20 +84,20 @@ QString FluxAnalysis::getShapeType(QString nodeURL)
 /*
  * Fun flux analysis
  */
-void FluxAnalysis::run(QString nodeURL, QString surfaceSide, ulong nRays, bool photonBufferAppend, int uDivs, int vDivs, bool /*silent*/)
+bool FluxAnalysis::run(QString nodeURL, QString surfaceSide, ulong nRays, bool photonBufferAppend, int uDivs, int vDivs, bool /*silent*/)
 {
     m_surfaceURL = nodeURL;
     m_surfaceSide = surfaceSide;
 
     m_binsPhotons.resize(uDivs, vDivs);
 
-    if (!m_sceneKit) return;
+    if (!m_sceneKit) return false;
 
     AirTransmission* air = dynamic_cast<AirTransmission*>(m_sceneKit->getPart("world.air.transmission", false));
 
-    if (!m_instanceLayout) return;
+    if (!m_instanceLayout) return false;
     InstanceNode* instanceScene = m_instanceLayout->getParent();
-    if (!instanceScene) return;
+    if (!instanceScene) return false;
 
     SunKit* sunKit = static_cast<SunKit*>(m_sceneKit->getPart("world.sun", false));
     InstanceNode instanceSun(sunKit);
@@ -126,9 +127,9 @@ void FluxAnalysis::run(QString nodeURL, QString surfaceSide, ulong nRays, bool p
 
     QVector<InstanceNode*> exportSuraceList;
     QModelIndex nodeIndex = m_sceneModel->indexFromUrl(m_surfaceURL);
-    if (!nodeIndex.isValid()) return;
+    if (!nodeIndex.isValid()) return false;
     InstanceNode* instanceNode = m_sceneModel->getInstance(nodeIndex);
-    if (!instanceNode) return;
+    if (!instanceNode) return false;
     exportSuraceList << instanceNode;
 
 //    QThreadPool::globalInstance()->setMaxThreadCount(1);
@@ -167,21 +168,21 @@ void FluxAnalysis::run(QString nodeURL, QString surfaceSide, ulong nRays, bool p
     preparationInput.configuration.sunWidthDivisions = m_sunDivs.x;
     preparationInput.configuration.sunHeightDivisions = m_sunDivs.y;
     preparationInput.synchronizeScene = [this]() { m_sceneModel->UpdateSceneModel(); };
-    PreparedTraceContext context;
+    SimulationSession session;
     QString preparationError;
-    if (!TracePreparation::prepareGuiTrace(preparationInput, &context, &preparationError)) {
+    if (!session.prepareGui(preparationInput, &preparationError)) {
         qWarning() << "Flux analysis preparation failed:" << preparationError;
-        return;
+        clear();
+        return false;
     }
 
-    RayTraceExecutor executor;
-    RayTraceExecution execution = executor.start(std::move(context));
-    if (!execution.started) {
-        qWarning() << execution.errorMessage;
-        return;
+    if (!session.start(&preparationError)) {
+        qWarning() << preparationError;
+        clear();
+        return false;
     }
 
-    watcher.setFuture(execution.future);
+    watcher.setFuture(session.future());
 
     // Display the dialog and start the event loop.
 //    if (!silent) {
@@ -191,18 +192,21 @@ void FluxAnalysis::run(QString nodeURL, QString surfaceSide, ulong nRays, bool p
 //    dialog.setModal(false);
 //    dialog.show();
     QString executionError;
-    if (!executor.waitForFinished(&execution, &executionError)) {
+    if (!session.waitForFinished(&executionError)) {
         qWarning() << executionError;
-        return;
+        // Partial photons cannot be appended to an accepted flux result.
+        clear();
+        return false;
     }
 
-    m_tracedRays += nRays;
+    m_tracedRays += session.result().raysTraced;
 
     double irradiance = sunPosition->irradiance.getValue();
     double area = sunAperture->getArea();
     m_powerPhoton = area*irradiance/m_tracedRays;
 
     fillBins();
+    return true;
 }
 
 /*

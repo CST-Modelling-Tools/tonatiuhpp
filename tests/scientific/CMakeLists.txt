@@ -8,6 +8,7 @@ add_executable(tonatiuhpp_scientific_equivalence_tests
   "${_tonatiuhpp_equivalence_core_dir}/RayTraceExecutor.cpp"
   "${_tonatiuhpp_equivalence_core_dir}/SceneInstanceBuilder.cpp"
   "${_tonatiuhpp_equivalence_core_dir}/SceneLoader.cpp"
+  "${_tonatiuhpp_equivalence_core_dir}/SimulationSession.cpp"
   "${_tonatiuhpp_equivalence_core_dir}/TonatiuhCore.cpp"
   "${_tonatiuhpp_equivalence_core_dir}/TracePreparation.cpp"
 )

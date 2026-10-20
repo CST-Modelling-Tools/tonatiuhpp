@@ -19,6 +19,7 @@
 #include <cstdint>
 #include <memory>
 #include <mutex>
+#include <stdexcept>
 #include <sstream>
 #include <string>
 #include <tuple>
@@ -27,6 +28,7 @@
 #include "core/CorePluginRegistry.h"
 #include "core/NativeTraceSignature.h"
 #include "core/RayTraceExecutor.h"
+#include "core/SimulationSession.h"
 #include "core/SceneInstanceBuilder.h"
 #include "core/SceneLoader.h"
 #include "core/TonatiuhCore.h"
@@ -35,6 +37,7 @@
 #include "kernel/air/AirExponential.h"
 #include "kernel/air/AirTransmission.h"
 #include "kernel/air/AirVacuum.h"
+#include "kernel/photons/PhotonsAbstract.h"
 #include "kernel/photons/PhotonsBuffer.h"
 #include "kernel/run/InstanceNode.h"
 #include "kernel/run/RayTracer.h"
@@ -592,6 +595,146 @@ void expectLegacyCallbackOrder(const PropagationObservation& observation, bool r
 }
 
 } // namespace
+
+namespace
+{
+HeadlessTracePreparationInput lifecycleInput(TSceneKit* scene, ulong rays = 20001UL)
+{
+    HeadlessTracePreparationInput input;
+    input.scene = scene;
+    input.configuration.rays = rays;
+    input.configuration.masterSeed = kMasterSeed;
+    return input;
+}
+
+class FailingScientificExporter final : public PhotonsAbstract
+{
+public:
+    ulong savePhotons(const std::vector<Photon>&) override { return 0; }
+    bool hasExportError() const override { return true; }
+};
+}
+
+TEST(ScientificSessionLifecycle, RepeatsAndRejectsConcurrentOperations)
+{
+    LoadedScene scene;
+    QString error;
+    ASSERT_TRUE(SceneLoader::readFile(fixturePath(), &scene, &error)) << error.toStdString();
+
+    SimulationSession session;
+    HitAccumulator firstHits;
+    auto input = lifecycleInput(scene.get());
+    input.hitCallback = [&firstHits](const RayTracerHit& hit) { firstHits.add(hit); };
+    EXPECT_EQ(session.state(), SimulationSession::State::Idle);
+    ASSERT_TRUE(session.prepareHeadless(input, &error)) << error.toStdString();
+    EXPECT_EQ(session.state(), SimulationSession::State::Prepared);
+    ASSERT_NE(session.preparedContext(), nullptr);
+    ASSERT_TRUE(session.start(&error)) << error.toStdString();
+    EXPECT_EQ(session.state(), SimulationSession::State::Running);
+    EXPECT_FALSE(session.start(&error));
+    EXPECT_FALSE(session.prepareHeadless(input, &error));
+    EXPECT_EQ(session.state(), SimulationSession::State::Running);
+    ASSERT_TRUE(session.waitForFinished(&error)) << error.toStdString();
+    EXPECT_EQ(session.state(), SimulationSession::State::Completed);
+    EXPECT_EQ(session.fullyCompletedRays(), 20001U);
+    EXPECT_EQ(session.fullyCompletedChunks(), 3U);
+    EXPECT_EQ(session.result().raysTraced, 20001UL);
+    EXPECT_FALSE(session.result().exportFailed);
+
+    ScientificSignature first;
+    firstHits.copyTo(&first);
+    HitAccumulator secondHits;
+    input.hitCallback = [&secondHits](const RayTracerHit& hit) { secondHits.add(hit); };
+    ASSERT_TRUE(session.prepareHeadless(input, &error)) << error.toStdString();
+    ASSERT_TRUE(session.start(&error)) << error.toStdString();
+    ASSERT_TRUE(session.waitForFinished(&error)) << error.toStdString();
+    ScientificSignature second;
+    secondHits.copyTo(&second);
+    EXPECT_EQ(first.hitEvents, second.hitEvents);
+    EXPECT_EQ(session.result().raysTraced, 20001UL);
+    EXPECT_FALSE(session.waitForFinished(&error));
+    EXPECT_EQ(session.state(), SimulationSession::State::Completed);
+}
+
+TEST(ScientificSessionLifecycle, CancellationNeverBecomesCompleted)
+{
+    LoadedScene scene;
+    QString error;
+    ASSERT_TRUE(SceneLoader::readFile(fixturePath(), &scene, &error)) << error.toStdString();
+
+    SimulationSession session;
+    auto input = lifecycleInput(scene.get(), 3000000UL);
+    ASSERT_TRUE(session.prepareHeadless(input, &error)) << error.toStdString();
+    ASSERT_TRUE(session.start(&error)) << error.toStdString();
+    session.cancel();
+    EXPECT_FALSE(session.waitForFinished(&error));
+    EXPECT_EQ(session.state(), SimulationSession::State::Cancelled);
+    EXPECT_EQ(session.result().raysTraced, session.fullyCompletedRays());
+    EXPECT_LE(session.fullyCompletedRays(), 3000000U);
+    EXPECT_FALSE(session.result().exportFailed);
+}
+
+TEST(ScientificSessionLifecycle, WorkerExceptionReportsFailure)
+{
+    LoadedScene scene;
+    QString error;
+    ASSERT_TRUE(SceneLoader::readFile(fixturePath(), &scene, &error)) << error.toStdString();
+
+    SimulationSession session;
+    auto input = lifecycleInput(scene.get(), 1024UL);
+    input.hitCallback = [](const RayTracerHit&) {
+        throw std::runtime_error("injected M3.1 worker failure");
+    };
+    ASSERT_TRUE(session.prepareHeadless(input, &error)) << error.toStdString();
+    ASSERT_TRUE(session.start(&error)) << error.toStdString();
+    EXPECT_FALSE(session.waitForFinished(&error));
+    EXPECT_EQ(session.state(), SimulationSession::State::Failed);
+    EXPECT_TRUE(error.contains("injected M3.1 worker failure")) << error.toStdString();
+    EXPECT_LT(session.fullyCompletedRays(), 1024U);
+}
+
+TEST(ScientificSessionLifecycle, ExportFailureReportsIncompleteRun)
+{
+    LoadedScene scene;
+    QString error;
+    ASSERT_TRUE(SceneLoader::readFile(fixturePath(), &scene, &error)) << error.toStdString();
+
+    FailingScientificExporter exporter;
+    PhotonsBuffer photonBuffer(1);
+    ASSERT_TRUE(photonBuffer.setExporter(&exporter));
+    SimulationSession session;
+    auto input = lifecycleInput(scene.get(), 1024UL);
+    input.photonBuffer = &photonBuffer;
+    ASSERT_TRUE(session.prepareHeadless(input, &error)) << error.toStdString();
+    ASSERT_TRUE(session.start(&error)) << error.toStdString();
+    EXPECT_FALSE(session.waitForFinished(&error));
+    EXPECT_EQ(session.state(), SimulationSession::State::Failed);
+    EXPECT_TRUE(session.exportFailed());
+    EXPECT_TRUE(session.result().exportFailed);
+    EXPECT_LE(session.fullyCompletedRays(), 1024U);
+}
+
+TEST(ScientificSessionLifecycle, DestructorJoinsWorkersAndReleasesPins)
+{
+    LoadedScene scene;
+    QString error;
+    ASSERT_TRUE(SceneLoader::readFile(fixturePath(), &scene, &error)) << error.toStdString();
+
+    std::weak_ptr<int> weakToken;
+    {
+        SimulationSession session;
+        auto token = std::make_shared<int>(42);
+        weakToken = token;
+        session.retainResource(token);
+        token.reset();
+        ASSERT_FALSE(weakToken.expired());
+        const auto input = lifecycleInput(scene.get(), 3000000UL);
+        ASSERT_TRUE(session.prepareHeadless(input, &error)) << error.toStdString();
+        ASSERT_TRUE(session.start(&error)) << error.toStdString();
+        // A live session destructor must cancel and join before returning.
+    }
+    EXPECT_TRUE(weakToken.expired());
+}
 
 TEST(ScientificTraceBaseline, HeadlessIsRepeatableAcrossIndependentScenes)
 {

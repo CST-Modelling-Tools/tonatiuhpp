@@ -33,6 +33,7 @@ struct RayTraceWorkerState
     ulong totalRays = 0;
     std::atomic<qulonglong> nextChunk{0};
     std::atomic<qulonglong> completedChunks{0};
+    std::atomic<qulonglong> completedRays{0};
     std::atomic<int> remainingWorkers{0};
     std::atomic_bool failed{false};
     QMutex errorMutex;
@@ -84,12 +85,17 @@ struct RayTraceWorkerState
                 ));
                 traceChunk(chunkIndex, raysThisChunk);
 
-                const qulonglong completed = completedChunks.fetch_add(1) + 1;
-                QMutexLocker progressLock(&progressMutex);
-                promise->setProgressValue(static_cast<int>(qMin<qulonglong>(
-                    completed,
-                    static_cast<qulonglong>(std::numeric_limits<int>::max())
-                )));
+                // addPhotons can stop partway through a chunk on export
+                // failure. Never count such a chunk as fully traced.
+                if (!exportFailed->load()) {
+                    completedRays.fetch_add(raysThisChunk);
+                    const qulonglong completed = completedChunks.fetch_add(1) + 1;
+                    QMutexLocker progressLock(&progressMutex);
+                    promise->setProgressValue(static_cast<int>(qMin<qulonglong>(
+                        completed,
+                        static_cast<qulonglong>(std::numeric_limits<int>::max())
+                    )));
+                }
             }
         } catch (const std::exception& error) {
             recordFailure(QString("Ray tracing worker failed: %1").arg(error.what()));
@@ -257,6 +263,10 @@ bool RayTraceExecutor::waitForFinished(RayTraceExecution* execution, QString* er
 
     try {
         execution->future.waitForFinished();
+        if (m_workerState) {
+            execution->fullyCompletedRays = m_workerState->completedRays.load();
+            execution->fullyCompletedChunks = m_workerState->completedChunks.load();
+        }
         const bool workerFailed = m_workerState && m_workerState->failed.load();
         QString workerError;
         if (m_workerState) {
