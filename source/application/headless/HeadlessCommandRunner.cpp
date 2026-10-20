@@ -18,6 +18,7 @@
 #include "core/NativeTraceSignature.h"
 #include "core/NativeRayHistorySignature.h"
 #include "core/RayTraceExecutor.h"
+#include "core/SimulationSession.h"
 #include "core/SceneLoader.h"
 #include "core/TracePreparation.h"
 #include "core/TonatiuhCore.h"
@@ -189,11 +190,11 @@ int HeadlessCommandRunner::traceScene(const QStringList& args) const
     }
 
     TonatiuhCore::initializeCoin();
-    CorePluginRegistry plugins;
-    initializeSceneServices(parsed.sceneFileName, &plugins);
+    auto plugins = std::make_shared<CorePluginRegistry>();
+    initializeSceneServices(parsed.sceneFileName, plugins.get());
 
-    LoadedScene scene;
-    if (!SceneLoader::readFile(parsed.sceneFileName, &scene, &errorMessage)) {
+    auto scene = std::make_shared<LoadedScene>();
+    if (!SceneLoader::readFile(parsed.sceneFileName, scene.get(), &errorMessage)) {
         err << "Scene load failed: " << errorMessage << Qt::endl;
         return 1;
     }
@@ -211,9 +212,9 @@ int HeadlessCommandRunner::traceScene(const QStringList& args) const
 
     // Retain exporter, plugin, settings and buffer until tracing is finished.
     // --no-export keeps the original non-recording headless path intact.
-    PhotonExporterPlugin photonPlugin;
+    auto photonPlugin = std::make_shared<PhotonExporterPlugin>();
     PhotonsSettings photonSettings{};
-    std::unique_ptr<PhotonsBuffer> photonBuffer;
+    std::shared_ptr<PhotonsBuffer> photonBuffer;
     if (!parsed.photonExportDirectory.isEmpty()) {
         if (!a0Signature) {
             err << "Photon export diagnostic requires TONATIUHPP_A0_TRACE_SIGNATURE_FILE."
@@ -222,22 +223,25 @@ int HeadlessCommandRunner::traceScene(const QStringList& args) const
         }
         if (!createPhotonFileExporter(parsed.photonExportDirectory,
                     TonatiuhCore::pluginSearchPaths(QCoreApplication::applicationDirPath()),
-                    &photonPlugin, &photonSettings, &errorMessage)) {
+                    photonPlugin.get(), &photonSettings, &errorMessage)) {
             err << "Photon export diagnostic failed: " << errorMessage << Qt::endl;
             return 1;
         }
-        photonBuffer = std::make_unique<PhotonsBuffer>(100000);
-        if (!photonBuffer->setExporter(photonPlugin.exporter.get())) {
+        photonBuffer = std::make_shared<PhotonsBuffer>(100000);
+        if (!photonBuffer->setExporter(photonPlugin->exporter.get())) {
             err << "Photon export diagnostic failed to initialize the output." << Qt::endl;
             return 1;
         }
     }
 
-    QElapsedTimer timer;
-    timer.start();
+    SimulationSession session;
+    session.retainResource(plugins);
+    session.retainResource(scene);
+    session.retainResource(photonPlugin);
+    session.retainResource(photonBuffer);
     TextProgressReporter progress(&out);
     HeadlessTracePreparationInput preparationInput;
-    preparationInput.scene = scene.get();
+    preparationInput.scene = scene->get();
     preparationInput.photonBuffer = photonBuffer.get();
     preparationInput.configuration.rays = parsed.rays;
     preparationInput.configuration.masterSeed = parsed.seed;
@@ -253,28 +257,20 @@ int HeadlessCommandRunner::traceScene(const QStringList& args) const
             capture->add(ray);
         };
     }
-    PreparedTraceContext context;
-    RayTraceExecutorResult result;
-    if (!TracePreparation::prepareHeadlessTrace(preparationInput, &context, &errorMessage)) {
+    if (!session.prepareHeadless(preparationInput, &errorMessage)) {
         err << "Trace failed: " << errorMessage << Qt::endl;
         return 1;
     }
-    TracePreparation::initializeResult(context, &result);
     NativeTraceSignature::Inputs a0Inputs;
     if (a0Signature || history)
-        a0Inputs = NativeTraceSignature::inputsForPreparedTrace(parsed.sceneFileName, context);
+        a0Inputs = NativeTraceSignature::inputsForPreparedTrace(
+            parsed.sceneFileName, *session.preparedContext());
     progress("Starting ray loop.");
-    RayTraceExecutor executor;
-    RayTraceExecution execution = executor.start(std::move(context));
-    if (!execution.started) {
-        err << "Trace failed: " << execution.errorMessage << Qt::endl;
-        return 1;
-    }
-    if (!executor.waitForFinished(&execution, &errorMessage) ||
-        !TracePreparation::finalizeResult(*execution.context(), executor.exportFailed(), timer.elapsed() / 1000., &result, &errorMessage)) {
+    if (!session.start(&errorMessage) || !session.waitForFinished(&errorMessage)) {
         err << "Trace failed: " << errorMessage << Qt::endl;
         return 1;
     }
+    const RayTraceExecutorResult& result = session.result();
 
     if (photonBuffer &&
         !photonBuffer->endExport(result.powerPerRay)) {
@@ -282,14 +278,15 @@ int HeadlessCommandRunner::traceScene(const QStringList& args) const
         return 1;
     }
     if (history) {
-        if (execution.future.isCanceled() || !history->write(historyFile, "headless-cli", a0Inputs, &errorMessage)) {
+        if (session.state() != SimulationSession::State::Completed
+            || !history->write(historyFile, "headless-cli", a0Inputs, &errorMessage)) {
             err << "Ray history diagnostic failed: " << (errorMessage.isEmpty() ? "Trace cancelled." : errorMessage) << Qt::endl;
             return 1;
         }
         out << "a0_headless_ray_history: " << historyFile << Qt::endl;
     }
     if (a0Signature) {
-        if (execution.future.isCanceled()
+        if (session.state() != SimulationSession::State::Completed
             || !a0Signature->write(a0SignatureFile, "headless-cli",
                                    a0Inputs, &errorMessage)) {
             err << "A0 diagnostic failed: "

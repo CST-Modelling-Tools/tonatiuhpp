@@ -25,6 +25,7 @@
 #include <QtEndian>
 
 #include "core/RayTraceExecutor.h"
+#include "core/SimulationSession.h"
 #include "core/TracePreparation.h"
 #include "kernel/run/RayTracer.h"
 #include "libraries/math/gcf.h"
@@ -818,14 +819,11 @@ int BenchmarkRunner::run(const QString& configFileName, TSceneKit* scene, QStrin
     for (qulonglong index = 0; index < accumulatorCount; ++index)
         threadAccumulators.emplace_back(config);
 
-    RayTraceExecutorResult traceResult;
-    RayTraceExecutor executor;
+    SimulationSession session;
     QString traceError;
     const std::shared_ptr<BenchmarkHitState> hitState = std::make_shared<BenchmarkHitState>(&threadAccumulators);
     const BenchmarkHitCallback hitCallback(hitState);
     const RayTraceExecutor::HitCallback traceHitCallback(hitCallback);
-    QElapsedTimer traceTimer;
-    traceTimer.start();
     TextProgressReporter progress(&out);
     HeadlessTracePreparationInput preparationInput;
     preparationInput.scene = scene;
@@ -833,20 +831,14 @@ int BenchmarkRunner::run(const QString& configFileName, TSceneKit* scene, QStrin
     preparationInput.configuration.masterSeed = config.seed;
     preparationInput.hitCallback = traceHitCallback;
     preparationInput.progress = progress;
-    PreparedTraceContext context;
-    if (!TracePreparation::prepareHeadlessTrace(preparationInput, &context, &traceError)) {
+    if (!session.prepareHeadless(preparationInput, &traceError)) {
         return fail(errorMessage, QString("Benchmark trace failed: %1").arg(traceError)), 1;
     }
-    TracePreparation::initializeResult(context, &traceResult);
     progress("Starting ray loop.");
-    RayTraceExecution execution = executor.start(std::move(context));
-    if (!execution.started) {
-        return fail(errorMessage, QString("Benchmark trace failed: %1").arg(execution.errorMessage)), 1;
-    }
-    if (!executor.waitForFinished(&execution, &traceError) ||
-        !TracePreparation::finalizeResult(*execution.context(), executor.exportFailed(), traceTimer.elapsed() / 1000., &traceResult, &traceError)) {
+    if (!session.start(&traceError) || !session.waitForFinished(&traceError)) {
         return fail(errorMessage, QString("Benchmark trace failed: %1").arg(traceError)), 1;
     }
+    const RayTraceExecutorResult& traceResult = session.result();
     if (!std::isfinite(traceResult.powerPerRay) || traceResult.powerPerRay < 0.)
         return fail(errorMessage, "Benchmark trace produced invalid power-per-ray."), 1;
 

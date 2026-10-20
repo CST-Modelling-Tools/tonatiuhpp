@@ -2,6 +2,7 @@
 
 #include <cmath>
 #include <limits>
+#include <memory>
 
 #include <QCoreApplication>
 #include <QElapsedTimer>
@@ -15,6 +16,7 @@
 #include "benchmark/BenchmarkRunner.h"
 #include "core/CorePluginRegistry.h"
 #include "core/RayTraceExecutor.h"
+#include "core/SimulationSession.h"
 #include "core/SceneLoader.h"
 #include "core/TracePreparation.h"
 #include "core/TonatiuhCore.h"
@@ -232,41 +234,30 @@ QJSValue HeadlessScriptApi::traceScene(const QJSValue& optionsValue)
 
     const QString sceneFileName = sceneValue.toString();
     TonatiuhCore::initializeCoin();
-    CorePluginRegistry plugins;
-    initializeSceneServices(sceneFileName, &plugins);
+    auto plugins = std::make_shared<CorePluginRegistry>();
+    initializeSceneServices(sceneFileName, plugins.get());
 
-    LoadedScene scene;
-    if (!SceneLoader::readFile(sceneFileName, &scene, &errorMessage)) {
+    auto scene = std::make_shared<LoadedScene>();
+    if (!SceneLoader::readFile(sceneFileName, scene.get(), &errorMessage)) {
         recordError(QString("tn.traceScene failed while loading %1: %2").arg(absoluteFilePath(sceneFileName), errorMessage));
         return QJSValue();
     }
 
-    QElapsedTimer timer;
-    timer.start();
+    SimulationSession session;
+    session.retainResource(plugins);
+    session.retainResource(scene);
     HeadlessTracePreparationInput preparationInput;
-    preparationInput.scene = scene.get();
+    preparationInput.scene = scene->get();
     preparationInput.configuration.rays = rays;
     preparationInput.configuration.masterSeed = seed;
-    PreparedTraceContext context;
-    RayTraceExecutorResult result;
-    if (!TracePreparation::prepareHeadlessTrace(preparationInput, &context, &errorMessage)) {
-        recordError(QString("tn.traceScene failed for %1: %2").arg(absoluteFilePath(sceneFileName), errorMessage));
-        return QJSValue();
-    }
-    TracePreparation::initializeResult(context, &result);
-    RayTraceExecutor executor;
-    RayTraceExecution execution = executor.start(std::move(context));
-    if (!execution.started) {
-        recordError(QString("tn.traceScene failed for %1: %2").arg(absoluteFilePath(sceneFileName), execution.errorMessage));
-        return QJSValue();
-    }
-    if (!executor.waitForFinished(&execution, &errorMessage) ||
-        !TracePreparation::finalizeResult(*execution.context(), executor.exportFailed(), timer.elapsed() / 1000., &result, &errorMessage)) {
+    if (!session.prepareHeadless(preparationInput, &errorMessage)
+        || !session.start(&errorMessage)
+        || !session.waitForFinished(&errorMessage)) {
         recordError(QString("tn.traceScene failed for %1: %2").arg(absoluteFilePath(sceneFileName), errorMessage));
         return QJSValue();
     }
 
-    return makeTraceSummary(m_engine, absoluteFilePath(sceneFileName), rays, seed, result);
+    return makeTraceSummary(m_engine, absoluteFilePath(sceneFileName), rays, seed, session.result());
 }
 
 void HeadlessScriptApi::initializeSceneServices(const QString& fileName, CorePluginRegistry* plugins) const

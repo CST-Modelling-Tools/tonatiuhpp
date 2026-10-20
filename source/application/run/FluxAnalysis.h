@@ -21,7 +21,7 @@ public:
     ~FluxAnalysis();
 
     QString getShapeType(QString nodeURL);
-    void run(QString nodeURL, QString surfaceSide, ulong nRays, bool increasePhotonMap, int uDivs, int vDivs, bool silent = false);
+    bool run(QString nodeURL, QString surfaceSide, ulong nRays, bool increasePhotonMap, int uDivs, int vDivs, bool silent = false);
     void setBins(int rows, int cols);
     void write(QString fileName, bool withCoords);
     void clear();
