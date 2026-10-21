@@ -55,9 +55,16 @@ must not be rerun without explicit approval.
   ray count low. Re-run the GUI script and compare its intercepted power
   against true-headless seed-`0` execution of the identical script. Equality
   is expected on this no-tracker, vacuum, planar absorbing scene; this
-  assertion has not yet been verified on the maintainer's Windows GUI.
+  verification passed on the maintainer's Windows GUI: `63857.145538085264 W`
+  in both native GUI and true-headless CLI with fixed seed `0` and matching
+  `200 x 200` sun grid on the 2,048-ray absorbing-scene fixture.
 - Other scenes, tracker/export policies and the optional `show` path remain
   separate parity gates. Do not interpret an unmatched automatic-seed run
   as a scientific equivalence failure.
-- Re-run the scientific suite after the focused tests to check for accidental
-  changes to ray propagation. Step 4B1 is local-acceptance pending until then.
+- Local Windows acceptance passed: 50/50 scientific and 7/7 selected headless
+  CTests before the narrow GUI seed-policy source correction; the Release
+  application was rebuilt after that correction and the native GUI matched
+  true-headless interception power at the reported precision. Native GUI
+  scripting and scene-tree visibility were maintainer-confirmed. Hosted
+  Windows/Ubuntu/macOS CI, code review, and merge are pending. The final source
+  revision still requires hosted CI validation.
