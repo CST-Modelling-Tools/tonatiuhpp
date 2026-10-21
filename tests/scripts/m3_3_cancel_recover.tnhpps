@@ -1,0 +1,58 @@
+// M3.3: explicit cooperative cancellation, joined workers, and fresh trace.
+// Uses a copied cylinder.tnhpp beside this script, regardless of process CWD.
+var sceneBefore = tn.getScene().getPart('world.sun.position');
+if (!sceneBefore) throw Error('No active scientific scene to preserve');
+var beforeAz = Number(sceneBefore.getParameter('azimuth'));
+var beforeEl = Number(sceneBefore.getParameter('elevation'));
+var config = {scene:'cylinder.tnhpp', rays:3000000, seed:0, noExport:true};
+var running = tn.startTrace(config);
+if (!running || running.status !== 'running' || running.rays_requested !== 3000000)
+    throw Error('Script trace did not start');
+var alreadyActiveRejected = false;
+try { tn.startTrace(config); }
+catch (e) { alreadyActiveRejected = String(e).indexOf('already active') >= 0; }
+if (!alreadyActiveRejected) throw Error('Concurrent script trace was not rejected');
+if (tn.cancelTrace() !== true) throw Error('Cancellation request was not accepted');
+var cancelled = tn.finishTrace();
+if (!cancelled || cancelled.status !== 'cancelled' || cancelled.accepted !== false)
+    throw Error('Cancelled run was incorrectly treated as completed');
+if (cancelled.no_export !== true || cancelled.photon_export !== false || cancelled.export_failed !== false)
+    throw Error('Cancelled run exported or had an unexpected export failure');
+if (!Number.isInteger(cancelled.rays_traced) || cancelled.rays_traced < 0 ||
+    cancelled.rays_traced >= 3000000)
+    throw Error('Cancelled run did not report strictly incomplete progress');
+if (cancelled.power_per_ray !== undefined || cancelled.irradiance !== undefined ||
+    cancelled.sun_aperture_area !== undefined)
+    throw Error('Cancelled run exposed scientifically accepted result fields');
+
+// A fresh 2048-ray session must succeed on the same host and fixed seed.
+var fresh = tn.startTrace({scene:'cylinder.tnhpp', rays:2048, seed:0, noExport:true});
+if (fresh.status !== 'running') throw Error('Recovery trace did not start');
+var recovered = tn.finishTrace();
+if (recovered.status !== 'completed' || recovered.accepted !== true ||
+    recovered.rays_traced !== 2048 || recovered.seed !== 0 ||
+    recovered.no_export !== true || recovered.photon_export !== false ||
+    !(recovered.power_per_ray > 0) || !isFinite(recovered.power_per_ray))
+    throw Error('Recovery trace did not produce accepted full results');
+
+// The established synchronous CLI API must retain its original semantics.
+var legacy = tn.traceScene({scene:fresh.scene_file, rays:2048, seed:0, noExport:true});
+if (!legacy || legacy.rays_traced !== 2048 ||
+    legacy.power_per_ray !== recovered.power_per_ray ||
+    legacy.sun_aperture_area !== recovered.sun_aperture_area)
+    throw Error('New session trace differs from established synchronous science');
+var sceneAfter = tn.getScene().getPart('world.sun.position');
+if (Number(sceneAfter.getParameter('azimuth')) !== beforeAz ||
+    Number(sceneAfter.getParameter('elevation')) !== beforeEl)
+    throw Error('Script cancellation changed the active editable scene');
+
+var out = new DataObject;
+out.addRow('schema,m3.3-script-cancel-v1');
+out.addRow('cancelled_status,cancelled');
+out.addRow('cancelled_accepted,false');
+out.addRow('recovered_status,completed');
+out.addRow('recovered_rays,2048');
+out.addRow('recovered_seed,0');
+out.addRow('recovered_power_per_ray,' + recovered.power_per_ray.toPrecision(17));
+if (!out.write('m3_3_cancel_recovery.csv')) throw Error('Cannot write recovery CSV');
+print('M3.3 scripted cancellation/recovery PASSED: ' + recovered.power_per_ray.toPrecision(17));

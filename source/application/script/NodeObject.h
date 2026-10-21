@@ -26,6 +26,7 @@ public slots:
     QJSValue createTracker();
 
     QJSValue getPart(const QString& name = "");
+    QJSValue getParameter(const QString& name);
     void setPart(const QString& name, QJSValue node);
 
     QJSValue insertSurface(const QString& name = "");

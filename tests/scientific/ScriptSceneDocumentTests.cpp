@@ -3,6 +3,10 @@
 #include <Inventor/nodes/SoGroup.h>
 
 #include <QJSEngine>
+#include <QDir>
+#include <QFile>
+#include <QFileInfo>
+#include <QTemporaryDir>
 
 #include "core/CorePluginRegistry.h"
 #include "core/TonatiuhCore.h"
@@ -134,6 +138,101 @@ TEST(ScientificScriptSceneDocument, BadInsertionReportsSourceLine)
     EXPECT_EQ(fixture.childCount(), 0);
 }
 
+
+TEST(ScientificScriptSceneDocument, ScriptFieldReadbackAndUnknownFieldError)
+{
+    TonatiuhCore::initializeCoin();
+    ScriptSceneFixture fixture;
+
+    const QJSValue result = fixture.host.evaluate(R"JS(
+var position = tn.getScene().getPart('world.sun.position');
+position.setParameter('azimuth', '90');
+if (Number(position.getParameter('azimuth')) !== 90)
+    throw new Error('Cannot read back sun azimuth.');
+var root = new NodeObject;
+var child = root.createNode('Offset');
+child.setParameter('translation', '1 2 3');
+if (child.getParameter('translation').trim() !== '1 2 3')
+    throw new Error('Cannot read back separator transform.');
+tn.InsertScene(root);
+true;
+)JS", "field-readback.tnhpps");
+    ASSERT_FALSE(result.isError()) << result.toString().toStdString();
+    EXPECT_TRUE(result.toBool());
+    EXPECT_EQ(fixture.childCount(), 1);
+
+    const QJSValue error = fixture.host.evaluate(
+        "var position = tn.getScene().getPart('world.sun.position');\n"
+        "position.getParameter('missing_m3_3_field');\n",
+        "missing-field.tnhpps");
+    ASSERT_TRUE(error.isError());
+    EXPECT_EQ(error.property("lineNumber").toInt(), 2);
+    EXPECT_TRUE(error.toString().contains("unknown field"))
+        << error.toString().toStdString();
+}
+
+TEST(ScientificScriptSceneDocument, SaveLoadIsRelativeAndPreservesSceneOnFailure)
+{
+    TonatiuhCore::initializeCoin();
+    CorePluginRegistry factories;
+    QTemporaryDir temporary;
+    ASSERT_TRUE(temporary.isValid());
+    ScriptSceneFixture fixture;
+    fixture.services->setSaveDocument([&fixture](const QString& path, QString* error) {
+        return fixture.document.save(path, error);
+    });
+    fixture.services->setLoadDocument([&fixture](const QString& path, QString* error) {
+        return fixture.document.load(path, error);
+    });
+    const QString scriptFile = QDir(temporary.path()).filePath("scene roundtrip.tnhpps");
+    const QJSValue success = fixture.host.evaluate(R"JS(
+var root = new NodeObject;
+root.setName('M3_3_Saved');
+root.createNode('Child');
+tn.Clear();
+tn.InsertScene(root);
+var sun = tn.getScene().getPart('world.sun.position');
+sun.setParameter('azimuth', '135');
+var oldRoot = tn.getScene();
+if (!tn.saveScene('project:scene roundtrip.tnhpp')) throw Error('save failed');
+tn.Clear();
+if (!tn.loadScene('scene roundtrip.tnhpp')) throw Error('load failed');
+if (Number(tn.getScene().getPart('world.sun.position').getParameter('azimuth')) !== 135)
+    throw Error('Sun state was not restored');
+if (!oldRoot.getPart('world.sun.position')) throw Error('Old root was invalidated');
+true;
+)JS", scriptFile);
+    ASSERT_FALSE(success.isError()) << ScriptHost::formatError(success, scriptFile).toStdString();
+    ASSERT_TRUE(success.toBool());
+    EXPECT_EQ(fixture.childCount(), 1);
+    const QString saved = QDir(temporary.path()).filePath("scene roundtrip.tnhpp");
+    ASSERT_TRUE(QFileInfo::exists(saved));
+    LoadedScene independentlyLoaded;
+    QString readError;
+    ASSERT_TRUE(SceneLoader::readFile(saved, &independentlyLoaded, &readError))
+        << readError.toStdString();
+
+    TSceneKit* active = fixture.document.scene();
+    const QJSValue cannotOverwrite = fixture.host.evaluate(
+        "tn.saveScene('scene roundtrip.tnhpp');", scriptFile);
+    ASSERT_TRUE(cannotOverwrite.isError());
+    EXPECT_TRUE(cannotOverwrite.toString().contains("already exists"));
+    EXPECT_EQ(fixture.document.scene(), active);
+
+    const QJSValue missing = fixture.host.evaluate(
+        "var known = tn.getScene();\n"
+        "tn.loadScene('missing scene.tnhpp');\n", scriptFile);
+    ASSERT_TRUE(missing.isError());
+    EXPECT_EQ(missing.property("lineNumber").toInt(), 2);
+    EXPECT_EQ(fixture.document.scene(), active);
+    EXPECT_EQ(fixture.childCount(), 1);
+
+    const QJSValue invalidExtension = fixture.host.evaluate(
+        "tn.saveScene('not-a-scene.csv');", scriptFile);
+    ASSERT_TRUE(invalidExtension.isError());
+    EXPECT_TRUE(invalidExtension.toString().contains(".tnhpp"));
+    EXPECT_FALSE(QFileInfo::exists(QDir(temporary.path()).filePath("not-a-scene.csv")));
+}
 
 TEST(ScientificScriptSceneDocument, ForwardingKeepsNativeErrorAtUserCallSite)
 {

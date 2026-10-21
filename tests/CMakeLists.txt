@@ -115,6 +115,51 @@ if(TONATIUHPP_ENABLE_HEADLESS_SMOKE_TESTS)
   )
   tonatiuhpp_set_headless_test_properties(headless.run_script_scene_document)
 
+  # M3.3: verify that headless script JSON and DataObject paths are relative
+  # to the script, even if the process starts from a different directory.
+  add_test(
+    NAME headless.m3_script_relative_io
+    COMMAND "${CMAKE_COMMAND}"
+      "-DTEST_EXECUTABLE=${TONATIUHPP_TEST_EXE}"
+      "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/m3_script_relative_io"
+      -P "${CMAKE_CURRENT_LIST_DIR}/cmake/run_m3_script_relative_io.cmake"
+  )
+  tonatiuhpp_set_headless_test_properties(headless.m3_script_relative_io)
+  set_tests_properties(headless.m3_script_relative_io PROPERTIES TIMEOUT 45)
+
+  # M3.3: build the very same in-memory scene/interception script in two
+  # independent headless processes; save a full-precision native baseline
+  # for subsequent comparison against the GUI Script Editor.
+  add_test(
+    NAME headless.m3_script_parity_baseline
+    COMMAND "${CMAKE_COMMAND}"
+      "-DTEST_EXECUTABLE=${TONATIUHPP_TEST_EXE}"
+      "-DTEST_SCRIPT=${CMAKE_CURRENT_LIST_DIR}/scripts/m3_3_gui_headless_parity.tnhpps"
+      "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/m3_script_parity"
+      -P "${CMAKE_CURRENT_LIST_DIR}/cmake/run_m3_script_parity_baseline.cmake"
+  )
+  tonatiuhpp_set_headless_test_properties(headless.m3_script_parity_baseline)
+  set_tests_properties(headless.m3_script_parity_baseline PROPERTIES
+    LABELS "headless;smoke;scientific;equivalence"
+    TIMEOUT 120
+  )
+
+  # M3.3: read actual tracker state and compare repeated short traces on
+  # two sun positions. Native GUI must run the identical generated script.
+  add_test(
+    NAME headless.m3_script_tracker_parity
+    COMMAND "${CMAKE_COMMAND}"
+      "-DTEST_EXECUTABLE=${TONATIUHPP_TEST_EXE}"
+      "-DTEST_SCRIPT=${CMAKE_CURRENT_LIST_DIR}/scripts/m3_3_tracker_parity.tnhpps"
+      "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/m3_script_tracker_parity"
+      -P "${CMAKE_CURRENT_LIST_DIR}/cmake/run_m3_script_tracker_parity.cmake"
+  )
+  tonatiuhpp_set_headless_test_properties(headless.m3_script_tracker_parity)
+  set_tests_properties(headless.m3_script_tracker_parity PROPERTIES
+    LABELS "headless;smoke;scientific;equivalence"
+    TIMEOUT 180
+  )
+
   # Run two small, unmodified tracked examples. They construct scenes but do
   # not trace rays or access sidecar CSVs. ShapeFunctionXYZ must be built.
   add_test(
@@ -148,6 +193,21 @@ if(TONATIUHPP_ENABLE_HEADLESS_SMOKE_TESTS)
 
   set(_tonatiuhpp_cylinder_scene "${CMAKE_CURRENT_LIST_DIR}/../examples/benchmarks/cylinder.tnhpp")
   if(EXISTS "${_tonatiuhpp_cylinder_scene}")
+    # M3.3: one real script-controlled session must be cancellable, never
+    # report accepted partial science, and permit a fresh completed trace.
+    add_test(
+      NAME headless.m3_script_cancel_recover
+      COMMAND "${CMAKE_COMMAND}"
+        "-DTEST_EXECUTABLE=${TONATIUHPP_TEST_EXE}"
+        "-DTEST_WORKING_DIRECTORY=${TONATIUHPP_TEST_WORKING_DIR}"
+        "-DSCENE_FILE=${_tonatiuhpp_cylinder_scene}"
+        "-DSOURCE_DIR=${CMAKE_CURRENT_LIST_DIR}"
+        "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/headless_m3_cancel_recover"
+        -P "${CMAKE_CURRENT_LIST_DIR}/cmake/run_m3_script_cancel_smoke.cmake"
+    )
+    tonatiuhpp_set_headless_test_properties(headless.m3_script_cancel_recover)
+    set_tests_properties(headless.m3_script_cancel_recover PROPERTIES TIMEOUT 120)
+
     add_test(
       NAME headless.validate_cylinder_scene
       COMMAND "${TONATIUHPP_TEST_EXE}" --headless validate-scene "${_tonatiuhpp_cylinder_scene}"

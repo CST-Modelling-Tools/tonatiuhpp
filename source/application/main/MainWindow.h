@@ -70,6 +70,8 @@ public:
     TSceneKit* getSceneKit();
     // Preserve GUI scene selection, undo and model refresh for script insertion.
     bool insertScriptNode(SoNode* node);
+    // Load through the existing GUI document/tree lifecycle without file dialogs.
+    bool loadSceneForScript(const QString& fileName, QString* errorMessage);
     void openFileScript(QString fileName);
 
     void StartManipulation(SoDragger* dragger);

@@ -1,0 +1,102 @@
+// M3.3 native GUI / true-headless tracker parity; deliberately bounded.
+// WARNING: tn.Clear() discards the current GUI scene; save it first.
+// GUI: fixed seed 0, 200 x 200 sun grid, root insertion, same plugin set.
+
+var root = new NodeObject;
+root.setName('M3_3_Tracking');
+var assembly = root.createNode('Assembly');
+var tracker = assembly.createTracker();
+tracker.setName('Tracker');
+var armature = tracker.insertArmature('one-axis');
+armature.setParameter('primaryShift', '0 0 1');
+armature.setParameter('primaryAxis', '0 1 0');
+armature.setParameter('primaryAngles', '-90 90');
+tracker.setPart('armature', armature);
+var target = tracker.getPart('target');
+target.setParameter('aimingType', 'global');
+target.setParameter('aimingPoint', '0 0 6');
+
+var primary = assembly.createNode('Primary');
+primary.setParameter('translation', '0 0 1');
+var reflector = primary.createShape();
+reflector.setName('Shape');
+reflector.insertSurface('Planar');
+var reflectorProfile = reflector.insertProfile('Box');
+reflectorProfile.setParameter('uSize', '2');
+reflectorProfile.setParameter('vSize', '2');
+var reflectorMaterial = reflector.insertMaterial('Specular');
+reflectorMaterial.setParameter('reflectivity', '0.95');
+reflectorMaterial.setParameter('slope', '0');
+
+var receiver = root.createNode('Receiver');
+receiver.setParameter('translation', '0 0 6');
+var receiverShape = receiver.createShape();
+receiverShape.setName('Shape');
+receiverShape.insertSurface('Planar');
+var receiverProfile = receiverShape.insertProfile('Box');
+receiverProfile.setParameter('uSize', '8');
+receiverProfile.setParameter('vSize', '8');
+receiverShape.insertMaterial('Absorber');
+
+tn.Clear();
+tn.InsertScene(root);
+var scene = tn.getScene();
+if (!scene) throw new Error('No active scene.');
+var sun = scene.getPart('world.sun');
+var sunPosition = sun.getPart('position');
+var aperture = sun.getPart('aperture');
+// Prevent the receiver itself from enlarging the sampled solar aperture.
+aperture.setParameter('disabledNodes', '//Node/M3_3_Tracking/Receiver');
+sunPosition.setParameter('elevation', '60');
+var url = '//Node/M3_3_Tracking/Receiver/Shape';
+var rays = 2048;
+
+function measure(azimuth) {
+    sunPosition.setParameter('azimuth', String(azimuth));
+    if (Number(sunPosition.getParameter('azimuth')) !== azimuth)
+        throw new Error('Sun azimuth field readback differs.');
+    var power = tn.FindInterception(url, rays);
+    var angles = target.getParameter('angles');
+    if (typeof power !== 'number' || !isFinite(power) || power < 0)
+        throw new Error('Non-finite or negative tracked interception.');
+    if (!angles || !angles.trim())
+        throw new Error('Tracker did not expose computed target angles.');
+    return { power: power, angles: angles.trim() };
+}
+
+var first = measure(90);
+var repeated = measure(90);
+if (first.power !== repeated.power || first.angles !== repeated.angles)
+    throw new Error('Repeated fixed-input tracked result is not deterministic.');
+var changed = measure(110);
+var changedRepeated = measure(110);
+if (changed.power !== changedRepeated.power || changed.angles !== changedRepeated.angles)
+    throw new Error('Repeated changed-sun tracked result is not deterministic.');
+if (first.power === 0 && changed.power === 0)
+    throw new Error('Both tracked interceptions are zero; this fixture has no useful signal.');
+if (first.angles === changed.angles)
+    throw new Error('Tracker angles did not respond to the sun-position change.');
+
+var data = new DataObject;
+data.addRow('schema,m3.3-tracker-parity-v1');
+data.addRow('surface,' + url);
+data.addRow('rays,2048');
+data.addRow('sun_first_azimuth,' + 90);
+data.addRow('sun_second_azimuth,' + 110);
+data.addRow('sun_elevation,' + Number(sunPosition.getParameter('elevation')));
+data.addRow('tracker_enabled,' + tracker.getParameter('enabled').toLowerCase());
+data.addRow('target_aiming_point,' + target.getParameter('aimingPoint').trim());
+data.addRow('target_angles_first,' + first.angles);
+data.addRow('target_angles_second,' + changed.angles);
+data.addRow('power_first_w,' + first.power.toPrecision(17));
+data.addRow('power_second_w,' + changed.power.toPrecision(17));
+if (!data.write('m3_3_tracker_result.csv'))
+    throw new Error('Cannot write tracker scientific artifact.');
+var readBack = new DataObject;
+if (!readBack.read('m3_3_tracker_result.csv') || readBack.rows() !== 12)
+    throw new Error('Tracker scientific artifact failed DataObject round-trip.');
+if (readBack.row(10) !== 'power_first_w,' + first.power.toPrecision(17)
+    || readBack.row(11) !== 'power_second_w,' + changed.power.toPrecision(17))
+    throw new Error('Tracker scientific artifact changed during read-back.');
+print('M3.3 tracker parity fixture passed: ' + first.power.toPrecision(17)
+      + ' / ' + changed.power.toPrecision(17));

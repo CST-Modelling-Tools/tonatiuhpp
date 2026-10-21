@@ -1,0 +1,2 @@
+// Expected script API error at line 2: no active trace.
+tn.cancelTrace();

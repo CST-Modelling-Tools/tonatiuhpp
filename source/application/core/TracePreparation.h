@@ -98,6 +98,10 @@ private:
 class TracePreparation
 {
 public:
+    // Vacuum has unit transmission; passing it to RayTracer would still
+    // consume random draws after reflected segments.
+    static AirTransmission* effectiveTracingAir(AirTransmission* air);
+
     static bool prepareGuiTrace(const GuiTracePreparationInput& input,
                                 PreparedTraceContext* context,
                                 QString* errorMessage = nullptr);

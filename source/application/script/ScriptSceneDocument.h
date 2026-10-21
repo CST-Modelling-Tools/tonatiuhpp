@@ -18,6 +18,13 @@ public:
     TSceneKit* scene() const { return m_scene.get(); }
     bool clear(QString* errorMessage = nullptr);
     bool insert(SoNode* node, QString* errorMessage = nullptr);
+    bool load(const QString& fileName, QString* errorMessage = nullptr);
+    bool save(const QString& fileName, QString* errorMessage = nullptr) const;
+
+    // One GUI-independent writer used by both script adapters. Never replace
+    // an existing file; publish only a verified complete scene file.
+    static bool writeScene(TSceneKit* scene, const QString& fileName,
+                           QString* errorMessage = nullptr);
 
 private:
     LoadedScene m_scene;

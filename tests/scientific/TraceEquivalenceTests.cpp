@@ -371,8 +371,8 @@ bool traceOnce(PreparationPath path, ulong rays, bool recordPhotons,
                 return fail(QString("Unknown test export surface: %1").arg(exportSurfaceUrl));
             input.exportSurfaceList.push_back(selected);
         }
-        input.tracingAir = air && air->getTypeId() != AirVacuum::getClassTypeId()
-            ? air : nullptr;
+        // Use the real production policy, not a duplicated test-only condition.
+        input.tracingAir = TracePreparation::effectiveTracingAir(air);
         input.hitCallback = [&hits, observation](const RayTracerHit& hit) {
             hits.add(hit);
             if (observation)
@@ -1575,6 +1575,31 @@ TEST(ScientificSimulationConfig, BothPreparationPathsRejectInvalidConfiguration)
     EXPECT_EQ(error, QStringLiteral("Sun grid dimensions must be greater than zero."));
     EXPECT_FALSE(TracePreparation::prepareHeadlessTrace(headless, &context, &error));
     EXPECT_EQ(error, QStringLiteral("Sun grid dimensions must be greater than zero."));
+}
+
+TEST(ScientificTracePreparation, VacuumExcludedAndExponentialRetained)
+{
+    LoadedScene loaded;
+    QString error;
+    ASSERT_TRUE(SceneLoader::readFile(fixturePath(), &loaded, &error))
+        << error.toStdString();
+
+    auto* vacuum = static_cast<AirTransmission*>(
+        loaded.get()->getPart("world.air.transmission", false));
+    ASSERT_NE(vacuum, nullptr);
+    ASSERT_EQ(vacuum->getTypeId(), AirVacuum::getClassTypeId());
+    EXPECT_EQ(TracePreparation::effectiveTracingAir(nullptr), nullptr);
+    EXPECT_EQ(TracePreparation::effectiveTracingAir(vacuum), nullptr);
+
+    // A non-vacuum atmosphere must retain its exact node and absorption.
+    auto* atmosphere = new CountingExponentialAir;
+    atmosphere->constant.setValue(0.35);
+    ASSERT_TRUE(loaded.get()->setPart("world.air.transmission", atmosphere));
+    auto* selected = static_cast<AirTransmission*>(
+        loaded.get()->getPart("world.air.transmission", false));
+    ASSERT_EQ(selected, atmosphere);
+    EXPECT_EQ(TracePreparation::effectiveTracingAir(selected), selected);
+    EXPECT_LT(selected->transmission(2.), 1.);
 }
 
 int main(int argc, char** argv)

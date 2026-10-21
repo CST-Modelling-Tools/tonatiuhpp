@@ -2,6 +2,8 @@
 
 #include <QJSEngine>
 
+#include <Inventor/SbString.h>
+#include <Inventor/fields/SoField.h>
 #include <Inventor/fields/SoSFNode.h>
 #include <Inventor/fields/SoSFString.h>
 #include <Inventor/nodekits/SoBaseKit.h>
@@ -131,6 +133,31 @@ QJSValue NodeObject::getPart(const QString& name)
         if (fieldNode) node = fieldNode->getValue();
     }
     return node ? wrapNode(node) : QJSValue(0);
+}
+
+QJSValue NodeObject::getParameter(const QString& name)
+{
+    if (!m_node)
+        return reportError("NodeObject.getParameter requires a scene node.");
+    if (name.trimmed().isEmpty())
+        return reportError("NodeObject.getParameter requires a non-empty field name.");
+
+    // Mirror setParameter's legacy convention for TSeparatorKit: transform
+    // fields belong to the transform part, not to the separator itself.
+    SoNode* node = m_node;
+    if (m_node->getTypeId() == TSeparatorKit::getClassTypeId())
+        node = static_cast<TSeparatorKit*>(m_node)->getPart("transform", true);
+    SoField* field = node ? node->getField(name.toLatin1().constData()) : nullptr;
+    if (!field)
+        return reportError(QString("NodeObject.getParameter: unknown field '%1'.").arg(name));
+
+    if (field->getTypeId() == SoSFString::getClassTypeId()) {
+        const SbString& raw = static_cast<SoSFString*>(field)->getValue();
+        return QJSValue(QString::fromUtf8(raw.getString()));
+    }
+    SbString encoded;
+    field->get(encoded); // Coin's existing Inventor-field representation.
+    return QJSValue(QString::fromUtf8(encoded.getString()));
 }
 
 void NodeObject::setPart(const QString& name, QJSValue node)
