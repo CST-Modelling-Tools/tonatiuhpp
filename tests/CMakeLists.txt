@@ -146,6 +146,22 @@ if(TONATIUHPP_ENABLE_HEADLESS_SMOKE_TESTS)
   tonatiuhpp_set_headless_test_properties(headless.run_script_interception_bounded)
   set_tests_properties(headless.run_script_interception_bounded PROPERTIES TIMEOUT 75)
 
+  # M3.3: two independent native processes must reproduce the same bounded
+  # in-memory scripted interception result. GUI parity remains a manual gate.
+  add_test(
+    NAME headless.m3_script_interception_repeatability
+    COMMAND "${CMAKE_COMMAND}"
+      "-DTEST_EXECUTABLE=${TONATIUHPP_TEST_EXE}"
+      "-DTEST_WORKING_DIRECTORY=${TONATIUHPP_TEST_WORKING_DIR}"
+      "-DTEST_SCRIPT=${CMAKE_CURRENT_LIST_DIR}/scripts/m3_2_interception_bounded.tnhpps"
+      -P "${CMAKE_CURRENT_LIST_DIR}/cmake/run_m3_script_interception_repeatability.cmake"
+  )
+  tonatiuhpp_set_headless_test_properties(headless.m3_script_interception_repeatability)
+  set_tests_properties(headless.m3_script_interception_repeatability PROPERTIES
+    LABELS "headless;smoke;scientific;equivalence"
+    TIMEOUT 120
+  )
+
   set(_tonatiuhpp_cylinder_scene "${CMAKE_CURRENT_LIST_DIR}/../examples/benchmarks/cylinder.tnhpp")
   if(EXISTS "${_tonatiuhpp_cylinder_scene}")
     add_test(
