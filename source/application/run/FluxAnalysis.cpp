@@ -148,9 +148,9 @@ bool FluxAnalysis::run(QString nodeURL, QString surfaceSide, ulong nRays, bool p
     QObject::connect(&watcher, SIGNAL(progressValueChanged(int)), this, SLOT(processEvents()));
     QObject::connect(this, SIGNAL(stopSignal()), &watcher, SLOT(cancel()));
 
-    AirTransmission* airTemp = 0;
-    if (air->getTypeId() != AirTransmission::getClassTypeId())
-        airTemp = air;
+    // Do not consume an RNG draw for unity vacuum transmission after reflections.
+    // Match the effective air policy used by the headless interception path.
+    AirTransmission* airTemp = TracePreparation::effectiveTracingAir(air);
 
     GuiTracePreparationInput preparationInput;
     preparationInput.scene = m_sceneKit;

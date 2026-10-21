@@ -19,6 +19,7 @@ Q_DECLARE_METATYPE(QVector<QVariant>)
 #include "DataObject.h"
 #include "ScriptHost.h"
 #include "GuiScriptSceneAdapter.h"
+#include "headless/HeadlessScriptHost.h"
 #include "main/MainWindow.h"
 #include "kernel/scene/TSceneKit.h"
 #include "main/PluginManager.h"
@@ -345,10 +346,25 @@ void ScriptWindow::runScript()
 
         const QString scriptName = m_fileName.isEmpty()
             ? QStringLiteral("<gui-editor>") : QFileInfo(m_fileName).absoluteFilePath();
+        // Legacy synchronous tn.traceScene records errors instead of throwing.
+        // Snapshot this editor host's error count so only THIS invocation is
+        // treated as failed; older controlled errors must not poison recovery.
+        const QJSValue traceValue = m_engine->globalObject().property("__tonatiuhppTraceApi");
+        auto* traceApi = qobject_cast<HeadlessScriptApi*>(traceValue.toQObject());
+        const qsizetype traceErrorsBefore = traceApi ? traceApi->errors().size() : 0;
         QJSValue result = m_host->evaluate(document->toPlainText(), scriptName);
+        // An uncaught exception or an omitted finishTrace must not leave
+        // workers running in the GUI background after the editor reports done.
+        const bool unfinishedTrace = traceApi && traceApi->abandonTrace();
         if (result.isError())
             throw timeString() + QString("Script error: %1")
                 .arg(ScriptHost::formatError(result, scriptName));
+        if (unfinishedTrace)
+            throw timeString() + QStringLiteral(
+                "Script error: unfinished trace cancelled and joined; call tn.finishTrace() before returning.");
+        if (traceApi && traceApi->errors().size() > traceErrorsBefore)
+            throw timeString() + QString("Script error: %1")
+                .arg(traceApi->errors().at(traceErrorsBefore));
 
         QString msg = timeString() + QString("Script finished in %1 s.")
                 .arg(timer.elapsed()/1000., 0, 'f', 3);

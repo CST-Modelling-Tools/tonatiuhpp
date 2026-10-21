@@ -1,12 +1,14 @@
 #include "ScriptSceneServices.h"
 
 #include <QJSEngine>
+#include <QFileInfo>
 
 #include <algorithm>
 #include <cmath>
 #include <limits>
 
 #include "script/ScriptInterceptionService.h"
+#include "script/ScriptHost.h"
 
 #include "script/NodeObject.h"
 #include "kernel/scene/TSceneKit.h"
@@ -65,6 +67,38 @@ QJSValue ScriptSceneServices::InsertScene(const QJSValue& value)
     if (!m_insert || !m_insert(wrapper->getNode(), &error))
         return fail(error.isEmpty() ? "tn.InsertScene: scene insertion failed." : error);
     return QJSValue();
+}
+
+QJSValue ScriptSceneServices::saveScene(const QJSValue& path)
+{
+    if (!path.isString() || path.toString().trimmed().isEmpty())
+        return fail("tn.saveScene requires a non-empty scene file path.");
+    auto* host = qobject_cast<ScriptHost*>(parent());
+    if (!host || !m_save)
+        return fail("tn.saveScene: scene document is unavailable.");
+    const QString resolved = host->resolvePath(path.toString());
+    if (QFileInfo(resolved).suffix().compare(QStringLiteral("tnhpp"), Qt::CaseInsensitive) != 0)
+        return fail("tn.saveScene requires a .tnhpp file path.");
+    QString error;
+    if (!m_save(resolved, &error))
+        return fail(QString("tn.saveScene failed: %1").arg(error));
+    return QJSValue(true);
+}
+
+QJSValue ScriptSceneServices::loadScene(const QJSValue& path)
+{
+    if (!path.isString() || path.toString().trimmed().isEmpty())
+        return fail("tn.loadScene requires a non-empty scene file path.");
+    auto* host = qobject_cast<ScriptHost*>(parent());
+    if (!host || !m_load)
+        return fail("tn.loadScene: scene document is unavailable.");
+    const QString resolved = host->resolvePath(path.toString());
+    if (QFileInfo(resolved).suffix().compare(QStringLiteral("tnhpp"), Qt::CaseInsensitive) != 0)
+        return fail("tn.loadScene requires a .tnhpp file path.");
+    QString error;
+    if (!m_load(resolved, &error))
+        return fail(QString("tn.loadScene failed: %1").arg(error));
+    return QJSValue(true);
 }
 
 QJSValue ScriptSceneServices::FindInterception(const QJSValue& surface,

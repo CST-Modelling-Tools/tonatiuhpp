@@ -66,6 +66,7 @@
 #include "core/RayTraceExecutor.h"
 #include "core/SimulationSession.h"
 #include "core/SceneInstanceBuilder.h"
+#include "core/SceneLoader.h"
 #include "core/TracePreparation.h"
 #include "core/TonatiuhCore.h"
 
@@ -339,6 +340,25 @@ MainWindow::~MainWindow()
 TSceneKit* MainWindow::getSceneKit()
 {
     return m_document->getSceneKit();
+}
+
+bool MainWindow::loadSceneForScript(const QString& fileName, QString* errorMessage)
+{
+    // Check input without GUI prompts before invoking the normal document,
+    // scene-tree, view and tracker replacement lifecycle.
+    {
+        LoadedScene parsed;
+        if (!SceneLoader::readFile(fileName, &parsed, errorMessage))
+            return false;
+    }
+    if (!openFileProject(fileName)) {
+        if (errorMessage)
+            *errorMessage = QString("GUI scene could not be loaded: %1").arg(fileName);
+        return false;
+    }
+    if (errorMessage)
+        errorMessage->clear();
+    return true;
 }
 
 void MainWindow::openFileScript(QString fileName)

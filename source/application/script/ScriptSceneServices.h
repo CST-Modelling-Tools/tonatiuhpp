@@ -25,6 +25,7 @@ public:
     using Interception = std::function<std::optional<double>(const QString&, uint)>;
     using ClearDocument = std::function<bool(QString*)>;
     using InsertNode = std::function<bool(SoNode*, QString*)>;
+    using SceneFileOperation = std::function<bool(const QString&, QString*)>;
 
     explicit ScriptSceneServices(QObject* parent = nullptr) : QObject(parent) {}
 
@@ -33,6 +34,8 @@ public:
     void setInterception(Interception callback) { m_interception = std::move(callback); }
     void setClearDocument(ClearDocument callback) { m_clear = std::move(callback); }
     void setInsertNode(InsertNode callback) { m_insert = std::move(callback); }
+    void setSaveDocument(SceneFileOperation callback) { m_save = std::move(callback); }
+    void setLoadDocument(SceneFileOperation callback) { m_load = std::move(callback); }
 
     TSceneKit* scene() const { return m_scene ? m_scene() : nullptr; }
     SoNode* create(FactoryKind kind, const QString& name) const
@@ -49,6 +52,8 @@ public:
     Q_INVOKABLE QJSValue getScene();
     Q_INVOKABLE QJSValue Clear();
     Q_INVOKABLE QJSValue InsertScene(const QJSValue& value);
+    Q_INVOKABLE QJSValue saveScene(const QJSValue& path);
+    Q_INVOKABLE QJSValue loadScene(const QJSValue& path);
     Q_INVOKABLE QJSValue FindInterception(const QJSValue& surface, const QJSValue& rays);
 
     static ScriptSceneServices* forObject(QObject* object);
@@ -61,6 +66,8 @@ private:
     Interception m_interception;
     ClearDocument m_clear;
     InsertNode m_insert;
+    SceneFileOperation m_save;
+    SceneFileOperation m_load;
 };
 
 // Register the same domain facade and NodeObject class on each engine.

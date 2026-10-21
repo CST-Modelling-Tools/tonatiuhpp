@@ -3,6 +3,7 @@
 #include <cmath>
 #include <limits>
 #include <memory>
+#include <utility>
 
 #include <QCoreApplication>
 #include <QElapsedTimer>
@@ -102,6 +103,8 @@ HeadlessScriptApi::HeadlessScriptApi(QJSEngine* engine, QObject* parent)
 {
 }
 
+HeadlessScriptApi::~HeadlessScriptApi() = default;
+
 void HeadlessScriptApi::print(const QJSValue& value)
 {
     QTextStream out(stdout);
@@ -122,7 +125,15 @@ bool HeadlessScriptApi::writeJson(const QString& fileName, const QJSValue& value
         return false;
     }
 
-    QFileInfo info(fileName);
+    // Match DataObject's per-script path policy. A headless script can be
+    // launched from any working directory without redirecting JSON output.
+    QString resolvedPath = fileName;
+    if (m_engine) {
+        const QJSValue context = m_engine->globalObject().property("__tonatiuhppScriptHost");
+        if (auto* host = qobject_cast<ScriptHost*>(context.toQObject()))
+            resolvedPath = host->resolvePath(fileName);
+    }
+    QFileInfo info(resolvedPath);
     QDir parentDir = info.absoluteDir();
     if (!parentDir.exists() && !parentDir.mkpath(".")) {
         recordError(QString("tn.writeJson failed: cannot create output directory %1.").arg(parentDir.absolutePath()));
@@ -199,6 +210,10 @@ int HeadlessScriptApi::runBenchmark(const QString& configFileName)
 
 QJSValue HeadlessScriptApi::traceScene(const QJSValue& optionsValue)
 {
+    if (m_pendingTrace) {
+        recordError("tn.traceScene failed: finish the active script trace first.");
+        return QJSValue();
+    }
     if (!m_engine) {
         recordError("tn.traceScene failed: script engine is not available.");
         return QJSValue();
@@ -261,6 +276,144 @@ QJSValue HeadlessScriptApi::traceScene(const QJSValue& optionsValue)
     }
 
     return makeTraceSummary(m_engine, absoluteFilePath(sceneFileName), rays, seed, session.result());
+}
+
+QJSValue HeadlessScriptApi::startTrace(const QJSValue& options)
+{
+    auto fail = [this](const QString& reason) -> QJSValue {
+        if (m_engine)
+            m_engine->throwError(QStringLiteral("tn.startTrace failed: ") + reason);
+        return QJSValue();
+    };
+    if (!m_engine)
+        return QJSValue();
+    if (m_pendingTrace)
+        return fail("a script trace is already active; call tn.finishTrace first.");
+    if (!options.isObject())
+        return fail("options must be an object.");
+
+    const QJSValue sceneValue = options.property("scene");
+    if (!sceneValue.isString() || sceneValue.toString().trimmed().isEmpty())
+        return fail("options.scene must be a non-empty scene path.");
+
+    ulong rays = 0;
+    QString error;
+    const QJSValue raysValue = options.property("rays");
+    if (raysValue.isUndefined()
+        || !readIntegerOption(raysValue, "options.rays", false, &rays, &error))
+        return fail(error.isEmpty() ? QStringLiteral("options.rays is required.") : error);
+
+    ulong seed = 0;
+    const QJSValue seedValue = options.property("seed");
+    if (!seedValue.isUndefined()
+        && !readIntegerOption(seedValue, "options.seed", true, &seed, &error))
+        return fail(error);
+    const QJSValue noExport = options.property("noExport");
+    if (!noExport.isBool() || !noExport.toBool())
+        return fail("options.noExport must be true; photon export is not supported.");
+
+    // Resolve the same script-local path as DataObject and tn.loadScene.
+    // Do not assume the process working directory is the script directory.
+    auto* host = qobject_cast<ScriptHost*>(m_engine->globalObject()
+        .property("__tonatiuhppScriptHost").toQObject());
+    const QString path = host ? host->resolvePath(sceneValue.toString())
+                              : absoluteFilePath(sceneValue.toString());
+    TonatiuhCore::initializeCoin();
+    auto plugins = std::make_shared<CorePluginRegistry>();
+    initializeSceneServices(path, plugins.get());
+    auto scene = std::make_shared<LoadedScene>();
+    if (!SceneLoader::readFile(path, scene.get(), &error))
+        return fail(QString("cannot load %1: %2").arg(path, error));
+
+    auto session = std::make_unique<SimulationSession>();
+    session->retainResource(plugins);
+    session->retainResource(scene);
+    HeadlessTracePreparationInput input;
+    input.scene = scene->get();
+    input.configuration.rays = rays;
+    input.configuration.masterSeed = seed;
+    if (!session->prepareHeadless(input, &error) || !session->start(&error))
+        return fail(QString("cannot start %1: %2").arg(path, error));
+
+    m_pendingTrace = std::move(session);
+    m_pendingSceneFile = absoluteFilePath(path);
+    m_pendingRays = rays;
+    m_pendingSeed = seed;
+    QJSValue started = m_engine->newObject();
+    started.setProperty("status", QJSValue(QStringLiteral("running")));
+    started.setProperty("rays_requested", QJSValue(static_cast<double>(rays)));
+    started.setProperty("seed", QJSValue(static_cast<double>(seed)));
+    started.setProperty("scene_file", QJSValue(m_pendingSceneFile));
+    return started;
+}
+
+QJSValue HeadlessScriptApi::cancelTrace()
+{
+    if (!m_pendingTrace || !m_pendingTrace->isRunning()) {
+        if (m_engine)
+            m_engine->throwError(QStringLiteral("tn.cancelTrace failed: no active script trace; call tn.startTrace first."));
+        return QJSValue();
+    }
+    // This only requests cancellation. finishTrace() always joins workers.
+    m_pendingTrace->cancel();
+    return QJSValue(true);
+}
+
+QJSValue HeadlessScriptApi::finishTrace()
+{
+    if (!m_pendingTrace) {
+        if (m_engine)
+            m_engine->throwError(QStringLiteral("tn.finishTrace failed: no active script trace."));
+        return QJSValue();
+    }
+
+    // Releasing the owning pointer here also makes the host reusable after
+    // a cancelled or failed run, with all worker/resource joins complete.
+    std::unique_ptr<SimulationSession> finished = std::move(m_pendingTrace);
+    QString error;
+    const bool success = finished->waitForFinished(&error);
+    if (!success && finished->state() != SimulationSession::State::Cancelled) {
+        if (m_engine)
+            m_engine->throwError(QStringLiteral("tn.finishTrace failed: ") + error);
+        return QJSValue();
+    }
+
+    QJSValue result;
+    if (success && finished->state() == SimulationSession::State::Completed) {
+        result = makeTraceSummary(m_engine, m_pendingSceneFile,
+                                  m_pendingRays, m_pendingSeed, finished->result());
+        result.setProperty("status", QJSValue(QStringLiteral("completed")));
+        result.setProperty("accepted", QJSValue(true));
+        result.setProperty("rays_requested", QJSValue(static_cast<double>(m_pendingRays)));
+    } else {
+        // Cancellation is NOT a successful trace. Return counters only; do
+        // not supply final area, irradiance, or power that could be mistaken
+        // for scientifically accepted results.
+        result = m_engine->newObject();
+        result.setProperty("status", QJSValue(QStringLiteral("cancelled")));
+        result.setProperty("accepted", QJSValue(false));
+        result.setProperty("no_export", QJSValue(true));
+        result.setProperty("photon_export", QJSValue(false));
+        result.setProperty("export_failed", QJSValue(finished->exportFailed()));
+        result.setProperty("rays_requested", QJSValue(static_cast<double>(m_pendingRays)));
+        result.setProperty("rays_traced", QJSValue(static_cast<double>(finished->fullyCompletedRays())));
+        result.setProperty("chunks_completed", QJSValue(static_cast<double>(finished->fullyCompletedChunks())));
+        result.setProperty("elapsed_seconds", QJSValue(finished->result().elapsedSeconds));
+    }
+    return result;
+}
+
+bool HeadlessScriptApi::abandonTrace()
+{
+    if (!m_pendingTrace)
+        return false;
+    std::unique_ptr<SimulationSession> abandoned = std::move(m_pendingTrace);
+    if (abandoned->isRunning()) {
+        abandoned->cancel();
+        QString ignoredError;
+        abandoned->waitForFinished(&ignoredError);
+    }
+    return true;
 }
 
 void HeadlessScriptApi::initializeSceneServices(const QString& fileName, CorePluginRegistry* plugins) const
@@ -398,6 +551,18 @@ int HeadlessScriptHost::runScript(const QString& fileName) const
     nodeServices->setInsertNode([document](SoNode* node, QString* error) {
         return document->insert(node, error);
     });
+    nodeServices->setSaveDocument([document](const QString& path, QString* error) {
+        return document->save(path, error);
+    });
+    nodeServices->setLoadDocument([document, factories, factoriesLoaded](
+                                   const QString& path, QString* error) {
+        if (!*factoriesLoaded) {
+            factories->loadScenePlugins(
+                TonatiuhCore::pluginSearchPaths(QCoreApplication::applicationDirPath()));
+            *factoriesLoaded = true;
+        }
+        return document->load(path, error);
+    });
     registerScriptSceneServices(&engine, nodeServices);
     HeadlessScriptApi api(&engine);
     QJSEngine::setObjectOwnership(&api, QJSEngine::CppOwnership);
@@ -424,6 +589,8 @@ int HeadlessScriptHost::runScript(const QString& fileName) const
     getScene: sceneApi.getScene,
     Clear: sceneApi.Clear,
     InsertScene: sceneApi.InsertScene,
+    saveScene: sceneApi.saveScene,
+    loadScene: sceneApi.loadScene,
     FindInterception: sceneApi.FindInterception,
     writeJson: function(path, value) {
       return api.writeJson(requirePath("tn.writeJson", path), value);
@@ -436,7 +603,11 @@ int HeadlessScriptHost::runScript(const QString& fileName) const
     },
     traceScene: function(options) {
       return api.traceScene(options);
-    }
+    },
+    // Forward the bound native functions for accurate user-source lines.
+    startTrace: api.startTrace,
+    cancelTrace: api.cancelTrace,
+    finishTrace: api.finishTrace
   };
 
   if (typeof Proxy === "function") {
@@ -449,7 +620,7 @@ int HeadlessScriptHost::runScript(const QString& fileName) const
           return undefined;
         }
         return function() {
-          throw new Error("Headless script API does not support '" + String(property) + "'. Available APIs: print(value), tn.getScene(), tn.Clear(), tn.InsertScene(node), tn.FindInterception(surface, rays), tn.writeJson(path, value), tn.validateScene(path), tn.runBenchmark(path), tn.traceScene(options).");
+          throw new Error("Headless script API does not support '" + String(property) + "'. Available APIs: print(value), tn.getScene(), tn.Clear(), tn.InsertScene(node), tn.saveScene(path), tn.loadScene(path), tn.FindInterception(surface, rays), tn.writeJson(path, value), tn.validateScene(path), tn.runBenchmark(path), tn.traceScene(options), tn.startTrace(options), tn.cancelTrace(), tn.finishTrace().");
         };
       }
     });
@@ -468,11 +639,16 @@ int HeadlessScriptHost::runScript(const QString& fileName) const
     }
 
     QJSValue result = host.evaluate(source, scriptInfo.absoluteFilePath(), 1);
+    const bool unfinishedTrace = api.abandonTrace(); // Joins even on JS errors.
     if (result.isError()) {
         printScriptError(result, scriptInfo.absoluteFilePath(), source);
         return 1;
     }
 
+    if (unfinishedTrace) {
+        err << "Script ended without tn.finishTrace: unfinished trace was cancelled and joined." << Qt::endl;
+        return 1;
+    }
     if (api.hasErrors()) {
         err << "Headless script completed with " << api.errors().size() << " API error(s)." << Qt::endl;
         return 1;

@@ -1,0 +1,51 @@
+// M3.3 matched-input GUI / true-headless script parity fixture.
+// Execute on a fresh/unselected GUI scene with fixed seed 0 and 200x200 sun grid.
+// This script clears the active document; save GUI work before running it.
+// The small 2,048-ray trace does not export photons or run any benchmark.
+
+var root = new NodeObject;
+root.setName('M3_3_Parity');
+var receiver = root.createNode('Receiver');
+var shape = receiver.createShape();
+shape.setName('Shape');
+shape.insertSurface('Planar');
+var profile = shape.insertProfile('Box');
+profile.setParameter('uSize', '8');
+profile.setParameter('vSize', '8');
+shape.insertMaterial('Absorber');
+
+tn.Clear();
+tn.InsertScene(root);
+var scene = tn.getScene();
+if (!scene)
+    throw new Error('M3.3 scene document is missing.');
+var sunPosition = scene.getPart('world.sun.position');
+if (!sunPosition)
+    throw new Error('M3.3 sun position is missing.');
+sunPosition.setParameter('azimuth', 180);
+sunPosition.setParameter('elevation', 90);
+
+var target = '//Node/M3_3_Parity/Receiver/Shape';
+var rays = 2048;
+var power = tn.FindInterception(target, rays);
+if (typeof power !== 'number' || !isFinite(power) || power <= 0)
+    throw new Error('M3.3 intercepted power must be finite and positive.');
+
+// Stable, cross-host scientific artifact. Ignore console timestamps and
+// elapsed time; preserve the complete 17-digit JS double representation.
+var powerText = power.toPrecision(17);
+var data = new DataObject;
+data.addRow('schema,m3.3-script-parity-v1');
+data.addRow('surface,' + target);
+data.addRow('rays,2048');
+data.addRow('sun_azimuth_deg,180');
+data.addRow('sun_elevation_deg,90');
+data.addRow('power_w,' + powerText);
+if (!data.write('m3_3_parity_result.csv'))
+    throw new Error('M3.3 cannot write script-relative artifact.');
+
+var check = new DataObject;
+if (!check.read('m3_3_parity_result.csv') || check.rows() !== 6
+    || check.row(5) !== 'power_w,' + powerText)
+    throw new Error('M3.3 DataObject artifact did not round-trip.');
+print('M3.3 parity fixture passed: ' + powerText);

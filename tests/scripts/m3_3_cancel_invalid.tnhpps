@@ -1,0 +1,2 @@
+// Expected script API error at line 2: output policy is not supported.
+tn.startTrace({scene:'cylinder.tnhpp', rays:2048, seed:0, noExport:false});

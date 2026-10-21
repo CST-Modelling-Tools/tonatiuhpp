@@ -1,0 +1,2 @@
+// Expected host-level error after evaluation: pending trace must be joined.
+tn.startTrace({scene:'cylinder.tnhpp', rays:3000000, seed:0, noExport:true});

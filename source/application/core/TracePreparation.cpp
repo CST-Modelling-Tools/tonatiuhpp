@@ -131,6 +131,12 @@ bool TracePreparation::prepareResolvedTrace(PreparedTraceContext&& prepared,
     return true;
 }
 
+AirTransmission* TracePreparation::effectiveTracingAir(AirTransmission* air)
+{
+    return air && air->getTypeId() != AirVacuum::getClassTypeId()
+        ? air : nullptr;
+}
+
 bool TracePreparation::prepareGuiTrace(const GuiTracePreparationInput& input,
                                        PreparedTraceContext* context,
                                        QString* errorMessage)
@@ -206,10 +212,8 @@ bool TracePreparation::prepareHeadlessTrace(const HeadlessTracePreparationInput&
 
     AirTransmission* air = static_cast<AirTransmission*>(
         input.scene->getPart("world.air.transmission", false));
-    // Preserve the headless vacuum policy; GUI adapters continue to supply
-    // their own effective non-vacuum air object.
-    if (air && air->getTypeId() != AirVacuum::getClassTypeId())
-        prepared.m_tracingAir = air;
+    // Retain the original headless policy through the shared helper.
+    prepared.m_tracingAir = effectiveTracingAir(air);
 
     prepared.m_photonBuffer = input.photonBuffer;
     prepared.m_hitCallback = input.hitCallback;

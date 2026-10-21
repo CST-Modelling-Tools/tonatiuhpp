@@ -3,9 +3,11 @@
 #include <QDebug>
 #include <QPointer>
 
+#include "headless/HeadlessScriptHost.h"
 #include "main/MainWindow.h"
 #include "main/PluginManager.h"
 #include "script/ScriptHost.h"
+#include "script/ScriptSceneDocument.h"
 #include "script/ScriptSceneServices.h"
 
 #include "kernel/shape/ShapeRT.h"
@@ -86,15 +88,39 @@ void installGuiScriptSceneAdapter(ScriptHost* host, MainWindow* window)
             *error = "tn.InsertScene: no valid group is selected for insertion.";
         return false;
     });
+    services->setSaveDocument([gui](const QString& fileName, QString* error) {
+        if (!gui) {
+            if (error) *error = "tn.saveScene: GUI document is closed.";
+            return false;
+        }
+        return ScriptSceneDocument::writeScene(gui->getSceneKit(), fileName, error);
+    });
+    services->setLoadDocument([gui](const QString& fileName, QString* error) {
+        if (!gui) {
+            if (error) *error = "tn.loadScene: GUI document is closed.";
+            return false;
+        }
+        return gui->loadSceneForScript(fileName, error);
+    });
     registerScriptSceneServices(host->engine(), services);
 
-    // Only three operations move to the shared domain facade in Step 3.
+    // The same file-based, no-export session API as true-headless scripts.
+    // Parent it to the host so an unfinished trace is cancelled/joined when
+    // the editor's host is destroyed, never retaining a MainWindow pointer.
+    auto* traceApi = new HeadlessScriptApi(host->engine(), host);
+    QJSEngine::setObjectOwnership(traceApi, QJSEngine::CppOwnership);
+    host->engine()->globalObject().setProperty(
+        "__tonatiuhppTraceApi", host->engine()->newQObject(traceApi));
+
+    // Shared nonvisual save/load joins getScene, Clear and InsertScene;
+    // GUI-only presentation methods keep forwarding to MainWindow.
     // All other GUI script methods still forward to the legacy MainWindow
     // object, preserving their original call signatures and selection policy.
     const QJSValue bridge = host->evaluate(QStringLiteral(R"JS(
 (function(global) {
   var legacy = global.tn;
   var scene = global.__tonatiuhppSceneApi;
+  var trace = global.__tonatiuhppTraceApi;
   if (typeof Proxy !== 'function')
     throw new Error('M3.2 GUI scene API requires JavaScript Proxy support.');
   var facade = new Proxy(legacy, {
@@ -107,6 +133,18 @@ void installGuiScriptSceneAdapter(ScriptHost* host, MainWindow* window)
         return scene.Clear;
       if (property === 'InsertScene')
         return scene.InsertScene;
+      if (property === 'saveScene')
+        return scene.saveScene;
+      if (property === 'loadScene')
+        return scene.loadScene;
+      if (property === 'traceScene')
+        return trace.traceScene;
+      if (property === 'startTrace')
+        return trace.startTrace;
+      if (property === 'cancelTrace')
+        return trace.cancelTrace;
+      if (property === 'finishTrace')
+        return trace.finishTrace;
       var value = target[property];
       return typeof value === 'function' ? value.bind(target) : value;
     },
