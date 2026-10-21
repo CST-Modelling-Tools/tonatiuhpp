@@ -1,0 +1,4 @@
+var root = new NodeObject;
+tn.Clear();
+tn.InsertScene(root);
+tn.FindInterception('//Node/Missing/Shape', 128);

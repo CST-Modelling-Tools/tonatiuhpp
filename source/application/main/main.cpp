@@ -14,6 +14,8 @@
 
 #include <Inventor/Qt/SoQt.h>
 #include "headless/HeadlessCommandRunner.h"
+#include "script/ScriptHost.h"
+#include "script/GuiScriptSceneAdapter.h"
 #include "MainWindow.h"
 
 QTextStream cerr(stderr);
@@ -178,33 +180,31 @@ int main(int argc, char** argv)
     {
         SoQt::init((QWidget*) 0);
 
-        QJSEngine* engine = new QJSEngine;
+        MainWindow mw;
+        // The legacy CLI wraps a stack-owned window in the script engine.
+        // Keep ownership in C++ so engine cleanup cannot delete the stack object.
+        QQmlEngine::setObjectOwnership(&mw, QQmlEngine::CppOwnership);
+        ScriptHost host;
+        QJSEngine* engine = host.engine();
 //        qScriptRegisterSequenceMetaType<QVector<QVariant>>(engine);
 
-        MainWindow mw;
         QJSValue tonatiuh = engine->newQObject(&mw);
         engine->globalObject().setProperty("tonatiuh", tonatiuh);
         engine->globalObject().setProperty("tn", tonatiuh);
 
-        NodeObject::setMainWindow(&mw);
-        NodeObject::setEngine(engine);
-        DataObject::setEngine(engine);
+        // Per-host scene/factory interface; no process-global NodeObject pointers.
+        installGuiScriptSceneAdapter(&host, &mw);
 //        QJSValue nodeObjectClass = engine->scriptValueFromQMetaObject<NodeObject>();
-        QJSValue nodeObjectClass = engine->newQMetaObject(&NodeObject::staticMetaObject);
-        engine->globalObject().setProperty("NodeObject", nodeObjectClass);
+        // NodeObject is registered by installGuiScriptSceneAdapter().
 
         //https://doc.qt.io/qt-5/qjsengine.html???
 //        QJSValue jsMetaObject = engine->newQMetaObject(&NodeObject::staticMetaObject);??
 //        engine.globalObject().setProperty("MyObject", jsMetaObject);
 
 //        QJSValue fileObjectClass = engine->scriptValueFromQMetaObject<DataObject>();
-        QJSValue fileObjectClass = engine->newQMetaObject(&DataObject::staticMetaObject);
-        engine->globalObject().setProperty("DataObject", fileObjectClass);
+        // DataObject registration and per-host context belong to ScriptHost.
 
-        QJSValue myExt = engine->newQObject(&mw);
-        QQmlEngine::setObjectOwnership(myExt.toQObject(), QQmlEngine::CppOwnership); // important
-        engine->globalObject().setProperty("print", myExt.property("print"));
-        engine->globalObject().setProperty("printTimed", myExt.property("printTimed"));
+        // The shared ScriptHost already provides print and printTimed.
 
         QFile file(fileName);
         if (!file.open(QIODevice::ReadOnly))
@@ -235,17 +235,15 @@ int main(int argc, char** argv)
 //            return -1;
 //        }
 
-        QJSValue result = engine->evaluate(program);
+        QJSValue result = host.evaluate(program, QFileInfo(fileName).absoluteFilePath());
         if (result.isError())
         {
-            QString text = QString("Runtime error.\nLine %1. %2")
-                .arg(result.property("lineNumber").toNumber())
-                .arg(result.toString());
-            cerr << text << Qt::endl;
+            cerr << "Script execution failed: "
+                 << ScriptHost::formatError(result, QFileInfo(fileName).absoluteFilePath())
+                 << Qt::endl;
             return 1;
         }
 
-        delete engine;
         return 0;
     }
 }

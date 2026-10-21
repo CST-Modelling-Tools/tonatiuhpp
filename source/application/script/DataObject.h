@@ -12,7 +12,7 @@ class DataObject: public QObject//, protected QScriptable
 public:
     Q_INVOKABLE DataObject(QObject* parent = 0);
 
-    static void setEngine(QJSEngine* engine) {s_engine = engine;}
+    // Engine and file-directory context are resolved from qjsEngine(this).
 
 public slots:
     QJSValue read(const QString& fileName = "");
@@ -32,6 +32,5 @@ public slots:
 
 private:
     QStringList m_data;
-    static QJSEngine* s_engine;
 };
 

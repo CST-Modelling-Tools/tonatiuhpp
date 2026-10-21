@@ -182,10 +182,36 @@ bool CorePluginRegistry::registerSceneFactory(TFactory* factory, bool takeOwners
         registered = true;
     }
 
+    if (registered)
+        m_sceneFactories << factory;
     if (registered && takeOwnership)
         m_ownedFactories << factory;
     else if (!registered && takeOwnership)
         delete factory;
 
     return registered;
+}
+
+SoNode* CorePluginRegistry::createSceneNode(const QString& category, const QString& name) const
+{
+    // Later registered plugins override same-name builtins like GUI maps do.
+    for (auto it = m_sceneFactories.crbegin(); it != m_sceneFactories.crend(); ++it) {
+        TFactory* factory = *it;
+        if (!factory || factory->name() != name)
+            continue;
+        if (category == "shape") {
+            if (auto* f = dynamic_cast<ShapeFactory*>(factory)) return f->create();
+        } else if (category == "profile") {
+            if (auto* f = dynamic_cast<ProfileFactory*>(factory)) return f->create();
+        } else if (category == "material") {
+            if (auto* f = dynamic_cast<MaterialFactory*>(factory)) return f->create();
+        } else if (category == "tracker") {
+            if (auto* f = dynamic_cast<TrackerFactory*>(factory)) return f->create();
+        } else if (category == "sun") {
+            if (auto* f = dynamic_cast<SunFactory*>(factory)) return f->create();
+        } else if (category == "air") {
+            if (auto* f = dynamic_cast<AirFactory*>(factory)) return f->create();
+        }
+    }
+    return nullptr;
 }

@@ -9,6 +9,7 @@ class QLineEdit;
 class QScriptContext;
 class QJSEngine;
 class MainWindow;
+class ScriptHost;
 class SyntaxHighlighter;
 
 namespace Ui {
@@ -54,6 +55,7 @@ private:
     Ui::ScriptWindow* ui;
 
     QString m_fileName;
-    QJSEngine* m_engine;
+    ScriptHost* m_host = nullptr;
+    QJSEngine* m_engine = nullptr; // Borrowed from m_host.
     SyntaxHighlighter* m_syntax;
 };

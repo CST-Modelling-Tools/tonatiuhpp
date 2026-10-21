@@ -2,6 +2,16 @@ set(_tonatiuhpp_equivalence_core_dir "${CMAKE_SOURCE_DIR}/application/core")
 
 add_executable(tonatiuhpp_scientific_equivalence_tests
   TraceEquivalenceTests.cpp
+  ScriptHostTests.cpp
+  ScriptSceneServicesTests.cpp
+  ScriptSceneDocumentTests.cpp
+  ScriptLegacyCorpusTests.cpp
+  "${CMAKE_SOURCE_DIR}/application/script/DataObject.cpp"
+  "${CMAKE_SOURCE_DIR}/application/script/NodeObject.cpp"
+  "${CMAKE_SOURCE_DIR}/application/script/ScriptHost.cpp"
+  "${CMAKE_SOURCE_DIR}/application/script/ScriptSceneServices.cpp"
+  "${CMAKE_SOURCE_DIR}/application/script/ScriptSceneDocument.cpp"
+  "${CMAKE_SOURCE_DIR}/application/script/ScriptInterceptionService.cpp"
   "${_tonatiuhpp_equivalence_core_dir}/CorePluginRegistry.cpp"
   "${_tonatiuhpp_equivalence_core_dir}/NativeTraceSignature.cpp"
   "${_tonatiuhpp_equivalence_core_dir}/NativeRayHistorySignature.cpp"
@@ -30,12 +40,14 @@ target_compile_definitions(tonatiuhpp_scientific_equivalence_tests PRIVATE
 )
 
 # The fixture uses the real MaterialSpecular scene factory plugin.
-add_dependencies(tonatiuhpp_scientific_equivalence_tests MaterialSpecular)
+add_dependencies(tonatiuhpp_scientific_equivalence_tests MaterialSpecular ShapeFunctionXYZ)
 
 target_compile_definitions(tonatiuhpp_scientific_equivalence_tests PRIVATE
   "TONATIUHPP_SPECULAR_SCENE_FILE=\"${CMAKE_CURRENT_LIST_DIR}/fixtures/specular-two-reflections.tnhpp\""
   "TONATIUHPP_TRACKER_SCENE_FILE=\"${CMAKE_CURRENT_LIST_DIR}/fixtures/one-axis-tracker.tnhpp\""
   "TONATIUHPP_SCIENTIFIC_PLUGIN_DIRECTORY=\"${CMAKE_BINARY_DIR}/plugins\""
+  "TONATIUHPP_LEGACY_SCRIPT_EXAMPLES_ROOT=\"${CMAKE_SOURCE_DIR}/../examples\""
+  "TONATIUHPP_SCRIPT_INTERCEPTION_FIXTURE_FILE=\"${CMAKE_CURRENT_LIST_DIR}/../scripts/m3_2_interception_bounded.tnhpps\""
 )
 
 target_link_libraries(tonatiuhpp_scientific_equivalence_tests PRIVATE
@@ -44,6 +56,7 @@ target_link_libraries(tonatiuhpp_scientific_equivalence_tests PRIVATE
   Qt6::Core
   Qt6::Gui
   Qt6::Concurrent
+  Qt6::Qml
   TonatiuhLibraries
   TonatiuhKernel
 )

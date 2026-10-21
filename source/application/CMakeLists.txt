@@ -62,6 +62,11 @@ set(HEADERS
     script/AboutScriptDialog.h
     script/CodeEditor.h
     script/DataObject.h
+    script/ScriptHost.h
+    script/GuiScriptSceneAdapter.h
+    script/ScriptSceneServices.h
+    script/ScriptSceneDocument.h
+    script/ScriptInterceptionService.h
     script/LineNumbers.h
     script/NodeObject.h
     script/ScriptRayTracer.h
@@ -145,6 +150,11 @@ set(SOURCES
     script/AboutScriptDialog.cpp
     script/CodeEditor.cpp
     script/DataObject.cpp
+    script/ScriptHost.cpp
+    script/GuiScriptSceneAdapter.cpp
+    script/ScriptSceneServices.cpp
+    script/ScriptSceneDocument.cpp
+    script/ScriptInterceptionService.cpp
     script/LineNumbers.cpp
     script/NodeObject.cpp
     script/ScriptRayTracer.cpp

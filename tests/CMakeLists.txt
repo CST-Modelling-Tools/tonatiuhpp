@@ -105,6 +105,47 @@ if(TONATIUHPP_ENABLE_HEADLESS_SMOKE_TESTS)
   )
   tonatiuhpp_set_headless_test_properties(headless.run_script_rejects_gui_api)
 
+  add_test(
+    NAME headless.run_script_scene_document
+    COMMAND "${CMAKE_COMMAND}"
+      "-DTEST_EXECUTABLE=${TONATIUHPP_TEST_EXE}"
+      "-DTEST_WORKING_DIRECTORY=${TONATIUHPP_TEST_WORKING_DIR}"
+      "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/headless_scene_document"
+      -P "${CMAKE_CURRENT_LIST_DIR}/cmake/run_headless_scene_document_smoke.cmake"
+  )
+  tonatiuhpp_set_headless_test_properties(headless.run_script_scene_document)
+
+  # Run two small, unmodified tracked examples. They construct scenes but do
+  # not trace rays or access sidecar CSVs. ShapeFunctionXYZ must be built.
+  add_test(
+    NAME headless.run_script_cpc_curved
+    COMMAND "${TONATIUHPP_TEST_EXE}" --headless run-script
+      "${CMAKE_CURRENT_LIST_DIR}/../examples/devices/CPC/CPC-rotated.tnhpps"
+  )
+  tonatiuhpp_set_headless_test_properties(headless.run_script_cpc_curved)
+  set_tests_properties(headless.run_script_cpc_curved PROPERTIES TIMEOUT 30)
+
+  add_test(
+    NAME headless.run_script_cpc_faceted
+    COMMAND "${TONATIUHPP_TEST_EXE}" --headless run-script
+      "${CMAKE_CURRENT_LIST_DIR}/../examples/devices/CPC/CPC-rotated-step.tnhpps"
+  )
+  tonatiuhpp_set_headless_test_properties(headless.run_script_cpc_faceted)
+  set_tests_properties(headless.run_script_cpc_faceted PROPERTIES TIMEOUT 30)
+
+  # Actual no-export ray-tracing operation with a strictly small ray budget.
+  add_test(
+    NAME headless.run_script_interception_bounded
+    COMMAND "${CMAKE_COMMAND}"
+      "-DTEST_EXECUTABLE=${TONATIUHPP_TEST_EXE}"
+      "-DTEST_WORKING_DIRECTORY=${TONATIUHPP_TEST_WORKING_DIR}"
+      "-DTEST_SCRIPT=${CMAKE_CURRENT_LIST_DIR}/scripts/m3_2_interception_bounded.tnhpps"
+      "-DERROR_SCRIPT=${CMAKE_CURRENT_LIST_DIR}/scripts/m3_2_interception_error.tnhpps"
+      -P "${CMAKE_CURRENT_LIST_DIR}/cmake/run_headless_interception_smoke.cmake"
+  )
+  tonatiuhpp_set_headless_test_properties(headless.run_script_interception_bounded)
+  set_tests_properties(headless.run_script_interception_bounded PROPERTIES TIMEOUT 75)
+
   set(_tonatiuhpp_cylinder_scene "${CMAKE_CURRENT_LIST_DIR}/../examples/benchmarks/cylinder.tnhpp")
   if(EXISTS "${_tonatiuhpp_cylinder_scene}")
     add_test(

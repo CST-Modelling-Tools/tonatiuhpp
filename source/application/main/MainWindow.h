@@ -68,6 +68,8 @@ public:
 
     PluginManager* getPlugins() {return m_pluginManager;}
     TSceneKit* getSceneKit();
+    // Preserve GUI scene selection, undo and model refresh for script insertion.
+    bool insertScriptNode(SoNode* node);
     void openFileScript(QString fileName);
 
     void StartManipulation(SoDragger* dragger);

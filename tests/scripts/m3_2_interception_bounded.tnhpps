@@ -1,0 +1,21 @@
+// Deliberately small, no file IO, no benchmark and no photon export.
+var root = new NodeObject;
+root.setName('M3_2_Interception');
+var receiver = root.createNode('Receiver');
+var shape = receiver.createShape();
+shape.setName('Shape');
+shape.insertSurface('Planar');
+var profile = shape.insertProfile('Box');
+profile.setParameter('uSize', '8');
+profile.setParameter('vSize', '8');
+shape.insertMaterial('Absorber');
+tn.Clear();
+tn.InsertScene(root);
+var sunPosition = tn.getScene().getPart('world.sun.position');
+sunPosition.setParameter('azimuth', 180);
+sunPosition.setParameter('elevation', 90);
+var url = '//Node/M3_2_Interception/Receiver/Shape';
+var power = tn.FindInterception(url, 2048);
+if (typeof power !== 'number' || !isFinite(power) || power <= 0)
+    throw new Error('Interception power must be finite and positive.');
+print('M3.2 bounded interception smoke passed: ' + power);
