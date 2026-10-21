@@ -4,13 +4,38 @@
 #include <QFile>
 #include <QDir>
 #include <QTextStream>
-#include <QMessageBox>
 #include <QJSEngine>
 #include <QString>
 #include <QStringList>
 
+#include "script/ScriptHost.h"
 
-QJSEngine* DataObject::s_engine = 0;
+
+namespace
+{
+QString dataFilePath(QObject* object, const QString& fileName)
+{
+    if (QJSEngine* engine = qjsEngine(object)) {
+        const QJSValue context = engine->globalObject().property("__tonatiuhppScriptHost");
+        if (auto* host = qobject_cast<ScriptHost*>(context.toQObject()))
+            return host->resolvePath(fileName);
+    }
+    // Standalone C++ fallback; never index an empty "project" path list.
+    if (QDir::isAbsolutePath(fileName))
+        return QDir::cleanPath(fileName);
+    const QStringList paths = QDir::searchPaths("project");
+    if (!paths.isEmpty())
+        return QDir(paths.constFirst()).absoluteFilePath(fileName);
+    return QFileInfo(fileName).absoluteFilePath();
+}
+
+QJSValue dataFileError(QObject* object, const QString& error)
+{
+    if (QJSEngine* engine = qjsEngine(object))
+        engine->throwError(error);
+    return QJSValue(false);
+}
+}
 
 DataObject::DataObject(QObject* parent):
     QObject(parent)
@@ -21,40 +46,44 @@ DataObject::DataObject(QObject* parent):
 QJSValue DataObject::read(const QString& fileName)
 {
     m_data.clear();
+    if (fileName.trimmed().isEmpty())
+        return dataFileError(this, "DataObject.read requires a non-empty file path.");
 
-    QFileInfo info(QString("project:") + fileName);
-    if (!info.exists()) {
-        QMessageBox::warning(0, "Warning", QString("File not found:\n") + fileName);
-        return false;
-    }
-
-    QFile file(info.absoluteFilePath());
-    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-          QMessageBox::warning(0, "Warning", QString("File cannot be opened:\n") + fileName);
-        return false;
-    }
+    const QString path = dataFilePath(this, fileName);
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
+        return dataFileError(this, QString("DataObject.read cannot open %1: %2")
+                                         .arg(path, file.errorString()));
 
     QTextStream in(&file);
     QString line;
-    while (in.readLineInto(&line)) {
+    while (in.readLineInto(&line))
         m_data << line;
+    if (in.status() == QTextStream::ReadCorruptData || file.error() != QFileDevice::NoError) {
+        m_data.clear();
+        return dataFileError(this, QString("DataObject.read failed for %1").arg(path));
     }
     return true;
 }
 
 QJSValue DataObject::write(const QString& fileName)
 {
-    QDir dir = QDir::searchPaths("project")[0];
-    QFile file(dir.absoluteFilePath(fileName));
-    if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
-          QMessageBox::warning(0, "Warning", QString("File cannot be opened:\n") + fileName);
-        return false;
-    }
+    if (fileName.trimmed().isEmpty())
+        return dataFileError(this, "DataObject.write requires a non-empty file path.");
+
+    const QString path = dataFilePath(this, fileName);
+    QFile file(path);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Truncate))
+        return dataFileError(this, QString("DataObject.write cannot open %1: %2")
+                                         .arg(path, file.errorString()));
 
     QTextStream out(&file);
-    for (QString& line : m_data) {
+    for (const QString& line : m_data)
         out << line << Qt::endl;
-    }
+    out.flush();
+    if (out.status() != QTextStream::Ok || file.error() != QFileDevice::NoError)
+        return dataFileError(this, QString("DataObject.write failed for %1: %2")
+                                         .arg(path, file.errorString()));
     return true;
 }
 
@@ -88,10 +117,13 @@ void DataObject::addRow(const QString& line)
 QJSValue DataObject::array(int n)
 {
     if (n < 0 || n >= m_data.size()) return "";
-    QStringList list = m_data[n].split(',');
-    int iMax = list.size();
+    QJSEngine* engine = qjsEngine(this);
+    if (!engine)
+        return QJSValue();
+    const QStringList list = m_data[n].split(',');
+    const int iMax = list.size();
 
-    QJSValue jsArray = s_engine->newArray(iMax);
+    QJSValue jsArray = engine->newArray(static_cast<uint>(iMax));
     for (int i = 0; i < iMax; ++i)
         jsArray.setProperty(i, list[i]);
     return jsArray;

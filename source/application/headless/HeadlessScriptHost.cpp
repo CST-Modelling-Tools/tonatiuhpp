@@ -20,6 +20,9 @@
 #include "core/SceneLoader.h"
 #include "core/TracePreparation.h"
 #include "core/TonatiuhCore.h"
+#include "script/ScriptHost.h"
+#include "script/ScriptSceneDocument.h"
+#include "script/ScriptSceneServices.h"
 
 namespace
 {
@@ -356,7 +359,46 @@ int HeadlessScriptHost::runScript(const QString& fileName) const
 
     const QString source = QString::fromUtf8(scriptBytes);
 
-    QJSEngine engine;
+    // This script owns its in-memory document and factory registry; neither
+    // depends on widgets, a MainWindow, or a process-global scene pointer.
+    TonatiuhCore::initializeCoin();
+    ScriptHost host;
+    QJSEngine& engine = *host.engine();
+    auto* nodeServices = new ScriptSceneServices(&host);
+    auto factories = std::make_shared<CorePluginRegistry>();
+    auto document = std::make_shared<ScriptSceneDocument>();
+    auto factoriesLoaded = std::make_shared<bool>(false);
+    nodeServices->setNodeCreator([factories, factoriesLoaded](
+        ScriptSceneServices::FactoryKind kind, const QString& name) -> SoNode* {
+        if (!*factoriesLoaded) {
+            factories->loadScenePlugins(
+                TonatiuhCore::pluginSearchPaths(QCoreApplication::applicationDirPath()));
+            *factoriesLoaded = true;
+        }
+        switch (kind) {
+        case ScriptSceneServices::FactoryKind::Shape:
+            return factories->createSceneNode("shape", name);
+        case ScriptSceneServices::FactoryKind::Profile:
+            return factories->createSceneNode("profile", name);
+        case ScriptSceneServices::FactoryKind::Material:
+            return factories->createSceneNode("material", name);
+        case ScriptSceneServices::FactoryKind::Tracker:
+            return factories->createSceneNode("tracker", name);
+        case ScriptSceneServices::FactoryKind::Sun:
+            return factories->createSceneNode("sun", name);
+        case ScriptSceneServices::FactoryKind::Air:
+            return factories->createSceneNode("air", name);
+        }
+        return nullptr;
+    });
+    nodeServices->setSceneProvider([document] { return document->scene(); });
+    nodeServices->setClearDocument([document](QString* error) {
+        return document->clear(error);
+    });
+    nodeServices->setInsertNode([document](SoNode* node, QString* error) {
+        return document->insert(node, error);
+    });
+    registerScriptSceneServices(&engine, nodeServices);
     HeadlessScriptApi api(&engine);
     QJSEngine::setObjectOwnership(&api, QJSEngine::CppOwnership);
     engine.globalObject().setProperty("__tonatiuhppHeadlessApi", engine.newQObject(&api));
@@ -364,6 +406,7 @@ int HeadlessScriptHost::runScript(const QString& fileName) const
     const QString bootstrap = QStringLiteral(R"JS(
 (function(global) {
   const api = global.__tonatiuhppHeadlessApi;
+  const sceneApi = global.__tonatiuhppSceneApi;
   global.print = function(value) {
     return api.print(value);
   };
@@ -376,6 +419,12 @@ int HeadlessScriptHost::runScript(const QString& fileName) const
   }
 
   const tnApi = {
+    // Forward bound QObject methods rather than adding a JavaScript call frame.
+    // Native errors should identify the caller in the user script.
+    getScene: sceneApi.getScene,
+    Clear: sceneApi.Clear,
+    InsertScene: sceneApi.InsertScene,
+    FindInterception: sceneApi.FindInterception,
     writeJson: function(path, value) {
       return api.writeJson(requirePath("tn.writeJson", path), value);
     },
@@ -400,7 +449,7 @@ int HeadlessScriptHost::runScript(const QString& fileName) const
           return undefined;
         }
         return function() {
-          throw new Error("Headless script API does not support '" + String(property) + "'. Available APIs: print(value), tn.writeJson(path, value), tn.validateScene(path), tn.runBenchmark(path), tn.traceScene(options).");
+          throw new Error("Headless script API does not support '" + String(property) + "'. Available APIs: print(value), tn.getScene(), tn.Clear(), tn.InsertScene(node), tn.FindInterception(surface, rays), tn.writeJson(path, value), tn.validateScene(path), tn.runBenchmark(path), tn.traceScene(options).");
         };
       }
     });
@@ -412,13 +461,13 @@ int HeadlessScriptHost::runScript(const QString& fileName) const
 })(this);
 )JS");
 
-    QJSValue bootstrapResult = engine.evaluate(bootstrap, QStringLiteral("<headless-bootstrap>"));
+    QJSValue bootstrapResult = host.evaluate(bootstrap, QStringLiteral("<headless-bootstrap>"));
     if (bootstrapResult.isError()) {
         err << "Cannot initialize headless script host: " << bootstrapResult.toString() << Qt::endl;
         return 1;
     }
 
-    QJSValue result = engine.evaluate(source, scriptInfo.absoluteFilePath(), 1);
+    QJSValue result = host.evaluate(source, scriptInfo.absoluteFilePath(), 1);
     if (result.isError()) {
         printScriptError(result, scriptInfo.absoluteFilePath(), source);
         return 1;
@@ -437,11 +486,8 @@ void HeadlessScriptHost::printScriptError(const QJSValue& error, const QString& 
     QTextStream err(stderr);
 
     const int lineNumber = error.property("lineNumber").toInt();
-    const QString message = error.toString();
-    err << "Script execution failed: " << fileName;
-    if (lineNumber > 0)
-        err << ":" << lineNumber;
-    err << ": " << message << Qt::endl;
+    err << "Script execution failed: "
+        << ScriptHost::formatError(error, fileName) << Qt::endl;
 
     const QString context = scriptLineAt(source, lineNumber);
     if (!context.isEmpty())

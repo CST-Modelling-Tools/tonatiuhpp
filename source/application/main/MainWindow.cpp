@@ -1713,27 +1713,39 @@ void MainWindow::CreateComponentNode(QString componentType, QString nodeName, in
 #include <QQmlEngine>
 void MainWindow::InsertScene(QJSValue v)
 {
-//    QQmlEngine::setObjectOwnership(v.toQObject(), QQmlEngine::CppOwnership);
-
-//    v.toQObject()->setParent(this);
-
-    QModelIndex index = ui->sceneView->currentIndex();
-    if (!index.isValid())
-        index = m_modelScene->index(0, 0, ui->sceneView->rootIndex()); //! root is invisible
-
-    SoNode* node = m_modelScene->getInstance(index)->getNode();
-    if (!node->getTypeId().isDerivedFrom(TSeparatorKit::getClassTypeId()))
-    {
-        emit Abort("InsertFileComponent: Parent node is not valid node type.");
+    // Legacy C++ slot remains callable; the shared script facade passes the
+    // underlying node to insertScriptNode directly.
+    auto* nodeObject = qobject_cast<NodeObject*>(v.toQObject());
+    if (!nodeObject || !nodeObject->getNode()) {
+        emit Abort("InsertScene: expected a valid NodeObject.");
         return;
     }
-    NodeObject* nodeObject = (NodeObject*) v.toQObject();
-    CmdInsertNode* cmd = new CmdInsertNode(nodeObject->getNode(), index);
+    insertScriptNode(nodeObject->getNode());
+}
+
+bool MainWindow::insertScriptNode(SoNode* insertedNode)
+{
+    if (!insertedNode || !m_modelScene) {
+        emit Abort("InsertScene: script node or scene model is missing.");
+        return false;
+    }
+    QModelIndex index = ui->sceneView->currentIndex();
+    if (!index.isValid())
+        index = m_modelScene->index(0, 0, ui->sceneView->rootIndex()); // root is invisible
+
+    auto* instance = m_modelScene->getInstance(index);
+    SoNode* selected = instance ? instance->getNode() : nullptr;
+    if (!selected || !selected->getTypeId().isDerivedFrom(TSeparatorKit::getClassTypeId())) {
+        emit Abort("InsertFileComponent: Parent node is not valid node type.");
+        return false;
+    }
+    auto* cmd = new CmdInsertNode(insertedNode, index);
     cmd->setText("Insert Node from script");
     m_undoStack->push(cmd);
 
     UpdateLightSize();
     setDocumentModified(true);
+    return true;
 }
 
 QJSValue MainWindow::getScene()
@@ -1748,7 +1760,9 @@ QJSValue MainWindow::FindInterception(QJSValue surface, QJSValue rays, QJSValue 
 //    double ans = findInterception(surface.toString(), rays.toUInt(), this);
 //    return ans;
 
-    FluxAnalysis fa(m_document->getSceneKit(), m_modelScene, m_raysGridWidth, m_raysGridHeight, resolvedGuiMasterSeed());
+    const std::uint64_t interceptionSeed = GuiTraceSeed::resolve(
+        m_fixedGuiMasterSeed, [] { return resolvedGuiMasterSeed(); });
+    FluxAnalysis fa(m_document->getSceneKit(), m_modelScene, m_raysGridWidth, m_raysGridHeight, interceptionSeed);
     fa.run(surface.toString(), "front", rays.toUInt(), false, 5, 5, true);
     double ans = fa.powerTotal();
 
@@ -3065,7 +3079,9 @@ void MainWindow::dropEvent(QDropEvent* event)
 
 double findInterception(QString surface, uint rays, MainWindow* mw)
 {
-    FluxAnalysis fa(mw->m_document->getSceneKit(), mw->m_modelScene, mw->m_raysGridWidth, mw->m_raysGridHeight, resolvedGuiMasterSeed());
+    const std::uint64_t interceptionSeed = GuiTraceSeed::resolve(
+        mw->m_fixedGuiMasterSeed, [] { return resolvedGuiMasterSeed(); });
+    FluxAnalysis fa(mw->m_document->getSceneKit(), mw->m_modelScene, mw->m_raysGridWidth, mw->m_raysGridHeight, interceptionSeed);
     fa.run(surface, "front", rays, false, 5, 5, true);
     return fa.powerTotal();
 }

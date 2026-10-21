@@ -1,30 +1,25 @@
 #pragma once
 
 #include <QObject>
-//#include <QScriptable>
 #include <QJSValue>
 #include <Inventor/nodes/SoNode.h>
 
-
-class MainWindow;
-
-
-class NodeObject: public QObject//, protected QScriptable
+// Script-facing Coin node wrapper. The engine and scene/factory context are
+// resolved per script host; no process-global GUI or QJSEngine pointers.
+class NodeObject: public QObject
 {
     Q_OBJECT
 
 public:
-    Q_INVOKABLE NodeObject(QObject* parent = 0);
-    NodeObject(SoNode* node);
+    Q_INVOKABLE NodeObject(QObject* parent = nullptr);
+    explicit NodeObject(SoNode* node);
+    ~NodeObject() override;
 
-    SoNode* getNode() const {return m_node;}
-
-    static void setMainWindow(MainWindow* w) {s_mainWindow = w;}
-    static void setEngine(QJSEngine* engine) {s_engine = engine;}
+    SoNode* getNode() const { return m_node; }
 
 public slots:
-    static QJSValue getScene();
-    static QJSValue getRoot();
+    QJSValue getScene();
+    QJSValue getRoot();
 
     QJSValue createNode(const QString& name = "");
     QJSValue createShape();
@@ -41,11 +36,10 @@ public slots:
     void setName(const QString& name);
     void setParameter(const QString& name, const QString& value);
 
-    static QJSValue FindInterception(QJSValue surface, QJSValue rays);
+    QJSValue FindInterception(QJSValue surface, QJSValue rays);
 
 private:
-    SoNode* m_node;
-    static MainWindow* s_mainWindow;
-    static QJSEngine* s_engine;
+    QJSValue wrapNode(SoNode* node) const;
+    QJSValue reportError(const QString& message) const;
+    SoNode* m_node = nullptr;
 };
-

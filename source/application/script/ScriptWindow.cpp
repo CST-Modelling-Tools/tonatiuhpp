@@ -17,6 +17,8 @@ Q_DECLARE_METATYPE(QVector<QVariant>)
 
 #include "NodeObject.h"
 #include "DataObject.h"
+#include "ScriptHost.h"
+#include "GuiScriptSceneAdapter.h"
 #include "main/MainWindow.h"
 #include "kernel/scene/TSceneKit.h"
 #include "main/PluginManager.h"
@@ -120,8 +122,9 @@ ScriptWindow::ScriptWindow(MainWindow* mw, QWidget* parent):
 
     m_syntax = new SyntaxHighlighter(ui->codeEditor->document());
 
-    // engine
-    m_engine = new QJSEngine(this);
+    // The same evaluation host is used by GUI and both CLI launchers.
+    m_host = new ScriptHost(this);
+    m_engine = m_host->engine();
 //    qScriptRegisterSequenceMetaType<QVector<QVariant>>(m_engine);
 
     // objects
@@ -138,14 +141,10 @@ ScriptWindow::ScriptWindow(MainWindow* mw, QWidget* parent):
     QJSValue rayTracerObject = m_engine->newQObject(rayTracer);
     m_engine->globalObject().setProperty("rayTracer", rayTracerObject);
 
-    NodeObject::setMainWindow(mw);
-    NodeObject::setEngine(m_engine);
-    QJSValue nodeObjectClass = m_engine->newQMetaObject(&NodeObject::staticMetaObject);
-    m_engine->globalObject().setProperty("NodeObject", nodeObjectClass);
+    // GUI-only scene and factory access is installed as a per-host adapter.
+    installGuiScriptSceneAdapter(m_host, mw);
 
-    DataObject::setEngine(m_engine);
-    QJSValue fileObjectClass = m_engine->newQMetaObject(&DataObject::staticMetaObject);
-    m_engine->globalObject().setProperty("DataObject", fileObjectClass);
+    // DataObject is registered by ScriptHost and uses its owning JS engine.
 
     // functions
     //    QString pluginsDirectory = QApplication::applicationDirPath() + QDir::separator() + "plugins";
@@ -176,6 +175,10 @@ ScriptWindow::ScriptWindow(MainWindow* mw, QWidget* parent):
 
 ScriptWindow::~ScriptWindow()
 {
+    // Release JS wrappers before destroying the editor/log widgets.
+    delete m_host;
+    m_host = nullptr;
+    m_engine = nullptr;
     delete ui;
 }
 
@@ -340,11 +343,12 @@ void ScriptWindow::runScript()
         timer.start();
         writeMessage(timeString() + "Script started.");
 
-        QJSValue result = m_engine->evaluate(document->toPlainText());
+        const QString scriptName = m_fileName.isEmpty()
+            ? QStringLiteral("<gui-editor>") : QFileInfo(m_fileName).absoluteFilePath();
+        QJSValue result = m_host->evaluate(document->toPlainText(), scriptName);
         if (result.isError())
-            throw timeString() + QString("Runtime error in line %1\n%2")
-                .arg(result.property("lineNumber").toNumber())
-                .arg(result.toString());
+            throw timeString() + QString("Script error: %1")
+                .arg(ScriptHost::formatError(result, scriptName));
 
         QString msg = timeString() + QString("Script finished in %1 s.")
                 .arg(timer.elapsed()/1000., 0, 'f', 3);

@@ -99,7 +99,11 @@ bool Document::WriteFile(const QString& fileName)
  */
 void Document::ClearScene()
 {
-    while (m_scene->getRefCount() > 1) //? >=
-        m_scene->unref();
+    if (!m_scene)
+        return;
+    // The document owns only one Coin reference. The GUI view and any
+    // script wrappers release their own references independently.
+    m_scene->unref();
+    m_scene = nullptr;
 }
 
