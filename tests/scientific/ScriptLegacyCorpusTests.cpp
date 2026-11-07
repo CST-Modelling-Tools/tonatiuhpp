@@ -1164,21 +1164,14 @@ struct M3LoadedFileExporter
 
     M3LoadedFileExporter()
     {
-        const QDir exe(QCoreApplication::applicationDirPath());
-        // scientific tests: build/tests/scientific/Release -> build
-        const QString pluginRoot = exe.absoluteFilePath("../../../plugins/photons");
-        QDirIterator found(pluginRoot, {"PhotonsFile.dll"}, QDir::Files,
-                           QDirIterator::Subdirectories);
-        while (found.hasNext()) {
-            const QString path = found.next();
-            loader.setFileName(path);
-            QObject* object = loader.instance();
-            auto* factory = qobject_cast<PhotonsFactory*>(object);
-            if (factory && factory->name() == "File") {
-                exporter.reset(factory->create(0));
-                return;
-            }
-            loader.unload();
+        loader.setFileName(
+            QString::fromUtf8(TONATIUHPP_SCIENTIFIC_FILE_PLUGIN));
+
+        QObject* object = loader.instance();
+        auto* factory = qobject_cast<PhotonsFactory*>(object);
+
+        if (factory && factory->name() == "File") {
+            exporter.reset(factory->create(0));
         }
     }
 };
