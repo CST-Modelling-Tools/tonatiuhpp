@@ -24,8 +24,8 @@ bool m3ScientificFileFault(const QString& filePath, const char* mode)
 {
     if (qgetenv("TONATIUHPP_M3_TEST_FILE_DATA_FAULT") != QByteArray(mode))
         return false;
-    if (QFileInfo(QCoreApplication::applicationFilePath()).fileName().compare(
-            QStringLiteral("tonatiuhpp_scientific_equivalence_tests.exe"),
+    if (QFileInfo(QCoreApplication::applicationFilePath()).completeBaseName().compare(
+            QStringLiteral("tonatiuhpp_scientific_equivalence_tests"),
             Qt::CaseInsensitive) != 0)
         return false;
     const QString tempPrefix = QDir::cleanPath(QDir::tempPath()) + QLatin1Char('/');
