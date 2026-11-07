@@ -49,7 +49,10 @@ class SoBaseKit;
 class TNode;
 class QTreeWidgetItem;
 class TSceneKit;
+struct SimulationConfig;
 class SoNode;
+struct ScriptPhotonExportChange;
+struct ScriptRunRequest;
 
 namespace Ui {
 class MainWindow;
@@ -68,6 +71,21 @@ public:
 
     PluginManager* getPlugins() {return m_pluginManager;}
     TSceneKit* getSceneKit();
+    // Phase 3B2A adapter: update historical GUI exporter state only after a
+    // validated domain option request. No exporter or trace is started here.
+    bool scriptHasPhotonExportSettings() const { return m_photonsSettings != nullptr; }
+    // Shared script facade adapter, preserving GUI Run's existing state machine.
+    bool runScriptFromFacade(const ScriptRunRequest& request, QString* error);
+    bool applyScriptPhotonExportChange(const ScriptPhotonExportChange& change,
+                                       QString* error);
+    // Script field edit presentation adapter: retain historical undo lifecycle.
+    bool setScriptFieldValue(SoNode* node, const QString& field,
+                             const QString& value, QString* error);
+    // Scientific input policy for the shared scripted-interception service.
+    SimulationConfig scriptInterceptionConfiguration(ulong rays) const;
+    // GUI presentation side effect only. Does not supply scientific power.
+    bool displayScriptInterceptionRays(const QString& surface, uint rays,
+                                       std::uint64_t seed, QString* error);
     // Preserve GUI scene selection, undo and model refresh for script insertion.
     bool insertScriptNode(SoNode* node);
     // Load through the existing GUI document/tree lifecycle without file dialogs.
@@ -277,6 +295,7 @@ private:
     PhotonsBuffer* m_photonsBuffer;
     ulong m_photonBufferSize;
     bool m_photonBufferAppend;
+    bool m_scriptRunLastAccepted = false; // Result of last GUI Run, not a new backend.
     PhotonsSettings* m_photonsSettings;
 
     QVector<GraphicView*> m_graphicView;

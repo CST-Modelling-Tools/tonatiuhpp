@@ -36,6 +36,8 @@ set(HEADERS
     core/SceneLoader.h
     core/SimulationConfig.h
     core/SimulationSession.h
+    core/GuiTraceCompletion.h
+    core/GuiTraceRunInputs.h
     core/TracePreparation.h
     core/TonatiuhCore.h
     headless/HeadlessCommandRunner.h

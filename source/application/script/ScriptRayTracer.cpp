@@ -186,5 +186,9 @@ int ScriptRayTracer::openFile(QString filename)
 
 int ScriptRayTracer::Trace()
 {
-    return 1;
+    // Dormant C++ compatibility method, not a Q_INVOKABLE script API.
+    // Never report success without executing a trace.
+    std::cerr << "ScriptRayTracer::Trace is unsupported; use the shared tn.traceScene API."
+              << std::endl;
+    return 0;
 }

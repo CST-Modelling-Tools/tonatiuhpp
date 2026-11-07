@@ -11,9 +11,28 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QMessageBox>
+#include <QApplication>
+#include <QCoreApplication>
 
 #include "kernel/run/InstanceNode.h"
 
+
+// M3 Slice C: an opt-in fault seam restricted to the native scientific test
+// executable and temporary output. It is inert for normal GUI/headless runs.
+namespace {
+bool m3ScientificFileFault(const QString& filePath, const char* mode)
+{
+    if (qgetenv("TONATIUHPP_M3_TEST_FILE_DATA_FAULT") != QByteArray(mode))
+        return false;
+    if (QFileInfo(QCoreApplication::applicationFilePath()).fileName().compare(
+            QStringLiteral("tonatiuhpp_scientific_equivalence_tests.exe"),
+            Qt::CaseInsensitive) != 0)
+        return false;
+    const QString tempPrefix = QDir::cleanPath(QDir::tempPath()) + QLatin1Char('/');
+    const QString actualPath = QDir::cleanPath(QFileInfo(filePath).absoluteFilePath());
+    return actualPath.startsWith(tempPrefix, Qt::CaseInsensitive);
+}
+} // namespace
 
 PhotonsFile::PhotonsFile():
     PhotonsAbstract(),
@@ -89,7 +108,10 @@ bool PhotonsFile::startExport()
             QString message = QString("Error deleting %1.\nThe file is in use or the directory is not writable. Please close it before continuing.")
                 .arg(fileInfo.absoluteFilePath());
             qWarning() << message;
-            QMessageBox::warning(0, "Tonatiuh", message);
+            // A pure QCoreApplication cannot show a modal widget. Preserve
+            // the historical warning in GUI sessions and qWarning in both.
+            if (qobject_cast<QApplication*>(QCoreApplication::instance()))
+                QMessageBox::warning(0, "Tonatiuh", message);
             m_exportFailed = true;
             return false;
         }
@@ -104,7 +126,10 @@ bool PhotonsFile::prepareDirectory()
     if (!dir.exists() && !dir.mkpath(".")) {
         QString message = QString("Could not create photon export directory:\n%1").arg(dir.absolutePath());
         qWarning() << message;
-        QMessageBox::warning(0, "Tonatiuh", message);
+        // A pure QCoreApplication cannot show a modal widget. Preserve
+            // the historical warning in GUI sessions and qWarning in both.
+            if (qobject_cast<QApplication*>(QCoreApplication::instance()))
+                QMessageBox::warning(0, "Tonatiuh", message);
         return false;
     }
 
@@ -114,14 +139,20 @@ bool PhotonsFile::prepareDirectory()
     if (!probe.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
         QString message = QString("Could not write to photon export directory:\n%1\n%2").arg(dir.absolutePath(), probe.errorString());
         qWarning() << message;
-        QMessageBox::warning(0, "Tonatiuh", message);
+        // A pure QCoreApplication cannot show a modal widget. Preserve
+            // the historical warning in GUI sessions and qWarning in both.
+            if (qobject_cast<QApplication*>(QCoreApplication::instance()))
+                QMessageBox::warning(0, "Tonatiuh", message);
         return false;
     }
 
     if (probe.write("1", 1) != 1 || !probe.flush()) {
         QString message = QString("Could not write to photon export directory:\n%1\n%2").arg(dir.absolutePath(), probe.errorString());
         qWarning() << message;
-        QMessageBox::warning(0, "Tonatiuh", message);
+        // A pure QCoreApplication cannot show a modal widget. Preserve
+            // the historical warning in GUI sessions and qWarning in both.
+            if (qobject_cast<QApplication*>(QCoreApplication::instance()))
+                QMessageBox::warning(0, "Tonatiuh", message);
         probe.close();
         QFile::remove(probeName);
         return false;
@@ -133,7 +164,10 @@ bool PhotonsFile::prepareDirectory()
     if (!probeClosed || !probeRemoved) {
         QString message = QString("Could not finalize photon export directory check:\n%1\n%2").arg(dir.absolutePath(), probe.errorString());
         qWarning() << message;
-        QMessageBox::warning(0, "Tonatiuh", message);
+        // A pure QCoreApplication cannot show a modal widget. Preserve
+            // the historical warning in GUI sessions and qWarning in both.
+            if (qobject_cast<QApplication*>(QCoreApplication::instance()))
+                QMessageBox::warning(0, "Tonatiuh", message);
         return false;
     }
 
@@ -245,6 +279,7 @@ bool PhotonsFile::endExport()
     QFile file(fileName);
     if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
         qWarning() << "Could not open photon parameters file" << fileName << file.errorString();
+        m_exportFailed = true;
         return false;
     }
     QTextStream out(&file);
@@ -276,17 +311,20 @@ bool PhotonsFile::endExport()
 
     if (out.status() != QTextStream::Ok) {
         qWarning() << "Error writing photon parameters file" << fileName;
+        m_exportFailed = true;
         return false;
     }
 
     if (!file.flush()) {
         qWarning() << "Could not flush photon parameters file" << fileName << file.errorString();
+        m_exportFailed = true;
         return false;
     }
 
     file.close();
     if (file.error() != QFile::NoError) {
         qWarning() << "Could not close photon parameters file" << fileName << file.errorString();
+        m_exportFailed = true;
         return false;
     }
 
@@ -366,7 +404,10 @@ ulong PhotonsFile::writePhotons(const std::vector<Photon>& photons, ulong nBegin
     }
 
     qint64 fileStart = m_file->pos();
-    qint64 bytesWritten = m_file->write(bytes);
+    // Scientific-test-only deterministic failed write. Exercise the normal
+    // rollback and failure-latch path without modifying a production export.
+    qint64 bytesWritten = m3ScientificFileFault(m_filePath, "write")
+        ? qint64(-1) : m_file->write(bytes);
     if (bytesWritten != bytes.size()) {
         qWarning() << "Could not write photon output file" << m_filePath << m_file->errorString();
         if (fileStart >= 0) {
@@ -377,7 +418,8 @@ ulong PhotonsFile::writePhotons(const std::vector<Photon>& photons, ulong nBegin
         return 0;
     }
 
-    if (!m_file->flush()) {
+    // Scientific-test-only deterministic failed flush after a real write.
+    if (m3ScientificFileFault(m_filePath, "flush") || !m_file->flush()) {
         qWarning() << "Could not flush photon output file" << m_filePath << m_file->errorString();
         if (fileStart >= 0) {
             if (!m_file->resize(fileStart) || !m_file->seek(fileStart))

@@ -6,6 +6,7 @@
 
 #include <QVector>
 #include <QString>
+#include <QStringList>
 
 #include "core/SceneInstanceBuilder.h"
 #include "core/SimulationConfig.h"
@@ -49,6 +50,13 @@ struct HeadlessTracePreparationInput
     // Opt-in to GUI-style tracker setup. False preserves existing CLI,
     // benchmark and script results, including frozen scientific references.
     bool updateTrackers = false;
+    // Phase 3B2B1: optional selected-surface URLs for real headless photon
+    // filtering, resolved to the owned instance tree before workers start.
+    QStringList exportSurfaceUrls;
+    // Phase 3B2B2A: opt-in borrowed tree for repeated scripted append.
+    // Caller pins its scene and the tree throughout every synchronous run.
+    // Null preserves all existing CLI/A0/benchmark preparation semantics.
+    SceneInstanceTree* borrowedInstanceTree = nullptr;
     PreparedTraceHitCallback hitCallback;
     PreparedTraceHistoryCallback historyCallback;
     TracePreparationProgress progress;

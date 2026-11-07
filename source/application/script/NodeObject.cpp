@@ -276,9 +276,7 @@ void NodeObject::setParameter(const QString& name, const QString& value)
 
 QJSValue NodeObject::FindInterception(QJSValue surface, QJSValue rays)
 {
-    const auto* services = ScriptSceneServices::forObject(this);
-    const auto result = services ? services->findInterception(surface.toString(), rays.toUInt())
-                                 : std::nullopt;
-    return result ? QJSValue(*result) : reportError(
-        "NodeObject.FindInterception is unavailable in this script context.");
+    auto* services = ScriptSceneServices::forObject(this);
+    return services ? services->FindInterception(surface, rays)
+                    : reportError("NodeObject.FindInterception is unavailable in this script context.");
 }

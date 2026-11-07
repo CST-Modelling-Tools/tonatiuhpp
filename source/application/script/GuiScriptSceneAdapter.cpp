@@ -9,6 +9,7 @@
 #include "script/ScriptHost.h"
 #include "script/ScriptSceneDocument.h"
 #include "script/ScriptSceneServices.h"
+#include "script/GuiScriptFacadeBridge.h"
 
 #include "kernel/shape/ShapeRT.h"
 #include "kernel/profiles/ProfileRT.h"
@@ -60,11 +61,62 @@ void installGuiScriptSceneAdapter(ScriptHost* host, MainWindow* window)
         }
         return nullptr;
     });
-    services->setInterception([gui](const QString& surface,
-                                     uint rays) -> std::optional<double> {
-        if (!gui)
-            return std::nullopt;
-        return findInterception(surface, rays, gui);
+    // Capture the GUI's current effective input policy for EACH script call;
+    // intercepted power is computed by the shared, widget-free service.
+    services->setInterceptionConfiguration([gui](ulong rays) {
+        return gui ? gui->scriptInterceptionConfiguration(rays) : SimulationConfig{};
+    });
+    services->setInterceptionDisplay([gui](const QString& surface, uint rays,
+                                           std::uint64_t seed, QString* error) {
+        if (!gui) {
+            if (error) *error = "tn.FindInterception: GUI has been closed.";
+            return false;
+        }
+        return gui->displayScriptInterceptionRays(surface, rays, seed, error);
+    });
+    services->setFieldWriter([gui](SoNode* node, const QString& field,
+                                    const QString& value, QString* error) {
+        if (!gui) {
+            if (error) *error = "tn.SetValue: GUI scene has been closed.";
+            return false;
+        }
+        return gui->setScriptFieldValue(node, field, value, error);
+    });
+    // Phase 3B2B1: shared JS Run dispatch, historical GUI execution for
+    // exporter/progress/retained-buffer parity until backend extraction.
+    services->setRunExecutor([gui](const ScriptRunRequest& request, QString* error) {
+        if (!gui) {
+            if (error) *error = "tn.Run: GUI has been closed.";
+            return false;
+        }
+        return gui->runScriptFromFacade(request, error);
+    });
+    services->setPhotonExportSettingsPresent(gui->scriptHasPhotonExportSettings());
+    services->setPhotonExportWriter([gui](const ScriptPhotonExportChange& change,
+                                          QString* error) {
+        if (!gui) {
+            if (error) *error = "tn.SetExport*: GUI has been closed.";
+            return false;
+        }
+        return gui->applyScriptPhotonExportChange(change, error);
+    });
+    services->setRunRayCountWriter([gui](uint rays, QString* error) {
+        if (!gui) {
+            if (error) *error = "tn.SetRaysNumber: GUI has been closed.";
+            return false;
+        }
+        // Keep the existing GUI Run()/export photon-count policy intact.
+        gui->SetRaysNumber(rays);
+        if (error) error->clear();
+        return true;
+    });
+    services->setSunGridWriter([gui](int width, int height, QString* error) {
+        if (!gui) {
+            if (error) *error = "tn.SetRaysGrid: GUI has been closed.";
+            return false;
+        }
+        gui->SetRaysGrid(width, height); // Retains existing UI/session settings.
+        return true;
     });
     services->setClearDocument([gui](QString* error) {
         if (!gui) {
@@ -112,51 +164,14 @@ void installGuiScriptSceneAdapter(ScriptHost* host, MainWindow* window)
     host->engine()->globalObject().setProperty(
         "__tonatiuhppTraceApi", host->engine()->newQObject(traceApi));
 
-    // Shared nonvisual save/load joins getScene, Clear and InsertScene;
-    // GUI-only presentation methods keep forwarding to MainWindow.
-    // All other GUI script methods still forward to the legacy MainWindow
-    // object, preserving their original call signatures and selection policy.
-    const QJSValue bridge = host->evaluate(QStringLiteral(R"JS(
-(function(global) {
-  var legacy = global.tn;
-  var scene = global.__tonatiuhppSceneApi;
-  var trace = global.__tonatiuhppTraceApi;
-  if (typeof Proxy !== 'function')
-    throw new Error('M3.2 GUI scene API requires JavaScript Proxy support.');
-  var facade = new Proxy(legacy, {
-    get: function(target, property) {
-      // Return bound QObject methods directly. Rewrapping them in JS
-      // attributes native exceptions to <gui-scene-api>, not the script.
-      if (property === 'getScene')
-        return scene.getScene;
-      if (property === 'Clear')
-        return scene.Clear;
-      if (property === 'InsertScene')
-        return scene.InsertScene;
-      if (property === 'saveScene')
-        return scene.saveScene;
-      if (property === 'loadScene')
-        return scene.loadScene;
-      if (property === 'traceScene')
-        return trace.traceScene;
-      if (property === 'startTrace')
-        return trace.startTrace;
-      if (property === 'cancelTrace')
-        return trace.cancelTrace;
-      if (property === 'finishTrace')
-        return trace.finishTrace;
-      var value = target[property];
-      return typeof value === 'function' ? value.bind(target) : value;
-    },
-    set: function(target, property, value) {
-      target[property] = value;
-      return true;
-    }
-  });
-  global.tn = facade;
-  global.tonatiuh = facade;
-})(this);
-)JS"), QStringLiteral("<gui-scene-api>"));
-    if (bridge.isError())
+    // A plain-JS proxy with an EXPLICIT compatibility allowlist.
+    // No arbitrary MainWindow QObject property can escape through `tn`.
+    const QJSValue bridge = host->evaluate(guiScriptFacadeBootstrap(),
+                                          QStringLiteral("<gui-scene-api>"));
+    if (bridge.isError()) {
         qWarning() << "Cannot install shared GUI script scene API:" << bridge.toString();
+        // Fail closed: never leave raw MainWindow exposed if the proxy fails.
+        host->engine()->globalObject().setProperty("tn", QJSValue());
+        host->engine()->globalObject().setProperty("tonatiuh", QJSValue());
+    }
 }
