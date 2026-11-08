@@ -52,7 +52,9 @@ class TSceneKit;
 struct SimulationConfig;
 class SoNode;
 struct ScriptPhotonExportChange;
+struct ScriptPhotonExportState;
 struct ScriptRunRequest;
+struct ScriptFluxAnalysisRequest;
 
 namespace Ui {
 class MainWindow;
@@ -74,8 +76,16 @@ public:
     // Phase 3B2A adapter: update historical GUI exporter state only after a
     // validated domain option request. No exporter or trace is started here.
     bool scriptHasPhotonExportSettings() const { return m_photonsSettings != nullptr; }
-    // Shared script facade adapter, preserving GUI Run's existing state machine.
-    bool runScriptFromFacade(const ScriptRunRequest& request, QString* error);
+    // Widget-free tn.Run() gets only effective policy inputs from this adapter.
+    // Interactive MainWindow::Run() remains the GUI's own presentation route.
+    ScriptPhotonExportState scriptPhotonExportSnapshot() const;
+    uint scriptRunEffectiveRays() const { return static_cast<uint>(m_raysNumber); }
+    int scriptRunEffectiveGridWidth() const { return m_raysGridWidth; }
+    int scriptRunEffectiveGridHeight() const { return m_raysGridHeight; }
+    std::uint64_t scriptRunMasterSeed() const;
+    // Historical GUI-only C++ compatibility path; scripts use the shared runner.
+    bool runScriptFluxAnalysisFromFacade(const ScriptFluxAnalysisRequest& request,
+                                             QString* error);
     bool applyScriptPhotonExportChange(const ScriptPhotonExportChange& change,
                                        QString* error);
     // Script field edit presentation adapter: retain historical undo lifecycle.
@@ -83,6 +93,9 @@ public:
                              const QString& value, QString* error);
     // Scientific input policy for the shared scripted-interception service.
     SimulationConfig scriptInterceptionConfiguration(ulong rays) const;
+    // Legacy seven-argument GUI flux JS seed: automatic time-millisecond
+    // policy, independent of the optional fixed GUI Run seed.
+    std::uint64_t scriptFluxLegacySeed() const;
     // GUI presentation side effect only. Does not supply scientific power.
     bool displayScriptInterceptionRays(const QString& surface, uint rays,
                                        std::uint64_t seed, QString* error);

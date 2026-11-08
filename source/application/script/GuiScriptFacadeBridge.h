@@ -31,6 +31,7 @@ inline QString guiScriptFacadeBootstrap()
   shared.SetRaysGrid = scene.SetRaysGrid;
   shared.SetRaysNumber = scene.SetRaysNumber;
   shared.Run = scene.Run; // Phase 3B2B1: never call legacyWindow.Run from JS.
+  shared.RunFluxAnalysis = scene.RunFluxAnalysis; // Phase 3B3A: no raw window domain call.
   // Phase 3B2A: all export-setting domain calls route through the same
   // ScriptSceneServices object in GUI and true-headless script hosts.
   shared.SetExportAllPhotonMap = scene.SetExportAllPhotonMap;
@@ -59,15 +60,10 @@ inline QString guiScriptFacadeBootstrap()
     'SetRaysScreen', 'print', 'printTimed'
   ];
 
-  // Explicit TEMPORARY legacy domain delegation. These commands have not
-  // been migrated; retaining them is a compatibility commitment, not M3 exit.
-  // Export/flux backend migration also has downstream M4 dependencies.
-  var pendingDomain = [
-    'RunFluxAnalysis'
-  ];
-
+  // Legacy forwarding is now restricted to presentation/document editing.
+  // Scientific RunFluxAnalysis is dispatched via ScriptSceneServices above.
   var legacyMethods = Object.create(null);
-  presentation.concat(pendingDomain).forEach(function(name) {
+  presentation.forEach(function(name) {
     legacyMethods[name] = true;
   });
   var userProperties = Object.create(null);

@@ -53,6 +53,37 @@ function(tonatiuhpp_set_headless_test_properties test_name)
 endfunction()
 
 if(TONATIUHPP_ENABLE_HEADLESS_SMOKE_TESTS)
+  # Unified M3 domain Run: two independent headless processes use one
+  # widget-free executor. Generate a native GUI comparison fixture too.
+  add_test(
+    NAME headless.m3_shared_run_parity
+    COMMAND "${CMAKE_COMMAND}"
+      "-DTEST_EXECUTABLE=${TONATIUHPP_TEST_EXE}"
+      "-DTEST_SCRIPT=${CMAKE_CURRENT_LIST_DIR}/scripts/m3_shared_run_parity.tnhpps.in"
+      "-DTEST_SCENE=${CMAKE_CURRENT_LIST_DIR}/../examples/benchmarks/cylinder.tnhpp"
+      "-DCOMPARATOR=${CMAKE_CURRENT_LIST_DIR}/scientific/compare_photon_exports.py"
+      "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/m3_shared_run_parity"
+      "-DTEST_BUILD_ROOT=${CMAKE_CURRENT_BINARY_DIR}"
+      -P "${CMAKE_CURRENT_LIST_DIR}/cmake/run_m3_shared_run_parity.cmake"
+  )
+  tonatiuhpp_set_headless_test_properties(headless.m3_shared_run_parity)
+  set_tests_properties(headless.m3_shared_run_parity PROPERTIES
+    LABELS "headless;smoke;scientific;equivalence" TIMEOUT 280)
+
+  # M3 integrated candidate: independent true-headless fixed-seed full-grid
+  # repeatability. Retain the same script for native GUI acceptance afterward.
+  add_test(
+    NAME headless.m3_shared_flux_parity
+    COMMAND "${CMAKE_COMMAND}"
+      "-DTEST_EXECUTABLE=${TONATIUHPP_TEST_EXE}"
+      "-DTEST_SCRIPT=${CMAKE_CURRENT_LIST_DIR}/scripts/m3_flux_shared_parity.tnhpps"
+      "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/m3_flux_shared_parity"
+      -P "${CMAKE_CURRENT_LIST_DIR}/cmake/run_m3_flux_shared_parity.cmake"
+  )
+  tonatiuhpp_set_headless_test_properties(headless.m3_shared_flux_parity)
+  set_tests_properties(headless.m3_shared_flux_parity PROPERTIES
+    LABELS "headless;smoke;scientific;equivalence" TIMEOUT 200)
+
   add_test(
     NAME headless.help
     COMMAND "${TONATIUHPP_TEST_EXE}" --headless --help

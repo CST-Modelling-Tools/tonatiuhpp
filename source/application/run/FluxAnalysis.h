@@ -23,7 +23,7 @@ public:
     QString getShapeType(QString nodeURL);
     bool run(QString nodeURL, QString surfaceSide, ulong nRays, bool increasePhotonMap, int uDivs, int vDivs, bool silent = false);
     void setBins(int rows, int cols);
-    void write(QString fileName, bool withCoords);
+    bool write(QString fileName, bool withCoords, QString* error = nullptr);
     void clear();
 
     Matrix2D<int>& getBinsPhotons() {return m_binsPhotons;}
@@ -45,7 +45,7 @@ private slots:
     void stop();
 
 private:
-    void fillBins();
+    bool fillBins();
 
     TSceneKit* m_sceneKit;
     SceneTreeModel* m_sceneModel;

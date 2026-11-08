@@ -1,6 +1,8 @@
 #pragma once
 
 #include <functional>
+#include <cstdint>
+#include <optional>
 #include <utility>
 
 #include "core/SimulationConfig.h"
@@ -11,6 +13,7 @@
 
 #include "script/ScriptPhotonExportConfig.h"
 #include "script/ScriptRunRequest.h"
+#include "script/ScriptFluxAnalysisRequest.h"
 
 class QJSEngine;
 class SoNode;
@@ -46,6 +49,9 @@ public:
     using PhotonExportWriter = std::function<bool(const ScriptPhotonExportChange&, QString*)>;
     // Phase 3B2B1: one shared JS Run API, with explicit host execution adapter.
     using RunExecutor = std::function<bool(const ScriptRunRequest&, QString*)>;
+    // Dispatch a validated flux request. GUI owns the current analysis;
+    // nonvisual headless execution requires its own backend.
+    using FluxAnalysisExecutor = std::function<bool(const ScriptFluxAnalysisRequest&, QString*)>;
 
     explicit ScriptSceneServices(QObject* parent = nullptr) : QObject(parent) {}
 
@@ -71,6 +77,10 @@ public:
     std::optional<uint> scriptRunRayCount() const { return m_scriptRunRays; }
     void setPhotonExportWriter(PhotonExportWriter callback) { m_writePhotonExport = std::move(callback); }
     void setRunExecutor(RunExecutor callback) { m_runExecutor = std::move(callback); }
+    void setFluxAnalysisExecutor(FluxAnalysisExecutor callback)
+    {
+        m_fluxAnalysisExecutor = std::move(callback);
+    }
     // GUI editors can begin with settings selected through the normal GUI.
     // Optional fields record only explicit script changes, not an initial GUI snapshot.
     void setPhotonExportSettingsPresent(bool present) { m_exportState.settingsPresent = present; }
@@ -106,6 +116,24 @@ public:
     Q_INVOKABLE QJSValue SetPhotonBufferSize(const QJSValue& size = QJSValue());
     Q_INVOKABLE QJSValue SetPhotonBufferAppend(const QJSValue& enabled = QJSValue());
     Q_INVOKABLE QJSValue Run();
+    Q_INVOKABLE QJSValue Run(const QJSValue& masterSeed);
+    Q_INVOKABLE QJSValue RunFluxAnalysis(const QJSValue& surfaceURL,
+                                          const QJSValue& surfaceSide,
+                                          const QJSValue& rays,
+                                          const QJSValue& heightDivisions,
+                                          const QJSValue& widthDivisions,
+                                          const QJSValue& fileName,
+                                          const QJSValue& saveCoords);
+    // Optional eighth argument preserves legacy seven-argument scripts while
+    // making scientific GUI/headless flux comparisons explicitly reproducible.
+    Q_INVOKABLE QJSValue RunFluxAnalysis(const QJSValue& surfaceURL,
+                                          const QJSValue& surfaceSide,
+                                          const QJSValue& rays,
+                                          const QJSValue& heightDivisions,
+                                          const QJSValue& widthDivisions,
+                                          const QJSValue& fileName,
+                                          const QJSValue& saveCoords,
+                                          const QJSValue& fixedSeed);
     Q_INVOKABLE QJSValue FindInterception(const QJSValue& surface, const QJSValue& rays);
     // Third argument retains GUI-only ray display. Power still comes from the
     // same nonvisual interception service; headless presentation fails explicitly.
@@ -129,6 +157,15 @@ public:
 
 private:
     QJSValue fail(const QString& message) const;
+    QJSValue executeRun(std::optional<std::uint64_t> masterSeed);
+    QJSValue runFluxAnalysis(const QJSValue& surfaceURL,
+                             const QJSValue& surfaceSide,
+                             const QJSValue& rays,
+                             const QJSValue& heightDivisions,
+                             const QJSValue& widthDivisions,
+                             const QJSValue& fileName,
+                             const QJSValue& saveCoords,
+                             std::optional<std::uint64_t> masterSeed);
 
     SceneProvider m_scene;
     NodeCreator m_create;
@@ -145,6 +182,7 @@ private:
     PhotonExportWriter m_writePhotonExport;
     ScriptPhotonExportState m_exportState;
     RunExecutor m_runExecutor;
+    FluxAnalysisExecutor m_fluxAnalysisExecutor;
     QJSValue applyPhotonExportChange(const ScriptPhotonExportChange& change,
                                      const QString& method);
     int m_scriptGridWidth = SimulationConfig::kDefaultSunGridDivisions;

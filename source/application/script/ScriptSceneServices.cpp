@@ -305,6 +305,24 @@ QJSValue ScriptSceneServices::SetPhotonBufferAppend(const QJSValue& enabled)
 // adapter supports bounded one-shot File / No export, not append/retry yet.
 QJSValue ScriptSceneServices::Run()
 {
+    return executeRun(std::nullopt);
+}
+
+QJSValue ScriptSceneServices::Run(const QJSValue& masterSeed)
+{
+    // Match the existing GUI seed parser and the Windows headless ulong range.
+    // An explicit zero is significant. Reject JS coercion/truncation/NaN.
+    if (!masterSeed.isNumber())
+        return fail("tn.Run(seed) requires a uint32 integer master seed.");
+    const double number = masterSeed.toNumber();
+    if (!std::isfinite(number) || std::floor(number) != number ||
+        number < 0. || number > static_cast<double>(std::numeric_limits<std::uint32_t>::max()))
+        return fail("tn.Run(seed) requires a uint32 integer master seed.");
+    return executeRun(static_cast<std::uint64_t>(number));
+}
+
+QJSValue ScriptSceneServices::executeRun(std::optional<std::uint64_t> masterSeed)
+{
     if (!m_runExecutor)
         return fail("tn.Run: this script host has no run execution backend.");
     ScriptRunRequest request;
@@ -313,6 +331,7 @@ QJSValue ScriptSceneServices::Run()
         return fail("tn.Run: active scene is unavailable.");
     request.explicitRays = m_scriptRunRays;
     request.rays = m_scriptRunRays.value_or(10000u);
+    request.masterSeed = masterSeed;
     request.sunWidthDivisions = m_scriptGridWidth;
     request.sunHeightDivisions = m_scriptGridHeight;
     request.exportOptions = m_exportState;
@@ -320,6 +339,98 @@ QJSValue ScriptSceneServices::Run()
     if (!m_runExecutor(request, &error))
         return fail(error.isEmpty() ? "tn.Run: execution was rejected or failed." : error);
     return QJSValue(); // Historical void Run returns undefined.
+}
+
+// M3 integrated: one script-facing flux-analysis signature in both hosts.
+// The optional seed selects the same nonvisual SimulationSession/flux
+// computation in GUI and true-headless scripts; seven arguments remain valid.
+QJSValue ScriptSceneServices::RunFluxAnalysis(const QJSValue& surfaceURL,
+                                               const QJSValue& surfaceSide,
+                                               const QJSValue& rays,
+                                               const QJSValue& heightDivisions,
+                                               const QJSValue& widthDivisions,
+                                               const QJSValue& fileName,
+                                               const QJSValue& saveCoords)
+{
+    return runFluxAnalysis(surfaceURL, surfaceSide, rays, heightDivisions,
+                           widthDivisions, fileName, saveCoords, std::nullopt);
+}
+
+QJSValue ScriptSceneServices::RunFluxAnalysis(const QJSValue& surfaceURL,
+                                               const QJSValue& surfaceSide,
+                                               const QJSValue& rays,
+                                               const QJSValue& heightDivisions,
+                                               const QJSValue& widthDivisions,
+                                               const QJSValue& fileName,
+                                               const QJSValue& saveCoords,
+                                               const QJSValue& fixedSeed)
+{
+    if (!fixedSeed.isNumber())
+        return fail("tn.RunFluxAnalysis requires a fixed-seed integer in uint32 range.");
+    const double value = fixedSeed.toNumber();
+    if (!std::isfinite(value) || std::floor(value) != value || value < 0.
+        || value > static_cast<double>(std::numeric_limits<std::uint32_t>::max()))
+        return fail("tn.RunFluxAnalysis requires a fixed-seed integer in uint32 range.");
+    return runFluxAnalysis(surfaceURL, surfaceSide, rays, heightDivisions,
+                           widthDivisions, fileName, saveCoords,
+                           static_cast<std::uint64_t>(value));
+}
+
+QJSValue ScriptSceneServices::runFluxAnalysis(const QJSValue& surfaceURL,
+                                               const QJSValue& surfaceSide,
+                                               const QJSValue& rays,
+                                               const QJSValue& heightDivisions,
+                                               const QJSValue& widthDivisions,
+                                               const QJSValue& fileName,
+                                               const QJSValue& saveCoords,
+                                               std::optional<std::uint64_t> masterSeed)
+{
+    const auto integralInRange = [](const QJSValue& value, double minimum,
+                                    double maximum) {
+        if (!value.isNumber())
+            return false;
+        const double number = value.toNumber();
+        return std::isfinite(number) && std::floor(number) == number
+            && number >= minimum && number <= maximum;
+    };
+    // The prior GUI path silently accepted invalid arguments and could reach
+    // zero-sized flux bins. Reject them at the user script call site.
+    if (!surfaceURL.isString() || surfaceURL.toString().trimmed().isEmpty()
+        || !surfaceSide.isString()
+        || (surfaceSide.toString() != "front" && surfaceSide.toString() != "back")
+        || !integralInRange(rays, 1., static_cast<double>(std::numeric_limits<uint>::max()))
+        || !integralInRange(heightDivisions, 2.,
+                            static_cast<double>(std::numeric_limits<int>::max()))
+        || !integralInRange(widthDivisions, 2.,
+                            static_cast<double>(std::numeric_limits<int>::max()))
+        || !fileName.isString() || fileName.toString().trimmed().isEmpty()
+        || !saveCoords.isBool())
+        return fail("tn.RunFluxAnalysis requires a surface URL, 'front' or 'back', "
+                    "positive integral ray count, bin dimensions at least 2, "
+                    "a non-empty output path, and a boolean coordinate flag.");
+
+    if (!m_fluxAnalysisExecutor)
+        return fail("tn.RunFluxAnalysis: this host has no nonvisual flux-analysis backend.");
+    if (!scene())
+        return fail("tn.RunFluxAnalysis: active scene is unavailable.");
+
+    ScriptFluxAnalysisRequest request;
+    request.surfaceURL = surfaceURL.toString();
+    request.surfaceSide = surfaceSide.toString();
+    request.rays = static_cast<uint>(rays.toNumber());
+    request.heightDivisions = static_cast<int>(heightDivisions.toNumber());
+    request.widthDivisions = static_cast<int>(widthDivisions.toNumber());
+    request.fileName = fileName.toString();
+    request.saveCoordinates = saveCoords.toBool();
+    request.sunWidthDivisions = m_scriptGridWidth;
+    request.sunHeightDivisions = m_scriptGridHeight;
+    request.masterSeed = masterSeed;
+    request.replaceExistingOutput = !masterSeed.has_value();
+    QString error;
+    if (!m_fluxAnalysisExecutor(request, &error))
+        return fail(error.isEmpty() ?
+                    "tn.RunFluxAnalysis: the host rejected flux analysis." : error);
+    return QJSValue(); // Legacy MainWindow void method returned undefined.
 }
 
 QJSValue ScriptSceneServices::SetRaysNumber(const QJSValue& count)

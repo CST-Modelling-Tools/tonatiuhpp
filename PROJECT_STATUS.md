@@ -1,6 +1,6 @@
 # Project Status
 
-Last updated: 2026-11-07
+Last updated: 2026-11-08
 
 Purpose: lightweight handoff for current Tonatiuh++ project and release context. Keep stable agent rules in `AGENT.md`; use `docs/gui-core-separation-scientific-equivalence-plan.md` as the canonical architectural plan and the status section below as the active M0-M5 execution tracker. Update this file with each architectural PR and relevant release-context changes.
 
@@ -17,6 +17,12 @@ Purpose: lightweight handoff for current Tonatiuh++ project and release context.
 - **M5 — Enforced build separation:** **NOT STARTED**. Kernel/application/plugin dependencies still pull GUI libraries; package order M5.1 independent GUI-free targets/guards, M5.2 end-to-end acceptance.
 - **Evidence and state discipline:** M0/A0, M1, M2 and M3.1-M3.3 have merged acceptance records. PR #35 merged as `ab1dc107` and both pre-merge and post-merge hosted Windows/Ubuntu/macOS CI passed; native GUI comparisons remain maintainer-attested, not cross-platform GUI automation. A read-only audit of the canonical M3 exit criteria found unresolved domain-script exposure through `MainWindow`, split GUI/headless interception, and incomplete runtime coverage of the 19 legacy examples. M3 exit Phase 1 is LOCALLY ACCEPTED on native Windows Release: 57/57 scientific and 6/6 headless regression CTests, exact GUI/headless CSV parity (6/6 receiver and 12/12 tracker rows), visible GUI ray rendering, controlled invalid-input error and successful same-editor recovery. Phase 2 is now LOCALLY ACCEPTED: 62/62 scientific and 7/7 headless CTests, exact receiver/tracker GUI/headless parity (6/6 and 12/12 rows), and shared sun-position GUI smoke. Subsequent M3 exit phases and GUI extraction increments have progressed through locally validated Step 3B; see the 2026-11-07 M3 checkpoint below for current evidence and limitations. Full M3 is still OPEN. Do not advance to M4, claim full script equivalence, or rerun the frozen 500-million-ray benchmark without explicit authorization.
 - **Naming warning:** Historical dated “Development checkpoint — Milestone 2/3/4/5” headings below concern benchmark/CI work, **not** completion of architecture M2-M5. Do not use them to advance the roadmap.
+
+## M3 integrated local acceptance — hosted CI pending (2026-11-08)
+
+**Status:** The integrated M3 exit source is accepted on native Windows Release, not yet hosted three-platform validated or merged. Local consolidated CTest reported **155/155 unique tests passed** (133 scientific, 37 headless, 14 equivalence; labels overlap). Real GUI/headless fixed-seed Flux Analysis matched byte-for-byte for front/back 8x8 grids; GUI/headless File append matched **2,272 canonical photons** with power **0.0359832** and identical surface mapping. Native GUI seven-argument Flux Analysis and scripted Run positive/error smokes passed, including a no-created-directory failure. Ten of nineteen tracked legacy scripts have native headless runtime coverage; nine are explicitly deferred. The independent compiled GUI-free core and comprehensive exporter/plugin parity remain later M4/M5 work. The 500M ray benchmark was not rerun.
+
+**Checkpoint gate:** This evidence is tied to the accepted uncommitted source at `2ec6d5a355cb` plus the reviewed M3 code delta. Git review and newly triggered Windows, Ubuntu and macOS CI must pass on the **new** checkpoint commit before M3 can be formally closed. See `docs/m3-exit-final-local-acceptance.md`. Do not infer unrestricted GUI/headless scientific equivalence or release readiness.
 
 ## Active M3 feature-branch checkpoint — three-platform CI accepted (2026-11-07)
 

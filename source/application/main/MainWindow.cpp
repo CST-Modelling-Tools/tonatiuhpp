@@ -69,6 +69,8 @@
 #include "core/SimulationSession.h"
 #include "core/GuiTraceCompletion.h"
 #include "core/GuiTraceRunInputs.h"
+#include "core/GuiTraceSessionExecution.h"
+#include "script/ScriptFluxAnalysisRequest.h"
 #include "core/SimulationConfig.h"
 #include "core/SceneInstanceBuilder.h"
 #include "core/SceneLoader.h"
@@ -2110,19 +2112,21 @@ void MainWindow::Run()
     std::cout << "gui_master_seed: " << traceSeed
               << (m_fixedGuiMasterSeed ? " (fixed)" : " (automatic)")
               << std::endl;
-    QString executionError;
-    if (!session.start(&executionError)) {
-        QMessageBox::warning(this, "Tonatiuh", executionError);
+    const GuiTraceSessionExecution::Outcome execution =
+        GuiTraceSessionExecution::runPrepared(
+            session, [&watcher, &dialog](const QFuture<void>& future) {
+                watcher.setFuture(future);
+                dialog.exec();
+            });
+    if (!execution.started) {
+        QMessageBox::warning(this, "Tonatiuh", execution.error);
         return;
     }
-    watcher.setFuture(session.future());
-
-    dialog.exec();
-    const bool traceCompleted = session.waitForFinished(&executionError);
-    const bool a0Cancelled = session.state() == SimulationSession::State::Cancelled;
+    const bool traceCompleted = execution.completed;
+    const bool a0Cancelled = execution.cancelled;
     std::cout << "QtConcurrent finished: " << timer.elapsed() << std::endl;
 
-    const bool tracingCancelledByExport = session.exportFailed();
+    const bool tracingCancelledByExport = execution.exportFailed;
     if (traceCompleted && exportSurfaceList.empty())
         ShowRaysIn3DView(); // all photons must be stored
     else {
@@ -2134,13 +2138,13 @@ void MainWindow::Run()
     // export decision are shared with nonvisual scientific tests.
     const GuiTraceCompletionResult completion = GuiTraceCompletion::finalize(
         *m_photonsBuffer, traceCompleted, tracingCancelledByExport,
-        m_raysTracedTotal, session.result().raysTraced,
+        m_raysTracedTotal, execution.raysTraced,
         sunAperture->getArea(), sunPosition->irradiance.getValue());
     m_raysTracedTotal = completion.raysTracedTotal;
     const bool exportSucceeded = completion.exportSucceeded;
     m_scriptRunLastAccepted = completion.accepted;
     if (!traceCompleted)
-        QMessageBox::warning(this, "Tonatiuh", executionError);
+        QMessageBox::warning(this, "Tonatiuh", execution.error);
     if (!exportSucceeded) {
         QMessageBox::warning(
             this,
@@ -2192,14 +2196,46 @@ void MainWindow::Run()
  * The map will be calculated with the parameters \a nOfRays, \a heightDivisions and \a heightDivisions.
  * The results will save in a file \a directory \a QString fileName, the coordinates of the cells depending on the variable \a saveCoord.
  */
+// Retained only for GUI C++ compatibility; scientific JS no longer calls this.
+bool MainWindow::runScriptFluxAnalysisFromFacade(const ScriptFluxAnalysisRequest& request,
+                                                 QString* error)
+{
+    TSceneKit* sceneKit = m_document ? m_document->getSceneKit() : nullptr;
+    if (!sceneKit || !m_modelScene) {
+        if (error) *error = "tn.RunFluxAnalysis: GUI scene is unavailable.";
+        return false;
+    }
+
+    // Preserve the original script flux seed, grid, tracing and format policy.
+    FluxAnalysis fa(sceneKit, m_modelScene, m_raysGridWidth, m_raysGridHeight,
+                    resolvedGuiMasterSeed());
+    if (!fa.run(request.surfaceURL, request.surfaceSide, request.rays,
+                false, request.heightDivisions, request.widthDivisions)) {
+        if (error) *error = "tn.RunFluxAnalysis: GUI flux tracing failed.";
+        return false;
+    }
+    QString writeError;
+    if (!fa.write(request.fileName, request.saveCoordinates, &writeError)) {
+        if (error) *error = "tn.RunFluxAnalysis: " + writeError;
+        return false;
+    }
+    if (error) error->clear();
+    return true;
+}
+
 void MainWindow::RunFluxAnalysis(QString nodeURL, QString surfaceSide, uint nOfRays, int heightDivisions, int widthDivisions, QString fileName, bool saveCoords)
 {
-    TSceneKit* sceneKit = m_document->getSceneKit();
-    if (!sceneKit) return;
-
-    FluxAnalysis fa(sceneKit, m_modelScene, m_raysGridWidth, m_raysGridHeight, resolvedGuiMasterSeed());
-    fa.run(nodeURL, surfaceSide, nOfRays, false, heightDivisions, widthDivisions); //?
-    fa.write(fileName, saveCoords);
+    ScriptFluxAnalysisRequest request;
+    request.surfaceURL = nodeURL;
+    request.surfaceSide = surfaceSide;
+    request.rays = nOfRays;
+    request.heightDivisions = heightDivisions;
+    request.widthDivisions = widthDivisions;
+    request.fileName = fileName;
+    request.saveCoordinates = saveCoords;
+    QString error;
+    if (!runScriptFluxAnalysisFromFacade(request, &error))
+        qWarning().noquote() << error;
 }
 
 /*!
@@ -2321,25 +2357,6 @@ bool MainWindow::applyScriptPhotonExportChange(const ScriptPhotonExportChange& c
     }
     if (!accepted && error) *error = "tn.SetExport*: GUI exporter settings were not accepted.";
     return accepted;
-}
-
-// Phase 3B2B1 shared Run script adapter. All scientific and exporter calls
-// are intentionally still performed by the existing GUI Run() until the full
-// nonvisual exporter lifecycle can preserve append/failure/progress semantics.
-bool MainWindow::runScriptFromFacade(const ScriptRunRequest& request, QString* error)
-{
-    if (error) error->clear();
-    if (!request.scene || request.scene != getSceneKit()) {
-        if (error) *error = "tn.Run: GUI scene changed before execution.";
-        return false;
-    }
-    m_scriptRunLastAccepted = false;
-    Run();
-    if (!m_scriptRunLastAccepted) {
-        if (error) *error = "tn.Run: GUI trace was cancelled or export/run failed.";
-        return false;
-    }
-    return true;
 }
 
 void MainWindow::SetExportAllPhotonMap()
@@ -3229,6 +3246,43 @@ bool MainWindow::setScriptFieldValue(SoNode* node, const QString& field,
     setFieldText(node, field, value);
     if (error) error->clear();
     return true;
+}
+
+std::uint64_t MainWindow::scriptFluxLegacySeed() const
+{
+    // Preserve the script FluxAnalysis automatic seed policy exactly:
+    // MainWindow::runScriptFluxAnalysisFromFacade used this generator
+    // even when the separate GUI Run seed setting was fixed.
+    return resolvedGuiMasterSeed();
+}
+
+std::uint64_t MainWindow::scriptRunMasterSeed() const
+{
+    // GUI Run uses this same fixed-or-automatic choice. In contrast, the
+    // historical seven-argument FluxAnalysis intentionally always auto-seeds.
+    return GuiTraceSeed::resolve(
+        m_fixedGuiMasterSeed, [] { return resolvedGuiMasterSeed(); });
+}
+
+ScriptPhotonExportState MainWindow::scriptPhotonExportSnapshot() const
+{
+    // Map the interactive GUI's effective exporter state to an immutable
+    // shared-script request, without borrowing GUI-owned PhotonsSettings.
+    ScriptPhotonExportState state;
+    state.bufferSize = static_cast<uint>(m_photonBufferSize);
+    state.bufferAppend = m_photonBufferAppend;
+    if (!m_photonsSettings)
+        return state;
+    state.settingsPresent = true;
+    state.exporterName = m_photonsSettings->name;
+    state.saveCoordinates = m_photonsSettings->saveCoordinates;
+    state.saveCoordinatesGlobal = m_photonsSettings->saveCoordinatesGlobal;
+    state.saveSurfaceID = m_photonsSettings->saveSurfaceID;
+    state.saveSurfaceSide = m_photonsSettings->saveSurfaceSide;
+    state.savePhotonsID = m_photonsSettings->savePhotonsID;
+    state.surfaces = m_photonsSettings->surfaces;
+    state.parameters = m_photonsSettings->parameters;
+    return state;
 }
 
 SimulationConfig MainWindow::scriptInterceptionConfiguration(ulong rays) const

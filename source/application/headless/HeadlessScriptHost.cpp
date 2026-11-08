@@ -24,7 +24,8 @@
 #include "script/ScriptHost.h"
 #include "script/ScriptSceneDocument.h"
 #include "script/ScriptSceneServices.h"
-#include "headless/HeadlessScriptRunFileBackend.h"
+#include "script/ScriptRunExecutionService.h"
+#include "headless/HeadlessScriptFluxBackend.h"
 
 namespace
 {
@@ -564,12 +565,20 @@ int HeadlessScriptHost::runScript(const QString& fileName) const
         }
         return document->load(path, error);
     });
-    // Phase 3B2B2A: own the File exporter and its instance tree per script
-    // host. A completed append reuses both and preserves cumulative power.
-    auto scriptedRunBackend = std::make_shared<HeadlessScriptRunFileBackend>();
+    // Exactly the same per-host run/export service as GUI scripts. CLI
+    // retains its historic default seed 0 and explicit rays requirement.
+    auto scriptedRunBackend = std::make_shared<ScriptRunExecutionService>();
     nodeServices->setRunExecutor([scriptedRunBackend](const ScriptRunRequest& request,
                                                       QString* error) {
         return scriptedRunBackend->run(request, error);
+    });
+    // M3: identical nonvisual Flux Analysis execution for 7/8-argument
+    // scripts. The host resolves relative paths; no GUI object is constructed.
+    nodeServices->setFluxAnalysisExecutor([document, &host](
+        const ScriptFluxAnalysisRequest& request, QString* error) {
+        ScriptFluxAnalysisRequest effective = request;
+        effective.fileName = host.resolvePath(request.fileName);
+        return HeadlessScriptFluxBackend::run(document->scene(), effective, error);
     });
     registerScriptSceneServices(&engine, nodeServices);
     HeadlessScriptApi api(&engine);
@@ -615,6 +624,7 @@ int HeadlessScriptHost::runScript(const QString& fileName) const
     SetPhotonBufferSize: sceneApi.SetPhotonBufferSize,
     SetPhotonBufferAppend: sceneApi.SetPhotonBufferAppend,
     Run: sceneApi.Run,
+    RunFluxAnalysis: sceneApi.RunFluxAnalysis,
     writeJson: function(path, value) {
       return api.writeJson(requirePath("tn.writeJson", path), value);
     },

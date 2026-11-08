@@ -3,12 +3,16 @@
 #include <QDebug>
 #include <QPointer>
 
+#include <memory>
+
 #include "headless/HeadlessScriptHost.h"
+#include "headless/HeadlessScriptFluxBackend.h"
 #include "main/MainWindow.h"
 #include "main/PluginManager.h"
 #include "script/ScriptHost.h"
 #include "script/ScriptSceneDocument.h"
 #include "script/ScriptSceneServices.h"
+#include "script/ScriptRunExecutionService.h"
 #include "script/GuiScriptFacadeBridge.h"
 
 #include "kernel/shape/ShapeRT.h"
@@ -82,14 +86,50 @@ void installGuiScriptSceneAdapter(ScriptHost* host, MainWindow* window)
         }
         return gui->setScriptFieldValue(node, field, value, error);
     });
-    // Phase 3B2B1: shared JS Run dispatch, historical GUI execution for
-    // exporter/progress/retained-buffer parity until backend extraction.
-    services->setRunExecutor([gui](const ScriptRunRequest& request, QString* error) {
+    // One widget-free, per-ScriptHost Run/export service for GUI and CLI.
+    // The GUI maps only its current dialog state into the immutable request.
+    // Interactive MainWindow::Run() remains a separate presentation adapter.
+    auto scriptedRun = std::make_shared<ScriptRunExecutionService>();
+    services->setRunExecutor([gui, scriptedRun](const ScriptRunRequest& request,
+                                                QString* error) {
         if (!gui) {
             if (error) *error = "tn.Run: GUI has been closed.";
             return false;
         }
-        return gui->runScriptFromFacade(request, error);
+        if (!request.scene || request.scene != gui->getSceneKit()) {
+            if (error) *error = "tn.Run: GUI scene changed before execution.";
+            return false;
+        }
+        ScriptRunRequest effective = request;
+        // Preserve GUI Run defaults and any SetRays*/SetExport* calls that
+        // already updated the GUI state. The headless adapter keeps its own
+        // explicit-rays requirement and seed-zero default.
+        effective.rays = gui->scriptRunEffectiveRays();
+        effective.explicitRays = effective.rays;
+        effective.sunWidthDivisions = gui->scriptRunEffectiveGridWidth();
+        effective.sunHeightDivisions = gui->scriptRunEffectiveGridHeight();
+        effective.exportOptions = gui->scriptPhotonExportSnapshot();
+        return scriptedRun->run(effective, gui->scriptRunMasterSeed(), error);
+    });
+    // M3 Phase 3B3A: the domain script call uses the same validated request
+    // type in both hosts. Only the GUI adapter may invoke the historical
+    // widget-bound FluxAnalysis path; checked trace/file failures now
+    // propagate to the script call site. Nonvisual parity remains open.
+    services->setFluxAnalysisExecutor([gui, host](const ScriptFluxAnalysisRequest& request,
+                                            QString* error) {
+        if (!gui) {
+            if (error) *error = "tn.RunFluxAnalysis: GUI has been closed.";
+            return false;
+        }
+        // Both seven- and eight-argument scientific JS methods now use the
+        // identical nonvisual session, grid calculation and TSV writer.
+        ScriptFluxAnalysisRequest effective = request;
+        effective.fileName = host->resolvePath(request.fileName);
+        if (!effective.masterSeed.has_value())
+            effective.masterSeed = gui->scriptFluxLegacySeed();
+        // Retain the original automatic-millisecond GUI seed for seven args;
+        // explicit eight-argument calls continue using their supplied seed.
+        return HeadlessScriptFluxBackend::run(gui->getSceneKit(), effective, error);
     });
     services->setPhotonExportSettingsPresent(gui->scriptHasPhotonExportSettings());
     services->setPhotonExportWriter([gui](const ScriptPhotonExportChange& change,

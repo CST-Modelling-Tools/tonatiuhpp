@@ -2,6 +2,8 @@
 
 #include <algorithm>
 #include <cmath>
+#include <functional>
+#include <vector>
 
 #include <Inventor/nodes/SoGroup.h>
 
@@ -20,6 +22,10 @@
 #include "core/CorePluginRegistry.h"
 #include "core/GuiTraceCompletion.h"
 #include "core/GuiTraceRunInputs.h"
+#include "run/FluxAnalysisTsvWriter.h"
+#include "core/FluxGridComputation.h"
+#include "headless/HeadlessScriptFluxBackend.h"
+#include "core/SceneInstanceBuilder.h"
 #include "core/TonatiuhCore.h"
 #include "kernel/scene/TSceneKit.h"
 #include "kernel/scene/TSeparatorKit.h"
@@ -28,9 +34,11 @@
 #include "script/ScriptSceneDocument.h"
 #include "script/ScriptSceneServices.h"
 #include "script/ScriptRunRequest.h"
+#include "script/ScriptFluxAnalysisRequest.h"
 #include <QJsonArray>
 #include <QJsonDocument>
 #include "headless/HeadlessScriptRunFileBackend.h"
+#include "script/ScriptRunExecutionService.h"
 #include "script/GuiScriptFacadeBridge.h"
 #include "kernel/photons/PhotonsAbstract.h"
 #include "kernel/photons/PhotonsBuffer.h"
@@ -390,6 +398,7 @@ TEST(ScientificGuiScriptFacade, ExplicitAllowlistRetainsLegacyCallsAndSharedApi)
           Run: function() { ++this.callCount; return -5; },
           SetExportPhotonMapType: function() { ++this.callCount; return -3; },
           SetPhotonBufferSize: function() { ++this.callCount; return -4; },
+          RunFluxAnalysis: function() { ++this.callCount; return -6; },
           Screenshot: function() { return 73; },
           windowTitle: function() { return 'LEAK'; },
           metaObject: function() { return 'LEAK'; }
@@ -405,6 +414,7 @@ TEST(ScientificGuiScriptFacade, ExplicitAllowlistRetainsLegacyCallsAndSharedApi)
           SetRaysGrid: function() { return 75; },
           SetRaysNumber: function() { return 76; },
           Run: function() { return 79; },
+          RunFluxAnalysis: function() { return 80; },
           SetExportPhotonMapType: function() { return 77; },
           SetPhotonBufferSize: function() { return 78; }
         };
@@ -420,6 +430,7 @@ TEST(ScientificGuiScriptFacade, ExplicitAllowlistRetainsLegacyCallsAndSharedApi)
         "tn === tonatiuh && tn.getScene() === 81 && "
         "tn.ChangeSunPosition(180, 60) === 87 && tn.traceScene({}) === 91 && "
         "tn.Run() === 79 && tn.SetValue('x','y','z') === 72 && "
+        "tn.RunFluxAnalysis('x','front',1,2,2,'x.tsv',false) === 80 && "
         "tn.SetRaysGrid(64,48) === 75 && tn.SetRaysNumber(128) === 76 && "
         "tn.SetExportPhotonMapType('File') === 77 && "
         "tn.SetPhotonBufferSize(4096) === 78 && "
@@ -837,6 +848,414 @@ TEST(ScientificScriptExportConfig, BufferSettingsIndependentOfExporterChoice)
     ASSERT_TRUE(scene->scriptPhotonExportState().bufferAppend.has_value());
     EXPECT_EQ(*scene->scriptPhotonExportState().bufferAppend, false);
     EXPECT_FALSE(scene->scriptPhotonExportState().settingsPresent);
+}
+
+// M3 Phase 3B3A: validate only the nonvisual script request and JS errors.
+// No filesystem, optical calculation or GUI event loop is required here.
+// Phase 3B3B0: protect actual GUI flux TSV bytes and file-error signaling.
+// These widget-free tests do not claim cross-host numerical flux parity.
+// M3 Phase 3B3B1A: real Coin shape/profile inputs with synthetic photons.
+// All grid numerics are shared with the GUI; ray propagation is unchanged.
+// M3 integrated candidate: one script-facing optional seed in both JS hosts.
+// The existing seven-argument signature must remain valid and unchanged.
+TEST(ScientificFluxAnalysisOutput, AtomicReplacementRetainsPriorBytesOnInvalidInput)
+{
+    QTemporaryDir temp;
+    ASSERT_TRUE(temp.isValid());
+    const QString destination = temp.filePath("existing.txt");
+    QFile initial(destination);
+    ASSERT_TRUE(initial.open(QIODevice::WriteOnly));
+    ASSERT_EQ(initial.write("old-artifact"), 12ll);
+    initial.close();
+
+    Matrix2D<int> bins(2, 2);
+    bins.fill(1);
+    const Box2D box(vec2d(0., 0.), vec2d(2., 2.));
+    QString error;
+    ASSERT_TRUE(FluxAnalysisTsvWriter::write(destination, bins, box, 1., false, &error))
+        << error.toStdString();
+    QFile before(destination);
+    ASSERT_TRUE(before.open(QIODevice::ReadOnly));
+    const QByteArray accepted = before.readAll();
+    EXPECT_EQ(accepted, QByteArray("1\t1\t\n1\t1\t\n"));
+    before.close();
+
+    Matrix2D<int> empty;
+    EXPECT_FALSE(FluxAnalysisTsvWriter::write(destination, empty, box, 1., false, &error));
+    EXPECT_TRUE(error.contains("invalid cells"));
+    QFile after(destination);
+    ASSERT_TRUE(after.open(QIODevice::ReadOnly));
+    EXPECT_EQ(after.readAll(), accepted);
+}
+
+TEST(ScientificSharedFluxScript, ExplicitSeedAndGridReachOneDomainExecutor)
+{
+    TonatiuhCore::initializeCoin();
+    LegacySceneFixture fixture;
+    ASSERT_FALSE(fixture.host.evaluate("tn.Clear();tn.SetRaysGrid(64,48);").isError());
+    auto* services = qobject_cast<ScriptSceneServices*>(fixture.host.engine()
+        ->globalObject().property("__tonatiuhppSceneApi").toQObject());
+    ASSERT_NE(services, nullptr);
+    int calls = 0;
+    services->setFluxAnalysisExecutor([&](const ScriptFluxAnalysisRequest& request, QString*) {
+        ++calls;
+        EXPECT_EQ(request.sunWidthDivisions, 64);
+        EXPECT_EQ(request.sunHeightDivisions, 48);
+        EXPECT_EQ(request.rays, 4096u);
+        if (calls == 1) {
+            EXPECT_FALSE(request.replaceExistingOutput);
+            EXPECT_TRUE(request.masterSeed.has_value());
+            if (request.masterSeed) EXPECT_EQ(*request.masterSeed, 123456789u);
+        } else {
+            EXPECT_TRUE(request.replaceExistingOutput);
+            EXPECT_FALSE(request.masterSeed.has_value());
+        }
+        return true;
+    });
+    const auto seeded = fixture.host.evaluate(
+        "tn.RunFluxAnalysis('//Node/Receiver','front',4096,8,8,'grid.txt',false,123456789);",
+        "shared-flux-seeded.tnhpps");
+    EXPECT_FALSE(seeded.isError()) << seeded.toString().toStdString();
+    EXPECT_TRUE(seeded.isUndefined());
+    const auto legacy = fixture.host.evaluate(
+        "tn.RunFluxAnalysis('//Node/Receiver','front',4096,8,8,'grid.txt',false);",
+        "shared-flux-seven-args.tnhpps");
+    EXPECT_FALSE(legacy.isError()) << legacy.toString().toStdString();
+    EXPECT_TRUE(legacy.isUndefined());
+    EXPECT_EQ(calls, 2);
+}
+
+TEST(ScientificSharedFluxScript, RejectsBadSeedsBeforeInvokingExecutor)
+{
+    TonatiuhCore::initializeCoin();
+    LegacySceneFixture fixture;
+    ASSERT_FALSE(fixture.host.evaluate("tn.Clear();").isError());
+    auto* services = qobject_cast<ScriptSceneServices*>(fixture.host.engine()
+        ->globalObject().property("__tonatiuhppSceneApi").toQObject());
+    ASSERT_NE(services, nullptr);
+    int calls = 0;
+    services->setFluxAnalysisExecutor([&](const ScriptFluxAnalysisRequest&, QString*) {
+        ++calls;
+        return true;
+    });
+    for (const QString& value : {QStringLiteral("-1"), QStringLiteral("NaN"),
+                                 QStringLiteral("1.5"), QStringLiteral("'123'"),
+                                 QStringLiteral("4294967296")}) {
+        const auto bad = fixture.host.evaluate(
+            "tn.RunFluxAnalysis('//Node/Receiver','front',128,8,8,'grid.txt',false," +
+            value + ");", "shared-flux-invalid-seed.tnhpps");
+        EXPECT_TRUE(bad.isError()) << value.toStdString();
+        EXPECT_TRUE(bad.toString().contains("seed")) << bad.toString().toStdString();
+    }
+    EXPECT_EQ(calls, 0);
+    const auto good = fixture.host.evaluate(
+        "tn.RunFluxAnalysis('//Node/Receiver','front',128,8,8,'grid.txt',false,0);",
+        "shared-flux-recovered.tnhpps");
+    EXPECT_FALSE(good.isError()) << good.toString().toStdString();
+    EXPECT_EQ(calls, 1);
+}
+
+TEST(ScientificSharedFluxBackend, BoundedSeededTraceProducesGridAndProtectsOutput)
+{
+    TonatiuhCore::initializeCoin();
+    LegacySceneFixture fixture;
+    const auto scene = fixture.host.evaluate(R"JS(
+        var root = new NodeObject;
+        root.setName('SharedFluxBackend');
+        var receiver = root.createNode('Receiver');
+        var shape = receiver.createShape();
+        shape.setName('Shape');
+        shape.insertSurface('Planar');
+        var profile = shape.insertProfile('Box');
+        profile.setParameter('uSize', '8');
+        profile.setParameter('vSize', '8');
+        shape.insertMaterial('Absorber');
+        tn.Clear(); tn.InsertScene(root);
+        var sun = tn.getScene().getPart('world.sun.position');
+        sun.setParameter('azimuth', '180');
+        sun.setParameter('elevation', '90');
+    )JS", "shared-flux-real-scene.tnhpps");
+    ASSERT_FALSE(scene.isError()) << scene.toString().toStdString();
+    QTemporaryDir temp;
+    ASSERT_TRUE(temp.isValid());
+    ScriptFluxAnalysisRequest request;
+    request.surfaceURL = "//Node/SharedFluxBackend/Receiver/Shape";
+    request.surfaceSide = "front";
+    request.rays = 256;
+    request.heightDivisions = 2;
+    request.widthDivisions = 2;
+    request.sunWidthDivisions = 64;
+    request.sunHeightDivisions = 48;
+    request.masterSeed = 0;
+    request.fileName = temp.filePath("flux.txt");
+    QString error;
+    ASSERT_TRUE(HeadlessScriptFluxBackend::run(fixture.document.scene(), request, &error))
+        << error.toStdString();
+    QFile artifact(request.fileName);
+    ASSERT_TRUE(artifact.open(QIODevice::ReadOnly));
+    const QByteArray contents = artifact.readAll();
+    EXPECT_EQ(contents.count('\n'), 2);
+    EXPECT_TRUE(contents.contains('\t'));
+    artifact.close();
+    EXPECT_FALSE(HeadlessScriptFluxBackend::run(fixture.document.scene(), request, &error));
+    EXPECT_TRUE(error.contains("already exists")) << error.toStdString();
+    QFile unchanged(request.fileName);
+    ASSERT_TRUE(unchanged.open(QIODevice::ReadOnly));
+    EXPECT_EQ(unchanged.readAll(), contents);
+    unchanged.close();
+    // Explicitly enabled legacy overwrite still uses the same nonvisual
+    // backend and must be byte-repeatable under a matched effective seed.
+    request.replaceExistingOutput = true;
+    ASSERT_TRUE(HeadlessScriptFluxBackend::run(fixture.document.scene(), request, &error))
+        << error.toStdString();
+    QFile replaced(request.fileName);
+    ASSERT_TRUE(replaced.open(QIODevice::ReadOnly));
+    EXPECT_EQ(replaced.readAll(), contents);
+    replaced.close();
+    request.surfaceURL = "//Node/SharedFluxBackend/Receiver/Missing";
+    request.fileName = temp.filePath("invalid.txt");
+    EXPECT_FALSE(HeadlessScriptFluxBackend::run(fixture.document.scene(), request, &error));
+    EXPECT_TRUE(error.contains("selected surface")) << error.toStdString();
+    EXPECT_FALSE(QFile::exists(request.fileName));
+}
+
+TEST(ScientificFluxGridComputation, PlanarSelectedSideCountsAndNormalizes)
+{
+    TonatiuhCore::initializeCoin();
+    LegacySceneFixture fixture;
+    const QJSValue setup = fixture.host.evaluate(R"JS(
+        var root = new NodeObject;
+        root.setName('GridFixture');
+        var receiver = root.createNode('Receiver');
+        var shape = receiver.createShape();
+        shape.setName('Shape');
+        shape.insertSurface('Planar');
+        var profile = shape.insertProfile('Box');
+        profile.setParameter('uSize', '8');
+        profile.setParameter('vSize', '8');
+        shape.insertMaterial('Absorber');
+        tn.Clear();
+        tn.InsertScene(root);
+    )JS", "flux-grid-fixture.tnhpps");
+    ASSERT_FALSE(setup.isError()) << setup.toString().toStdString();
+    SceneInstanceTree tree = SceneInstanceBuilder::build(fixture.document.scene());
+    ASSERT_NE(tree.layoutRoot, nullptr);
+    tree.layoutRoot->updateTree(Transform::Identity);
+    InstanceNode* target = nullptr;
+    std::function<void(InstanceNode*)> findShape = [&](InstanceNode* node) {
+        if (!node) return;
+        if (dynamic_cast<TShapeKit*>(node->getNode())) target = node;
+        for (InstanceNode* child : node->children) findShape(child);
+    };
+    findShape(tree.layoutRoot);
+    ASSERT_NE(target, nullptr);
+
+    const std::vector<Photon> photons{
+        Photon(1, vec3d(0., 0., 0.), target, true),
+        Photon(2, vec3d(0., 0., 0.), target, true),
+        Photon(3, vec3d(0., 0., 0.), target, false)
+    };
+    FluxGridComputationResult front;
+    QString error;
+    ASSERT_TRUE(FluxGridComputation::calculate(photons, target, "front", 4, 4,
+                                                2., &front, &error)) << error.toStdString();
+    int frontCount = 0;
+    for (int n : front.binsPhotons.data()) frontCount += n;
+    EXPECT_EQ(frontCount, 2);
+    EXPECT_DOUBLE_EQ(front.powerTotal, 4.);
+    EXPECT_EQ(front.photonsMax, 2);
+    EXPECT_EQ(front.binsFlux.rows(), 4);
+    EXPECT_EQ(front.binsFlux.cols(), 4);
+    for (double flux : front.binsFlux.data())
+        EXPECT_TRUE(std::isfinite(flux));
+
+    FluxGridComputationResult back;
+    ASSERT_TRUE(FluxGridComputation::calculate(photons, target, "back", 4, 4,
+                                                2., &back, &error)) << error.toStdString();
+    int backCount = 0;
+    for (int n : back.binsPhotons.data()) backCount += n;
+    EXPECT_EQ(backCount, 1);
+    EXPECT_DOUBLE_EQ(back.powerTotal, 2.);
+    EXPECT_EQ(back.photonsMax, 1);
+}
+
+TEST(ScientificFluxGridComputation, InvalidRequestsFailBeforeAnyOutputMutation)
+{
+    FluxGridComputationResult output;
+    output.powerTotal = 42.;
+    QString error;
+    const std::vector<Photon> empty;
+    EXPECT_FALSE(FluxGridComputation::calculate(empty, nullptr, "front", 4, 4,
+                                                1., &output, &error));
+    EXPECT_TRUE(error.contains("selected surface")) << error.toStdString();
+    EXPECT_DOUBLE_EQ(output.powerTotal, 42.);
+}
+
+TEST(ScientificFluxAnalysisOutput, PreservesLegacyTsvLayoutWithAndWithoutCoordinates)
+{
+    QTemporaryDir temp;
+    ASSERT_TRUE(temp.isValid());
+    Matrix2D<int> bins(2, 2);
+    bins(0, 0) = 1;
+    bins(0, 1) = 2;
+    bins(1, 0) = 3;
+    bins(1, 1) = 4;
+    const Box2D box(vec2d(0., 0.), vec2d(2., 4.));
+    QString error;
+    const QString simple = temp.filePath("plain.txt");
+    ASSERT_TRUE(FluxAnalysisTsvWriter::write(simple, bins, box, 0.25, false, &error))
+        << error.toStdString();
+    QFile plain(simple);
+    ASSERT_TRUE(plain.open(QIODevice::ReadOnly));
+    EXPECT_EQ(plain.readAll(), QByteArray("0.25\t0.5\t\n0.75\t1\t\n"));
+
+    const QString coords = temp.filePath("coords.txt");
+    ASSERT_TRUE(FluxAnalysisTsvWriter::write(coords, bins, box, 0.25, true, &error))
+        << error.toStdString();
+    QFile positioned(coords);
+    ASSERT_TRUE(positioned.open(QIODevice::ReadOnly));
+    EXPECT_EQ(positioned.readAll(), QByteArray(
+        "x(m)\ty(m)\tFlux(W/m2)\n"
+        "0.5\t1\t0.25\n"
+        "0.5\t3\t0.5\n"
+        "1.5\t1\t0.75\n"
+        "1.5\t3\t1\n"));
+}
+
+TEST(ScientificFluxAnalysisOutput, MissingOutputDirectoryRejectsWithoutCreatingFile)
+{
+    QTemporaryDir temp;
+    ASSERT_TRUE(temp.isValid());
+    Matrix2D<int> bins(2, 2);
+    bins.fill(1);
+    QString error;
+    const QString destination = temp.filePath("nonexistent/flux.txt");
+    EXPECT_FALSE(FluxAnalysisTsvWriter::write(
+        destination, bins, Box2D(vec2d(0., 0.), vec2d(2., 2.)),
+        1., false, &error));
+    EXPECT_TRUE(error.contains("Cannot open flux output")) << error.toStdString();
+    EXPECT_FALSE(QFile::exists(destination));
+}
+
+TEST(ScientificFluxAnalysisOutput, EmptyGridRejectsBeforeTouchingDisk)
+{
+    QTemporaryDir temp;
+    ASSERT_TRUE(temp.isValid());
+    QString error;
+    Matrix2D<int> empty;
+    const QString destination = temp.filePath("flux.txt");
+    EXPECT_FALSE(FluxAnalysisTsvWriter::write(
+        destination, empty, Box2D(vec2d(0., 0.), vec2d(2., 2.)),
+        1., true, &error));
+    EXPECT_TRUE(error.contains("invalid cells")) << error.toStdString();
+    EXPECT_FALSE(QFile::exists(destination));
+}
+
+TEST(ScientificScriptFluxAnalysisDispatch, PreservesSevenArgumentRequestAndUndefinedResult)
+{
+    TonatiuhCore::initializeCoin();
+    LegacySceneFixture fixture;
+    ASSERT_FALSE(fixture.host.evaluate("tn.Clear();").isError());
+    auto* services = qobject_cast<ScriptSceneServices*>(fixture.host.engine()
+        ->globalObject().property("__tonatiuhppSceneApi").toQObject());
+    ASSERT_NE(services, nullptr);
+    int dispatched = 0;
+    services->setFluxAnalysisExecutor([&](const ScriptFluxAnalysisRequest& request,
+                                           QString*) {
+        ++dispatched;
+        EXPECT_EQ(request.surfaceURL, "//Node/Receiver");
+        EXPECT_EQ(request.surfaceSide, "back");
+        EXPECT_EQ(request.rays, 2048u);
+        EXPECT_EQ(request.heightDivisions, 8);
+        EXPECT_EQ(request.widthDivisions, 12);
+        EXPECT_EQ(request.fileName, "flux-output.tsv");
+        EXPECT_TRUE(request.saveCoordinates);
+        return true;
+    });
+    const QJSValue result = fixture.host.evaluate(
+        "tn.RunFluxAnalysis('//Node/Receiver', 'back', 2048, 8, 12, "
+        "'flux-output.tsv', true);", "flux-request.tnhpps");
+    EXPECT_FALSE(result.isError()) << result.toString().toStdString();
+    EXPECT_TRUE(result.isUndefined());
+    EXPECT_EQ(dispatched, 1);
+}
+
+TEST(ScientificScriptFluxAnalysisDispatch, MissingBackendFailsAtUserScriptLine)
+{
+    TonatiuhCore::initializeCoin();
+    LegacySceneFixture fixture;
+    ASSERT_FALSE(fixture.host.evaluate("tn.Clear();").isError());
+    const QJSValue result = fixture.host.evaluate(
+        "var marker = 1;\ntn.RunFluxAnalysis('//Node/Receiver', 'front', 128, 8, 12, "
+        "'flux.tsv', false);", "flux-no-backend.tnhpps");
+    ASSERT_TRUE(result.isError());
+    EXPECT_EQ(result.property("lineNumber").toInt(), 2);
+    EXPECT_TRUE(result.toString().contains("tn.RunFluxAnalysis"));
+    EXPECT_TRUE(result.toString().contains("no nonvisual flux-analysis backend"));
+}
+
+TEST(ScientificScriptFluxAnalysisDispatch, InvalidInputsCannotReachHostAdapter)
+{
+    TonatiuhCore::initializeCoin();
+    LegacySceneFixture fixture;
+    ASSERT_FALSE(fixture.host.evaluate("tn.Clear();").isError());
+    auto* services = qobject_cast<ScriptSceneServices*>(fixture.host.engine()
+        ->globalObject().property("__tonatiuhppSceneApi").toQObject());
+    ASSERT_NE(services, nullptr);
+    int dispatched = 0;
+    services->setFluxAnalysisExecutor([&](const ScriptFluxAnalysisRequest&, QString*) {
+        ++dispatched;
+        return true;
+    });
+    const QStringList invalidCalls = {
+        "tn.RunFluxAnalysis('', 'front', 128, 8, 12, 'flux.tsv', false);",
+        "tn.RunFluxAnalysis('//Node/Receiver', 'side', 128, 8, 12, 'flux.tsv', false);",
+        "tn.RunFluxAnalysis('//Node/Receiver', 'front', 0, 8, 12, 'flux.tsv', false);",
+        "tn.RunFluxAnalysis('//Node/Receiver', 'front', NaN, 8, 12, 'flux.tsv', false);",
+        "tn.RunFluxAnalysis('//Node/Receiver', 'front', 2.5, 8, 12, 'flux.tsv', false);",
+        "tn.RunFluxAnalysis('//Node/Receiver', 'front', 128, 1, 12, 'flux.tsv', false);",
+        "tn.RunFluxAnalysis('//Node/Receiver', 'front', 128, 8, -2, 'flux.tsv', false);",
+        "tn.RunFluxAnalysis('//Node/Receiver', 'front', 128, 8, 12, '', false);",
+        "tn.RunFluxAnalysis('//Node/Receiver', 'front', 128, 8, 12, 'flux.tsv', 1);",
+    };
+    for (const QString& call : invalidCalls) {
+        const QJSValue result = fixture.host.evaluate(
+            QStringLiteral("var marker = 1;\n") + call, "flux-invalid.tnhpps");
+        ASSERT_TRUE(result.isError()) << call.toStdString();
+        EXPECT_EQ(result.property("lineNumber").toInt(), 2);
+        EXPECT_TRUE(result.toString().contains("tn.RunFluxAnalysis"));
+    }
+    EXPECT_EQ(dispatched, 0);
+}
+
+TEST(ScientificScriptFluxAnalysisDispatch, HostRejectionPropagatesAndLaterCallSucceeds)
+{
+    TonatiuhCore::initializeCoin();
+    LegacySceneFixture fixture;
+    ASSERT_FALSE(fixture.host.evaluate("tn.Clear();").isError());
+    auto* services = qobject_cast<ScriptSceneServices*>(fixture.host.engine()
+        ->globalObject().property("__tonatiuhppSceneApi").toQObject());
+    ASSERT_NE(services, nullptr);
+    int dispatched = 0;
+    services->setFluxAnalysisExecutor([&](const ScriptFluxAnalysisRequest&, QString* error) {
+        ++dispatched;
+        if (dispatched == 1) {
+            if (error) *error = "tn.RunFluxAnalysis: selected surface is unavailable";
+            return false;
+        }
+        return true;
+    });
+    const char* call = "tn.RunFluxAnalysis('//Node/Receiver', 'front', 128, 8, 12, 'flux.tsv', false);";
+    const QJSValue rejected = fixture.host.evaluate(
+        QStringLiteral("var marker = 1;\n") + QString::fromUtf8(call),
+        "flux-rejected.tnhpps");
+    ASSERT_TRUE(rejected.isError());
+    EXPECT_EQ(rejected.property("lineNumber").toInt(), 2);
+    EXPECT_TRUE(rejected.toString().contains("selected surface is unavailable"));
+    const QJSValue accepted = fixture.host.evaluate(
+        QString::fromUtf8(call), "flux-recovery.tnhpps");
+    EXPECT_FALSE(accepted.isError()) << accepted.toString().toStdString();
+    EXPECT_EQ(dispatched, 2);
 }
 
 TEST(ScientificScriptRunDispatch, MissingBackendRejectsAtScriptLine)
@@ -1466,4 +1885,81 @@ TEST(ScientificScriptFileHostPoison, AppendWriteFailureBlocksResetAndPreservesOw
 TEST(ScientificScriptFileHostPoison, AppendFlushFailureBlocksResetAndPreservesOwnership)
 {
     m3VerifyRealHostPoisoning("flush");
+}
+
+// M3 final scripted Run migration: no GUI-dependent scientific implementation.
+TEST(ScientificSharedScriptRun, OptionalExplicitSeedIsValidatedAtUserCallSite)
+{
+    TonatiuhCore::initializeCoin();
+    LegacySceneFixture fixture;
+    int calls = 0;
+    std::optional<std::uint64_t> lastSeed;
+    auto* services = qobject_cast<ScriptSceneServices*>(fixture.host.engine()
+        ->globalObject().property("__tonatiuhppSceneApi").toQObject());
+    ASSERT_NE(services, nullptr);
+    services->setRunExecutor([&](const ScriptRunRequest& request, QString*) {
+        ++calls;
+        lastSeed = request.masterSeed;
+        return true;
+    });
+    ASSERT_TRUE(fixture.document.clear());
+    const QJSValue seeded = fixture.host.evaluate(
+        "tn.SetRaysNumber(128);\ntn.Run(0);", "m3-run-seed-zero.tnhpps");
+    ASSERT_FALSE(seeded.isError()) << seeded.toString().toStdString();
+    EXPECT_EQ(calls, 1);
+    ASSERT_TRUE(lastSeed.has_value());
+    EXPECT_EQ(*lastSeed, 0u);
+    const QJSValue unseeded = fixture.host.evaluate(
+        "tn.Run();", "m3-run-legacy.tnhpps");
+    ASSERT_FALSE(unseeded.isError()) << unseeded.toString().toStdString();
+    EXPECT_EQ(calls, 2);
+    EXPECT_FALSE(lastSeed.has_value());
+
+    const QJSValue invalid = fixture.host.evaluate(
+        "var a = 1;\ntn.Run(0.5);", "m3-run-bad-seed.tnhpps");
+    ASSERT_TRUE(invalid.isError());
+    EXPECT_EQ(invalid.property("lineNumber").toInt(), 2);
+    EXPECT_TRUE(invalid.toString().contains("uint32"));
+    EXPECT_EQ(calls, 2);
+    const QJSValue overflow = fixture.host.evaluate(
+        "tn.Run(4294967296);", "m3-run-overflow.tnhpps");
+    ASSERT_TRUE(overflow.isError());
+    EXPECT_EQ(calls, 2);
+}
+
+TEST(ScientificSharedScriptRun, RealNonvisualExecutorRepeatsWithEffectiveSeeds)
+{
+    TonatiuhCore::initializeCoin();
+    LegacySceneFixture fixture;
+    QString error;
+    ASSERT_TRUE(fixture.document.load(
+        QString::fromUtf8(TONATIUHPP_EQUIVALENCE_SCENE_FILE), &error))
+        << error.toStdString();
+    ScriptRunRequest request;
+    request.scene = fixture.document.scene();
+    request.explicitRays = 128u;
+    request.rays = 128;
+    request.sunWidthDivisions = 64;
+    request.sunHeightDivisions = 64;
+    ScriptRunExecutionService backend;
+    ASSERT_TRUE(backend.run(request, 0u, &error)) << error.toStdString();
+    ASSERT_TRUE(backend.run(request, 123456789u, &error)) << error.toStdString();
+    request.masterSeed = 0u;
+    ASSERT_TRUE(backend.run(request, 123456789u, &error)) << error.toStdString();
+}
+
+TEST(ScientificSharedScriptRun, MissingInputsRejectWithoutCreatingExport)
+{
+    ScriptRunExecutionService backend;
+    ScriptRunRequest request;
+    QString error;
+    EXPECT_FALSE(backend.run(request, 0u, &error));
+    EXPECT_TRUE(error.contains("active scene"));
+    TonatiuhCore::initializeCoin();
+    LegacySceneFixture fixture;
+    ASSERT_TRUE(fixture.document.clear(&error)) << error.toStdString();
+    request.scene = fixture.document.scene();
+    EXPECT_FALSE(backend.run(request, 0u, &error));
+    EXPECT_TRUE(error.contains("effective ray count"));
+    // No exporter, file or instance tree is opened for this rejected call.
 }
