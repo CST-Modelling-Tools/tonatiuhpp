@@ -15,6 +15,7 @@
 
 #include "benchmark/BenchmarkRunner.h"
 #include "core/CorePluginRegistry.h"
+#include "core/PhotonExportFileService.h"
 #include "core/NativeTraceSignature.h"
 #include "core/NativeRayHistorySignature.h"
 #include "core/RayTraceExecutor.h"
@@ -47,56 +48,34 @@ private:
     QTextStream* m_stream = nullptr;
 };
 
-// Keep the real photon file factory plugin loaded until its exporter is
-// destroyed. The default headless path never loads export plugins.
-struct PhotonExporterPlugin
-{
-    std::unique_ptr<QPluginLoader> loader;
-    std::unique_ptr<PhotonsAbstract> exporter;
-};
+// The direct CLI and scripted hosts now share widget-free factory lookup,
+// strict output-directory validation and explicit exporter/plugin ownership.
+using PhotonExporterPlugin = PhotonExportFileService::Plugin;
 
 bool createPhotonFileExporter(const QString& directory,
                               const QStringList& pluginRoots,
+                              const QStringList& surfaces,
                               PhotonExporterPlugin* plugin,
                               PhotonsSettings* settings,
                               QString* error)
 {
-    for (const QString& root : pluginRoots) {
-        QDirIterator it(root, QDir::Files | QDir::NoSymLinks,
-                        QDirIterator::Subdirectories);
-        while (it.hasNext()) {
-            const QString path = it.next();
-            if (!QLibrary::isLibrary(path))
-                continue;
-            auto loader = std::make_unique<QPluginLoader>(path);
-            if (loader->metaData().value("IID").toString()
-                != QStringLiteral("tonatiuh.PhotonsFactory"))
-                continue;
-            QObject* object = loader->instance();
-            auto* factory = dynamic_cast<PhotonsFactory*>(object);
-            if (!factory || factory->name() != QStringLiteral("File"))
-                continue;
-            auto exporter = std::unique_ptr<PhotonsAbstract>(factory->create(0));
-            if (!exporter)
-                continue;
-            settings->name = QStringLiteral("File");
-            settings->saveCoordinates = true;
-            settings->saveCoordinatesGlobal = true;
-            settings->saveSurfaceID = true;
-            settings->saveSurfaceSide = true;
-            settings->savePhotonsID = false;
-            settings->parameters.insert("ExportDirectory", directory);
-            settings->parameters.insert("ExportFile", "PhotonMap");
-            settings->parameters.insert("FileSize", "-1");
-            exporter->setPhotonSettings(settings);
-            plugin->loader = std::move(loader);
-            plugin->exporter = std::move(exporter);
-            return true;
-        }
-    }
-    if (error)
-        *error = "The File photon exporter plugin is unavailable.";
-    return false;
+    if (!PhotonExportFileService::validateFreshOutputDirectory(directory, error))
+        return false;
+    settings->name = QStringLiteral("File");
+    settings->saveCoordinates = true;
+    settings->saveCoordinatesGlobal = true;
+    settings->saveSurfaceID = true;
+    settings->saveSurfaceSide = true;
+    settings->savePhotonsID = false;
+    settings->surfaces = surfaces;
+    settings->parameters.insert("ExportDirectory", directory);
+    settings->parameters.insert("ExportFile", "PhotonMap");
+    settings->parameters.insert("FileSize", "-1");
+    if (!PhotonExportFileService::createFileExporter(
+            pluginRoots, &plugin->loader, &plugin->exporter, error))
+        return false;
+    plugin->exporter->setPhotonSettings(settings);
+    return true;
 }
 
 bool failParse(QString* errorMessage, const QString& message)
@@ -216,20 +195,16 @@ int HeadlessCommandRunner::traceScene(const QStringList& args) const
     PhotonsSettings photonSettings{};
     std::shared_ptr<PhotonsBuffer> photonBuffer;
     if (!parsed.photonExportDirectory.isEmpty()) {
-        if (!a0Signature) {
-            err << "Photon export diagnostic requires TONATIUHPP_A0_TRACE_SIGNATURE_FILE."
-                << Qt::endl;
-            return 2;
-        }
         if (!createPhotonFileExporter(parsed.photonExportDirectory,
                     TonatiuhCore::pluginSearchPaths(QCoreApplication::applicationDirPath()),
-                    photonPlugin.get(), &photonSettings, &errorMessage)) {
-            err << "Photon export diagnostic failed: " << errorMessage << Qt::endl;
+                    parsed.photonSurfaceUrls, photonPlugin.get(),
+                    &photonSettings, &errorMessage)) {
+            err << "Photon export failed: " << errorMessage << Qt::endl;
             return 1;
         }
         photonBuffer = std::make_shared<PhotonsBuffer>(100000);
         if (!photonBuffer->setExporter(photonPlugin->exporter.get())) {
-            err << "Photon export diagnostic failed to initialize the output." << Qt::endl;
+            err << "Photon export failed to initialize the output." << Qt::endl;
             return 1;
         }
     }
@@ -243,6 +218,7 @@ int HeadlessCommandRunner::traceScene(const QStringList& args) const
     HeadlessTracePreparationInput preparationInput;
     preparationInput.scene = scene->get();
     preparationInput.photonBuffer = photonBuffer.get();
+    preparationInput.exportSurfaceUrls = parsed.photonSurfaceUrls;
     preparationInput.configuration.rays = parsed.rays;
     preparationInput.configuration.masterSeed = parsed.seed;
     preparationInput.updateTrackers = parsed.updateTrackers;
@@ -274,7 +250,7 @@ int HeadlessCommandRunner::traceScene(const QStringList& args) const
 
     if (photonBuffer &&
         !photonBuffer->endExport(result.powerPerRay)) {
-        err << "Photon export diagnostic failed to finish writing." << Qt::endl;
+        err << "Photon export failed to finish writing." << Qt::endl;
         return 1;
     }
     if (history) {
@@ -399,6 +375,12 @@ bool HeadlessCommandRunner::parseTraceSceneArguments(const QStringList& args, Tr
             if (++i >= args.size() || args[i].isEmpty() || args[i].startsWith("--"))
                 return failParse(errorMessage, "--photon-export-dir requires a directory path.");
             parsed->photonExportDirectory = args[i];
+        } else if (option == "--photon-surface") {
+            if (++i >= args.size() || args[i].isEmpty() || args[i].startsWith("--"))
+                return failParse(errorMessage, "--photon-surface requires a scene surface URL.");
+            if (parsed->photonSurfaceUrls.contains(args[i]))
+                return failParse(errorMessage, "--photon-surface URL was specified more than once.");
+            parsed->photonSurfaceUrls.append(args[i]);
         } else if (option == "--update-trackers") {
             if (parsed->updateTrackers)
                 return failParse(errorMessage, "--update-trackers was specified more than once.");
@@ -414,9 +396,11 @@ bool HeadlessCommandRunner::parseTraceSceneArguments(const QStringList& args, Tr
         return failParse(errorMessage, "trace-scene requires --seed S.");
     if (!parsed->noExport && parsed->photonExportDirectory.isEmpty())
         return failParse(errorMessage, "trace-scene requires --no-export or --photon-export-dir PATH.");
+    if (!parsed->photonSurfaceUrls.isEmpty() && parsed->photonExportDirectory.isEmpty())
+        return failParse(errorMessage, "--photon-surface requires --photon-export-dir PATH.");
     if (!parsed->photonExportDirectory.isEmpty()
         && parsed->rays > 200000)
-        return failParse(errorMessage, "Opt-in photon export diagnostic is limited to 200000 rays.");
+        return failParse(errorMessage, "File photon export currently permits at most 200000 rays.");
 
     return true;
 }
@@ -463,7 +447,8 @@ void HeadlessCommandRunner::printUsage() const
     out << "Commands:" << Qt::endl;
     out << "  validate-scene <scene.tnhpp>                         Validate that a Tonatiuh++ scene can be loaded." << Qt::endl;
     out << "  trace-scene <scene.tnhpp> --rays N --seed S (--no-export | --photon-export-dir DIR) [--update-trackers]" << Qt::endl;
-    out << "                                                     --photon-export-dir is opt-in A0 file-export diagnostic (max 200000 rays)." << Qt::endl;
+    out << "                                                     File export requires an existing empty absolute directory (max 200000 rays)." << Qt::endl;
+    out << "                                                     --photon-surface URL selects a surface (repeatable; File export only)." << Qt::endl;
     out << "                                                     --update-trackers applies GUI-like tracking (opt-in)." << Qt::endl;
     out << "  benchmark <benchmark_config.json>                  Run a headless benchmark and write JSON results." << Qt::endl;
     out << "  run-script <script.tnhpps>                         Run a script through the limited true-headless API." << Qt::endl;
