@@ -1,6 +1,7 @@
 #pragma once
 
 #include "headless/HeadlessScriptFileExportResources.h"
+#include "core/PhotonExportFileService.h"
 
 // M3 unified script-run executor for both GUI and true-headless ScriptHost.
 // Single widget-free lifecycle for the production File/No-export plugins,
@@ -61,22 +62,9 @@ class ScriptRunExecutionService final
 
     static bool freshOutputDirectory(const QString& folder, QString* error)
     {
-        const QFileInfo info(folder);
-        if (!info.isAbsolute() || !info.isDir())
-            return fail(error, "tn.Run: File export requires an existing absolute output directory.");
-        const QDir directory(info.absoluteFilePath());
-        if (!directory.entryList(QDir::AllEntries | QDir::Hidden |
-                                 QDir::System | QDir::NoDotAndDotDot).isEmpty())
-            return fail(error, "tn.Run: File export directory must be empty (never overwrite existing photon data).");
-        const QString probeName = directory.filePath(".tonatiuhpp_script_run_probe.tmp");
-        QFile probe(probeName);
-        if (!probe.open(QIODevice::WriteOnly | QIODevice::NewOnly))
-            return fail(error, "tn.Run: File export directory is not writable.");
-        const bool written = probe.write("1", 1) == 1 && probe.flush();
-        probe.close();
-        const bool removed = probe.remove();
-        if (!written || !removed)
-            return fail(error, "tn.Run: File export directory probe failed.");
+        QString detail;
+        if (!PhotonExportFileService::validateFreshOutputDirectory(folder, &detail))
+            return fail(error, "tn.Run: " + detail);
         return true;
     }
 
@@ -118,26 +106,9 @@ class ScriptRunExecutionService final
 
             const QStringList roots = TonatiuhCore::pluginSearchPaths(
                 QCoreApplication::applicationDirPath());
-            for (const QString& root : roots) {
-                QDirIterator files(root, QDir::Files | QDir::NoSymLinks,
-                                   QDirIterator::Subdirectories);
-                while (files.hasNext()) {
-                    const QString path = files.next();
-                    if (!QLibrary::isLibrary(path)) continue;
-                    auto plugin = std::make_unique<QPluginLoader>(path);
-                    if (plugin->metaData().value("IID").toString() !=
-                        QStringLiteral("tonatiuh.PhotonsFactory")) continue;
-                    auto* factory = dynamic_cast<PhotonsFactory*>(plugin->instance());
-                    if (!factory || factory->name() != QStringLiteral("File")) continue;
-                    owned->exporter.reset(factory->create(0));
-                    if (owned->exporter) {
-                        owned->plugin = std::move(plugin);
-                        break;
-                    }
-                }
-                if (owned->exporter) break;
-            }
-            if (!owned->exporter)
+            QString discoveryError;
+            if (!PhotonExportFileService::createFileExporter(
+                    roots, &owned->plugin, &owned->exporter, &discoveryError))
                 return fail(error, "tn.Run: production File photon exporter plugin is unavailable.");
         } else {
             return fail(error, "tn.Run: scripted execution supports only File and No export photon modes.");

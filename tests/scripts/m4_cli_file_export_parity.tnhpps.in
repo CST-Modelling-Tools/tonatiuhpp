@@ -1,0 +1,19 @@
+// M4.1: independent true-headless SCRIPT export, compared with the direct CLI.
+// Both paths use the same seed/grid/tracker preparation/selected surface.
+// This script writes only to a fresh, precreated build-tree test directory.
+tn.loadScene('@SCENE_FILE@');
+tn.SetRaysNumber(2048);
+tn.SetRaysGrid(200, 200);
+tn.SetExportPhotonMapType('File');
+tn.SetExportCoordinates(true, true);
+tn.SetExportIntersectionSurface(true);
+tn.SetExportIntersectionSurfaceSide(true);
+tn.SetExportPreviousNextPhotonID(false);
+tn.SetPhotonBufferSize(4096);
+tn.SetPhotonBufferAppend(false);
+tn.SetExportTypeParameterValue('ExportDirectory', '@EXPORT_DIRECTORY@');
+tn.SetExportTypeParameterValue('ExportFile', 'PhotonMap');
+tn.SetExportTypeParameterValue('FileSize', '-1');
+tn.AddExportSurfaceURL('//Node/Shape');
+tn.Run(0);
+print('M4 CLI/script File photon parity fixture completed.');

@@ -451,6 +451,25 @@ if(TONATIUHPP_ENABLE_HEADLESS_SMOKE_TESTS)
       LABELS "headless;smoke;scientific;equivalence"
       TIMEOUT 360
     )
+
+    # M4.1: direct CLI File export (no A0 environment variable) must match
+    # the identical true-headless script's real physical photon output.
+    add_test(
+      NAME headless.m4_cli_script_file_export_parity
+      COMMAND "${CMAKE_COMMAND}"
+        "-DTEST_EXECUTABLE=${TONATIUHPP_TEST_EXE}"
+        "-DTEST_WORKING_DIRECTORY=${TONATIUHPP_TEST_WORKING_DIR}"
+        "-DTEST_SCENE=${_tonatiuhpp_cylinder_scene}"
+        "-DTEST_SCRIPT=${CMAKE_CURRENT_LIST_DIR}/scripts/m4_cli_file_export_parity.tnhpps.in"
+        "-DCOMPARATOR=${CMAKE_CURRENT_LIST_DIR}/scientific/compare_photon_exports.py"
+        "-DPYTHON_EXECUTABLE=${Python3_EXECUTABLE}"
+        "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/m4_cli_file_export_parity"
+        "-DTEST_BUILD_ROOT=${CMAKE_CURRENT_BINARY_DIR}"
+        -P "${CMAKE_CURRENT_LIST_DIR}/cmake/run_m4_cli_file_export_parity.cmake"
+    )
+    tonatiuhpp_set_headless_test_properties(headless.m4_cli_script_file_export_parity)
+    set_tests_properties(headless.m4_cli_script_file_export_parity PROPERTIES
+      LABELS "headless;smoke;scientific;equivalence" TIMEOUT 300)
   endif()
 
   # PR #20: real tracker recording/export regression, independent native

@@ -21,6 +21,7 @@ private:
         bool hasSeed = false;
         bool noExport = false;
         QString photonExportDirectory;
+        QStringList photonSurfaceUrls;
         bool updateTrackers = false;
     };
 
