@@ -21,6 +21,10 @@ private:
         bool hasSeed = false;
         bool noExport = false;
         QString photonExportDirectory;
+        QString photonFileName = QStringLiteral("PhotonMap");
+        QString photonFileSize = QStringLiteral("-1");
+        bool hasPhotonFileName = false;
+        bool hasPhotonFileSize = false;
         QStringList photonSurfaceUrls;
         bool updateTrackers = false;
     };

@@ -5,6 +5,7 @@
 
 #include <iostream>
 #include <memory>
+#include <utility>
 
 #include <QCloseEvent>
 #include <QDir>
@@ -67,6 +68,7 @@
 #include "core/NativeRayHistorySignature.h"
 #include "core/RayTraceExecutor.h"
 #include "core/SimulationSession.h"
+#include "core/PhotonExportFileService.h"
 #include "core/GuiTraceCompletion.h"
 #include "core/GuiTraceRunInputs.h"
 #include "core/GuiTraceSessionExecution.h"
@@ -337,11 +339,17 @@ MainWindow::MainWindow(QString fileName, CustomSplashScreen* splash, QWidget* pa
 
 MainWindow::~MainWindow()
 {
+    // Finish borrowed-buffer lifetime before releasing its exporter; both
+    // must die before the plugin factory or model scene is destroyed.
     delete ui;
+    delete m_photonsBuffer;
+    m_photonsBuffer = nullptr;
+    m_guiPhotonExporter.reset();
+    delete m_photonsSettings;
+    m_photonsSettings = nullptr;
     delete m_pluginManager;
     delete m_modelScene;
     delete m_document;
-    delete m_photonsBuffer;
 }
 
 TSceneKit* MainWindow::getSceneKit()
@@ -2009,6 +2017,31 @@ void MainWindow::Run()
     // ray-tracing bounds. No preview-mesh sizing is needed before tracing.
     if (!ReadyForRaytracing(instanceLayout, &instanceSun, air) ) return;
 
+    // The retained-exporter restart branch bypasses the fresh-export GUI
+    // confirmation. Refuse append if there is no accepted checkpoint or if
+    // ANY output entry was altered/added/removed since the previous run.
+    if (m_photonBufferAppend && m_photonsBuffer->getExporter() &&
+        m_photonsSettings && m_photonsSettings->name == QStringLiteral("File")) {
+        const QString folder = m_photonsSettings->parameters.value("ExportDirectory");
+        const QString basename = m_photonsSettings->parameters.value("ExportFile", "PhotonMap");
+        QMap<QString, QByteArray> observed;
+        bool hasPhotonData = false;
+        QString checkpointError;
+        if (!m_guiFileExportCheckpointValid ||
+            folder != m_guiFileExportDirectory ||
+            basename != m_guiFileExportBasename ||
+            !PhotonExportFileService::captureOutputCheckpoint(
+                folder, basename, &observed, &hasPhotonData, &checkpointError) ||
+            !hasPhotonData || observed != m_guiFileExportDigests) {
+            QMessageBox::warning(this, "Tonatiuh",
+                tr("Cannot append File photons: the prior export is incomplete or "
+                   "its output files changed. Preserve the existing directory "
+                   "and select a NEW empty directory for a new export.") +
+                (checkpointError.isEmpty() ? QString() : QStringLiteral("\n") + checkpointError));
+            return;
+        }
+    }
+
     if (!m_photonsBuffer->getExporter() )
     {
 //        if (!m_photonsSettings) return;
@@ -2024,9 +2057,42 @@ void MainWindow::Run()
             settings.savePhotonsID = true;
         }
 
-        PhotonsAbstract* photonsExporter = CreatePhotonMapExport();
-        if (!photonsExporter) return;
-        if (!m_photonsBuffer->setExporter(photonsExporter)) {
+        // M4 UI adapter: only the interactive GUI can authorize replacement
+        // of legacy File outputs. The production File plugin never displays
+        // dialogs, and CLI/scripts continue to reject nonempty directories.
+        if (m_photonsSettings->name == QStringLiteral("File")) {
+            const auto& params = m_photonsSettings->parameters;
+            const QString basename = params.value("ExportFile", "PhotonMap");
+            const QString fileSize = params.value("FileSize", "-1");
+            QString fileError;
+            if (!PhotonExportFileService::validateFileOptions(basename, fileSize, &fileError) ||
+                !PhotonExportFileService::validateOutputDirectory(
+                    params.value("ExportDirectory"), &fileError)) {
+                QMessageBox::warning(this, "Tonatiuh", fileError);
+                return;
+            }
+            QDir output(params.value("ExportDirectory"));
+            const QString filter = fileSize == "-1"
+                ? basename + ".dat" : basename + "_*.dat";
+            QStringList existing = output.entryList(QStringList(filter),
+                QDir::Files | QDir::Hidden | QDir::System | QDir::NoDotAndDotDot);
+            if (QFileInfo::exists(output.absoluteFilePath(basename + "_parameters.txt")))
+                existing.append(basename + "_parameters.txt");
+            if (!existing.isEmpty()) {
+                const auto choice = QMessageBox::warning(this, "Tonatiuh",
+                    tr("A new File export will replace %1 existing photon data file(s) in:\n%2\nContinue?")
+                        .arg(existing.size()).arg(output.absolutePath()),
+                    QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+                if (choice != QMessageBox::Yes) return;
+            }
+        }
+        m_guiFileExportCheckpointValid = false;
+        m_guiFileExportDigests.clear();
+        // Keep ownership even if startExport fails. The buffer borrows
+        // this pointer and must be released first on reset/destruction.
+        m_guiPhotonExporter.reset(CreatePhotonMapExport());
+        if (!m_guiPhotonExporter) return;
+        if (!m_photonsBuffer->setExporter(m_guiPhotonExporter.get())) {
             QMessageBox::warning(
                 this,
                 "Tonatiuh",
@@ -2143,6 +2209,30 @@ void MainWindow::Run()
     m_raysTracedTotal = completion.raysTracedTotal;
     const bool exportSucceeded = completion.exportSucceeded;
     m_scriptRunLastAccepted = completion.accepted;
+    // On an interrupted/failed trace an append checkpoint is never accepted.
+    // Partial disk output may exist and needs an explicit fresh-export decision.
+    if (!completion.accepted)
+        m_guiFileExportCheckpointValid = false;
+    if (completion.accepted && m_photonsSettings &&
+        m_photonsSettings->name == QStringLiteral("File")) {
+        const QString folder = m_photonsSettings->parameters.value("ExportDirectory");
+        const QString basename = m_photonsSettings->parameters.value("ExportFile", "PhotonMap");
+        QMap<QString, QByteArray> digests;
+        bool hasPhotonData = false;
+        QString checkpointError;
+        const bool captured = PhotonExportFileService::captureOutputCheckpoint(
+            folder, basename, &digests, &hasPhotonData, &checkpointError);
+        m_guiFileExportCheckpointValid = captured && hasPhotonData;
+        if (m_guiFileExportCheckpointValid) {
+            m_guiFileExportDigests = std::move(digests);
+            m_guiFileExportDirectory = folder;
+            m_guiFileExportBasename = basename;
+        } else if (!captured) {
+            QMessageBox::warning(this, "Tonatiuh",
+                tr("The File export completed, but its output checkpoint could not "
+                   "be verified; future appends are blocked.\n") + checkpointError);
+        }
+    }
     if (!traceCompleted)
         QMessageBox::warning(this, "Tonatiuh", execution.error);
     if (!exportSucceeded) {
@@ -2867,7 +2957,12 @@ bool MainWindow::ResetPhotonExporter()
 
     delete m_photonsBuffer;
     m_photonsBuffer = 0;
+    m_guiPhotonExporter.reset();
     m_raysTracedTotal = 0;
+    m_guiFileExportCheckpointValid = false;
+    m_guiFileExportDigests.clear();
+    m_guiFileExportDirectory.clear();
+    m_guiFileExportBasename.clear();
     return true;
 }
 

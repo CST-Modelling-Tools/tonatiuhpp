@@ -470,6 +470,25 @@ if(TONATIUHPP_ENABLE_HEADLESS_SMOKE_TESTS)
     tonatiuhpp_set_headless_test_properties(headless.m4_cli_script_file_export_parity)
     set_tests_properties(headless.m4_cli_script_file_export_parity PROPERTIES
       LABELS "headless;smoke;scientific;equivalence" TIMEOUT 300)
+
+    # M4 completion candidate: File segments, CLI/script parity, safe append,
+    # and >200k requested rays without touching frozen A0 evidence.
+    add_test(
+      NAME headless.m4_extended_file_export_parity
+      COMMAND "${CMAKE_COMMAND}"
+        "-DTEST_EXECUTABLE=${TONATIUHPP_TEST_EXE}"
+        "-DTEST_SCRIPT=${CMAKE_CURRENT_LIST_DIR}/scripts/m4_extended_file_export.tnhpps.in"
+        "-DTEST_SCENE=${_tonatiuhpp_cylinder_scene}"
+        "-DCOMPARATOR=${CMAKE_CURRENT_LIST_DIR}/scientific/compare_m4_extended_exports.py"
+        "-DPYTHON_EXECUTABLE=${Python3_EXECUTABLE}"
+        "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/m4_extended_file_export"
+        "-DTEST_BUILD_ROOT=${CMAKE_CURRENT_BINARY_DIR}"
+        "-DTEST_WORKING_DIRECTORY=${TONATIUHPP_TEST_WORKING_DIR}"
+        -P "${CMAKE_CURRENT_LIST_DIR}/cmake/run_m4_extended_file_export.cmake"
+    )
+    tonatiuhpp_set_headless_test_properties(headless.m4_extended_file_export_parity)
+    set_tests_properties(headless.m4_extended_file_export_parity PROPERTIES
+      LABELS "headless;smoke;scientific;equivalence" TIMEOUT 300)
   endif()
 
   # PR #20: real tracker recording/export regression, independent native

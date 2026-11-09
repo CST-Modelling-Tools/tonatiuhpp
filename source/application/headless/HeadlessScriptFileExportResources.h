@@ -9,6 +9,7 @@
 #include <memory>
 
 #include <QByteArray>
+#include <QMap>
 #include <QPluginLoader>
 
 #include "core/SceneInstanceBuilder.h"
@@ -50,6 +51,6 @@ struct HeadlessScriptFileExportResources final
     std::uint64_t completedRays = 0;
     bool poisoned = false;
     bool appendable = true;
-    QByteArray outputDigest;
-    QByteArray parametersDigest;
+    // Snapshot every export file, including multisegment outputs, before append.
+    QMap<QString, QByteArray> outputDigests;
 };

@@ -54,12 +54,15 @@ using PhotonExporterPlugin = PhotonExportFileService::Plugin;
 
 bool createPhotonFileExporter(const QString& directory,
                               const QStringList& pluginRoots,
+                              const QString& basename,
+                              const QString& fileSize,
                               const QStringList& surfaces,
                               PhotonExporterPlugin* plugin,
                               PhotonsSettings* settings,
                               QString* error)
 {
-    if (!PhotonExportFileService::validateFreshOutputDirectory(directory, error))
+    if (!PhotonExportFileService::validateFileOptions(basename, fileSize, error) ||
+        !PhotonExportFileService::validateFreshOutputDirectory(directory, error))
         return false;
     settings->name = QStringLiteral("File");
     settings->saveCoordinates = true;
@@ -69,8 +72,8 @@ bool createPhotonFileExporter(const QString& directory,
     settings->savePhotonsID = false;
     settings->surfaces = surfaces;
     settings->parameters.insert("ExportDirectory", directory);
-    settings->parameters.insert("ExportFile", "PhotonMap");
-    settings->parameters.insert("FileSize", "-1");
+    settings->parameters.insert("ExportFile", basename);
+    settings->parameters.insert("FileSize", fileSize);
     if (!PhotonExportFileService::createFileExporter(
             pluginRoots, &plugin->loader, &plugin->exporter, error))
         return false;
@@ -197,6 +200,7 @@ int HeadlessCommandRunner::traceScene(const QStringList& args) const
     if (!parsed.photonExportDirectory.isEmpty()) {
         if (!createPhotonFileExporter(parsed.photonExportDirectory,
                     TonatiuhCore::pluginSearchPaths(QCoreApplication::applicationDirPath()),
+                    parsed.photonFileName, parsed.photonFileSize,
                     parsed.photonSurfaceUrls, photonPlugin.get(),
                     &photonSettings, &errorMessage)) {
             err << "Photon export failed: " << errorMessage << Qt::endl;
@@ -375,6 +379,20 @@ bool HeadlessCommandRunner::parseTraceSceneArguments(const QStringList& args, Tr
             if (++i >= args.size() || args[i].isEmpty() || args[i].startsWith("--"))
                 return failParse(errorMessage, "--photon-export-dir requires a directory path.");
             parsed->photonExportDirectory = args[i];
+        } else if (option == "--photon-file-name") {
+            if (parsed->hasPhotonFileName)
+                return failParse(errorMessage, "--photon-file-name was specified more than once.");
+            if (++i >= args.size() || args[i].isEmpty() || args[i].startsWith("--"))
+                return failParse(errorMessage, "--photon-file-name requires a basename.");
+            parsed->photonFileName = args[i];
+            parsed->hasPhotonFileName = true;
+        } else if (option == "--photon-file-size") {
+            if (parsed->hasPhotonFileSize)
+                return failParse(errorMessage, "--photon-file-size was specified more than once.");
+            if (++i >= args.size() || args[i].isEmpty())
+                return failParse(errorMessage, "--photon-file-size requires -1 or a positive integer.");
+            parsed->photonFileSize = args[i];
+            parsed->hasPhotonFileSize = true;
         } else if (option == "--photon-surface") {
             if (++i >= args.size() || args[i].isEmpty() || args[i].startsWith("--"))
                 return failParse(errorMessage, "--photon-surface requires a scene surface URL.");
@@ -398,9 +416,16 @@ bool HeadlessCommandRunner::parseTraceSceneArguments(const QStringList& args, Tr
         return failParse(errorMessage, "trace-scene requires --no-export or --photon-export-dir PATH.");
     if (!parsed->photonSurfaceUrls.isEmpty() && parsed->photonExportDirectory.isEmpty())
         return failParse(errorMessage, "--photon-surface requires --photon-export-dir PATH.");
-    if (!parsed->photonExportDirectory.isEmpty()
-        && parsed->rays > 200000)
-        return failParse(errorMessage, "File photon export currently permits at most 200000 rays.");
+    if ((parsed->hasPhotonFileName || parsed->hasPhotonFileSize) &&
+        parsed->photonExportDirectory.isEmpty())
+        return failParse(errorMessage, "File options require --photon-export-dir PATH.");
+    if (!parsed->photonExportDirectory.isEmpty()) {
+        if (!PhotonExportFileService::validateFileOptions(
+                parsed->photonFileName, parsed->photonFileSize, errorMessage))
+            return false;
+        if (parsed->rays > PhotonExportFileService::kMaxExportRays)
+            return failParse(errorMessage, "File photon export exceeds the 10-million-ray bound.");
+    }
 
     return true;
 }
@@ -447,7 +472,8 @@ void HeadlessCommandRunner::printUsage() const
     out << "Commands:" << Qt::endl;
     out << "  validate-scene <scene.tnhpp>                         Validate that a Tonatiuh++ scene can be loaded." << Qt::endl;
     out << "  trace-scene <scene.tnhpp> --rays N --seed S (--no-export | --photon-export-dir DIR) [--update-trackers]" << Qt::endl;
-    out << "                                                     File export requires an existing empty absolute directory (max 200000 rays)." << Qt::endl;
+    out << "                                                     File export requires an existing empty absolute directory (max 10000000 rays)." << Qt::endl;
+    out << "                                                     --photon-file-name NAME and --photon-file-size N (-1 for one file) are optional." << Qt::endl;
     out << "                                                     --photon-surface URL selects a surface (repeatable; File export only)." << Qt::endl;
     out << "                                                     --update-trackers applies GUI-like tracking (opt-in)." << Qt::endl;
     out << "  benchmark <benchmark_config.json>                  Run a headless benchmark and write JSON results." << Qt::endl;
