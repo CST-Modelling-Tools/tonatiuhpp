@@ -29,6 +29,7 @@
 #include "core/NativeTraceSignature.h"
 #include "core/RayTraceExecutor.h"
 #include "core/SimulationSession.h"
+#include "core/GuiTraceSessionExecution.h"
 #include "core/SceneInstanceBuilder.h"
 #include "core/SceneLoader.h"
 #include "core/TonatiuhCore.h"
@@ -613,6 +614,98 @@ public:
     ulong savePhotons(const std::vector<Photon>&) override { return 0; }
     bool hasExportError() const override { return true; }
 };
+}
+
+// M3 Step 3C: orchestration around the existing shared session. These tests
+// deliberately use the nonvisual headless preparation adapter, so the GUI
+// progress handoff is covered without requiring a widget/event loop.
+TEST(ScientificGuiTraceSessionExecution, RejectsUnpreparedSessionWithoutEnteringProgress)
+{
+    SimulationSession session;
+    bool progressCalled = false;
+    const auto outcome = GuiTraceSessionExecution::runPrepared(
+        session, [&](const QFuture<void>&) { progressCalled = true; });
+
+    EXPECT_FALSE(outcome.started);
+    EXPECT_FALSE(progressCalled);
+    EXPECT_FALSE(outcome.completed);
+    EXPECT_FALSE(outcome.error.isEmpty());
+    EXPECT_EQ(session.state(), SimulationSession::State::Idle);
+}
+
+TEST(ScientificGuiTraceSessionExecution, CompletedRunJoinsBeforeReportingSuccess)
+{
+    LoadedScene scene;
+    QString error;
+    ASSERT_TRUE(SceneLoader::readFile(fixturePath(), &scene, &error)) << error.toStdString();
+
+    SimulationSession session;
+    ASSERT_TRUE(session.prepareHeadless(lifecycleInput(scene.get(), 1024UL), &error))
+        << error.toStdString();
+    bool progressCalled = false;
+    const auto outcome = GuiTraceSessionExecution::runPrepared(
+        session, [&](const QFuture<void>& future) {
+            progressCalled = true;
+            EXPECT_TRUE(future.isValid());
+            EXPECT_EQ(session.state(), SimulationSession::State::Running);
+        });
+
+    EXPECT_TRUE(progressCalled);
+    EXPECT_TRUE(outcome.started);
+    EXPECT_TRUE(outcome.completed) << outcome.error.toStdString();
+    EXPECT_FALSE(outcome.cancelled);
+    EXPECT_FALSE(outcome.exportFailed);
+    EXPECT_EQ(outcome.raysTraced, 1024UL);
+    EXPECT_EQ(session.state(), SimulationSession::State::Completed);
+}
+
+TEST(ScientificGuiTraceSessionExecution, ProgressFutureCancellationRejectsPartialRun)
+{
+    LoadedScene scene;
+    QString error;
+    ASSERT_TRUE(SceneLoader::readFile(fixturePath(), &scene, &error)) << error.toStdString();
+
+    SimulationSession session;
+    ASSERT_TRUE(session.prepareHeadless(lifecycleInput(scene.get(), 3000000UL), &error))
+        << error.toStdString();
+    bool progressCalled = false;
+    const auto outcome = GuiTraceSessionExecution::runPrepared(
+        session, [&](const QFuture<void>& future) {
+            progressCalled = true;
+            QFuture<void> guiWatcherFuture = future;
+            guiWatcherFuture.cancel();
+        });
+
+    EXPECT_TRUE(progressCalled);
+    EXPECT_TRUE(outcome.started);
+    EXPECT_FALSE(outcome.completed);
+    EXPECT_TRUE(outcome.cancelled);
+    EXPECT_FALSE(outcome.exportFailed);
+    EXPECT_EQ(outcome.raysTraced, session.fullyCompletedRays());
+    EXPECT_EQ(session.state(), SimulationSession::State::Cancelled);
+}
+
+TEST(ScientificGuiTraceSessionExecution, WorkerFailurePropagatesWithoutFalseCompletion)
+{
+    LoadedScene scene;
+    QString error;
+    ASSERT_TRUE(SceneLoader::readFile(fixturePath(), &scene, &error)) << error.toStdString();
+
+    SimulationSession session;
+    auto input = lifecycleInput(scene.get(), 1024UL);
+    input.hitCallback = [](const RayTracerHit&) {
+        throw std::runtime_error("injected Step 3C worker failure");
+    };
+    ASSERT_TRUE(session.prepareHeadless(input, &error)) << error.toStdString();
+    const auto outcome = GuiTraceSessionExecution::runPrepared(
+        session, [](const QFuture<void>&) {});
+
+    EXPECT_TRUE(outcome.started);
+    EXPECT_FALSE(outcome.completed);
+    EXPECT_FALSE(outcome.cancelled);
+    EXPECT_TRUE(outcome.error.contains("injected Step 3C worker failure"))
+        << outcome.error.toStdString();
+    EXPECT_EQ(session.state(), SimulationSession::State::Failed);
 }
 
 TEST(ScientificSessionLifecycle, RepeatsAndRejectsConcurrentOperations)

@@ -1,0 +1,32 @@
+// M3 integrated candidate: identical bounded fixed-seed flux outputs from GUI
+// Script Editor and true-headless `run-script`. This clears the active GUI scene:
+// SAVE GUI WORK FIRST. The two output files must not exist before execution.
+// Fixed seed 123456789; grid 64x48; 4096 rays per side; no File photon export.
+var root = new NodeObject;
+root.setName('M3_Flux_Parity');
+var receiver = root.createNode('Receiver');
+var shape = receiver.createShape();
+shape.setName('Shape');
+shape.insertSurface('Planar');
+var profile = shape.insertProfile('Box');
+profile.setParameter('uSize', '8');
+profile.setParameter('vSize', '8');
+shape.insertMaterial('Absorber');
+
+tn.Clear();
+tn.InsertScene(root);
+var target = '//Node/M3_Flux_Parity/Receiver/Shape';
+tn.SetValue('//Node/M3_Flux_Parity/Receiver', 'translation', '0 0 1');
+var sun = tn.getScene().getPart('world.sun.position');
+if (!sun) throw new Error('M3 flux parity sun not available');
+sun.setParameter('azimuth', '180');
+sun.setParameter('elevation', '90');
+tn.SetRaysGrid(64, 48);
+
+// The optional eighth argument opts BOTH hosts into one nonvisual backend.
+// The seven-argument GUI API retains its existing legacy/automatic-seed mode.
+tn.RunFluxAnalysis(target, 'front', 4096, 8, 8,
+                   'm3_flux_front.txt', false, 123456789);
+tn.RunFluxAnalysis(target, 'back', 4096, 8, 8,
+                   'm3_flux_back.txt', false, 123456789);
+print('M3 integrated fixed-seed flux parity script passed');

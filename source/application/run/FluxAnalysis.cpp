@@ -1,7 +1,9 @@
 #include "FluxAnalysis.h"
+#include "run/FluxAnalysisTsvWriter.h"
 
 #include <cmath>
 #include <vector>
+#include <utility>
 
 #include <QFileDialog>
 #include <QFutureWatcher>
@@ -16,6 +18,7 @@
 #include "core/RayTraceExecutor.h"
 #include "core/SimulationSession.h"
 #include "core/TracePreparation.h"
+#include "core/FluxGridComputation.h"
 #include "kernel/air/AirTransmission.h"
 #include "kernel/run/InstanceNode.h"
 #include "kernel/photons/PhotonsBuffer.h"
@@ -205,8 +208,7 @@ bool FluxAnalysis::run(QString nodeURL, QString surfaceSide, ulong nRays, bool p
     double area = sunAperture->getArea();
     m_powerPhoton = area*irradiance/m_tracedRays;
 
-    fillBins();
-    return true;
+    return fillBins();
 }
 
 /*
@@ -221,44 +223,41 @@ void FluxAnalysis::setBins(int rows, int cols)
 /*
  * Export the flux distribution
  */
-void FluxAnalysis::write(QString fileName, bool withCoords)
+bool FluxAnalysis::write(QString fileName, bool withCoords, QString* error)
 {
-    if (!m_photons) return;
-
-    QFile file(fileName);
-    file.open(QIODevice::WriteOnly);
-    QTextStream out(&file);
-
-    double uStep = m_box.size().x/m_binsPhotons.rows();
-    double vStep = m_box.size().y/m_binsPhotons.cols();
-    QModelIndex nodeIndex = m_sceneModel->indexFromUrl(m_surfaceURL);
+    if (error) error->clear();
+    if (!m_photons || m_binsPhotons.rows() <= 0 || m_binsPhotons.cols() <= 0) {
+        if (error) *error = "Flux analysis has no completed photon grid.";
+        return false;
+    }
+    const QModelIndex nodeIndex = m_sceneModel->indexFromUrl(m_surfaceURL);
     InstanceNode* instanceNode = m_sceneModel->getInstance(nodeIndex);
+    if (!instanceNode) {
+        if (error) *error = "Flux analysis target surface is unavailable.";
+        return false;
+    }
     vec3d sJ = instanceNode->getTransform().getScales();
     TShapeKit* kit = (TShapeKit*) instanceNode->getNode();
-    ShapeRT* shape = (ShapeRT*) kit->shapeRT.getValue();
-    // works for cylinder, not sphere
-    double areaCell = dot(sJ, shape->getDerivativeU(0., 0.))*uStep;
-    areaCell *= dot(sJ, shape->getDerivativeV(0., 0.))*vStep;
-    // cross product better?
-
-    double coeff = m_powerPhoton/areaCell;
-
-    if (withCoords)
-    {
-        out << "x(m)\ty(m)\tFlux(W/m2)\n";
-        for (int r = 0; r < m_binsPhotons.rows(); ++r) {
-            for (int c = 0; c < m_binsPhotons.cols(); ++c)
-                out << m_box.min().x + uStep*(r + 0.5)  << "\t" << m_box.min().y + vStep*(c + 0.5) << "\t" << m_binsPhotons(r, c)*coeff << "\n";
-        }
+    ShapeRT* shape = kit ? (ShapeRT*) kit->shapeRT.getValue() : nullptr;
+    if (!shape) {
+        if (error) *error = "Flux analysis target shape is unavailable.";
+        return false;
     }
-    else
-    {
-        for (int r = 0; r < m_binsPhotons.rows(); ++r) {
-            for (int c = 0; c < m_binsPhotons.cols(); c++)
-                out << m_binsPhotons(r, c)*coeff << "\t";
-            out << "\n";
-        }
+
+    // Preserve the legacy flux export normalizer exactly, including its
+    // projected-derivative area expression. Scientific formula review is
+    // separate from this fail-closed I/O increment.
+    const double uStep = m_box.size().x / m_binsPhotons.rows();
+    const double vStep = m_box.size().y / m_binsPhotons.cols();
+    double areaCell = dot(sJ, shape->getDerivativeU(0., 0.)) * uStep;
+    areaCell *= dot(sJ, shape->getDerivativeV(0., 0.)) * vStep;
+    if (!std::isfinite(areaCell) || areaCell == 0.) {
+        if (error) *error = "Flux analysis cell area is zero or non-finite.";
+        return false;
     }
+    const double coeff = m_powerPhoton / areaCell;
+    return FluxAnalysisTsvWriter::write(fileName, m_binsPhotons, m_box,
+                                        coeff, withCoords, error);
 }
 
 /*
@@ -287,76 +286,30 @@ void FluxAnalysis::stop()
 /*
  * Update photon counts
  */
-void FluxAnalysis::fillBins()
+bool FluxAnalysis::fillBins()
 {
-    if (!m_photons) return;
+    if (!m_photons || !m_sceneModel)
+        return false;
 
-    m_binsPhotons.fill(0);
-    m_photonsMax = 0;
-    m_photonsMaxPos = vec2i(0, 0);
-    m_photonsError = 0;
-
-//    QString shapeType = getShapeType(m_surfaceURL);
-    QModelIndex index = m_sceneModel->indexFromUrl(m_surfaceURL);
+    const QModelIndex index = m_sceneModel->indexFromUrl(m_surfaceURL);
     InstanceNode* instance = m_sceneModel->getInstance(index);
-    if (!instance) return;
-    TShapeKit* shapeKit = static_cast<TShapeKit*>(instance->getNode());
-    if (!shapeKit) return;
-    ShapeRT* shape = (ShapeRT*) shapeKit->shapeRT.getValue();
-    if (!shape) return;
-    ProfileRT* profile = (ProfileRT*) shapeKit->profileRT.getValue();
-    m_box = profile->getBox();
-
-    int activeSideID = m_surfaceSide == "back" ? 0 : 1;
-    Transform toWorld = instance->getTransform();
-    Transform toObject = toWorld.inversed();
-
-    Matrix2D<int> binErrors(m_binsPhotons.rows() - 1, m_binsPhotons.cols() - 1);
-    binErrors.fill(0);
-
-    int photonsTotal = 0;
-    for (const Photon& photon : m_photons->getPhotons())
-    {
-        if (photon.isFront != activeSideID) continue;
-        photonsTotal++;
-        vec3d p = toObject.transformPoint(photon.pos);
-        vec2d uv = shape->getUV(p);
-        vec2d q = (uv - m_box.min())/m_box.size();
-
-        int r = floor(q.x*m_binsPhotons.rows());
-        int c = floor(q.y*m_binsPhotons.cols());
-        if (r == m_binsPhotons.rows()) r--;
-        if (c == m_binsPhotons.cols()) c--;
-        int& bin = m_binsPhotons(r, c);
-        bin++;
-        if (m_photonsMax < bin)
-        {
-            m_photonsMax = bin;
-            m_photonsMaxPos = vec2i(r, c);
-        }
-
-        int rE = floor(q.x*binErrors.rows());
-        int cE = floor(q.y*binErrors.cols());
-        if (rE == binErrors.rows()) rE--;
-        if (cE == binErrors.cols()) cE--;
-        int& binE = binErrors(rE, cE);
-        binE++;
-        if (m_photonsError < binE)
-            m_photonsError = binE;
+    FluxGridComputationResult result;
+    QString error;
+    if (!FluxGridComputation::calculate(m_photons->getPhotons(), instance,
+                                        m_surfaceSide, m_binsPhotons.rows(),
+                                        m_binsPhotons.cols(), m_powerPhoton,
+                                        &result, &error)) {
+        qWarning().noquote() << "Flux grid computation failed:" << error;
+        return false;
     }
 
-    m_powerTotal = photonsTotal*m_powerPhoton;
-
-    // flux
-    vec2i dims(m_binsPhotons.rows(), m_binsPhotons.cols());
-    m_binsFlux.resize(dims.x, dims.y);
-    double uStep = m_box.size().x/dims.x;
-    double vStep = m_box.size().y/dims.y;
-    for (int r = 0; r < dims.x; ++r) {
-        for (int c = 0; c < dims.y; ++c) {
-            double u0 = m_box.min().x + r*uStep;
-            double v0 = m_box.min().y + c*vStep;
-            m_binsFlux(r, c) = m_binsPhotons(r, c)*m_powerPhoton/shape->findArea(u0, v0, u0 + uStep, v0 + vStep, toWorld);
-        }
-    }
+    // Preserve every public result used by FluxAnalysisDialog or exporters.
+    m_binsPhotons = std::move(result.binsPhotons);
+    m_binsFlux = std::move(result.binsFlux);
+    m_box = result.box;
+    m_photonsMax = result.photonsMax;
+    m_photonsMaxPos = result.photonsMaxPos;
+    m_photonsError = result.photonsError;
+    m_powerTotal = result.powerTotal;
+    return true;
 }

@@ -1,0 +1,20 @@
+// Phase 3B2B1: bounded real photon File output on shared scene and run APIs.
+// Paths are substituted ONLY under build/tests by the CMake acceptance runner.
+// Never execute this unexpanded template directly.
+
+tn.loadScene('@SCENE_FILE@');
+tn.SetRaysNumber(2048);
+tn.SetRaysGrid(200, 200);
+tn.SetExportPhotonMapType('File');
+tn.SetExportCoordinates(true, true);
+tn.SetExportIntersectionSurface(true);
+tn.SetExportIntersectionSurfaceSide(true);
+tn.SetExportPreviousNextPhotonID(false);
+tn.SetPhotonBufferSize(4096);
+tn.SetPhotonBufferAppend(false);
+tn.SetExportTypeParameterValue('ExportDirectory', '@EXPORT_DIRECTORY@');
+tn.SetExportTypeParameterValue('ExportFile', 'PhotonMap');
+tn.SetExportTypeParameterValue('FileSize', '-1');
+tn.AddExportSurfaceURL('//Node/Shape');
+tn.Run();
+print('M3 Phase 3B2B1 bounded File Run passed.');

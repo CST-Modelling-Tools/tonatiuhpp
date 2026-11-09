@@ -1,4 +1,6 @@
 #include "MainWindow.h"
+#include "script/ScriptPhotonExportConfig.h"
+#include "script/ScriptRunRequest.h"
 #include "ui_MainWindow.h"
 
 #include <iostream>
@@ -65,6 +67,11 @@
 #include "core/NativeRayHistorySignature.h"
 #include "core/RayTraceExecutor.h"
 #include "core/SimulationSession.h"
+#include "core/GuiTraceCompletion.h"
+#include "core/GuiTraceRunInputs.h"
+#include "core/GuiTraceSessionExecution.h"
+#include "script/ScriptFluxAnalysisRequest.h"
+#include "core/SimulationConfig.h"
 #include "core/SceneInstanceBuilder.h"
 #include "core/SceneLoader.h"
 #include "core/TracePreparation.h"
@@ -1963,6 +1970,9 @@ void MainWindow::fileOpen(QString fileName)
  */
 void MainWindow::Run()
 {
+    // Phase 3B2B1: an early return, cancellation or failed export is NEVER
+    // reported to the shared script facade as a completed Run.
+    m_scriptRunLastAccepted = false;
     const QString a0OutputFile = NativeTraceSignature::outputPathFromEnvironment();
     const QString historyFile = NativeRayHistorySignature::outputPathFromEnvironment();
     QString a0Error;
@@ -2065,19 +2075,12 @@ void MainWindow::Run()
     if (air->getTypeId() != AirVacuum::getClassTypeId())
         airTemp = air;
 
-    GuiTracePreparationInput preparationInput;
-    preparationInput.scene = m_document->getSceneKit();
-    preparationInput.layoutRoot = instanceLayout;
-    preparationInput.sunInstance = &instanceSun;
     const std::uint64_t traceSeed = GuiTraceSeed::resolve(
         m_fixedGuiMasterSeed, [] { return resolvedGuiMasterSeed(); });
-    preparationInput.configuration.masterSeed = traceSeed;
-    preparationInput.photonBuffer = m_photonsBuffer;
-    preparationInput.exportSurfaceList = exportSurfaceList;
-    preparationInput.tracingAir = airTemp;
-    preparationInput.configuration.rays = m_raysNumber;
-    preparationInput.configuration.sunWidthDivisions = m_raysGridWidth;
-    preparationInput.configuration.sunHeightDivisions = m_raysGridHeight;
+    GuiTracePreparationInput preparationInput = GuiTraceRunInputs::make(
+        m_document->getSceneKit(), instanceLayout, &instanceSun,
+        m_photonsBuffer, exportSurfaceList, airTemp, traceSeed,
+        m_raysNumber, m_raysGridWidth, m_raysGridHeight);
     // Collect events only during the explicitly enabled diagnostic.
     // Normal photon recording, RNG and work scheduling remain unchanged.
     std::unique_ptr<NativeTraceSignature> a0Signature;
@@ -2109,22 +2112,21 @@ void MainWindow::Run()
     std::cout << "gui_master_seed: " << traceSeed
               << (m_fixedGuiMasterSeed ? " (fixed)" : " (automatic)")
               << std::endl;
-    QString executionError;
-    if (!session.start(&executionError)) {
-        QMessageBox::warning(this, "Tonatiuh", executionError);
+    const GuiTraceSessionExecution::Outcome execution =
+        GuiTraceSessionExecution::runPrepared(
+            session, [&watcher, &dialog](const QFuture<void>& future) {
+                watcher.setFuture(future);
+                dialog.exec();
+            });
+    if (!execution.started) {
+        QMessageBox::warning(this, "Tonatiuh", execution.error);
         return;
     }
-    watcher.setFuture(session.future());
-
-    dialog.exec();
-    const bool traceCompleted = session.waitForFinished(&executionError);
-    const bool a0Cancelled = session.state() == SimulationSession::State::Cancelled;
+    const bool traceCompleted = execution.completed;
+    const bool a0Cancelled = execution.cancelled;
     std::cout << "QtConcurrent finished: " << timer.elapsed() << std::endl;
 
-    const bool tracingCancelledByExport = session.exportFailed();
-    if (traceCompleted)
-        m_raysTracedTotal += session.result().raysTraced;
-
+    const bool tracingCancelledByExport = execution.exportFailed;
     if (traceCompleted && exportSurfaceList.empty())
         ShowRaysIn3DView(); // all photons must be stored
     else {
@@ -2132,13 +2134,17 @@ void MainWindow::Run()
         //            ui->actionViewRays->setChecked(false);
     }
 
-    double area = sunAperture->getArea();
-    double irradiance = sunPosition->irradiance.getValue();
-    double power = m_raysTracedTotal > 0 ? area*irradiance/m_raysTracedTotal : 0.;
-    // A cancelled/failed run must not normalize partial photons as a complete run.
-    const bool exportSucceeded = m_photonsBuffer->endExport(traceCompleted ? power : 0.);
+    // Keep GUI presentation here; cumulative normalization and the accepted
+    // export decision are shared with nonvisual scientific tests.
+    const GuiTraceCompletionResult completion = GuiTraceCompletion::finalize(
+        *m_photonsBuffer, traceCompleted, tracingCancelledByExport,
+        m_raysTracedTotal, execution.raysTraced,
+        sunAperture->getArea(), sunPosition->irradiance.getValue());
+    m_raysTracedTotal = completion.raysTracedTotal;
+    const bool exportSucceeded = completion.exportSucceeded;
+    m_scriptRunLastAccepted = completion.accepted;
     if (!traceCompleted)
-        QMessageBox::warning(this, "Tonatiuh", executionError);
+        QMessageBox::warning(this, "Tonatiuh", execution.error);
     if (!exportSucceeded) {
         QMessageBox::warning(
             this,
@@ -2190,14 +2196,46 @@ void MainWindow::Run()
  * The map will be calculated with the parameters \a nOfRays, \a heightDivisions and \a heightDivisions.
  * The results will save in a file \a directory \a QString fileName, the coordinates of the cells depending on the variable \a saveCoord.
  */
+// Retained only for GUI C++ compatibility; scientific JS no longer calls this.
+bool MainWindow::runScriptFluxAnalysisFromFacade(const ScriptFluxAnalysisRequest& request,
+                                                 QString* error)
+{
+    TSceneKit* sceneKit = m_document ? m_document->getSceneKit() : nullptr;
+    if (!sceneKit || !m_modelScene) {
+        if (error) *error = "tn.RunFluxAnalysis: GUI scene is unavailable.";
+        return false;
+    }
+
+    // Preserve the original script flux seed, grid, tracing and format policy.
+    FluxAnalysis fa(sceneKit, m_modelScene, m_raysGridWidth, m_raysGridHeight,
+                    resolvedGuiMasterSeed());
+    if (!fa.run(request.surfaceURL, request.surfaceSide, request.rays,
+                false, request.heightDivisions, request.widthDivisions)) {
+        if (error) *error = "tn.RunFluxAnalysis: GUI flux tracing failed.";
+        return false;
+    }
+    QString writeError;
+    if (!fa.write(request.fileName, request.saveCoordinates, &writeError)) {
+        if (error) *error = "tn.RunFluxAnalysis: " + writeError;
+        return false;
+    }
+    if (error) error->clear();
+    return true;
+}
+
 void MainWindow::RunFluxAnalysis(QString nodeURL, QString surfaceSide, uint nOfRays, int heightDivisions, int widthDivisions, QString fileName, bool saveCoords)
 {
-    TSceneKit* sceneKit = m_document->getSceneKit();
-    if (!sceneKit) return;
-
-    FluxAnalysis fa(sceneKit, m_modelScene, m_raysGridWidth, m_raysGridHeight, resolvedGuiMasterSeed());
-    fa.run(nodeURL, surfaceSide, nOfRays, false, heightDivisions, widthDivisions); //?
-    fa.write(fileName, saveCoords);
+    ScriptFluxAnalysisRequest request;
+    request.surfaceURL = nodeURL;
+    request.surfaceSide = surfaceSide;
+    request.rays = nOfRays;
+    request.heightDivisions = heightDivisions;
+    request.widthDivisions = widthDivisions;
+    request.fileName = fileName;
+    request.saveCoordinates = saveCoords;
+    QString error;
+    if (!runScriptFluxAnalysisFromFacade(request, &error))
+        qWarning().noquote() << error;
 }
 
 /*!
@@ -2222,6 +2260,105 @@ void MainWindow::fileSaveAs(QString fileName)
 /*!
  * Sets to export all surfaces photons.
  */
+// Phase 3B2A. Preserve the current GUI exporter state machine while the
+// nonvisual run/export backend remains an M3/M4 integration blocker.
+// The GUI-only methods below are retained for interactive UI callers.
+bool MainWindow::applyScriptPhotonExportChange(const ScriptPhotonExportChange& change,
+                                               QString* error)
+{
+    using Kind = ScriptPhotonExportChange::Kind;
+    if (error) error->clear();
+    // The shared service retains the historical no-op semantics when no
+    // photon settings exist. Buffer settings are independent of that state.
+    if (!m_photonsSettings && change.kind != Kind::MapType &&
+        change.kind != Kind::BufferSize && change.kind != Kind::BufferAppend)
+        return true;
+
+    if (change.kind == Kind::MapType &&
+        !m_pluginManager->getExportMap().contains(change.name)) {
+        if (error) *error = "tn.SetExportPhotonMapType: unknown photon exporter.";
+        return false;
+    }
+
+    // A failed exporter with retained photons must never be reset merely to
+    // change script settings. Check whether this operation is a true change
+    // before invoking the legacy setter; all subsequent mutations are guarded.
+    bool requiresReset = true;
+    if (change.kind == Kind::BufferSize)
+        requiresReset = m_photonBufferSize != change.count;
+    else if (change.kind == Kind::BufferAppend)
+        requiresReset = m_photonBufferAppend != change.flag;
+    else if (m_photonsSettings) {
+        switch (change.kind) {
+        case Kind::AllSurfaces: requiresReset = !m_photonsSettings->surfaces.isEmpty(); break;
+        case Kind::Coordinates: requiresReset = m_photonsSettings->saveCoordinates != change.flag ||
+                m_photonsSettings->saveCoordinatesGlobal != change.aux; break;
+        case Kind::SurfaceID: requiresReset = m_photonsSettings->saveSurfaceID != change.flag; break;
+        case Kind::SurfaceSide: requiresReset = m_photonsSettings->saveSurfaceSide != change.flag; break;
+        case Kind::MapType: requiresReset = m_photonsSettings->name != change.name; break;
+        case Kind::PhotonsID: requiresReset = m_photonsSettings->savePhotonsID != change.flag; break;
+        case Kind::Parameter: requiresReset = m_photonsSettings->parameters.value(change.name) != change.value; break;
+        case Kind::AddSurface: break; // Always appends and resets exporter.
+        case Kind::BufferSize: case Kind::BufferAppend: break;
+        }
+    }
+    if (requiresReset && m_photonsBuffer && m_photonsBuffer->hasExportFailed() &&
+        m_photonsBuffer->hasRetainedPhotons()) {
+        if (error) *error = "tn.SetExport*: failed exporter retains unsaved photons; settings unchanged.";
+        return false;
+    }
+
+    // MainWindow's normal Run() initializes these five flags when choosing
+    // the default exporter. The historical MapType setter allocates an
+    // uninitialized PhotonsSettings; do not read indeterminate booleans from
+    // subsequent scripted flag setters. Match Run() defaults here.
+    if (change.kind == Kind::MapType && !m_photonsSettings) {
+        m_photonsSettings = new PhotonsSettings{};
+        m_photonsSettings->name = "No export";
+        m_photonsSettings->saveCoordinates = true;
+        m_photonsSettings->saveCoordinatesGlobal = true;
+        m_photonsSettings->saveSurfaceID = true;
+        m_photonsSettings->saveSurfaceSide = true;
+        m_photonsSettings->savePhotonsID = true;
+    }
+    const int previousSurfaceCount = m_photonsSettings
+        ? m_photonsSettings->surfaces.size() : 0;
+    switch (change.kind) {
+    case Kind::AllSurfaces: SetExportAllPhotonMap(); break;
+    case Kind::Coordinates: SetExportCoordinates(change.flag, change.aux); break;
+    case Kind::SurfaceID: SetExportIntersectionSurface(change.flag); break;
+    case Kind::SurfaceSide: SetExportIntersectionSurfaceSide(change.flag); break;
+    case Kind::MapType: SetExportPhotonMapType(change.name); break;
+    case Kind::PhotonsID: SetExportPreviousNextPhotonID(change.flag); break;
+    case Kind::Parameter: SetExportTypeParameterValue(change.name, change.value); break;
+    case Kind::AddSurface: AddExportSurfaceURL(change.name); break;
+    case Kind::BufferSize: SetPhotonBufferSize(change.count); break;
+    case Kind::BufferAppend: SetPhotonBufferAppend(change.flag); break;
+    }
+
+    // Verify postconditions, do not claim success on a silent legacy setter.
+    bool accepted = false;
+    switch (change.kind) {
+    case Kind::AllSurfaces: accepted = m_photonsSettings && m_photonsSettings->surfaces.isEmpty(); break;
+    case Kind::Coordinates: accepted = m_photonsSettings &&
+        m_photonsSettings->saveCoordinates == change.flag &&
+        m_photonsSettings->saveCoordinatesGlobal == change.aux; break;
+    case Kind::SurfaceID: accepted = m_photonsSettings && m_photonsSettings->saveSurfaceID == change.flag; break;
+    case Kind::SurfaceSide: accepted = m_photonsSettings && m_photonsSettings->saveSurfaceSide == change.flag; break;
+    case Kind::MapType: accepted = m_photonsSettings && m_photonsSettings->name == change.name; break;
+    case Kind::PhotonsID: accepted = m_photonsSettings && m_photonsSettings->savePhotonsID == change.flag; break;
+    case Kind::Parameter: accepted = m_photonsSettings &&
+        m_photonsSettings->parameters.value(change.name) == change.value; break;
+    case Kind::AddSurface: accepted = m_photonsSettings &&
+        m_photonsSettings->surfaces.size() == previousSurfaceCount + 1 &&
+        m_photonsSettings->surfaces.last() == change.name; break;
+    case Kind::BufferSize: accepted = m_photonBufferSize == change.count; break;
+    case Kind::BufferAppend: accepted = m_photonBufferAppend == change.flag; break;
+    }
+    if (!accepted && error) *error = "tn.SetExport*: GUI exporter settings were not accepted.";
+    return accepted;
+}
+
 void MainWindow::SetExportAllPhotonMap()
 {
     if (!m_photonsSettings) return;
@@ -3095,6 +3232,92 @@ void MainWindow::dropEvent(QDropEvent* event)
 
     fileOpen(url);
     event->acceptProposedAction();
+}
+
+bool MainWindow::setScriptFieldValue(SoNode* node, const QString& field,
+                                     const QString& value, QString* error)
+{
+    // Resolution and field selection were already validated by the widget-free
+    // ScriptSceneServices. Here we preserve GUI undo/document modification.
+    if (!node || !m_undoStack || !node->getField(field.toLatin1().constData())) {
+        if (error) *error = "tn.SetValue: GUI field editor is unavailable.";
+        return false;
+    }
+    setFieldText(node, field, value);
+    if (error) error->clear();
+    return true;
+}
+
+std::uint64_t MainWindow::scriptFluxLegacySeed() const
+{
+    // Preserve the script FluxAnalysis automatic seed policy exactly:
+    // MainWindow::runScriptFluxAnalysisFromFacade used this generator
+    // even when the separate GUI Run seed setting was fixed.
+    return resolvedGuiMasterSeed();
+}
+
+std::uint64_t MainWindow::scriptRunMasterSeed() const
+{
+    // GUI Run uses this same fixed-or-automatic choice. In contrast, the
+    // historical seven-argument FluxAnalysis intentionally always auto-seeds.
+    return GuiTraceSeed::resolve(
+        m_fixedGuiMasterSeed, [] { return resolvedGuiMasterSeed(); });
+}
+
+ScriptPhotonExportState MainWindow::scriptPhotonExportSnapshot() const
+{
+    // Map the interactive GUI's effective exporter state to an immutable
+    // shared-script request, without borrowing GUI-owned PhotonsSettings.
+    ScriptPhotonExportState state;
+    state.bufferSize = static_cast<uint>(m_photonBufferSize);
+    state.bufferAppend = m_photonBufferAppend;
+    if (!m_photonsSettings)
+        return state;
+    state.settingsPresent = true;
+    state.exporterName = m_photonsSettings->name;
+    state.saveCoordinates = m_photonsSettings->saveCoordinates;
+    state.saveCoordinatesGlobal = m_photonsSettings->saveCoordinatesGlobal;
+    state.saveSurfaceID = m_photonsSettings->saveSurfaceID;
+    state.saveSurfaceSide = m_photonsSettings->saveSurfaceSide;
+    state.savePhotonsID = m_photonsSettings->savePhotonsID;
+    state.surfaces = m_photonsSettings->surfaces;
+    state.parameters = m_photonsSettings->parameters;
+    return state;
+}
+
+SimulationConfig MainWindow::scriptInterceptionConfiguration(ulong rays) const
+{
+    SimulationConfig configuration;
+    configuration.rays = rays;
+    configuration.masterSeed = GuiTraceSeed::resolve(
+        m_fixedGuiMasterSeed, [] { return resolvedGuiMasterSeed(); });
+    configuration.sunWidthDivisions = m_raysGridWidth;
+    configuration.sunHeightDivisions = m_raysGridHeight;
+    return configuration;
+}
+
+bool MainWindow::displayScriptInterceptionRays(const QString& surface, uint rays,
+                                                std::uint64_t seed, QString* error)
+{
+    // Explicit presentation-only exception for the historical show=true call.
+    // The scientific return value is always obtained from the shared service.
+    // FluxAnalysis remains only to provide its existing photon-ray visualization
+    // until M4 decouples recording/presentation from the legacy GUI analysis.
+    if (!m_document || !m_modelScene || !m_graphicsRoot) {
+        if (error) *error = "GUI scene/view unavailable for ray display.";
+        return false;
+    }
+    FluxAnalysis fa(m_document->getSceneKit(), m_modelScene,
+                    m_raysGridWidth, m_raysGridHeight, seed);
+    if (!fa.run(surface, "front", rays, false, 5, 5, true)
+        || !fa.getPhotonsBuffer()) {
+        if (error) *error = "GUI interception ray visualization failed.";
+        return false;
+    }
+    trf::DrawRays(m_graphicsRoot->rays(), *fa.getPhotonsBuffer(), m_raysScreen);
+    m_graphicsRoot->showRays(true);
+    if (error) error->clear();
+    return true;
 }
 
 double findInterception(QString surface, uint rays, MainWindow* mw)

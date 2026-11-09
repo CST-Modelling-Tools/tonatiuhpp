@@ -199,14 +199,42 @@ bool TracePreparation::prepareHeadlessTrace(const HeadlessTracePreparationInput&
     }
 
     reportProgress(input.progress, "Building ray-tracing instance tree.");
-    prepared.m_ownedInstanceTree = SceneInstanceBuilder::build(input.scene);
-    if (!prepared.m_ownedInstanceTree.sceneRoot)
+    // Shared headless scientific preparation; use an externally pinned
+    // instance tree only for explicit, synchronous scripted append. This
+    // keeps PhotonsFile's surface-pointer IDs stable across sessions.
+    SceneInstanceTree* instanceTree = input.borrowedInstanceTree;
+    if (!instanceTree) {
+        prepared.m_ownedInstanceTree = SceneInstanceBuilder::build(input.scene);
+        instanceTree = &prepared.m_ownedInstanceTree;
+    }
+    if (!instanceTree->sceneRoot ||
+        instanceTree->sceneRoot->getNode() != input.scene)
         return fail(errorMessage, "Could not create ray-tracing scene root.");
-    if (!prepared.m_ownedInstanceTree.layoutRoot)
+    if (!instanceTree->layoutRoot)
         return fail(errorMessage, "Scene has no layout at group.");
 
     prepared.m_scene = input.scene;
-    prepared.m_layoutRoot = prepared.m_ownedInstanceTree.layoutRoot;
+    prepared.m_layoutRoot = instanceTree->layoutRoot;
+    // Phase 3B2B1: use the *same* per-instance URLs for GUI and headless
+    // selected-surface photon recording; reject absent/ambiguous targets.
+    for (const QString& url : input.exportSurfaceUrls) {
+        InstanceNode* match = nullptr;
+        int count = 0;
+        const std::function<void(InstanceNode*)> visit = [&](InstanceNode* node) {
+            if (!node) return;
+            if (node->getNode() && node->getURL() == url) {
+                match = node;
+                ++count;
+            }
+            for (InstanceNode* child : node->children) visit(child);
+        };
+        visit(instanceTree->sceneRoot.get());
+        if (count != 1)
+            return fail(errorMessage,
+                QString("Selected photon export surface '%1' has %2 matches (expected 1).")
+                    .arg(url).arg(count));
+        prepared.m_exportSurfaceList.append(match);
+    }
     prepared.m_ownedSunInstance = std::make_unique<InstanceNode>(sunKit);
     prepared.m_sunInstance = prepared.m_ownedSunInstance.get();
 

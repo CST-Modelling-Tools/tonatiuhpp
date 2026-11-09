@@ -1,0 +1,20 @@
+// Phase 3B2B2A: accepted deterministic, bounded append lifecycle fixture.
+// This template is expanded under build/tests by the dedicated CTest runner.
+// Real GUI parity requires fixed GUI master seed 0.
+tn.loadScene('@SCENE_FILE@');
+tn.SetRaysNumber(2048);
+tn.SetRaysGrid(200, 200);
+tn.SetExportPhotonMapType('File');
+tn.SetExportCoordinates(true, true);
+tn.SetExportIntersectionSurface(true);
+tn.SetExportIntersectionSurfaceSide(true);
+tn.SetExportPreviousNextPhotonID(false);
+tn.SetPhotonBufferSize(4096);
+tn.SetPhotonBufferAppend(true);
+tn.SetExportTypeParameterValue('ExportDirectory', '@EXPORT_DIRECTORY@');
+tn.SetExportTypeParameterValue('ExportFile', 'PhotonMap');
+tn.SetExportTypeParameterValue('FileSize', '-1');
+tn.AddExportSurfaceURL('//Node/Shape');
+tn.Run();
+@SECOND_RUN@
+print('M3 Phase 3B2B2A cumulative File append passed.');

@@ -1,0 +1,17 @@
+// M3 exit Phase 2: no ray trace, no export, no benchmark.
+// WARNING: this clears the current GUI scene. Save any work before executing.
+// Execute unchanged in true-headless and the GUI Script Editor.
+tn.Clear();
+tn.ChangeSunPosition(179.5, 63.25);
+var sun = tn.getScene().getPart('world.sun.position');
+if (!sun) throw new Error('No scene sun position.');
+if (Number(sun.getParameter('azimuth')) !== 179.5 ||
+    Number(sun.getParameter('elevation')) !== 63.25)
+    throw new Error('Two-argument sun-position readback differs.');
+// Historical eight-argument overload: year, month, day, UT h/m/s, latitude, longitude.
+tonatiuh.ChangeSunPosition(2020, 6, 21, 12, 0, 0, 40, -3);
+var az = Number(sun.getParameter('azimuth'));
+var el = Number(sun.getParameter('elevation'));
+if (!isFinite(az) || !isFinite(el))
+    throw new Error('Calendar/location sun position must be finite.');
+print('M3 Phase 2 shared sun-position smoke passed.');

@@ -42,6 +42,28 @@ target_compile_definitions(tonatiuhpp_scientific_equivalence_tests PRIVATE
 # The fixture uses the real MaterialSpecular scene factory plugin.
 add_dependencies(tonatiuhpp_scientific_equivalence_tests MaterialSpecular ShapeFunctionXYZ)
 
+# Stage the genuine production File exporter beside the scientific test
+# executable, where TonatiuhCore::pluginSearchPaths() already searches.
+# This is test-only; installed application plugin paths are unchanged.
+add_custom_target(tonatiuhpp_stage_scientific_file_plugin
+  COMMAND "${CMAKE_COMMAND}" -E make_directory
+          "$<TARGET_FILE_DIR:tonatiuhpp_scientific_equivalence_tests>/plugins/photons"
+  COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+          "$<TARGET_FILE:PhotonsFile>"
+          "$<TARGET_FILE_DIR:tonatiuhpp_scientific_equivalence_tests>/plugins/photons/"
+  DEPENDS PhotonsFile
+  VERBATIM
+)
+
+add_dependencies(
+  tonatiuhpp_scientific_equivalence_tests
+  tonatiuhpp_stage_scientific_file_plugin
+)
+
+target_compile_definitions(tonatiuhpp_scientific_equivalence_tests PRIVATE
+  "TONATIUHPP_SCIENTIFIC_FILE_PLUGIN=\"$<TARGET_FILE:PhotonsFile>\""
+)
+
 target_compile_definitions(tonatiuhpp_scientific_equivalence_tests PRIVATE
   "TONATIUHPP_SPECULAR_SCENE_FILE=\"${CMAKE_CURRENT_LIST_DIR}/fixtures/specular-two-reflections.tnhpp\""
   "TONATIUHPP_TRACKER_SCENE_FILE=\"${CMAKE_CURRENT_LIST_DIR}/fixtures/one-axis-tracker.tnhpp\""

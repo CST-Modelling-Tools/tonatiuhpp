@@ -53,6 +53,37 @@ function(tonatiuhpp_set_headless_test_properties test_name)
 endfunction()
 
 if(TONATIUHPP_ENABLE_HEADLESS_SMOKE_TESTS)
+  # Unified M3 domain Run: two independent headless processes use one
+  # widget-free executor. Generate a native GUI comparison fixture too.
+  add_test(
+    NAME headless.m3_shared_run_parity
+    COMMAND "${CMAKE_COMMAND}"
+      "-DTEST_EXECUTABLE=${TONATIUHPP_TEST_EXE}"
+      "-DTEST_SCRIPT=${CMAKE_CURRENT_LIST_DIR}/scripts/m3_shared_run_parity.tnhpps.in"
+      "-DTEST_SCENE=${CMAKE_CURRENT_LIST_DIR}/../examples/benchmarks/cylinder.tnhpp"
+      "-DCOMPARATOR=${CMAKE_CURRENT_LIST_DIR}/scientific/compare_photon_exports.py"
+      "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/m3_shared_run_parity"
+      "-DTEST_BUILD_ROOT=${CMAKE_CURRENT_BINARY_DIR}"
+      -P "${CMAKE_CURRENT_LIST_DIR}/cmake/run_m3_shared_run_parity.cmake"
+  )
+  tonatiuhpp_set_headless_test_properties(headless.m3_shared_run_parity)
+  set_tests_properties(headless.m3_shared_run_parity PROPERTIES
+    LABELS "headless;smoke;scientific;equivalence" TIMEOUT 280)
+
+  # M3 integrated candidate: independent true-headless fixed-seed full-grid
+  # repeatability. Retain the same script for native GUI acceptance afterward.
+  add_test(
+    NAME headless.m3_shared_flux_parity
+    COMMAND "${CMAKE_COMMAND}"
+      "-DTEST_EXECUTABLE=${TONATIUHPP_TEST_EXE}"
+      "-DTEST_SCRIPT=${CMAKE_CURRENT_LIST_DIR}/scripts/m3_flux_shared_parity.tnhpps"
+      "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/m3_flux_shared_parity"
+      -P "${CMAKE_CURRENT_LIST_DIR}/cmake/run_m3_flux_shared_parity.cmake"
+  )
+  tonatiuhpp_set_headless_test_properties(headless.m3_shared_flux_parity)
+  set_tests_properties(headless.m3_shared_flux_parity PROPERTIES
+    LABELS "headless;smoke;scientific;equivalence" TIMEOUT 200)
+
   add_test(
     NAME headless.help
     COMMAND "${TONATIUHPP_TEST_EXE}" --headless --help
@@ -177,6 +208,92 @@ if(TONATIUHPP_ENABLE_HEADLESS_SMOKE_TESTS)
   )
   tonatiuhpp_set_headless_test_properties(headless.run_script_cpc_faceted)
   set_tests_properties(headless.run_script_cpc_faceted PROPERTIES TIMEOUT 30)
+
+  # M3 exit Phase 2: same non-destructive sun-position script as the native GUI.
+  add_test(
+    NAME headless.m3_exit_phase2_sun_position
+    COMMAND "${TONATIUHPP_TEST_EXE}" --headless run-script
+      "${CMAKE_CURRENT_LIST_DIR}/scripts/m3_exit_phase2_sun_smoke.tnhpps"
+  )
+  tonatiuhpp_set_headless_test_properties(headless.m3_exit_phase2_sun_position)
+  set_tests_properties(headless.m3_exit_phase2_sun_position PROPERTIES TIMEOUT 30)
+
+  # Phase 3A: bounded shared scene-field edit and 64x48 grid parity.
+  # The runner copies the fixture to build/ and writes a headless baseline;
+  # GUI acceptance reuses the copied, unchanged script, not source-tree CSVs.
+  add_test(
+    NAME headless.m3_exit_phase3a_field_grid
+    COMMAND "${CMAKE_COMMAND}"
+      "-DTEST_EXECUTABLE=${TONATIUHPP_TEST_EXE}"
+      "-DTEST_SCRIPT=${CMAKE_CURRENT_LIST_DIR}/scripts/m3_exit_phase3a_field_grid_smoke.tnhpps"
+      "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/m3_exit_phase3a_field_grid"
+      -P "${CMAKE_CURRENT_LIST_DIR}/cmake/run_m3_exit_phase3a_field_grid.cmake"
+  )
+  tonatiuhpp_set_headless_test_properties(headless.m3_exit_phase3a_field_grid)
+  set_tests_properties(headless.m3_exit_phase3a_field_grid PROPERTIES
+    LABELS "headless;smoke;scientific;equivalence" TIMEOUT 90)
+
+  # Phase 3B1: shared run-ray setting, bounded 128-ray scientific parity.
+  # GUI Run/export is intentionally NOT invoked by this test.
+  add_test(
+    NAME headless.m3_exit_phase3b1_run_inputs
+    COMMAND "${CMAKE_COMMAND}"
+      "-DTEST_EXECUTABLE=${TONATIUHPP_TEST_EXE}"
+      "-DTEST_SCRIPT=${CMAKE_CURRENT_LIST_DIR}/scripts/m3_exit_phase3b1_run_inputs_smoke.tnhpps"
+      "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/m3_exit_phase3b1_run_inputs"
+      -P "${CMAKE_CURRENT_LIST_DIR}/cmake/run_m3_exit_phase3b1_run_inputs.cmake"
+  )
+  tonatiuhpp_set_headless_test_properties(headless.m3_exit_phase3b1_run_inputs)
+  set_tests_properties(headless.m3_exit_phase3b1_run_inputs PROPERTIES
+    LABELS "headless;smoke;scientific;equivalence" TIMEOUT 90)
+
+  # Phase 3B2A: option-only headless script, no Run or photon export.
+  add_test(
+    NAME headless.m3_exit_phase3b2a_export_config
+    COMMAND "${CMAKE_COMMAND}"
+      "-DTEST_EXECUTABLE=${TONATIUHPP_TEST_EXE}"
+      "-DTEST_SCRIPT=${CMAKE_CURRENT_LIST_DIR}/scripts/m3_exit_phase3b2a_export_config.tnhpps"
+      "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/m3_exit_phase3b2a_export_config"
+      -P "${CMAKE_CURRENT_LIST_DIR}/cmake/run_m3_exit_phase3b2a_export_config.cmake"
+  )
+  tonatiuhpp_set_headless_test_properties(headless.m3_exit_phase3b2a_export_config)
+  set_tests_properties(headless.m3_exit_phase3b2a_export_config PROPERTIES
+    LABELS "headless;smoke;scientific" TIMEOUT 45)
+
+  # Phase 3B2B2A: real production File append and cumulative power parity.
+  # Uses a disposable build/tests directory and the existing A0 comparator.
+  add_test(
+    NAME headless.m3_exit_phase3b2b2a_append
+    COMMAND "${CMAKE_COMMAND}"
+      "-DTEST_EXECUTABLE=${TONATIUHPP_TEST_EXE}"
+      "-DTEST_SCRIPT=${CMAKE_CURRENT_LIST_DIR}/scripts/m3_exit_phase3b2b2_append.tnhpps.in"
+      "-DTEST_SCENE=${CMAKE_CURRENT_LIST_DIR}/../examples/benchmarks/cylinder.tnhpp"
+      "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/m3_exit_phase3b2b2a_append"
+      "-DTEST_BUILD_ROOT=${CMAKE_CURRENT_BINARY_DIR}"
+      "-DAPPEND_VERIFIER=${CMAKE_CURRENT_LIST_DIR}/scientific/verify_m3_exit_phase3b2b2_append.py"
+      "-DCOMPARATOR=${CMAKE_CURRENT_LIST_DIR}/scientific/compare_photon_exports.py"
+      -P "${CMAKE_CURRENT_LIST_DIR}/cmake/run_m3_exit_phase3b2b2a_append.cmake"
+  )
+  tonatiuhpp_set_headless_test_properties(headless.m3_exit_phase3b2b2a_append)
+  set_tests_properties(headless.m3_exit_phase3b2b2a_append PROPERTIES
+    LABELS "headless;smoke;scientific;equivalence" TIMEOUT 180)
+
+  # Phase 3B2B1: real, bounded one-shot scripted File photon exporter.
+  # Tests repeatability, selected-surface filtering and no-overwrite failure.
+  add_test(
+    NAME headless.m3_exit_phase3b2b1_run_file
+    COMMAND "${CMAKE_COMMAND}"
+      "-DTEST_EXECUTABLE=${TONATIUHPP_TEST_EXE}"
+      "-DTEST_SCRIPT=${CMAKE_CURRENT_LIST_DIR}/scripts/m3_exit_phase3b2b1_run_file.tnhpps.in"
+      "-DTEST_SCENE=${CMAKE_CURRENT_LIST_DIR}/../examples/benchmarks/cylinder.tnhpp"
+      "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/m3_exit_phase3b2b1_run_file"
+      "-DTEST_BUILD_ROOT=${CMAKE_CURRENT_BINARY_DIR}"
+      "-DCOMPARATOR=${CMAKE_CURRENT_LIST_DIR}/scientific/compare_photon_exports.py"
+      -P "${CMAKE_CURRENT_LIST_DIR}/cmake/run_m3_exit_phase3b2b1_file.cmake"
+  )
+  tonatiuhpp_set_headless_test_properties(headless.m3_exit_phase3b2b1_run_file)
+  set_tests_properties(headless.m3_exit_phase3b2b1_run_file PROPERTIES
+    LABELS "headless;smoke;scientific;equivalence" TIMEOUT 120)
 
   # Actual no-export ray-tracing operation with a strictly small ray budget.
   add_test(

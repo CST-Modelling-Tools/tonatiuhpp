@@ -1,0 +1,46 @@
+// M3 exit Phase 3A: same script in native GUI and true-headless mode.
+// WARNING: Clears the active scene. Save GUI work before running.
+// Fixed GUI seed 0. 64x48 sun grid, 128 rays, no export or benchmark.
+var root = new NodeObject;
+root.setName('M3_Phase3A');
+var receiver = root.createNode('Receiver');
+var shape = receiver.createShape();
+shape.setName('Shape');
+shape.insertSurface('Planar');
+var profile = shape.insertProfile('Box');
+profile.setParameter('uSize', '8');
+profile.setParameter('vSize', '8');
+shape.insertMaterial('Absorber');
+
+tn.Clear();
+tn.InsertScene(root);
+var receiverUrl = '//Node/M3_Phase3A/Receiver';
+var shapeUrl = receiverUrl + '/Shape';
+tn.SetValue(receiverUrl, 'translation', '0 0 1');
+var translation = receiver.getParameter('translation').trim();
+if (translation !== '0 0 1')
+    throw new Error('M3 Phase 3A field edit did not round-trip.');
+var sun = tn.getScene().getPart('world.sun.position');
+if (!sun) throw new Error('M3 Phase 3A scene sun is missing.');
+sun.setParameter('azimuth', '180');
+sun.setParameter('elevation', '90');
+
+tn.SetRaysGrid(64, 48);
+var power = tn.FindInterception(shapeUrl, 128);
+if (typeof power !== 'number' || !isFinite(power) || power <= 0)
+    throw new Error('M3 Phase 3A intercepted power is not positive and finite.');
+
+var csv = new DataObject;
+csv.addRow('schema,m3-exit-phase3a-v1');
+csv.addRow('surface,' + shapeUrl);
+csv.addRow('rays,128');
+csv.addRow('sun_grid,64x48');
+csv.addRow('translation,' + translation);
+csv.addRow('power_w,' + power.toPrecision(17));
+if (!csv.write('m3_exit_phase3a_result.csv'))
+    throw new Error('M3 Phase 3A result CSV could not be written.');
+var roundTrip = new DataObject;
+if (!roundTrip.read('m3_exit_phase3a_result.csv') || roundTrip.rows() !== 6 ||
+    roundTrip.row(5) !== 'power_w,' + power.toPrecision(17))
+    throw new Error('M3 Phase 3A CSV did not round-trip.');
+print('M3 Phase 3A field/grid smoke passed: ' + power.toPrecision(17));

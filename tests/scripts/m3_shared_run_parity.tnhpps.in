@@ -1,0 +1,20 @@
+// M3 shared scripted Run: both GUI and headless call the same synchronous
+// nonvisual File exporter, with an explicit master seed (including zero).
+// The test driver supplies a disposable, pre-created empty export directory.
+tn.loadScene('@SCENE_FILE@');
+tn.SetRaysNumber(2048);
+tn.SetRaysGrid(200, 200);
+tn.SetExportPhotonMapType('File');
+tn.SetExportCoordinates(true, true);
+tn.SetExportIntersectionSurface(true);
+tn.SetExportIntersectionSurfaceSide(true);
+tn.SetExportPreviousNextPhotonID(false);
+tn.SetPhotonBufferSize(4096);
+tn.SetPhotonBufferAppend(true);
+tn.SetExportTypeParameterValue('ExportDirectory', '@EXPORT_DIRECTORY@');
+tn.SetExportTypeParameterValue('ExportFile', 'PhotonMap');
+tn.SetExportTypeParameterValue('FileSize', '-1');
+tn.AddExportSurfaceURL('//Node/Shape');
+tn.Run(0);
+tn.Run(0);
+print('M3 shared Run File append completed (2 x 2048, seed 0).');

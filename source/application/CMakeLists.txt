@@ -36,10 +36,15 @@ set(HEADERS
     core/SceneLoader.h
     core/SimulationConfig.h
     core/SimulationSession.h
+    core/GuiTraceCompletion.h
+    core/GuiTraceRunInputs.h
+    core/FluxGridComputation.h
+    core/GuiTraceSessionExecution.h
     core/TracePreparation.h
     core/TonatiuhCore.h
     headless/HeadlessCommandRunner.h
     headless/HeadlessScriptHost.h
+    headless/HeadlessScriptFluxBackend.h
     main/CustomSplashScreen.h
     main/Document.h
     main/LineEditPlaceHolder.h
@@ -55,6 +60,7 @@ set(HEADERS
     parameters/ParametersTabs.h
     parameters/ParametersView.h
     run/FluxAnalysis.h
+    run/FluxAnalysisTsvWriter.h
     run/FluxAnalysisDialog.h
     run/GuiTraceSeed.h
     run/RayTracingDialog.h
@@ -65,6 +71,8 @@ set(HEADERS
     script/ScriptHost.h
     script/GuiScriptSceneAdapter.h
     script/ScriptSceneServices.h
+    script/ScriptRunExecutionService.h
+    script/ScriptFluxAnalysisRequest.h
     script/ScriptSceneDocument.h
     script/ScriptInterceptionService.h
     script/LineNumbers.h

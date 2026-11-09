@@ -63,7 +63,10 @@ bool PhotonsBuffer::endExport(double p)
     if (m_exporter)
     {
         m_exporter->setPhotonPower(p);
-        return m_exporter->endExport();
+        const bool completed = m_exporter->endExport();
+        if (!completed || m_exporter->hasExportError())
+            m_exportFailed = true;
+        return !m_exportFailed;
     }
 
     return true;

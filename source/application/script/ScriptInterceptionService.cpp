@@ -28,17 +28,33 @@ bool ScriptInterceptionService::findPower(TSceneKit* scene,
                                          double* power,
                                          QString* error)
 {
+    SimulationConfig configuration;
+    configuration.rays = rays;
+    configuration.masterSeed = masterSeed;
+    return findPower(scene, surfaceUrl, configuration, power, error);
+}
+
+bool ScriptInterceptionService::findPower(TSceneKit* scene,
+                                         const QString& surfaceUrl,
+                                         const SimulationConfig& configuration,
+                                         double* power,
+                                         QString* error)
+{
     if (error)
         error->clear();
     if (!power)
         return fail(error, "tn.FindInterception: result destination is unavailable.");
     *power = 0.;
+    const ulong rays = configuration.rays;
     if (!scene)
         return fail(error, "tn.FindInterception requires an active scene.");
     if (surfaceUrl.trimmed().isEmpty())
         return fail(error, "tn.FindInterception requires a non-empty surface URL.");
     if (rays == 0)
         return fail(error, "tn.FindInterception requires a positive integer ray count.");
+    QString configError;
+    if (!configuration.validate(&configError))
+        return fail(error, QString("tn.FindInterception: %1").arg(configError));
 
     // Check the complete instance URL, not only the underlying Coin node.
     // A shared node can have several placements with different transforms.
@@ -70,8 +86,7 @@ bool ScriptInterceptionService::findPower(TSceneKit* scene,
     HeadlessTracePreparationInput input;
     input.scene = scene;
     input.updateTrackers = true;
-    input.configuration.rays = rays;
-    input.configuration.masterSeed = masterSeed;
+    input.configuration = configuration;
     input.hitCallback = [&frontHits, &surfaceUrl](const RayTracerHit& hit) {
         if (hit.isFront && hit.surface && hit.surface->getURL() == surfaceUrl)
             frontHits.fetch_add(1, std::memory_order_relaxed);
