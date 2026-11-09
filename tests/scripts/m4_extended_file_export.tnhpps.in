@@ -1,0 +1,19 @@
+// M4 extended physical File export, shared by GUI and true-headless scripts.
+// Used for single File, numbered segments and cumulative append acceptance.
+tn.loadScene('@SCENE_FILE@');
+tn.SetRaysNumber(@RAYS@);
+tn.SetRaysGrid(200, 200);
+tn.SetExportPhotonMapType('File');
+tn.SetExportCoordinates(true, true);
+tn.SetExportIntersectionSurface(true);
+tn.SetExportIntersectionSurfaceSide(true);
+tn.SetExportPreviousNextPhotonID(false);
+tn.SetPhotonBufferSize(4096);
+tn.SetPhotonBufferAppend(@APPEND@);
+tn.SetExportTypeParameterValue('ExportDirectory', '@EXPORT_DIRECTORY@');
+tn.SetExportTypeParameterValue('ExportFile', 'PhotonMap');
+tn.SetExportTypeParameterValue('FileSize', '@FILE_SIZE@');
+tn.AddExportSurfaceURL('//Node/Shape');
+tn.Run(0);
+@RUN_AGAIN@
+print('M4 extended File export fixture completed.');

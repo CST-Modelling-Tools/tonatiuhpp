@@ -10,9 +10,8 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
-#include <QMessageBox>
-#include <QApplication>
 #include <QCoreApplication>
+#include <QTemporaryFile>
 
 #include "kernel/run/InstanceNode.h"
 
@@ -98,20 +97,33 @@ bool PhotonsFile::startExport()
         QString fileName = dir.absoluteFilePath(m_fileName + ".dat");
         infoList << QFileInfo(fileName);
     } else {
-        QStringList filters(m_fileName + "_*.dat");
-        infoList = dir.entryInfoList(filters, QDir::Files);
+        // Only delete generated positive-numbered segments. A wildcard also
+        // matches unrelated files such as PhotonMap_notes.dat: never remove them.
+        const QString prefix = m_fileName + QLatin1Char('_');
+        const QFileInfoList candidates = dir.entryInfoList(
+            QStringList(m_fileName + "_*.dat"),
+            QDir::AllEntries | QDir::Hidden | QDir::System | QDir::NoDotAndDotDot);
+        for (const QFileInfo& candidate : candidates) {
+            const QString name = candidate.fileName();
+            const QString digits = name.mid(prefix.size(), name.size() - prefix.size() - 4);
+            if (digits.isEmpty() || digits.front() == QLatin1Char('0')) continue;
+            const bool numbered = std::all_of(digits.cbegin(), digits.cend(),
+                [](QChar c) { return c >= QLatin1Char('0') && c <= QLatin1Char('9'); });
+            if (numbered) infoList << candidate;
+        }
     }
 
     for (QFileInfo& fileInfo : infoList) {
+        if (fileInfo.isSymLink() || (fileInfo.exists() && !fileInfo.isFile())) {
+            qWarning() << "Refusing unsafe photon export output" << fileInfo.absoluteFilePath();
+            m_exportFailed = true;
+            return false;
+        }
         QFile file(fileInfo.absoluteFilePath());
         if (file.exists() && !file.remove()) {
             QString message = QString("Error deleting %1.\nThe file is in use or the directory is not writable. Please close it before continuing.")
                 .arg(fileInfo.absoluteFilePath());
             qWarning() << message;
-            // A pure QCoreApplication cannot show a modal widget. Preserve
-            // the historical warning in GUI sessions and qWarning in both.
-            if (qobject_cast<QApplication*>(QCoreApplication::instance()))
-                QMessageBox::warning(0, "Tonatiuh", message);
             m_exportFailed = true;
             return false;
         }
@@ -124,53 +136,26 @@ bool PhotonsFile::prepareDirectory()
 {
     QDir dir(m_dirName);
     if (!dir.exists() && !dir.mkpath(".")) {
-        QString message = QString("Could not create photon export directory:\n%1").arg(dir.absolutePath());
-        qWarning() << message;
-        // A pure QCoreApplication cannot show a modal widget. Preserve
-            // the historical warning in GUI sessions and qWarning in both.
-            if (qobject_cast<QApplication*>(QCoreApplication::instance()))
-                QMessageBox::warning(0, "Tonatiuh", message);
+        qWarning() << "Could not create photon export directory:" << dir.absolutePath();
         return false;
     }
 
-    QString probeName = dir.absoluteFilePath(".tonatiuhpp_write_test.tmp");
-    QFile::remove(probeName);
-    QFile probe(probeName);
-    if (!probe.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
-        QString message = QString("Could not write to photon export directory:\n%1\n%2").arg(dir.absolutePath(), probe.errorString());
-        qWarning() << message;
-        // A pure QCoreApplication cannot show a modal widget. Preserve
-            // the historical warning in GUI sessions and qWarning in both.
-            if (qobject_cast<QApplication*>(QCoreApplication::instance()))
-                QMessageBox::warning(0, "Tonatiuh", message);
+    // The legacy fixed probe name used to remove an existing file without
+    // checking ownership. A unique auto-removed probe never clobbers user data.
+    QTemporaryFile probe(dir.absoluteFilePath(".tonatiuhpp_write_test_XXXXXX.tmp"));
+    if (!probe.open()) {
+        qWarning() << "Could not write to photon export directory:"
+                   << dir.absolutePath() << probe.errorString();
         return false;
     }
-
-    if (probe.write("1", 1) != 1 || !probe.flush()) {
-        QString message = QString("Could not write to photon export directory:\n%1\n%2").arg(dir.absolutePath(), probe.errorString());
-        qWarning() << message;
-        // A pure QCoreApplication cannot show a modal widget. Preserve
-            // the historical warning in GUI sessions and qWarning in both.
-            if (qobject_cast<QApplication*>(QCoreApplication::instance()))
-                QMessageBox::warning(0, "Tonatiuh", message);
-        probe.close();
-        QFile::remove(probeName);
-        return false;
-    }
-
+    const bool wrote = (probe.write("1", 1) == 1) && probe.flush();
     probe.close();
-    bool probeClosed = probe.error() == QFile::NoError;
-    bool probeRemoved = QFile::remove(probeName);
-    if (!probeClosed || !probeRemoved) {
-        QString message = QString("Could not finalize photon export directory check:\n%1\n%2").arg(dir.absolutePath(), probe.errorString());
-        qWarning() << message;
-        // A pure QCoreApplication cannot show a modal widget. Preserve
-            // the historical warning in GUI sessions and qWarning in both.
-            if (qobject_cast<QApplication*>(QCoreApplication::instance()))
-                QMessageBox::warning(0, "Tonatiuh", message);
+    const bool closed = probe.error() == QFile::NoError;
+    if (!wrote || !closed || !probe.remove()) {
+        qWarning() << "Could not finalize photon export directory check:"
+                   << dir.absolutePath() << probe.errorString();
         return false;
     }
-
     return true;
 }
 
@@ -210,6 +195,12 @@ bool PhotonsFile::openOutputFile(QString fileName)
     if (!closeCurrentFile())
         return false;
 
+    const QFileInfo outputInfo(fileName);
+    if (outputInfo.isSymLink() || (outputInfo.exists() && !outputInfo.isFile())) {
+        qWarning() << "Refusing unsafe photon export data file" << fileName;
+        m_exportFailed = true;
+        return false;
+    }
     m_file = new QFile(fileName);
     m_filePath = fileName;
     if (!m_file->open(QIODevice::WriteOnly | QIODevice::Append)) {
@@ -276,6 +267,12 @@ bool PhotonsFile::endExport()
 
     QDir dir(m_dirName);
     QString fileName = dir.absoluteFilePath(m_fileName + "_parameters.txt");
+    const QFileInfo metadataInfo(fileName);
+    if (metadataInfo.isSymLink() || (metadataInfo.exists() && !metadataInfo.isFile())) {
+        qWarning() << "Refusing unsafe photon export metadata file" << fileName;
+        m_exportFailed = true;
+        return false;
+    }
     QFile file(fileName);
     if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
         qWarning() << "Could not open photon parameters file" << fileName << file.errorString();

@@ -1,6 +1,9 @@
 #pragma once
 
 #include <QMainWindow>
+#include <QByteArray>
+#include <QMap>
+#include <memory>
 #include <QVariant>
 #include <QJSValue>
 
@@ -306,9 +309,17 @@ private:
     ulong m_raysTracedTotal;
 
     PhotonsBuffer* m_photonsBuffer;
+    // MainWindow owns the exporter; PhotonsBuffer only borrows it.
+    std::unique_ptr<PhotonsAbstract> m_guiPhotonExporter;
     ulong m_photonBufferSize;
     bool m_photonBufferAppend;
     bool m_scriptRunLastAccepted = false; // Result of last GUI Run, not a new backend.
+    // Per-window checkpoint: an append is permitted only after a completed
+    // File export and only when every output file still matches its hash.
+    QMap<QString, QByteArray> m_guiFileExportDigests;
+    QString m_guiFileExportDirectory;
+    QString m_guiFileExportBasename;
+    bool m_guiFileExportCheckpointValid = false;
     PhotonsSettings* m_photonsSettings;
 
     QVector<GraphicView*> m_graphicView;

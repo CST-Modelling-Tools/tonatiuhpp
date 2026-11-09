@@ -21,6 +21,7 @@
 
 #include "core/CorePluginRegistry.h"
 #include "core/GuiTraceCompletion.h"
+#include "core/PhotonExportFileService.h"
 #include "core/GuiTraceRunInputs.h"
 #include "run/FluxAnalysisTsvWriter.h"
 #include "core/FluxGridComputation.h"
@@ -1758,6 +1759,162 @@ TEST(ScientificPhotonsFileAppendFailure, WriteFailurePreservesCheckpointAndRetai
 TEST(ScientificPhotonsFileAppendFailure, FlushFailurePreservesCheckpointAndRetainsBuffer)
 {
     m3VerifyFailedFileAppendRetainsOwnership("flush");
+}
+
+// M4 finishing: actual production File plugin with segmented output, the
+// existing scientific-executable-only write/flush faults, and partial-run
+// checkpoint invalidation. All tests use independent QTemporaryDir roots.
+namespace {
+QByteArray m3ReadExportFile(const QString& path);
+std::vector<Photon> m4Photons(std::size_t count)
+{
+    std::vector<Photon> photons;
+    photons.reserve(count);
+    for (std::size_t i = 0; i < count; ++i)
+        photons.emplace_back(1, vec3d{}, nullptr, true, false);
+    return photons;
+}
+
+void m4VerifySegmentedAppendFault(const char* faultMode)
+{
+    QTemporaryDir temp;
+    ASSERT_TRUE(temp.isValid());
+    M3LoadedFileExporter loaded;
+    ASSERT_NE(loaded.exporter, nullptr);
+    loaded.exporter->setParameter("ExportDirectory", temp.path());
+    loaded.exporter->setParameter("ExportFile", "PhotonMap");
+    loaded.exporter->setParameter("FileSize", "2");
+    PhotonsBuffer buffer(2);
+    ASSERT_TRUE(buffer.setExporter(loaded.exporter.get()));
+    ASSERT_TRUE(buffer.addPhotons(m4Photons(2)));
+    ASSERT_TRUE(buffer.endExport(0.125));
+
+    const QDir dir(temp.path());
+    const QString first = dir.filePath("PhotonMap_1.dat");
+    const QString second = dir.filePath("PhotonMap_2.dat");
+    const QString metadata = dir.filePath("PhotonMap_parameters.txt");
+    const QByteArray beforeFirst = m3ReadExportFile(first);
+    const QByteArray beforeMetadata = m3ReadExportFile(metadata);
+    ASSERT_FALSE(beforeFirst.isEmpty());
+    ASSERT_FALSE(beforeMetadata.isEmpty());
+    ASSERT_FALSE(QFileInfo::exists(second));
+
+    ASSERT_TRUE(loaded.exporter->startExport());
+    ASSERT_TRUE(buffer.addPhotons(m4Photons(1)));
+    {
+        M3ScientificDataFaultScope failure(faultMode);
+        EXPECT_FALSE(buffer.endExport(0.125));
+    }
+    EXPECT_TRUE(buffer.hasExportFailed());
+    EXPECT_TRUE(buffer.hasRetainedPhotons());
+    EXPECT_TRUE(loaded.exporter->hasExportError());
+    EXPECT_EQ(buffer.getPhotons().size(), 1u);
+    EXPECT_EQ(m3ReadExportFile(first), beforeFirst);
+    EXPECT_EQ(m3ReadExportFile(metadata), beforeMetadata);
+    EXPECT_TRUE(QFileInfo::exists(second));
+    EXPECT_EQ(QFileInfo(second).size(), 0);
+    EXPECT_FALSE(loaded.exporter->startExport());
+    EXPECT_FALSE(buffer.addPhotons(m4Photons(1)));
+}
+} // namespace
+
+TEST(ScientificM4SegmentedExport, InjectedAppendWriteFailurePreservesPriorFiles)
+{
+    m4VerifySegmentedAppendFault("write");
+}
+
+TEST(ScientificM4SegmentedExport, InjectedAppendFlushFailurePreservesPriorFiles)
+{
+    m4VerifySegmentedAppendFault("flush");
+}
+
+TEST(ScientificM4SegmentedExport, InterruptedAppendInvalidatesOutputCheckpoint)
+{
+    QTemporaryDir temp;
+    ASSERT_TRUE(temp.isValid());
+    M3LoadedFileExporter loaded;
+    ASSERT_NE(loaded.exporter, nullptr);
+    loaded.exporter->setParameter("ExportDirectory", temp.path());
+    loaded.exporter->setParameter("ExportFile", "PhotonMap");
+    loaded.exporter->setParameter("FileSize", "2");
+    ASSERT_TRUE(loaded.exporter->startExport());
+    ASSERT_EQ(loaded.exporter->savePhotons(m4Photons(2)), 2ul);
+    loaded.exporter->setPhotonPower(0.125);
+    ASSERT_TRUE(loaded.exporter->endExport());
+    QMap<QString, QByteArray> accepted;
+    bool hasData = false;
+    QString error;
+    ASSERT_TRUE(PhotonExportFileService::captureOutputCheckpoint(
+        temp.path(), "PhotonMap", &accepted, &hasData, &error)) << error.toStdString();
+    ASSERT_TRUE(hasData);
+    const QString metadata = QDir(temp.path()).filePath("PhotonMap_parameters.txt");
+    const QByteArray beforeMetadata = m3ReadExportFile(metadata);
+    ASSERT_FALSE(beforeMetadata.isEmpty());
+    ASSERT_TRUE(loaded.exporter->startExport());
+    ASSERT_EQ(loaded.exporter->savePhotons(m4Photons(1)), 1ul);
+    // Simulated interruption: destructor closes the data file but no
+    // endExport/metadata finalization occurs. No live handles impede the
+    // checkpoint reader on Windows.
+    loaded.exporter.reset();
+    QMap<QString, QByteArray> interrupted;
+    ASSERT_TRUE(PhotonExportFileService::captureOutputCheckpoint(
+        temp.path(), "PhotonMap", &interrupted, &hasData, &error)) << error.toStdString();
+    EXPECT_TRUE(hasData);
+    EXPECT_NE(interrupted, accepted);
+    EXPECT_EQ(m3ReadExportFile(metadata), beforeMetadata);
+}
+
+TEST(ScientificM4SegmentedExport, UnrelatedWildcardFilesAreNeverDeleted)
+{
+    QTemporaryDir temp;
+    ASSERT_TRUE(temp.isValid());
+    const QDir dir(temp.path());
+    const QString unrelated = dir.filePath("PhotonMap_notes.dat");
+    const QString invalidSerial = dir.filePath("PhotonMap_0.dat");
+    const QString managed = dir.filePath("PhotonMap_1.dat");
+    for (const QString& path : {unrelated, invalidSerial, managed}) {
+        QFile file(path);
+        ASSERT_TRUE(file.open(QIODevice::WriteOnly));
+        ASSERT_EQ(file.write("sentinel"), 8);
+    }
+    M3LoadedFileExporter loaded;
+    ASSERT_NE(loaded.exporter, nullptr);
+    loaded.exporter->setParameter("ExportDirectory", temp.path());
+    loaded.exporter->setParameter("ExportFile", "PhotonMap");
+    loaded.exporter->setParameter("FileSize", "2");
+    ASSERT_TRUE(loaded.exporter->startExport());
+    EXPECT_EQ(m3ReadExportFile(unrelated), QByteArray("sentinel"));
+    EXPECT_EQ(m3ReadExportFile(invalidSerial), QByteArray("sentinel"));
+    EXPECT_FALSE(QFileInfo::exists(managed));
+}
+
+TEST(ScientificM4SegmentedExport, CheckpointDetectsNewUnrelatedEntry)
+{
+    QTemporaryDir temp;
+    ASSERT_TRUE(temp.isValid());
+    M3LoadedFileExporter loaded;
+    ASSERT_NE(loaded.exporter, nullptr);
+    loaded.exporter->setParameter("ExportDirectory", temp.path());
+    loaded.exporter->setParameter("ExportFile", "PhotonMap");
+    loaded.exporter->setParameter("FileSize", "2");
+    ASSERT_TRUE(loaded.exporter->startExport());
+    ASSERT_EQ(loaded.exporter->savePhotons(m4Photons(2)), 2ul);
+    loaded.exporter->setPhotonPower(0.125);
+    ASSERT_TRUE(loaded.exporter->endExport());
+    QMap<QString, QByteArray> accepted;
+    bool hasData = false;
+    QString error;
+    ASSERT_TRUE(PhotonExportFileService::captureOutputCheckpoint(
+        temp.path(), "PhotonMap", &accepted, &hasData, &error));
+    ASSERT_TRUE(hasData);
+    QFile injected(QDir(temp.path()).filePath("foreign_notes.dat"));
+    ASSERT_TRUE(injected.open(QIODevice::WriteOnly));
+    ASSERT_EQ(injected.write("new"), 3);
+    injected.close();
+    QMap<QString, QByteArray> observed;
+    ASSERT_TRUE(PhotonExportFileService::captureOutputCheckpoint(
+        temp.path(), "PhotonMap", &observed, &hasData, &error));
+    EXPECT_NE(observed, accepted);
 }
 
 

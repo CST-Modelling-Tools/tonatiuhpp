@@ -92,11 +92,9 @@ class ScriptRunExecutionService final
                                                              QStringLiteral("PhotonMap"));
             const QString fileSize = state.parameters.value(QStringLiteral("FileSize"),
                                                              QStringLiteral("-1"));
-            if (basename.isEmpty() || basename == "." || basename == ".." ||
-                basename.contains('/') || basename.contains('\\') || basename.contains(':'))
-                return fail(error, "tn.Run: File exporter basename must be a simple filename.");
-            if (fileSize != QStringLiteral("-1"))
-                return fail(error, "tn.Run: scripted File export currently supports one output file only (FileSize=-1).");
+            QString fileError;
+            if (!PhotonExportFileService::validateFileOptions(basename, fileSize, &fileError))
+                return fail(error, "tn.Run: " + fileError);
             for (auto it = state.parameters.cbegin(); it != state.parameters.cend(); ++it) {
                 if (it.key() != "ExportDirectory" && it.key() != "ExportFile" && it.key() != "FileSize")
                     return fail(error, "tn.Run: unsupported File exporter parameter: " + it.key());
@@ -117,52 +115,36 @@ class ScriptRunExecutionService final
         return true;
     }
 
-    static bool fileDigest(const QString& path, QByteArray* output, QString* error)
+    // Capture a full directory snapshot rather than just PhotonMap.dat.
+    // FileSize>0 creates PhotonMap_N.dat segments; unknown files or links must
+    // also block append so a different process cannot add an overwrite target.
+    static bool outputFiles(Resources* r, QMap<QString, QByteArray>* digests,
+                            bool* hasData, QString* error)
     {
-        QFile file(path);
-        if (!file.open(QIODevice::ReadOnly))
-            return fail(error, "tn.Run: cannot inspect existing export: " + path);
-        QCryptographicHash hash(QCryptographicHash::Sha256);
-        if (!hash.addData(&file))
-            return fail(error, "tn.Run: cannot hash existing export: " + path);
-        if (output) *output = hash.result();
+        QString checkpointError;
+        if (!PhotonExportFileService::captureOutputCheckpoint(
+                r->settings.parameters.value("ExportDirectory"),
+                r->settings.parameters.value("ExportFile", "PhotonMap"),
+                digests, hasData, &checkpointError))
+            return fail(error, "tn.Run: " + checkpointError);
         return true;
-    }
-
-    static QString outputPath(const Resources& r)
-    {
-        const QString dir = r.settings.parameters.value("ExportDirectory");
-        const QString name = r.settings.parameters.value("ExportFile", "PhotonMap");
-        return QDir(dir).filePath(name);
     }
 
     static bool captureOutput(Resources* r, QString* error)
     {
         if (r->settings.name != "File") return true;
-        const QString path = outputPath(*r);
-        if (!fileDigest(path + "_parameters.txt", &r->parametersDigest, error))
-            return false;
-        if (!QFileInfo::exists(path + ".dat") ||
-            QFileInfo(path + ".dat").size() == 0) {
-            // An empty selection can be a valid first run. Keep the result
-            // but refuse append until the exporter has real photon records.
-            r->appendable = false;
-            r->outputDigest.clear();
-            return true;
-        }
-        r->appendable = true;
-        return fileDigest(path + ".dat", &r->outputDigest, error);
+        bool data = false;
+        if (!outputFiles(r, &r->outputDigests, &data, error)) return false;
+        r->appendable = data;
+        return true;
     }
 
     static bool verifyOutputUnchanged(Resources* r, QString* error)
     {
         if (r->settings.name != "File") return true;
-        QByteArray data, parameters;
-        const QString path = outputPath(*r);
-        if (!fileDigest(path + ".dat", &data, error) ||
-            !fileDigest(path + "_parameters.txt", &parameters, error))
-            return false;
-        if (data != r->outputDigest || parameters != r->parametersDigest)
+        QMap<QString, QByteArray> observed;
+        if (!outputFiles(r, &observed, nullptr, error)) return false;
+        if (observed != r->outputDigests)
             return fail(error, "tn.Run: existing File export changed externally; refusing append.");
         return true;
     }
@@ -182,8 +164,9 @@ public:
         if (error) error->clear();
         if (!request.scene)
             return fail(error, "tn.Run: active scene is unavailable.");
-        if (!request.explicitRays || request.rays < 1 || request.rays > 200000u)
-            return fail(error, "tn.Run: scripted Run requires an effective ray count in 1..200000.");
+        if (!request.explicitRays || request.rays < 1 ||
+            request.rays > PhotonExportFileService::kMaxExportRays)
+            return fail(error, "tn.Run: effective ray count exceeds the explicit M4 10-million-ray safety bound.");
 
         if (m_current && m_current->poisoned)
             return fail(error, "tn.Run: previous export failed; exporter and any unwritten photons remain retained. Further runs are blocked.");
@@ -199,8 +182,8 @@ public:
                 return fail(error, "tn.Run: cannot append after replacing the scene; use a fresh output directory.");
             if (!sameOptions(request.exportOptions, active->options))
                 return fail(error, "tn.Run: cannot append after changing exporter/buffer settings; use a fresh output directory.");
-            if (active->completedRays + request.rays > 200000u)
-                return fail(error, "tn.Run: bounded scripted append permits at most 200000 cumulative rays.");
+            if (active->completedRays + request.rays > PhotonExportFileService::kMaxExportRays)
+                return fail(error, "tn.Run: scripted append exceeds the 10-million-ray bound.");
             if (!active->appendable)
                 return fail(error, "tn.Run: append requires a nonempty previous photon File output.");
             if (!verifyOutputUnchanged(active, error)) return false;
