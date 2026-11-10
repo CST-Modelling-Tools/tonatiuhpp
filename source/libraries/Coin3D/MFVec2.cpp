@@ -1,8 +1,16 @@
 #include "MFVec2.h"
 
-#include "ContainerEditorMFVec2.h"
-#include "FieldEditor.h"
+#include <atomic>
 
+
+namespace {
+std::atomic<TonatiuhMFVec2EditorCreator> s_editorCreator{nullptr};
+}
+
+void tonatiuhSetMFVec2EditorCreator(TonatiuhMFVec2EditorCreator creator)
+{
+    s_editorCreator.store(creator);
+}
 
 SO_MFIELD_SOURCE_MALLOC(MFVec2, SbVec2f, const SbVec2f&);
 
@@ -64,7 +72,6 @@ void MFVec2::setValue(const float xy[2])
 
 FieldEditor* MFVec2::getEditor() const
 {
-    ContainerEditorMFVec2* editor = new ContainerEditorMFVec2;
-    editor->SetTitles(getNames());
-    return editor;
+    auto creator = s_editorCreator.load();
+    return creator ? creator(getNames()) : nullptr;
 }

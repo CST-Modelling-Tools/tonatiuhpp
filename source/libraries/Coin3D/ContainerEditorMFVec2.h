@@ -9,7 +9,7 @@
 
 
 // delete later
-class TONATIUH_LIBRARIES CustomLineEdit: public QLineEdit
+class TONATIUH_GUI_PRESENTATION CustomLineEdit: public QLineEdit
 {
     Q_OBJECT
 public:
@@ -24,7 +24,7 @@ protected:
 
 
 
-class TONATIUH_LIBRARIES ContainerEditorMFVec2: public FieldEditor
+class TONATIUH_GUI_PRESENTATION ContainerEditorMFVec2: public FieldEditor
 {
     Q_OBJECT
 

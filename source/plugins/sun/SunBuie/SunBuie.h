@@ -56,5 +56,5 @@ class SunBuieFactory:
 {
     Q_OBJECT
     Q_INTERFACES(SunFactory)
-    Q_PLUGIN_METADATA(IID "tonatiuh.SunFactory")
+    Q_PLUGIN_METADATA(IID "tonatiuh.SunFactory" FILE "../../tonatiuhpp-headless-plugin.json")
 };

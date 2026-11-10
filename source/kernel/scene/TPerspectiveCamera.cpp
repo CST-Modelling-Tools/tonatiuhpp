@@ -1,7 +1,9 @@
 #include "TPerspectiveCamera.h"
 
 #include <Inventor/actions/SoRayPickAction.h>
-#include <Inventor/Qt/viewers/SoQtExaminerViewer.h>
+#include <Inventor/nodes/SoCamera.h>
+#include <Inventor/SbViewportRegion.h>
+#include <atomic>
 
 #include "libraries/math/gcf.h"
 #include <QDebug>
@@ -12,6 +14,18 @@
 #include "kernel/scene/TSeparatorKit.h"
 #include "libraries/math/gcf.h"
 
+
+namespace {
+std::atomic<TonatiuhViewerCameraGetter> s_cameraGetter{nullptr};
+std::atomic<TonatiuhViewerViewportGetter> s_viewportGetter{nullptr};
+}
+
+void tonatiuhSetCameraViewerBridge(TonatiuhViewerCameraGetter camera,
+                                    TonatiuhViewerViewportGetter viewport)
+{
+    s_cameraGetter.store(camera);
+    s_viewportGetter.store(viewport);
+}
 
 TPerspectiveCamera::TPerspectiveCamera()
 {
@@ -143,11 +157,16 @@ vec3d TPerspectiveCamera::findRayLocal(SoQtExaminerViewer* /*viewer*/, QPoint po
 
 bool TPerspectiveCamera::findAnchor(SoQtExaminerViewer* viewer, QPointF pos, SoNode* root, vec3d& anchor)
 {
+    const auto cameraGetter = s_cameraGetter.load();
+    const auto viewportGetter = s_viewportGetter.load();
+    if (!viewer || !cameraGetter || !viewportGetter) return false;
+    SoCamera* camera = cameraGetter(viewer);
+    if (!camera) return false;
     vec3d rd = findRayGlobal(viewer, pos);
-    double tMin = viewer->getCamera()->nearDistance.getValue();
+    double tMin = camera->nearDistance.getValue();
     tMin = std::min(0.1, tMin);
 
-    SoRayPickAction rpa(viewer->getViewportRegion());
+    SoRayPickAction rpa(viewportGetter(viewer));
 //    rpa.setPoint(SbVec2s(pos.x(), pos.y())); // does not work
     rpa.setRay(SbVec3f(m_position.x, m_position.y, m_position.z), SbVec3f(rd.x, rd.y, rd.z), tMin);
     rpa.setRadius(1.);
@@ -167,7 +186,9 @@ bool TPerspectiveCamera::findAnchor(SoQtExaminerViewer* viewer, QPointF pos, SoN
 
 bool TPerspectiveCamera::findAnchor0(SoQtExaminerViewer* viewer, SoNode* root, vec3d& anchor)
 {
-    SbVec2s vs = viewer->getViewportRegion().getViewportSizePixels();
+    const auto viewportGetter = s_viewportGetter.load();
+    if (!viewer || !viewportGetter) return false;
+    SbVec2s vs = viewportGetter(viewer).getViewportSizePixels();
     return findAnchor(viewer, QPoint(vs[0]/2, vs[1]/2), root, anchor);
 }
 
@@ -285,12 +306,17 @@ void TPerspectiveCamera::moveOrbitAnchor(SoQtExaminerViewer* viewer, QPoint pos)
 void TPerspectiveCamera::zoomCenter(SoQtExaminerViewer* viewer, SoNode* root, double zoom)
 {
     // find ray
+    const auto cameraGetter = s_cameraGetter.load();
+    const auto viewportGetter = s_viewportGetter.load();
+    if (!viewer || !cameraGetter || !viewportGetter) return;
+    SoCamera* camera = cameraGetter(viewer);
+    if (!camera) return;
     vec3d rd = findRayGlobal0();
-    double tMin = viewer->getCamera()->nearDistance.getValue();
+    double tMin = camera->nearDistance.getValue();
     tMin = std::min(0.1, tMin);
 
     // pick object
-    SoRayPickAction rpa(viewer->getViewportRegion());
+    SoRayPickAction rpa(viewportGetter(viewer));
     rpa.setRadius(1.);
     rpa.setRay(SbVec3f(m_position.x, m_position.y, m_position.z), SbVec3f(rd.x, rd.y, rd.z), tMin);
     rpa.apply(root);

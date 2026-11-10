@@ -12,6 +12,11 @@ class SceneTreeModel;   // <-- FIX: forward declaration
 class PhotonsWidget;    // used later by PhotonsFactory
 class PhotonsAbstract;  // used later by PhotonsFactory
 
+// Optional GUI-only widget factory; headless exporter plugins return nullptr.
+using TonatiuhPhotonsWidgetCreator = PhotonsWidget* (*)(const QString&);
+TONATIUH_KERNEL void tonatiuhSetPhotonsWidgetCreator(TonatiuhPhotonsWidgetCreator);
+TONATIUH_KERNEL PhotonsWidget* tonatiuhCreatePhotonsWidget(const QString&);
+
 class TONATIUH_KERNEL PhotonsAbstract
 {
 public:

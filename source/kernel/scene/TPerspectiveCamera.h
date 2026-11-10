@@ -7,6 +7,13 @@
 #include <QSize>
 
 class SoQtExaminerViewer;
+class SoCamera;
+class SbViewportRegion;
+using TonatiuhViewerCameraGetter = SoCamera* (*)(SoQtExaminerViewer*);
+using TonatiuhViewerViewportGetter = const SbViewportRegion& (*)(SoQtExaminerViewer*);
+// UI adapters install callouts without the kernel ever importing SoQt.
+TONATIUH_KERNEL void tonatiuhSetCameraViewerBridge(
+    TonatiuhViewerCameraGetter, TonatiuhViewerViewportGetter);
 class TSeparatorKit;
 
 class TONATIUH_KERNEL TPerspectiveCamera

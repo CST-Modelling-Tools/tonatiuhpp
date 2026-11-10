@@ -36,17 +36,15 @@ add_library(${PROJECT_NAME} SHARED ${HEADERS} ${SOURCES} ${RESOURCES})
 # Link libraries using globally defined variables and target links
 target_link_libraries(${PROJECT_NAME} PRIVATE 
     Coin::Coin
-    SoQt::SoQt
     Qt6::Core 
     Qt6::Gui 
-    Qt6::Widgets 
     Qt6::Qml
     TonatiuhLibraries
     TonatiuhKernel
 )
 
 # Find the required Qt components
-find_package(Qt6 COMPONENTS Core Gui Widgets Qml REQUIRED)
+find_package(Qt6 COMPONENTS Core Gui Qml REQUIRED)
 
 # Add install rules for all targets
 install(TARGETS ${ProjectName}

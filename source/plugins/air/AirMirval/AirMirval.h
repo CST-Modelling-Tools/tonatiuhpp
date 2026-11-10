@@ -22,5 +22,5 @@ class AirMirvalFactory:
 {
     Q_OBJECT
     Q_INTERFACES(AirFactory)
-    Q_PLUGIN_METADATA(IID "tonatiuh.AirFactory")
+    Q_PLUGIN_METADATA(IID "tonatiuh.AirFactory" FILE "../../tonatiuhpp-headless-plugin.json")
 };

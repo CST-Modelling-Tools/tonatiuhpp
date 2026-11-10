@@ -491,6 +491,19 @@ endif()
 add_subdirectory(application)
 add_subdirectory(plugins)
 
+# M5.1 official scene + File exporter plugin links must be compatible with the
+# same QtWidgets/SoQt-free TonatiuhKernel as the QCoreApplication CLI.
+# This runs AFTER add_subdirectory(plugins), when plugin targets exist.
+foreach(_m5_plugin IN ITEMS
+    AirMirval MaterialSpecular PhotonsFile
+    ShapeElliptic ShapeFunctionXYZ ShapeFunctionZ ShapeHyperbolic ShapeMapN ShapeMesh
+    SunBuie SunGaussian)
+  if(NOT TARGET ${_m5_plugin})
+    message(FATAL_ERROR "M5 one-kernel: expected official plugin ${_m5_plugin} missing")
+  endif()
+  tonatiuhpp_m5_assert_one_kernel_link_closure(${_m5_plugin})
+endforeach()
+
 if(BUILD_TESTING)
   add_subdirectory("${CMAKE_CURRENT_LIST_DIR}/../tests" "${CMAKE_BINARY_DIR}/tests")
 endif()

@@ -597,3 +597,22 @@ if(TONATIUHPP_ENABLE_HEADLESS_SMOKE_TESTS)
     set_tests_properties(headless.benchmark_heliostat_1m_repeatability PROPERTIES TIMEOUT 1200)
   endif()
 endif()
+
+# M5.2: same ONE kernel and first-party plugins, two actual native entrypoints.
+# Exercises short, fixed-seed ray-hit/history signatures, nonvisual scripts,
+# Flux Analysis, tracker/cancellation semantics and real File export.
+# The 500-million-ray benchmark is expressly OUTSIDE this test.
+if(BUILD_TESTING AND TARGET tonatiuhpp_m5_core_headless)
+    find_package(Python3 COMPONENTS Interpreter REQUIRED)
+    add_test(NAME headless.m5_2_cross_adapter_end_to_end
+        COMMAND "${Python3_EXECUTABLE}"
+            "${CMAKE_CURRENT_LIST_DIR}/m5/m5_2_adapter_acceptance.py"
+            --gui "$<TARGET_FILE:tonatiuhpp>"
+            --cli "$<TARGET_FILE:tonatiuhpp_m5_core_headless>"
+            --source-root "${CMAKE_CURRENT_LIST_DIR}/.."
+            --output-root "${CMAKE_CURRENT_BINARY_DIR}/m5_2_evidence"
+            --mode build)
+    tonatiuhpp_set_headless_test_properties(headless.m5_2_cross_adapter_end_to_end)
+    set_tests_properties(headless.m5_2_cross_adapter_end_to_end PROPERTIES
+        LABELS "headless;smoke;scientific;equivalence" TIMEOUT 900)
+endif()

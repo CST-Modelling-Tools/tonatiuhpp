@@ -1,10 +1,10 @@
 #pragma once
 
-#include "libraries/TonatiuhLibraries.h"
+#include "libraries/TonatiuhGuiPresentation.h"
 #include <QWidget>
 
 
-class TONATIUH_LIBRARIES FieldEditor: public QWidget
+class TONATIUH_GUI_PRESENTATION FieldEditor: public QWidget
 {
     Q_OBJECT
 

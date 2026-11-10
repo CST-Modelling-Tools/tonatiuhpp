@@ -1,10 +1,10 @@
 #pragma once
 
-#include "kernel/TonatiuhKernel.h"
+#include "libraries/TonatiuhGuiPresentation.h"
 #include <QWidget>
 
 
-class TONATIUH_KERNEL PhotonsWidget: public QWidget
+class TONATIUH_GUI_PRESENTATION PhotonsWidget: public QWidget
 {
     Q_OBJECT
 
