@@ -34,13 +34,12 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     Coin::Coin
     Qt6::Core 
     Qt6::Gui 
-    Qt6::Widgets
     TonatiuhLibraries
     TonatiuhKernel
 )
 
 # Find the required Qt components
-find_package(Qt6 COMPONENTS Core Gui Widgets REQUIRED)
+find_package(Qt6 COMPONENTS Core Gui REQUIRED)
 
 # Add install rules for all targets
 install(TARGETS ${ProjectName}

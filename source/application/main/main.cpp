@@ -17,6 +17,19 @@
 #include "script/ScriptHost.h"
 #include "script/GuiScriptSceneAdapter.h"
 #include "MainWindow.h"
+#ifdef TONATIUHPP_M5_NATIVE_GUI_TEST
+#include "M5GuiNativeAcceptance.h"
+#endif
+#include "core/TonatiuhCore.h"
+#include "kernel/scene/TPerspectiveCamera.h"
+#include "kernel/node/TonatiuhDiagnostics.h"
+#include "kernel/photons/PhotonsWidget.h"
+#include "kernel/photons/PhotonsAbstract.h"
+#include "libraries/Coin3D/MFVec2.h"
+#include "libraries/Coin3D/ContainerEditorMFVec2.h"
+#include "plugins/photons/PhotonsFile/PhotonsFileWidget.h"
+#include <Inventor/Qt/viewers/SoQtExaminerViewer.h>
+
 
 QTextStream cerr(stderr);
 
@@ -39,6 +52,31 @@ QTextStream cerr(stderr);
 
 namespace
 {
+SoCamera* guiCameraForViewer(SoQtExaminerViewer* viewer)
+{ return viewer->getCamera(); }
+const SbViewportRegion& guiViewportForViewer(SoQtExaminerViewer* viewer)
+{ return viewer->getViewportRegion(); }
+FieldEditor* guiMFVec2Editor(const QStringList& titles)
+{
+    auto* editor = new ContainerEditorMFVec2;
+    editor->SetTitles(titles);
+    return editor;
+}
+PhotonsWidget* guiPhotonsWidget(const QString& name)
+{
+    if (name == QStringLiteral("File")) return new PhotonsFileWidget;
+    return nullptr;
+}
+void initializePresentationBridges()
+{
+    tonatiuhSetCameraViewerBridge(guiCameraForViewer, guiViewportForViewer);
+    tonatiuhSetMFVec2EditorCreator(guiMFVec2Editor);
+    tonatiuhSetPhotonsWidgetCreator(guiPhotonsWidget);
+    tonatiuhSetWarningPresenter([](const QString& title, const QString& message) {
+        QMessageBox::warning(nullptr, title, message);
+    });
+}
+
 bool hasHeadlessArgument(int argc, char** argv)
 {
     for (int i = 1; i < argc; ++i) {
@@ -77,6 +115,7 @@ int main(int argc, char** argv)
 {  
     if (hasHeadlessArgument(argc, argv)) {
         QCoreApplication app(argc, argv);
+        TonatiuhCore::setHeadlessPluginMode(true);
         app.setApplicationName("Tonatiuh");
         app.setApplicationVersion(APP_VERSION);
 
@@ -86,6 +125,8 @@ int main(int argc, char** argv)
 
     // application
     QApplication app(argc, argv);
+    TonatiuhCore::setHeadlessPluginMode(false);
+    initializePresentationBridges();
     app.setApplicationName("Tonatiuh");
     app.setApplicationVersion(APP_VERSION);
 
@@ -167,6 +208,9 @@ int main(int argc, char** argv)
 
         MainWindow mw(fileName, &splash);
         mw.show();
+#ifdef TONATIUHPP_M5_NATIVE_GUI_TEST
+        installM5GuiNativeAcceptance(&mw);
+#endif
         splash.setFinishWindow();
         if (!startupWarning.isEmpty())
             QMessageBox::warning(&mw, "Tonatiuh", startupWarning);

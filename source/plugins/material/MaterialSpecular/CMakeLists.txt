@@ -31,10 +31,8 @@ target_include_directories(${ProjectName} PRIVATE
 # Link libraries using global variables
 target_link_libraries(${PROJECT_NAME} PRIVATE
     Coin::Coin
-    SoQt::SoQt
     Qt6::Core 
     Qt6::Gui 
-    Qt6::Widgets 
     TonatiuhLibraries
     TonatiuhKernel
 )

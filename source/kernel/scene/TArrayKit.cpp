@@ -73,7 +73,7 @@ void TArrayKit::onSensor(void* data, SoSensor*)
 #include <Inventor/nodes/SoFragmentShader.h>
 #include <Inventor/nodes/SoShaderParameter.h>
 #include <QDir>
-#include <QApplication>
+
 #include <Inventor/nodes/SoShapeHints.h>
 #include <Inventor/annex/FXViz/nodes/SoShadowStyle.h>
 #include <Inventor/nodes/SoLightModel.h>

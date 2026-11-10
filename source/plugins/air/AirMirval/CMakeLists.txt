@@ -29,10 +29,8 @@ target_include_directories(${ProjectName} PRIVATE
 # Link Libraries (explicitly specified)
 target_link_libraries(${ProjectName} PRIVATE 
     Coin::Coin
-    SoQt::SoQt
     Qt6::Core 
     Qt6::Gui 
-    Qt6::Widgets
     TonatiuhKernel
 )
 

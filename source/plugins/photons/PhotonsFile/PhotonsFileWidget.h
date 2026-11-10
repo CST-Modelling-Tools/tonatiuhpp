@@ -7,7 +7,7 @@ namespace Ui {
 class PhotonsFileWidget;
 }
 
-class PhotonsFileWidget: public PhotonsWidget
+class TONATIUH_GUI_PRESENTATION PhotonsFileWidget: public PhotonsWidget
 {
     Q_OBJECT
 

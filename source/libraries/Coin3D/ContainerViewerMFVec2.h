@@ -1,6 +1,6 @@
 #pragma once
 
-#include "libraries/TonatiuhLibraries.h"
+#include "libraries/TonatiuhGuiPresentation.h"
 
 #include <QDialog>
 
@@ -11,7 +11,7 @@ class ContainerViewerMFVec2;
 class DoubleValuesDelegate;
 
 
-class TONATIUH_LIBRARIES ContainerViewerMFVec2: public QDialog
+class TONATIUH_GUI_PRESENTATION ContainerViewerMFVec2: public QDialog
 {
     Q_OBJECT
 

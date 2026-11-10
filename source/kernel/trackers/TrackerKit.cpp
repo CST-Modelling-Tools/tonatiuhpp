@@ -8,7 +8,7 @@
 #include <Inventor/nodes/SoGroup.h>
 #include <Inventor/nodes/SoIndexedFaceSet.h>
 #include <QFileInfo>
-#include <QMessageBox>
+#include "kernel/node/TonatiuhDiagnostics.h"
 #include <Inventor/sensors/SoFieldSensor.h>
 
 #include "libraries/auxiliary/tiny_obj_loader.h"
@@ -93,11 +93,11 @@ void TrackerKit::onSensor_shape(void* data, SoSensor*)
     fileName = QString("project:") + fileName;
     QFileInfo info(fileName);
     if (info.suffix() != "obj") {
-        QMessageBox::warning(0, "Warning", "File is not in obj-format");
+        tonatiuhReportWarning("Warning", "File is not in obj-format");
         return;
     }
     if (!info.exists()) {
-        QMessageBox::warning(0, "Warning", QString("File not found:\n") + fileName);
+        tonatiuhReportWarning("Warning", QString("File not found:\n") + fileName);
         return;
     }
     fileName = info.absoluteFilePath();

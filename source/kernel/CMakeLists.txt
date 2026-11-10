@@ -28,11 +28,11 @@ set(HEADERS
     node/TNode.h
     node/TonatiuhFunctions.h
     node/TonatiuhTypes.h
+    node/TonatiuhDiagnostics.h
     photons/Photon.h
     photons/PhotonsAbstract.h
     photons/PhotonsBuffer.h
     photons/PhotonsSettings.h
-    photons/PhotonsWidget.h
     profiles/ProfileBox.h
     profiles/ProfileCircular.h
     profiles/ProfilePolygon.h
@@ -104,7 +104,6 @@ set(SOURCES
     photons/PhotonsAbstract.cpp
     photons/PhotonsBuffer.cpp
     photons/PhotonsSettings.cpp
-    photons/PhotonsWidget.cpp
     profiles/ProfileBox.cpp
     profiles/ProfileCircular.cpp
     profiles/ProfilePolygon.cpp
@@ -150,6 +149,7 @@ set(SOURCES
     trackers/TrackerArmature2A.cpp
     trackers/TrackerArmature2AwD.cpp
     trackers/TrackerKit.cpp
+    node/TonatiuhDiagnostics.cpp
     trackers/TrackerSolver.cpp
     trackers/TrackerSolver1A.cpp
     trackers/TrackerSolver2A.cpp
@@ -176,10 +176,8 @@ target_include_directories(${ProjectName}
 target_link_libraries(${ProjectName}
     PRIVATE
         Coin::Coin
-        SoQt::SoQt
         Qt6::Core
         Qt6::Gui
-        Qt6::Widgets
         TonatiuhLibraries
 )
 
@@ -191,6 +189,39 @@ endif()
 
 # Add compile definitions if necessary
 target_compile_definitions(${ProjectName} PRIVATE TONATIUH_KERNEL_EXPORT)
+
+# M5.1: only optional GUI presentation code uses Widgets and PrintSupport.
+# Physics, scene and photon exporter plugins link just ONE shared kernel.
+add_library(TonatiuhGuiPresentation SHARED
+    photons/PhotonsWidget.cpp
+    photons/PhotonsWidget.h
+    ../libraries/Coin3D/ContainerEditorMFVec2.cpp
+    ../libraries/Coin3D/ContainerEditorMFVec2.h
+    ../libraries/Coin3D/ContainerViewerMFVec2.cpp
+    ../libraries/Coin3D/ContainerViewerMFVec2.h
+    ../libraries/Coin3D/ContainerViewerMFVec2.ui
+    ../libraries/Coin3D/DoubleValuesDelegate.cpp
+    ../libraries/Coin3D/DoubleValuesDelegate.h
+    ../libraries/Coin3D/FieldEditor.h
+    ../libraries/QCustomPlot/qcustomplot.cpp
+    ../libraries/QCustomPlot/qcustomplot.h
+    ../plugins/photons/PhotonsFile/PhotonsFileWidget.cpp
+    ../plugins/photons/PhotonsFile/PhotonsFileWidget.h
+    ../plugins/photons/PhotonsFile/PhotonsFileWidget.ui)
+target_compile_definitions(TonatiuhGuiPresentation PRIVATE
+    TONATIUH_GUI_PRESENTATION_EXPORT)
+target_include_directories(TonatiuhGuiPresentation PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/..
+    ${CMAKE_CURRENT_SOURCE_DIR}/../libraries
+    ${CMAKE_CURRENT_SOURCE_DIR}/../plugins/photons/PhotonsFile
+    ${COIN3D_INCLUDE_DIR})
+target_link_libraries(TonatiuhGuiPresentation PRIVATE
+    TonatiuhKernel TonatiuhLibraries Coin::Coin
+    Qt6::Core Qt6::Gui Qt6::Widgets Qt6::PrintSupport)
+install(TARGETS TonatiuhGuiPresentation
+    RUNTIME DESTINATION "${GLOBAL_INSTALL_BIN_DIR}"
+    LIBRARY DESTINATION "${GLOBAL_INSTALL_BIN_DIR}"
+    ARCHIVE DESTINATION "${GLOBAL_INSTALL_BIN_DIR}")
 
 # Add install rules for all targets
 install(TARGETS ${ProjectName}

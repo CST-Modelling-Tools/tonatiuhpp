@@ -24,3 +24,7 @@ public:
 private:
     FieldEditor* m_editor;
 };
+
+// GUI adapter registration; core includes no QWidget and never constructs one.
+using TonatiuhMFVec2EditorCreator = FieldEditor* (*)(const QStringList&);
+TONATIUH_LIBRARIES void tonatiuhSetMFVec2EditorCreator(TonatiuhMFVec2EditorCreator);

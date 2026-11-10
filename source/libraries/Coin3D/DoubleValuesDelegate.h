@@ -1,11 +1,11 @@
 #pragma once
 
-#include "libraries/TonatiuhLibraries.h"
+#include "libraries/TonatiuhGuiPresentation.h"
 
 #include <QItemDelegate>
 
 
-class TONATIUH_LIBRARIES DoubleValuesDelegate: public QItemDelegate
+class TONATIUH_GUI_PRESENTATION DoubleValuesDelegate: public QItemDelegate
 {
     Q_OBJECT
 

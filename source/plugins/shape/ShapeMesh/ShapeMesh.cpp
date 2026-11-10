@@ -8,7 +8,7 @@
 #include <Inventor/nodes/SoShapeHints.h>
 #include <Inventor/nodes/SoIndexedFaceSet.h>
 #include <QFileInfo>
-#include <QMessageBox>
+#include "kernel/node/TonatiuhDiagnostics.h"
 
 #include "kernel/profiles/ProfileRT.h"
 #include "kernel/scene/TShapeKit.h"
@@ -159,11 +159,11 @@ void ShapeMesh::onSensor(void* data, SoSensor*)
     QFileInfo info(fileName);
 
     if (info.suffix() != "obj") {
-        QMessageBox::warning(0, "Warning", "File is not in obj-format");
+        tonatiuhReportWarning("Warning", "File is not in obj-format");
         return;
     }
     if (!info.exists()) {
-        QMessageBox::warning(0, "Warning", QString("File not found:\n") + fileName);
+        tonatiuhReportWarning("Warning", QString("File not found:\n") + fileName);
         return;
     }
     fileName = info.absoluteFilePath();

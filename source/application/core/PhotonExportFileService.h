@@ -22,6 +22,7 @@
 #include <QTemporaryFile>
 
 #include "kernel/photons/PhotonsAbstract.h"
+#include "core/TonatiuhCore.h"
 
 namespace PhotonExportFileService
 {
@@ -184,6 +185,8 @@ inline bool createFileExporter(const QStringList& pluginRoots,
             auto candidateLoader = std::make_unique<QPluginLoader>(path);
             if (candidateLoader->metaData().value("IID").toString() !=
                 QStringLiteral("tonatiuh.PhotonsFactory")) continue;
+            if (!TonatiuhCore::allowsPluginMetadata(candidateLoader->metaData()))
+                continue;
             auto* factory = dynamic_cast<PhotonsFactory*>(candidateLoader->instance());
             if (!factory || factory->name() != QStringLiteral("File")) continue;
             std::unique_ptr<PhotonsAbstract> candidate(factory->create(0));

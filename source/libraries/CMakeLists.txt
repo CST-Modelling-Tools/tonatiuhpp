@@ -81,6 +81,20 @@ set(SOURCES
     sun/sunpos.cpp
 )
 
+# Widget editors and plotting are implemented in the single GUI presentation
+# module, not in this scientific library.
+list(REMOVE_ITEM SOURCES
+    Coin3D/ContainerEditorMFVec2.cpp
+    Coin3D/ContainerViewerMFVec2.cpp
+    Coin3D/DoubleValuesDelegate.cpp
+    QCustomPlot/qcustomplot.cpp)
+list(REMOVE_ITEM HEADERS
+    Coin3D/ContainerEditorMFVec2.h
+    Coin3D/ContainerViewerMFVec2.h
+    Coin3D/DoubleValuesDelegate.h
+    Coin3D/FieldEditor.h
+    QCustomPlot/qcustomplot.h)
+
 # Define library target
 add_library(${ProjectName} SHARED ${SOURCES} ${HEADERS})
 
@@ -96,7 +110,8 @@ target_include_directories(${ProjectName}
 target_link_libraries(${ProjectName}
     PRIVATE
         Coin::Coin
-        Qt6::PrintSupport
+        Qt6::Core
+        Qt6::Gui
         Eigen3::Eigen
 )
 

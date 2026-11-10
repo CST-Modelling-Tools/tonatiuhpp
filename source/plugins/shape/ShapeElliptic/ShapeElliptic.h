@@ -31,7 +31,7 @@ class ShapeEllipticFactory:
 {
     Q_OBJECT
     Q_INTERFACES(ShapeFactory)
-    Q_PLUGIN_METADATA(IID "tonatiuh.ShapeFactory")
+    Q_PLUGIN_METADATA(IID "tonatiuh.ShapeFactory" FILE "../../tonatiuhpp-headless-plugin.json")
 };
 
 // main equation

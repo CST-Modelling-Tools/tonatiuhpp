@@ -2,6 +2,22 @@
 
 #include "PhotonsSettings.h"
 
+#include <atomic>
+namespace {
+std::atomic<TonatiuhPhotonsWidgetCreator> s_widgetCreator{nullptr};
+}
+
+void tonatiuhSetPhotonsWidgetCreator(TonatiuhPhotonsWidgetCreator creator)
+{
+    s_widgetCreator.store(creator);
+}
+
+PhotonsWidget* tonatiuhCreatePhotonsWidget(const QString& name)
+{
+    auto creator = s_widgetCreator.load();
+    return creator ? creator(name) : nullptr;
+}
+
 PhotonsAbstract::PhotonsAbstract()
     : m_sceneModel(nullptr),
       m_saveAllPhotonsData(false),

@@ -140,6 +140,10 @@ bool CorePluginRegistry::loadPluginFile(const QString& fileName)
         return false;
 
     QPluginLoader* loader = new QPluginLoader(fileName);
+    if (!TonatiuhCore::allowsPluginMetadata(loader->metaData())) {
+        delete loader;
+        return false;
+    }
     QObject* plugin = loader->instance();
     if (!plugin) {
         delete loader;

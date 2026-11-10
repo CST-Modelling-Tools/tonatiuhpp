@@ -5,6 +5,8 @@
 #include <Inventor/nodekits/SoNodeKit.h>
 
 #include <QCoreApplication>
+#include <QJsonObject>
+#include <atomic>
 #include <QDir>
 #include <QFileInfo>
 
@@ -28,8 +30,23 @@ void appendExistingPath(QStringList& paths, const QString& path)
 }
 }
 
+namespace {
+std::atomic<bool> s_headlessPluginMode{false};
+}
+
 namespace TonatiuhCore
 {
+void setHeadlessPluginMode(bool enabled) { s_headlessPluginMode.store(enabled); }
+bool headlessPluginMode() { return s_headlessPluginMode.load(); }
+bool allowsPluginMetadata(const QJsonObject& metadata)
+{
+    if (!headlessPluginMode()) return true;
+    // This compatibility declaration is cooperative metadata, not a
+    // cryptographic trust or sandbox boundary for third-party code.
+    return metadata.value("MetaData").toObject()
+        .value("TonatiuhppHeadlessABI").toInt() == 1;
+}
+
 void initializeCoin()
 {
     static bool initialized = false;
@@ -71,6 +88,15 @@ QStringList pluginSearchPaths(const QString& applicationDirPath)
     // rather than changing how installed executables discover plugins.
     if (QFileInfo(appDir.absoluteFilePath("../../CMakeFiles")).isDir())
         appendExistingPath(paths, appDir.absoluteFilePath("../../plugins"));
+#endif
+#ifdef Q_OS_MACOS
+    // Installed .app/Contents/MacOS -> installed <prefix>/bin, where the
+    // same first-party scientific plugin binaries serve the console runtime.
+    // Only enable this side path for an actual .app bundle (Info.plist).
+    if (QFileInfo(appDir.absoluteFilePath("../Info.plist")).isFile()) {
+        appendExistingPath(paths, appDir.absoluteFilePath("../../../bin"));
+        appendExistingPath(paths, appDir.absoluteFilePath("../PlugIns"));
+    }
 #endif
 #ifdef Q_OS_MACOS
     // The uninstalled CMake bundle lives at

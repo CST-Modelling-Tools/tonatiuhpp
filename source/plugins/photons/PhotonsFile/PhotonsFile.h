@@ -49,13 +49,18 @@ private:
 
 
 
-#include "PhotonsFileWidget.h"
 
 class PhotonsFileFactory:
     public QObject,
-    public PhotonsFactoryT<PhotonsFile, PhotonsFileWidget>
+    public PhotonsFactory
 {
     Q_OBJECT
     Q_INTERFACES(PhotonsFactory)
-    Q_PLUGIN_METADATA(IID "tonatiuh.PhotonsFactory")
+    Q_PLUGIN_METADATA(IID "tonatiuh.PhotonsFactory" FILE "../../tonatiuhpp-headless-plugin.json")
+public:
+    QString name() const override { return PhotonsFile::getClassName(); }
+    QIcon icon() const override { return QIcon(PhotonsFile::getClassIcon()); }
+    PhotonsAbstract* create(int) const override { return new PhotonsFile; }
+    PhotonsWidget* createWidget() const override
+    { return tonatiuhCreatePhotonsWidget(QStringLiteral("File")); }
 };

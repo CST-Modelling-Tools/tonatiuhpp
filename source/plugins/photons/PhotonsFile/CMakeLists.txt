@@ -10,16 +10,13 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 # Header and Source files
 set(HEADERS
     PhotonsFile.h
-    PhotonsFileWidget.h
 )
 set(SOURCES 
     PhotonsFile.cpp
-    PhotonsFileWidget.cpp
 )
 
 # UI files
 set(FORMS
-    PhotonsFileWidget.ui
 )
 
 # Resource files
@@ -38,10 +35,8 @@ target_include_directories(${ProjectName} PRIVATE
 # Link libraries using global variables
 target_link_libraries(${PROJECT_NAME} PRIVATE 
     Coin::Coin
-    SoQt::SoQt
     Qt6::Core 
     Qt6::Gui 
-    Qt6::Widgets 
     TonatiuhLibraries
     TonatiuhKernel
 )

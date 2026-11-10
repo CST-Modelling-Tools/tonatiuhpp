@@ -37,5 +37,5 @@ class MaterialSpecularFactory:
 {
     Q_OBJECT
     Q_INTERFACES(MaterialFactory)
-    Q_PLUGIN_METADATA(IID "tonatiuh.MaterialFactory")
+    Q_PLUGIN_METADATA(IID "tonatiuh.MaterialFactory" FILE "../../tonatiuhpp-headless-plugin.json")
 };
