@@ -226,6 +226,7 @@ jobs:
             -B build
             -G Ninja
             -DCMAKE_BUILD_TYPE=Release
+            -DBUILD_TESTING=OFF
           )
           if [ -n "${TONATIUHPP_MACOS_ARCH:-}" ]; then
             cmake_args+=("-DCMAKE_OSX_ARCHITECTURES=${TONATIUHPP_MACOS_ARCH}")
@@ -755,7 +756,7 @@ jobs:
       - name: Configure Tonatiuh++
         shell: pwsh
         run: |
-          cmake -S source -B build -G "Visual Studio 17 2022" -A x64
+          cmake -S source -B build -G "Visual Studio 17 2022" -A x64 -DBUILD_TESTING=OFF
 
       - name: Build Tonatiuh++ Release
         shell: pwsh

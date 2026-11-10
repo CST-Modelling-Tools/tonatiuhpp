@@ -154,7 +154,7 @@ The packages below are ordered. A package can occupy one substantive PR (or a sm
 
 **M4 exit:** GUI, CLI and scripts use the same recording/export/analysis implementation and offer the agreed nonvisual functionality. Existing file consumers and scientific exporters remain compatible.
 
-### M5 — Build-enforced GUI/core separation and final parity (NOT STARTED)
+### M5 — Build-enforced GUI/core separation and final parity (IMPLEMENTED; FINAL REVIEW BEFORE PR)
 
 **M5.1 — Create enforceable build boundaries**
 1. Split shared application services into a separately compiled GUI-independent simulation library/target (for example `TonatiuhSimulation`), a shared scripting service and GUI/CLI adapters. Retain `TonatiuhKernel` as the physics foundation.
@@ -210,7 +210,7 @@ At the beginning of any new chat/development session:
 4. When preparing each architectural PR, update `PROJECT_STATUS.md` with accurate *implemented / locally validated / CI validated / merged* distinctions and next step. Update the roadmap document only if the architectural scope or acceptance criteria are intentionally changed.
 5. Preserve release-readiness work as a separate status stream. Do not label the historical benchmark “M2–M5” checkpoints as completion of the M2–M5 milestones in this plan.
 
-**Next actionable package (baseline 2026-10-11): M1.1 and M1.2** — inventory effective preparation policies, implement the canonical shared preparation operations, and use existing scientific equivalence tests to guard the change. No M2 propagation or broad scripting rewrite in that first PR.
+**Next actionable package (2026-11-10): M5 final integration review.** Correct production-build isolation and outdated status documentation, rerun manually dispatched Windows/Ubuntu/macOS CI on the feature branch, then review ONE final M5 PR. Release packaging/updater readiness remains separate.
 
 ## 8. Explicit decisions to resolve only when needed
 

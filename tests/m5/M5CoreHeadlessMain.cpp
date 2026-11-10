@@ -20,7 +20,7 @@ int main(int argc, char** argv)
 {
     QCoreApplication app(argc, argv);
     app.setApplicationName(QStringLiteral("Tonatiuh"));
-    app.setApplicationVersion(QStringLiteral("0.1.8.26"));
+    app.setApplicationVersion(QString::fromLatin1(APP_VERSION));
     TonatiuhCore::setHeadlessPluginMode(true);
     if (app.arguments().contains(QStringLiteral("--m5-core-smoke"))) {
         TonatiuhCore::initializeCoin();

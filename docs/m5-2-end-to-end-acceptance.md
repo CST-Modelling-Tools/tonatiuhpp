@@ -1,12 +1,18 @@
-# M5.2 — consolidated end-to-end acceptance (source candidate; native validation pending)
+# M5.2 — consolidated end-to-end acceptance (Windows native accepted; three-platform CI passed; pre-PR)
 
 **Roadmap:** `docs/gui-core-separation-scientific-equivalence-plan.md`, M5.1–M5.2.  
 **Branch:** `refactor/m5-compiled-service-boundaries` from `626ef4d66e019d0c9528b5b6cb7a52e11565de51`.  
-**Merge strategy:** ONE final M5 pull request only after complete milestone acceptance. Do not commit/push/open a PR during local integration. Do not rerun the frozen 500-million-ray benchmark.
+**Merge strategy:** Preserve the published M5 branch and open ONE final M5 PR only after the final correction review and CI rerun. The integration commit is already published. Do not rerun the frozen 500-million-ray benchmark.
 
-## Accepted foundation (do not misstate as M5.2 success)
+## Accepted foundation and native acceptance
 
-2026-11-09 Windows MSVC Release **M5.1 ONE-kernel 166/166 CTests passed**. The two QCore entrypoints and the GUI link the SAME `TonatiuhKernel`, `TonatiuhLibraries`, `TonatiuhSimulation`, `TonatiuhScripting`, and `TonatiuhScriptRuntime`. The File exporter and official scene plugins have ONE scientific implementation. The existing four M5 build/link/plugin smoke tests, seeded non-export and exact photon-file tests, and Windows sampled nonvisual PE-import exclusions passed. Legacy prebuilt third-party widget-plugin ABI compatibility was NOT certified.
+M5.1 was accepted on 2026-11-09 with **166/166 Windows Release CTests**. The GUI, the GUI binary's QCoreApplication path and the standalone QCoreApplication executable link the same `TonatiuhKernel`, `TonatiuhLibraries`, `TonatiuhSimulation`, `TonatiuhScripting` and `TonatiuhScriptRuntime`. Official scientific scene and File-export plugins share that kernel. Sampled Windows nonvisual imports excluded Widgets, SoQt and PrintSupport; QtGui is intentionally retained for scientific/factory compatibility.
+
+M5.2 subsequently passed **167/167 native Windows Release CTests**, the temporary staged-install adapter acceptance, and the real Windows Qt GUI presenter acceptance. The presenter selected File export in the actual GUI dialog and traced rays, producing **3,184 canonical photons** with exported power **0.0719665** and identical GUI/standalone native hit and ordered-history signatures. The original M3.3 script produced **identical 17-digit interception power** in the GUI Script Editor and standalone at seed zero. The real Qt Flux Analysis dialog plotted a positive **8x8** map, saved PNG evidence, and differed from the fixed-seed script by a maximum absolute value **0.00464174** (a bounded comparison, not equality).
+
+The maintainer then committed the M5 changes as [`1ee7def`](https://github.com/CST-Modelling-Tools/tonatiuhpp/commit/1ee7def2181ed907e48db5381e32308b4a9a8821), and reports that the manually dispatched GitHub CI passed on **Windows, Ubuntu and macOS**. The three-platform claim applies to the configured build-tree tests, including `headless.m5_2_cross_adapter_end_to_end`, and not to unperformed interactive Linux/macOS GUI or installed-runtime tests. CI run URLs were not supplied for independent log review.
+
+The maintainer confirmed **there are no legacy third-party plugins**. Compatibility with hypothetical old binary-only third-party plugins is therefore not an M5 acceptance requirement. Existing first-party plugins remain in scope and were exercised.
 
 ## M5.2 implementation in this package
 
@@ -15,33 +21,32 @@
 3. Run exact 2,048-ray, seed `123456789` paired scene traces with A0 hit and *ordered per-ray history* digests on cylinder, two-reflection specular, one-axis tracked scene, and the real external MaterialSpecular plugin sphere. Required effective input fields, nonzero signal and scientific SHA-256 histories are compared within the same OS.
 4. Run the identical **unmodified M3** bounded JavaScript fixtures through both processes: scene/field edits, `NodeObject`, interception and `DataObject` CSV; nontrivial tracker/sun response; front/back 8x8 Flux Analysis. Compare script-relative native artifacts with exact normalized-newline bytes. Exercise four cancellation/recovery and fail-closed resource/error cases in each process.
 5. Run the existing bounded **M4** 2,048-ray File script and direct trace through each executable (four runs); compare canonical photon multisets, power and format using the existing `tests/scientific/compare_photon_exports.py` implementation, not unstable parallel ordering. Record SHA-256 for every File artifact; reject overwrite attempts without touching an existing sentinel.
-6. Reuse the **full scientific/headless CTest suite exactly once** after incremental compile (target total 167 unique tests if the new M5.2 test is registered). Save the bounded acceptance result in a unique `build/tests/m5_2_evidence/` run folder. The M5.2 test is part of the normal three-platform CTest graph whenever native CI is finally run.
+6. Reuse the **full scientific/headless CTest suite exactly once** after incremental compile (target total 167 unique tests if the new M5.2 test is registered). Save the bounded acceptance result in a unique `build/tests/m5_2_evidence/` run folder. The M5.2 test is part of the normal three-platform CTest graph and is covered by the maintainer-reported passed manual GitHub CI.
 7. On Windows, stage `cmake --install` to a unique temporary root by temporarily reconfiguring `CMAKE_INSTALL_PREFIX` (the existing install scripts capture this value during configuration); always restore the original cache prefix. Run a reduced but meaningful repeat of both binary paths in the installed tree with a restricted PATH excluding build/Qt/third-party development DLLs. Preserve staged evidence for inspection; do not touch an actual installation.
 
 **Source and fixture protection:** no scientific algorithm, RNG, optical-material code, scene file, benchmark reference, existing M3/M4 test, or production photon format is modified. The test uses new isolated directories and does not remove preexisting user data. A failing acceptance retains its evidence and does not commit, push, reset, or reapply code.
 
-## Acceptance matrix and remaining external gates
+## Accepted scope and remaining limitations
 
-| Gate | Evidence / expectation | Status before native run |
-| --- | --- | --- |
-| One nonvisual kernel and first-party plugins | M5.1 build/link smoke and guard | Windows M5.1 passed 166/166 |
-| GUI-binary QCore ↔ independent QCore native signatures | `headless.m5_2_cross_adapter_end_to_end`, full A0 per-ray digests | Pending M5.2 local |
-| Matched bounded domain JavaScript, tracker, Flux and cancellation | Same two process outputs, exact artifact data | Pending M5.2 local |
-| Direct CLI ↔ script File exporter and overwrite refusal | Four-path physical photon/power comparator | Pending M5.2 local |
-| Windows temporary staged install | Installed both executables; no development-library PATH fallback | Pending |
-| Windows interactive GUI, Script Editor and actual GUI Run/Flux Analysis | Manually run the same fixed-seed GUI fixtures; compare their artifacts to existing accepted headless baselines | **Not tested by this Python harness** |
-| All 19 tracked examples and declared presentation-only API exceptions | M3 previously covered 10; remaining nine require bounded review and/or capability documentation | Open |
-| Windows, Ubuntu, macOS clean build/CTests/installed runtime | Native tests on actual OS; no hosted CI until the final M5 PR | Open |
-| Legacy binary-only third-party plugins | Owner decision: explicitly require migration/rebuild or provide compatibility adapter and test actual old binaries | Open |
-| One final M5 PR, review and CI | Only after all agreed local acceptance is complete | Not started |
+| Gate | Outcome |
+| --- | --- |
+| Single nonvisual kernel, services and first-party plugins | Windows native checks passed; the architecture is built on all three CI operating systems. |
+| Seeded GUI-binary QCore versus standalone QCore traces, scripts, Flux, File export and cancellation | M5.2 bounded Windows acceptance passed; the same registered test belongs to the three-platform CI graph, reported passed. |
+| Windows temporary installed runtime | Passed for GUI/headless scientific adapter paths. |
+| Windows real GUI File dialog, Run, GUI Script Editor and Qt Flux plot | Passed in the final native presenter harness with retained JSON, photon and PNG evidence. |
+| Three-platform hosted build and CTests | Windows, Ubuntu and macOS reported passed by the maintainer after manual dispatch on the published branch. |
+| Hypothetical legacy third-party binary compatibility | Not applicable: the maintainer confirms there are no such plugins. |
+| Nine previously uncovered legacy sample scripts | Not claimed covered; retain as a documented sample-corpus gap unless classified/tested separately. |
+| Linux/macOS interactive GUI and installed-runtime deployment | Not established by the ordinary build-tree CI; release packaging remains a separate validation gate. |
+| Single final M5 PR | Not opened as of this review. |
 
-### GUI-interactive acceptance (later, not replaced by CLI tests)
+### Production build isolation
 
-Use a disposable project and the same fixed seeds/inputs established by M0–M4. Verify ordinary GUI startup and shutdown; open a plugin-based scene (`examples/benchmarks/sphere.tnhpp`, using MaterialSpecular); run a short interactive ray trace with File export and Flux Analysis; run `tests/scripts/m3_flux_shared_parity.tnhpps` and `tests/scripts/m3_3_gui_headless_parity.tnhpps` in the actual GUI Script Editor and compare their exported numeric artifacts with headless evidence, keeping their output directories distinct. These scripts **clear the active scene**; save work first. Verify cancellation, plugin menu / File widget presence and GUI presenter behavior. This is an explicit separate native acceptance check.
+The native Qt presenter driver is compiled only while `BUILD_TESTING=ON` and is inert without the explicit test environment variables. The repository's Release workflow previously left CMake's testing default enabled. The final-review correction makes its Windows, Linux and macOS Release configurations specify `BUILD_TESTING=OFF` so the presenter driver and other test-only targets are not compiled into distributed builds. Ordinary CI remains testing-enabled and continues to execute CTests.
 
-### Multi-platform and packaging follow-up
+### Scientific and compatibility boundaries
 
-The added CTest test is platform-independent Python standard library plus existing native executables. After the M5 scope is technically complete, run it (and the entire relevant CTest suite) on Windows, Ubuntu and macOS; verify installed executable resolution, Qt/Coin runtime deployment, shared plugin discovery and GUI startup. The current source package author cannot run any native Qt/Coin/SoQt binary in the container: **no cross-platform or installed-runtime success is claimed before the user reports it.**
+The fixed-seed comparisons establish parity within each tested operating system; no claim is made that every floating-point digest must be bit-identical across operating systems. File comparisons use canonical physical photon records rather than nondeterministic photon IDs. QtGui remains intentionally used by nonvisual components for factory and geometry types, while Widgets, SoQt and PrintSupport are excluded from the documented nonvisual linkage. No frozen 500-million-ray benchmark was rerun, and M5 acceptance alone is not proof of release packaging or updater readiness.
 
 ## Scientific and compatibility constraints
 
@@ -51,8 +56,9 @@ The added CTest test is platform-independent Python standard library plus existi
 - Headless plugin metadata `TonatiuhppHeadlessABI=1` is a compatibility declaration, not a security boundary. Do not load untrusted native plugins or claim old binary ABI stability.
 - No frozen benchmark run, no benchmark reference update and no release-readiness claim.
 
-## Proposed eventual conventional commit (DO NOT EXECUTE yet)
+## Published integration and final review
 
-`refactor(core): complete single-kernel M5 separation and cross-interface acceptance`
-
-Consolidate GUI-independent simulation and scripting into one shared scientific kernel and one set of plugin implementations. Install and validate a standalone QCoreApplication client alongside GUI operation. Enforce forbidden GUI dependency closure and exercise bounded fixed-seed hit/history, Flux Analysis, interception, File-export, failure, cancellation, and plugin parity across supported platforms. Record staged installation and legacy plugin migration evidence without modifying scientific algorithms, immutable benchmark fixtures, or ray-propagation semantics.
+- Published branch: `refactor/m5-compiled-service-boundaries`.
+- M5 integration commit: [`1ee7def2181ed907e48db5381e32308b4a9a8821`](https://github.com/CST-Modelling-Tools/tonatiuhpp/commit/1ee7def2181ed907e48db5381e32308b4a9a8821).
+- Final-review follow-up: correct Release-only testing isolation, derive standalone version metadata from `APP_VERSION`, update governing documentation, then manually rerun Windows/Ubuntu/macOS CI before opening the one final M5 PR.
+- No automatic commit, push, PR, merge, reset or frozen benchmark execution is part of this correction package.
