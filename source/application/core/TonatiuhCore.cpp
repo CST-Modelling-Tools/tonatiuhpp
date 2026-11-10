@@ -81,14 +81,9 @@ QStringList pluginSearchPaths(const QString& applicationDirPath)
 
     appendExistingPath(paths, appDir.absoluteFilePath("plugins"));
     appendExistingPath(paths, appDir.absoluteFilePath("../plugins"));
-#ifdef Q_OS_WIN
-    // MSVC multi-configuration CMake build: the executable runs from
-    // build/application/Release, but material plugins live under
-    // build/plugins/material/Release. Limit this path to CMake build trees
-    // rather than changing how installed executables discover plugins.
-    if (QFileInfo(appDir.absoluteFilePath("../../CMakeFiles")).isDir())
-        appendExistingPath(paths, appDir.absoluteFilePath("../../plugins"));
-#endif
+    // TONATIUHPP_P1_CENTRAL_WIN_RUNTIME: Windows build-tree plugins
+    // now reside beside all executables in appDir/plugins.
+
 #ifdef Q_OS_MACOS
     // Installed .app/Contents/MacOS -> installed <prefix>/bin, where the
     // same first-party scientific plugin binaries serve the console runtime.

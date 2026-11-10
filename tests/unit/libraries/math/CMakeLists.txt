@@ -69,3 +69,5 @@ gtest_discover_tests(tonatiuhpp_math_box2d_tests
   DISCOVERY_MODE ${_tonatiuhpp_gtest_discovery_mode}
   PROPERTIES LABELS "unit;math"
 )
+
+# TONATIUHPP_P1_CENTRAL_WIN_RUNTIME: test EXEs inherit the one build/bin/<config> output.

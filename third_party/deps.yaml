@@ -78,7 +78,6 @@ deps:
     repo: https://github.com/CST-Modelling-Tools/coin4tonatiuhpp.git
     cmake_options:
       - -DCOIN_BUILD_DOCUMENTATION=OFF
-      - -DCOIN_BUILD_EXAMPLES=OFF
       - -DCOIN_BUILD_TESTS=OFF
     verify:
       header: include/Inventor/SoDB.h
@@ -96,7 +95,6 @@ deps:
     tag: master
     cmake_options:
       - -DSOQT_BUILD_DOCUMENTATION=OFF
-      - -DSOQT_BUILD_EXAMPLES=OFF
       - -DSOQT_BUILD_TESTS=OFF
       - -DCMAKE_POLICY_VERSION_MINIMUM=3.5
     verify:

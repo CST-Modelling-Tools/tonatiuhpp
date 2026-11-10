@@ -97,6 +97,8 @@ list(REMOVE_ITEM HEADERS
 
 # Define library target
 add_library(${ProjectName} SHARED ${SOURCES} ${HEADERS})
+# P2a physical ABI library filename; target identity follows in P2b.
+set_target_properties(${ProjectName} PROPERTIES OUTPUT_NAME "TonatiuhppLibraries")
 
 # Include directories for the target
 target_include_directories(${ProjectName} 

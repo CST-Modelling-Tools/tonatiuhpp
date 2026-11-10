@@ -1,273 +1,82 @@
-# Headless Benchmark
+# Headless commands, scripting, and benchmark
 
-Tonatiuh++ headless mode runs through the existing executable without creating the GUI application or GUI windows.
+Tonatiuh++ supports nonvisual operation through the GUI executable's `--headless` mode and an independent executable, `tonatiuhpp_m5_core_headless`. Both use the same scientific kernel, simulation services, official plugins, and scripting implementation.
 
-## Command Inventory
+The commands below use `tonatiuhpp --headless`; when using the standalone executable, use its executable name with the same headless command interface.
+
+## Commands
 
 ```text
 tonatiuhpp --headless --help
-tonatiuhpp --headless validate-scene path/to/scene.tnhpp
-tonatiuhpp --headless trace-scene path/to/scene.tnhpp --rays 10000 --seed 123456789 --no-export
-tonatiuhpp --headless benchmark path/to/benchmark_config.json
+tonatiuhpp --headless validate-scene examples/benchmarks/cylinder.tnhpp
+tonatiuhpp --headless trace-scene examples/benchmarks/cylinder.tnhpp --rays 10000 --seed 123456789 --no-export
+tonatiuhpp --headless benchmark examples/benchmarks/benchmark_config_v2.example.json
 tonatiuhpp --headless run-script path/to/script.tnhpps
 ```
 
-Exit codes are:
+**Do not run the provided v2 benchmark configuration casually:** it specifies 500,000,000 rays. See [Scientific validation](scientific-validation.md) for smaller routine checks and an explicitly controlled full-scale run.
 
-- `0`: command completed successfully
-- `1`: scene loading, tracing, benchmark, script execution, or file I/O failed
-- `2`: command-line usage error
+The CLI reports successful completion or an error through its exit status; argument errors return code `2`. The published CLI and the standalone client require real runtime dependencies and official plugins.
 
-`trace-scene` currently supports no-export execution only. It prints key-value lines suitable for logs, including `scene_file`, `rays`, `seed`, `photon_export`, `export_path`, `rays_traced`, `elapsed_seconds`, `rays_per_second`, `worker_count`, `chunk_count`, and `chunk_size`.
+## Scene tracing and File export
 
-Benchmark mode also runs without photon export and writes result JSON. Its console output includes `benchmark`, `scene_file`, `rays`, `seed`, `photon_export`, `export_path`, `output_file`, `rays_traced`, `elapsed_seconds`, `rays_per_second`, scheduling fields, and `result_file`.
+`trace-scene` requires a scene file, `--rays N`, `--seed S`, and exactly one of `--no-export` or `--photon-export-dir DIR`.
 
-## Headless Scripts
-
-`run-script` evaluates a `.tnhpps` file through a true headless `QCoreApplication` path:
+No-export example:
 
 ```text
-tonatiuhpp --headless run-script script.tnhpps
+tonatiuhpp --headless trace-scene examples/benchmarks/cylinder.tnhpp --rays 2048 --seed 123456789 --no-export
 ```
 
-This is intentionally separate from legacy `tonatiuhpp -i script.tnhpps`, which still uses the GUI script infrastructure for compatibility. `tonatiuhpp --headless -i script.tnhpps` is not a supported script command; use `--headless run-script` for non-GUI automation.
-
-The first headless script API is deliberately small:
-
-```js
-print(value)
-tn.writeJson(path, value)
-tn.validateScene(path)
-tn.runBenchmark(path)
-tn.traceScene({ scene, rays, seed, noExport: true })
-```
-
-`tonatiuh` is also available as an alias for the same limited object. GUI-only APIs such as screenshot capture, scene-tree editing, dialogs, widget access, or GUI-compatible `MainWindow` methods are not available in headless scripts. Unknown or GUI-only API calls fail with a script error instead of being silently ignored.
-
-`tn.traceScene` uses the same QCoreApplication-compatible `RayTraceExecutor` as the GUI and the headless `trace-scene` command. It supports no-export tracing only:
-
-- `scene`: required `.tnhpp` scene path
-- `rays`: required positive integer
-- `seed`: optional integer, default `0`
-- `noExport`: required `true`
-
-It returns a JavaScript object with fields such as `scene_file`, `rays`, `seed`, `no_export`, `photon_export`, `export_path`, `rays_traced`, `elapsed_seconds`, `rays_per_second`, `worker_count`, `chunk_count`, `chunk_size`, `sun_aperture_area`, `irradiance`, and `power_per_ray`. Photon export remains unsupported in headless scripts.
-
-### Output Convention
-
-For `run-script`, treat stdout and stderr as human-readable logs. `print(value)` writes to stdout, API failures write diagnostics to stderr, and `tn.runBenchmark(path)` may also emit the benchmark command's key-value progress and result lines to stdout.
-
-For automation, write a structured JSON artifact explicitly with `tn.writeJson(path, value)`. Use the schema string `tonatiuhpp.headless.result` and integer version `1`. Keep paths to any benchmark result JSON written by the benchmark config. If the summary records a benchmark result path, keep it aligned with the benchmark config's `output_file`. Timing fields such as `elapsed_seconds` and `rays_per_second` are useful measurements but are not deterministic across runs.
-
-Recommended top-level artifact shape:
-
-| Field | Required | Notes |
-| --- | --- | --- |
-| `schema` | yes | String value `tonatiuhpp.headless.result`. |
-| `version` | yes | Integer value `1`. |
-| `validation` | when `tn.validateScene(...)` is used | Script-authored object summarizing scene validation. |
-| `trace` | when `tn.traceScene(...)` is used | The object returned by `tn.traceScene(...)`. |
-| `benchmark` | when `tn.runBenchmark(...)` is used | Script-authored object summarizing benchmark config/result paths and exit code. |
-
-Recommended operation fields:
-
-| Operation | Required fields | Optional fields |
-| --- | --- | --- |
-| `tn.validateScene(path)` | `validation.ok` boolean | `validation.scene_file`, `validation.message` |
-| `tn.traceScene(options)` | `trace.scene_file`, `trace.rays`, `trace.seed`, `trace.no_export`, `trace.photon_export`, `trace.export_path`, `trace.rays_traced`, `trace.elapsed_seconds`, `trace.rays_per_second`, `trace.worker_count`, `trace.chunk_count`, `trace.chunk_size` | `trace.sun_aperture_area`, `trace.irradiance`, `trace.power_per_ray` |
-| `tn.runBenchmark(path)` | `benchmark.config_file`, `benchmark.exit_code` | `benchmark.result_file`, plus any copied fields from the benchmark result JSON |
-
-Example:
-
-```js
-var sceneFile = "examples/benchmarks/cylinder.tnhpp";
-var benchmarkConfig = "benchmark_config.json";
-var benchmarkResult = "benchmark_result.json";
-var summaryFile = "run-summary.json";
-
-print("starting headless automation");
-
-var validated = tn.validateScene(sceneFile);
-if (!validated) {
-  throw new Error("scene validation failed");
-}
-
-var trace = tn.traceScene({
-  scene: sceneFile,
-  rays: 1000,
-  seed: 123456789,
-  noExport: true
-});
-
-var exitCode = tn.runBenchmark(benchmarkConfig);
-if (exitCode !== 0) {
-  throw new Error("benchmark failed with exit code " + exitCode);
-}
-
-tn.writeJson(summaryFile, {
-  schema: "tonatiuhpp.headless.result",
-  version: 1,
-  status: "ok",
-  scene_file: sceneFile,
-  validation: {
-    ok: validated,
-    scene_file: sceneFile
-  },
-  trace: trace,
-  benchmark: {
-    config_file: benchmarkConfig,
-    result_file: benchmarkResult,
-    exit_code: exitCode
-  }
-});
-```
-
-## Benchmark Command
-
-Tonatiuh++ runs benchmark v1 through the existing executable:
+File export example (create a fresh **empty absolute** directory first):
 
 ```text
-tonatiuhpp --headless benchmark benchmark_config.json
+tonatiuhpp --headless trace-scene examples/benchmarks/cylinder.tnhpp --rays 2048 --seed 123456789 --photon-export-dir C:/TonatiuhTemp/PhotonOutput --photon-file-name RunA --photon-file-size -1
 ```
 
-The benchmark config is a JSON object. The formal execution schema remains `docs/benchmark_config_schema_v1.json`. The current reference example is `examples/benchmarks/benchmark_config_v2.example.json`; `benchmark_config_v1.example.json` remains available for historical workflows.
+Optional File-export switches are `--photon-file-name NAME`, `--photon-file-size N` (`-1` selects one file), and repeatable `--photon-surface URL` for surface selection. Direct File export is limited to **10,000,000 rays** and refuses conflicting options or unsafe output destinations. File-export and no-export modes are mutually exclusive.
 
-## Benchmark Dataset
+The `--update-trackers` option is explicit: it applies GUI-like tracker updates in `trace-scene`. Do not assume an omitted option has the same effective tracker behavior for every scene.
 
-The historical Tonatiuh++ benchmark v1 reference dataset is archived on Zenodo:
+For reproducibility, compare scientific hit/history signatures and canonical photon records, not file write order or parallel photon IDs.
+
+## Headless scripts
+
+Use:
 
 ```text
-https://doi.org/10.5281/zenodo.20395328
+tonatiuhpp --headless run-script path/to/script.tnhpps
 ```
 
-Reference v1 corresponds to the previous random-stream architecture. Reference v2 uses the same benchmark-v1 scene, receiver mapping, grid, formulas, and tolerances with deterministic private `std::mt19937_64` streams derived per stable ray chunk. The v2 reference files are installed with the benchmark examples:
+The shared `ScriptHost` supplies JavaScript execution and script-relative paths. The basic nonvisual API includes:
 
-- `benchmark_reference_500M_v2.json`
-- `benchmark_reference_flux_grid_500M_v2.bin`
-- `benchmark_reference_flux_grid_500M_v2.csv`
-
-The validated v2 binary SHA-256 is `36c7dc17cee8e7fdef820f08d4482e7c3dcdee3b5eed4748ea3949a6cf4af472`. The reference change is caused by stream decomposition, not a change to ray physics. Historical v1 photon sequences and grid hashes are therefore not expected to match v2.
-
-The configuration value remains `"benchmark": "benchmark_v1"` because it identifies the implemented benchmark definition. The v2 label identifies the scientific reference set, not a second benchmark formula or schema.
-
-## Scheduling
-
-GUI and headless tracing use the same `RayTraceExecutor`: long-lived workers on the global `QThreadPool`, stable 10,000-ray chunks acquired through one atomic counter, and one deterministic `std::mt19937_64` stream derived from the master seed and chunk index for each chunk. Benchmark configuration fields `worker_count` and `chunk_size` are not supported; the fixed chunk size is part of the deterministic tracing contract.
-
-`worker_count` remains runtime metadata and is not part of the scientific reference identity. Chunk size is part of that identity because changing it changes stream decomposition.
-
-Random streams are reproducible across conforming standard libraries because seed derivation uses fixed-width unsigned arithmetic and uniform doubles use an explicit high-53-bit mapping rather than `std::uniform_real_distribution`. Final scientific outputs can still differ across platforms because the surrounding floating-point physics is not guaranteed to be bit-identical. Changing the fixed chunk size changes stream decomposition and therefore exact ray histories and hashes.
-
-## Result Fields
-
-Benchmark result JSON always includes the effective scheduling fields:
-
-```json
-{
-  "worker_count": 20,
-  "chunk_count": 50000,
-  "chunk_size": 10000
-}
+```javascript
+print(value);
+tn.writeJson(path, value);
+tn.validateScene(path);
+tn.runBenchmark(path);
+tn.traceScene({ scene: scenePath, rays: 2048, seed: 123456789, noExport: true });
 ```
 
-Whole-file byte-for-byte equality is not expected across repeated runs because elapsed time and rays/s vary. Use `flux_grid_sha256` and the metric fields for deterministic comparisons.
+`tonatiuh` is also an alias for the script API. The file-based `tn.traceScene` form shown above **does not support photon File export**; use the direct CLI File option or the separately tested domain Run/export scripting APIs as appropriate. Scripts can also use an asynchronous no-export `tn.startTrace` / `tn.cancelTrace` / `tn.finishTrace` session when the script host exposes that API. Finish or cancel active sessions to release resources.
 
-## Flux Grid Files
+The graphical Script Editor additionally provides presentation-only capabilities; UI actions, dialogs and widgets cannot be assumed to work in a true-headless process. The source and tests under `tests/scripts/` define which advanced script operations have verified coverage. Do not assume that every bundled historical example is headless-compatible.
 
-Set `flux_grid_output_file` to write the computed flux grid as CSV:
+For automation, prefer script-written JSON output via `tn.writeJson(...)`. Elapsed time and rays per second are useful measurements, not deterministic scientific results.
 
-```json
-{
-  "flux_grid_output_file": "benchmark_flux_grid.csv"
-}
-```
+## Flux benchmark configuration
 
-The CSV contains `target_grid.height` rows and `target_grid.width` columns. Values are MW/m2, written in the same row-major order used by `flux_grid_sha256`. The SHA256 is still computed from the deterministic little-endian float64 binary representation, not from the CSV text.
+The benchmark command reads a JSON configuration, validates the scene, traces rays without photon export, and writes scalar statistics and optionally a CSV and binary receiver flux map.
 
-Set `flux_grid_binary_output_file` to write the same grid as raw binary:
+- Machine-readable configuration: [benchmark configuration schema](benchmark_config_schema_v1.json).
+- Current reference configuration: `examples/benchmarks/benchmark_config_v2.example.json`.
+- Immutable scientific reference: `examples/benchmarks/benchmark_reference_500M_v2.json`, with corresponding binary and CSV grids.
+- The execution identifier remains `"benchmark": "benchmark_v1"`; the `v2` filename identifies the frozen scientific reference, not another simulation algorithm.
 
-```json
-{
-  "flux_grid_binary_output_file": "benchmark_flux_grid.bin"
-}
-```
+The benchmark output includes `total_power_mw`, minimum/average/maximum flux in `MW/m2`, `flux_grid_sha256`, `worker_count`, `chunk_count`, `chunk_size`, and timing fields. `worker_count` is runtime metadata. The ray tracer uses fixed 10,000-ray chunks, with deterministic random streams associated with chunk identity; `worker_count` and `chunk_size` are not supported user-configurable benchmark inputs.
 
-Binary format:
+### Binary and CSV grid format
 
-- raw binary file
-- no header
-- no metadata
-- row-major order
-- dimensions from `target_grid.width` and `target_grid.height`
-- each value is IEEE 754 binary64 / double
-- little-endian byte order
-- values are flux density in MW/m2
-- byte size is `target_grid.width * target_grid.height * 8`
+The optional binary flux grid consists of row-major, little-endian IEEE-754 64-bit floating-point values (no header), with dimensions from `target_grid.width` and `target_grid.height`. Units are `MW/m2`. Its SHA-256 is stored in `flux_grid_sha256`. The optional CSV grid contains the same values in row-major order. An output file's byte order and all 64-bit values must be preserved when comparing exact grid hashes.
 
-When a grid is written, result JSON includes both fields:
-
-```json
-{
-  "flux_grid_output_file": "D:/bench/benchmark_flux_grid.csv",
-  "flux_grid_binary_output_file": "D:/bench/benchmark_flux_grid.bin",
-  "flux_grid_sha256": "..."
-}
-```
-
-Read examples:
-
-Python:
-
-```python
-grid = numpy.fromfile(path, dtype="<f8").reshape((height, width))
-```
-
-Mathematica:
-
-```wolfram
-data = BinaryReadList[path, "Real64", ByteOrdering -> +1]
-grid = Partition[data, width]
-```
-
-C++:
-
-```cpp
-std::vector<double> grid(width * height);
-// Read width * height IEEE 754 binary64 values from the file.
-// Interpret each 8-byte value as little-endian and keep row-major order.
-```
-
-## Reference Grid Comparison
-
-Reference JSON can compare scalar metrics, the flux-grid hash, and a separate grid CSV:
-
-```json
-{
-  "total_power_mw": 42.0,
-  "maximum_flux_mw_m2": 20.0,
-  "flux_grid_sha256": "...",
-  "flux_grid_file": "benchmark_flux_grid.csv",
-  "flux_grid_binary_file": "benchmark_flux_grid.bin",
-  "target_grid": {
-    "width": 100,
-    "height": 100
-  },
-  "tolerances": {
-    "total_power_relative_percent": 0.1,
-    "maximum_flux_relative_percent": 5.0
-  }
-}
-```
-
-`flux_grid_file` and `flux_grid_binary_file` paths in reference JSON are resolved relative to the reference JSON file. Config-level `reference_flux_grid_file` and `reference_flux_grid_binary_file` are also supported and are resolved relative to the benchmark config file. If both CSV and binary reference grid files are provided, Tonatiuh++ uses the binary file for exact comparison and ignores the CSV grid for grid-error calculations.
-
-When a reference grid is provided, result JSON adds:
-
-```json
-{
-  "flux_grid_hash_matches": true,
-  "maximum_flux_grid_absolute_error_mw_m2": 0.0,
-  "maximum_flux_grid_relative_error_percent": 0.0,
-  "rms_flux_grid_error_mw_m2": 0.0
-}
-```
+A reference JSON can provide expected scalar values, tolerances, flux-grid files, and an exact grid hash. The canonical 500-million-ray benchmark requires an **exact binary-grid SHA-256 match**, in addition to total-power and peak-flux checks. Across different operating systems, floating-point results are not generally guaranteed to be byte-identical; use the documented scientific tolerances rather than asserting universal cross-platform hash identity.

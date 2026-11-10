@@ -82,3 +82,32 @@ foreach(_tgt IN LISTS TONATIUHPP_PLUGIN_TARGETS)
         message(STATUS "Tonatiuh++ plugin target not found (skipping): ${_tgt}")
     endif()
 endforeach()
+
+# TONATIUHPP_P1_CENTRAL_WIN_RUNTIME: one build-tree scientific plugin tree.
+# Keep Linux/macOS output and external install rules unchanged in P1.
+if(WIN32)
+    foreach(_tonatiuhpp_p1_group IN ITEMS air material photons shape sun)
+        if(_tonatiuhpp_p1_group STREQUAL "air")
+            set(_tonatiuhpp_p1_group_targets AirMirval)
+        elseif(_tonatiuhpp_p1_group STREQUAL "material")
+            set(_tonatiuhpp_p1_group_targets MaterialSpecular)
+        elseif(_tonatiuhpp_p1_group STREQUAL "photons")
+            set(_tonatiuhpp_p1_group_targets PhotonsFile)
+        elseif(_tonatiuhpp_p1_group STREQUAL "shape")
+            set(_tonatiuhpp_p1_group_targets ShapeElliptic ShapeFunctionXYZ
+                ShapeFunctionZ ShapeHyperbolic ShapeMapN ShapeMesh)
+        else()
+            set(_tonatiuhpp_p1_group_targets SunBuie SunGaussian)
+        endif()
+        foreach(_tonatiuhpp_p1_plugin IN LISTS _tonatiuhpp_p1_group_targets)
+            if(NOT TARGET ${_tonatiuhpp_p1_plugin})
+                message(FATAL_ERROR "P1 missing plugin: ${_tonatiuhpp_p1_plugin}")
+            endif()
+            set(_tonatiuhpp_p1_dest
+                "${CMAKE_BINARY_DIR}/bin/$<CONFIG>/plugins/${_tonatiuhpp_p1_group}")
+            set_target_properties(${_tonatiuhpp_p1_plugin} PROPERTIES
+                RUNTIME_OUTPUT_DIRECTORY "${_tonatiuhpp_p1_dest}"
+                LIBRARY_OUTPUT_DIRECTORY "${_tonatiuhpp_p1_dest}")
+        endforeach()
+    endforeach()
+endif()

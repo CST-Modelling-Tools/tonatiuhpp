@@ -380,10 +380,13 @@ target_link_libraries(tonatiuhpp_m5_core_headless PRIVATE
 if(WIN32)
     target_link_libraries(tonatiuhpp_m5_core_headless PRIVATE opengl32)
 endif()
-set_target_properties(tonatiuhpp_m5_core_headless PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
+# P1: application executables use the top-level runtime policy.
 target_compile_definitions(tonatiuhpp_m5_core_headless PRIVATE
     APP_VERSION="${ProjectVersion}")
+
+# P2a: on-disk CLI name is permanent; logical target is renamed in P2b.
+set_target_properties(tonatiuhpp_m5_core_headless PROPERTIES
+    OUTPUT_NAME "tonatiuhpp-cli")
 
 # M5.2: the actual standalone QCoreApplication executable is part of
 # the installed runtime, next to the ONE-kernel libraries and official plugins.
@@ -468,14 +471,14 @@ endif()
 # Keep on-disk name as "tonatiuhpp" except for the macOS app bundle.
 if(APPLE)
     set_target_properties(${ProjectName} PROPERTIES
-        OUTPUT_NAME "TonatiuhPP"
+        OUTPUT_NAME "tonatiuhpp-gui"
         MACOSX_BUNDLE_BUNDLE_NAME "TonatiuhPP"
         MACOSX_BUNDLE_SHORT_VERSION_STRING "${ProjectVersion}"
         MACOSX_BUNDLE_BUNDLE_VERSION "${ProjectVersion}"
     )
 else()
     set_target_properties(${ProjectName} PROPERTIES
-        OUTPUT_NAME "tonatiuhpp"
+        OUTPUT_NAME "tonatiuhpp-gui"
     )
 endif()
 
@@ -529,8 +532,7 @@ if(BUILD_TESTING)
         "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/m5/GuiFreeScriptRuntimeSmoke.cpp")
     target_link_libraries(tonatiuhpp_m5_runtime_smoke PRIVATE
         TonatiuhScriptRuntime Qt6::Core Qt6::Qml)
-    set_target_properties(tonatiuhpp_m5_runtime_smoke PROPERTIES
-        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
+# P1: application executables use the top-level runtime policy.
     add_test(NAME headless.m5_gui_free_script_runtime
         COMMAND $<TARGET_FILE:tonatiuhpp_m5_runtime_smoke>)
     set_tests_properties(headless.m5_gui_free_script_runtime PROPERTIES
@@ -547,8 +549,7 @@ if(BUILD_TESTING)
         TonatiuhScripting TonatiuhSimulation Qt6::Core Qt6::Qml)
     # Put the smoke beside the GUI exe so the existing Windows Qt runtime
     # deployment covers it without introducing a second DLL install policy.
-    set_target_properties(tonatiuhpp_m5_services_smoke PROPERTIES
-        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
+# P1: application executables use the top-level runtime policy.
     add_dependencies(tonatiuhpp_m5_services_smoke ${ProjectName})
     add_test(NAME headless.m5_compiled_services_link
         COMMAND $<TARGET_FILE:tonatiuhpp_m5_services_smoke>)
@@ -556,35 +557,8 @@ if(BUILD_TESTING)
         LABELS "headless;scientific;smoke" TIMEOUT 30)
 endif()
 
-# ----------------------------
-# 🔧 Windows runtime deployment (DLLs + plugins)
-# ----------------------------
-# Call the helper defined in the top-level *after* the executable is created.
-if(WIN32)
-  if(COMMAND tonatiuh_setup_windows_runtime)
-    tonatiuh_setup_windows_runtime(${ProjectName})
-  else()
-    # Fallback: copy third_party DLLs and set PATH so local runs work.
-    set(_thirdparty_bin "${CMAKE_CURRENT_LIST_DIR}/../../third_party/_install/bin")
-    if(EXISTS "${_thirdparty_bin}")
-      add_custom_command(TARGET ${ProjectName} POST_BUILD
-        COMMAND "${CMAKE_COMMAND}" -E echo "Copying third_party DLLs into build output (fallback)..."
-        COMMAND "${CMAKE_COMMAND}" -E copy_directory
-                "${_thirdparty_bin}"
-                "$<TARGET_FILE_DIR:${ProjectName}>"
-        VERBATIM)
-    else()
-      add_custom_command(TARGET ${ProjectName} POST_BUILD
-        COMMAND "${CMAKE_COMMAND}" -E echo "Skipping third_party DLL fallback copy; directory not found: ${_thirdparty_bin}"
-        VERBATIM)
-    endif()
-
-    if(MSVC AND EXISTS "${_thirdparty_bin}")
-      set(_dbg_path "PATH=${_thirdparty_bin};%PATH%")
-      set_property(TARGET ${ProjectName} PROPERTY VS_DEBUGGER_ENVIRONMENT "${_dbg_path}")
-    endif()
-  endif()
-endif()
+# TONATIUHPP_P1_CENTRAL_WIN_RUNTIME: the shared build-tree stage
+# and output policy are configured at source/CMakeLists.txt.
 
 # ----------------------------
 # Install rules

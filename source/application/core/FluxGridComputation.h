@@ -81,12 +81,12 @@ inline bool calculate(const std::vector<Photon>& photons,
     // Preserve the legacy transform, UV mapping, side selection and bin
     // boundaries. The range checks only reject data that would previously
     // index beyond the QVector, rather than silently miscount it.
-    const int activeSideID = surfaceSide == "back" ? 0 : 1;
+    const bool activeIsFront = surfaceSide == "front";
     const Transform toWorld = surface->getTransform();
     const Transform toObject = toWorld.inversed();
     int photonsTotal = 0;
     for (const Photon& photon : photons) {
-        if (photon.isFront != activeSideID)
+        if (photon.isFront != activeIsFront)
             continue;
         const vec3d p = toObject.transformPoint(photon.pos);
         const vec2d uv = shape->getUV(p);

@@ -161,6 +161,8 @@ set(RESOURCES resources.qrc)
 
 # Create the library
 add_library(${ProjectName} SHARED ${SOURCES} ${HEADERS} ${RESOURCES})
+# P2a physical ABI library filename; target identity follows in P2b.
+set_target_properties(${ProjectName} PROPERTIES OUTPUT_NAME "TonatiuhppKernel")
 
 # Target-specific include directories
 target_include_directories(${ProjectName} 
@@ -210,6 +212,8 @@ add_library(TonatiuhGuiPresentation SHARED
     ../plugins/photons/PhotonsFile/PhotonsFileWidget.ui)
 target_compile_definitions(TonatiuhGuiPresentation PRIVATE
     TONATIUH_GUI_PRESENTATION_EXPORT)
+set_target_properties(TonatiuhGuiPresentation PROPERTIES
+    OUTPUT_NAME "TonatiuhppGuiPresentation")
 target_include_directories(TonatiuhGuiPresentation PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/..
     ${CMAKE_CURRENT_SOURCE_DIR}/../libraries

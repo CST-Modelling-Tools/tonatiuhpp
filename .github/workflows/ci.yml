@@ -18,14 +18,14 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           # Full history is needed to compute PR merge-bases and push diffs.
           fetch-depth: 0
 
       # Pin Python to avoid accidental "too-new" versions on runners
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
@@ -191,7 +191,7 @@ jobs:
       # signatures and extracted headers even on cache hits.
       - name: Cache Windows Boost and Eigen archives
         if: ${{ steps.changes.outputs.docs_only != 'true' && (runner.os == 'Windows') }}
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ${{ runner.temp }}/boost_1_90_0.zip
@@ -325,7 +325,7 @@ jobs:
       # Cache third_party outputs (Option 1)
       - name: Cache third_party deps
         if: ${{ steps.changes.outputs.docs_only != 'true' }}
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             third_party/_install
@@ -363,27 +363,8 @@ jobs:
         run: |
           cmake --build build --config Release --parallel
 
-      # On Windows, the runtime loader does not search sibling CMake target
-      # output directories. Make the freshly built DLLs available before
-      # CTest performs PRE_TEST GoogleTest discovery.
-      - name: Add Windows test runtime DLL paths
-        if: ${{ steps.changes.outputs.docs_only != 'true' && (runner.os == 'Windows') }}
-        shell: pwsh
-        run: |
-          $runtimeDirs = @(
-            'build/libraries',
-            'build/kernel',
-            'build/SunPath',
-            'third_party/_install/bin'
-          )
-          foreach ($relativeDir in $runtimeDirs) {
-            $directory = Join-Path $env:GITHUB_WORKSPACE $relativeDir
-            if (Test-Path -LiteralPath $directory -PathType Container) {
-              Write-Host "Adding runtime DLL directory to PATH: $directory"
-              Add-Content -LiteralPath $env:GITHUB_PATH -Value $directory
-            }
-          }
-
+      # TONATIUHPP_P1_CENTRAL_WIN_RUNTIME: Windows CTest uses build/bin/<config>
+      # with build-staged runtime DLLs; no PATH workaround.
       - name: Verify headless tests are registered
         if: ${{ steps.changes.outputs.docs_only != 'true' }}
         shell: bash
@@ -405,7 +386,7 @@ jobs:
 
       - name: Upload build artifacts
         if: ${{ always() && steps.changes.outputs.docs_only != 'true' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: build-${{ matrix.os }}
           path: |

@@ -81,6 +81,15 @@ set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
+# TONATIUHPP_P1_CENTRAL_WIN_RUNTIME: output policy
+# Windows executables and *internal* shared DLLs share one directory per
+# configuration for BOTH MSVC multi-config and Ninja single-config builds.
+# The generator expression prevents an extra /Release suffix on MSVC.
+if(WIN32)
+  set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/$<CONFIG>")
+endif()
+
+
 # ----------------------------
 # 🔗 RPATH defaults (set BEFORE any targets are created)
 # ----------------------------
@@ -507,6 +516,54 @@ endforeach()
 if(BUILD_TESTING)
   add_subdirectory("${CMAKE_CURRENT_LIST_DIR}/../tests" "${CMAKE_BINARY_DIR}/tests")
 endif()
+
+# TONATIUHPP_P1_CENTRAL_WIN_RUNTIME: build-tree-only dependency deployment
+# Stage external Qt/Coin/SoQt DLLs once per configuration BEFORE any executable
+# builds. Never copy Tonatiuh++ internal DLLs: their targets emit them directly
+# to build/bin/<config>. This always-running dependency also fixes incremental
+# builds that previously skipped an executable's POST_BUILD copy hook.
+if(WIN32)
+  set(_tonatiuhpp_p1_executables tonatiuhpp tonatiuhpp_m5_core_headless)
+  if(BUILD_TESTING)
+    list(APPEND _tonatiuhpp_p1_executables
+      tonatiuhpp_scientific_equivalence_tests
+      tonatiuhpp_math_tests tonatiuhpp_math_box2d_tests
+      tonatiuhpp_standard_random_tests
+      tonatiuhpp_m5_runtime_smoke tonatiuhpp_m5_services_smoke)
+  endif()
+
+  set(_tonatiuhpp_p1_runtime_dll_expressions)
+  foreach(_tonatiuhpp_p1_target IN LISTS _tonatiuhpp_p1_executables)
+    if(NOT TARGET ${_tonatiuhpp_p1_target})
+      message(FATAL_ERROR "P1 expected target missing: ${_tonatiuhpp_p1_target}")
+    endif()
+    list(APPEND _tonatiuhpp_p1_runtime_dll_expressions
+      "$<TARGET_RUNTIME_DLLS:${_tonatiuhpp_p1_target}>")
+  endforeach()
+  # Guarantee core Qt modules even if third-party imported Coin/SoQt targets
+  # do not describe every dependent binary in their imported target metadata.
+  foreach(_tonatiuhpp_p1_module IN ITEMS Core Gui Widgets Qml Concurrent
+                                           PrintSupport DBus Network)
+    if(TARGET Qt6::${_tonatiuhpp_p1_module})
+      list(APPEND _tonatiuhpp_p1_runtime_dll_expressions
+        "$<TARGET_FILE:Qt6::${_tonatiuhpp_p1_module}>")
+    endif()
+  endforeach()
+
+  file(GENERATE
+    OUTPUT "${CMAKE_BINARY_DIR}/tonatiuhpp-stage-win-$<CONFIG>.cmake"
+    CONTENT "set(TONATIUHPP_P1_RUNTIME_DIR [==[${CMAKE_BINARY_DIR}/bin/$<CONFIG>]==])\nset(TONATIUHPP_P1_QT_CORE_DLL [==[$<TARGET_FILE:Qt6::Core>]==])\nset(TONATIUHPP_P1_THIRDPARTY_BIN [==[${CMAKE_CURRENT_LIST_DIR}/../third_party/_install/bin]==])\nset(TONATIUHPP_P1_DLLS [==[${_tonatiuhpp_p1_runtime_dll_expressions}]==])\ninclude([==[${CMAKE_CURRENT_LIST_DIR}/cmake/StageWindowsRuntime.cmake]==])\n")
+
+  add_custom_target(tonatiuhpp_stage_windows_runtime
+    COMMAND "${CMAKE_COMMAND}" -P
+            "${CMAKE_BINARY_DIR}/tonatiuhpp-stage-win-$<CONFIG>.cmake"
+    COMMENT "Stage common Windows Qt/Coin/SoQt DLLs and Qt plugins once"
+    VERBATIM)
+  foreach(_tonatiuhpp_p1_target IN LISTS _tonatiuhpp_p1_executables)
+    add_dependencies(${_tonatiuhpp_p1_target} tonatiuhpp_stage_windows_runtime)
+  endforeach()
+endif()
+
 
 # ----------------------------
 # 🚚 Optional runtime bundling on Linux (ON by default)

@@ -1041,7 +1041,8 @@ def get_cmake_prefix_paths(env: dict) -> list[str]:
 def add_extra_includes_and_libs_from_prefixes(cmd_list: list[str],
                                              prefixes: list[str],
                                              msvc: bool,
-                                             env: dict | None = None) -> None:
+                                             env: dict | None = None,
+                                             msvc_linker_options: list[str] | None = None) -> None:
     """
     Add reasonable -I/-L (or /I /LIBPATH:) flags based on prefixes.
 
@@ -1150,7 +1151,11 @@ def add_extra_includes_and_libs_from_prefixes(cmd_list: list[str],
         for inc in includes:
             cmd_list.append(f"/I{inc}")
         for lp in libpaths:
-            cmd_list.append(f"/LIBPATH:{lp}")
+            flag = f"/LIBPATH:{lp}"
+            if msvc_linker_options is not None:
+                msvc_linker_options.append(flag)
+            else:
+                cmd_list.append(flag)
     else:
         for inc in includes:
             cmd_list.append(f"-I{inc}")
@@ -1338,9 +1343,12 @@ def compile_check(dep: dict):
         if include_dir.is_dir():
             cmd.append(f"/I{include_dir}")
 
-        add_extra_includes_and_libs_from_prefixes(cmd, prefixes, msvc=True, env=env)
+        msvc_linker_options: list[str] = []
+        add_extra_includes_and_libs_from_prefixes(
+            cmd, prefixes, msvc=True, env=env,
+            msvc_linker_options=msvc_linker_options)
 
-        cmd += [str(src), "/link"]
+        cmd += [str(src), "/link", *msvc_linker_options]
 
         # Only add our PREFIX lib if it exists
         if lib_dir.is_dir():
@@ -2041,19 +2049,16 @@ def build_cmake_git(dep: dict, config: str = "Release", native_flags: bool = Fal
 
     cmake_cmd.extend(_macos_modern_opengl_cache_args(name, env))
 
-    # Boost
-    boost_root = _probe_boost_root(env)
-    if boost_root:
-        cmake_cmd.append(f"-DBOOST_ROOT={boost_root}")
-        print(f"[deps] Using Boost from: {boost_root}")
-    else:
-        print("[deps] Warning: Boost not detected automatically.", file=sys.stderr)
-
-    # Eigen (header-only): tell CMake where headers are if we can detect them.
-    # IMPORTANT: do not pass -DEigen3_DIR= (empty) — that can confuse CMake find logic.
-    eigen_inc = detect_eigen_include_root(env)
-    if eigen_inc:
-        cmake_cmd.append(f"-DEIGEN3_INCLUDE_DIR={eigen_inc}")
+    # Coin requires Boost; simage and SoQt do not consume BOOST_ROOT.
+    # Eigen headers are checked separately and exposed to the top-level
+    # project through LocalDepsHints.cmake, not through these builds.
+    if name.lower() == "coin4tonatiuhpp":
+        boost_root = _probe_boost_root(env)
+        if boost_root:
+            cmake_cmd.append(f"-DBOOST_ROOT={boost_root}")
+            print(f"[deps] Using Boost from: {boost_root}")
+        else:
+            print("[deps] Warning: Boost not detected automatically.", file=sys.stderr)
 
     cmake_cmd.append(f"-DCMAKE_BUILD_TYPE={config}")
 
@@ -2061,21 +2066,23 @@ def build_cmake_git(dep: dict, config: str = "Release", native_flags: bool = Fal
     if cmake_prefixes:
         cmake_cmd.append(f"-DCMAKE_PREFIX_PATH={';'.join(cmake_prefixes)}")
 
-    # Qt6_DIR (optional but helpful)
-    qt6_dir_env = env.get("Qt6_DIR") or env.get("QT6_DIR")
-    if qt6_dir_env and os.path.isdir(qt6_dir_env):
-        cmake_cmd.append(f"-DQt6_DIR={qt6_dir_env}")
-    else:
-        if USER_OVERRIDES.get("qt_root"):
-            q6 = _qt6_dir_from_prefix(USER_OVERRIDES["qt_root"])  # type: ignore[arg-type]
-            if q6:
-                cmake_cmd.append(f"-DQt6_DIR={q6}")
+    # Only SoQt uses Qt6 package discovery.
+    if name.lower() == "soqt":
+        # Qt6_DIR (optional but helpful)
+        qt6_dir_env = env.get("Qt6_DIR") or env.get("QT6_DIR")
+        if qt6_dir_env and os.path.isdir(qt6_dir_env):
+            cmake_cmd.append(f"-DQt6_DIR={qt6_dir_env}")
         else:
-            for p in cmake_prefixes:
-                q6 = _qt6_dir_from_prefix(p)
+            if USER_OVERRIDES.get("qt_root"):
+                q6 = _qt6_dir_from_prefix(USER_OVERRIDES["qt_root"])  # type: ignore[arg-type]
                 if q6:
                     cmake_cmd.append(f"-DQt6_DIR={q6}")
-                    break
+            else:
+                for p in cmake_prefixes:
+                    q6 = _qt6_dir_from_prefix(p)
+                    if q6:
+                        cmake_cmd.append(f"-DQt6_DIR={q6}")
+                        break
 
     if native_flags:
         if platform.system() == "Windows":
