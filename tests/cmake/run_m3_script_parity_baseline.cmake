@@ -1,7 +1,7 @@
 # M3.3: establish a stable native true-headless scientific artifact for the
 # EXACT SAME script the user will then run in the real GUI Script Editor.
 # Only the headless repeatability portion is automated here; GUI parity is
-# a separate native acceptance gate (see docs/m3-script-parity-local.md).
+# a separate native acceptance gate (see docs/scientific-validation.md).
 foreach(required IN ITEMS TEST_EXECUTABLE TEST_SCRIPT OUTPUT_DIR)
   if(NOT DEFINED ${required} OR "${${required}}" STREQUAL "")
     message(FATAL_ERROR "Missing ${required}")
@@ -22,7 +22,7 @@ file(REMOVE "${output_path}" "${baseline_path}" "${other_dir}/m3_3_parity_result
 
 foreach(attempt RANGE 1 2)
   execute_process(
-    COMMAND "${TEST_EXECUTABLE}" --headless run-script "${script_path}"
+    COMMAND "${TEST_EXECUTABLE}"  run-script "${script_path}"
     WORKING_DIRECTORY "${other_dir}"
     RESULT_VARIABLE exit_code OUTPUT_VARIABLE stdout_text ERROR_VARIABLE stderr_text
     TIMEOUT 45

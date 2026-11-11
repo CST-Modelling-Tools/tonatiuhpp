@@ -17,7 +17,7 @@ if(DEFINED TEST_WORKING_DIRECTORY AND NOT TEST_WORKING_DIRECTORY STREQUAL "")
 endif()
 
 execute_process(
-  COMMAND "${TEST_EXECUTABLE}" --headless run-script "${_ok}"
+  COMMAND "${TEST_EXECUTABLE}"  run-script "${_ok}"
   ${_working_directory}
   RESULT_VARIABLE _ok_exit
   OUTPUT_VARIABLE _ok_stdout
@@ -30,7 +30,7 @@ if(NOT "${_ok_exit}" STREQUAL "0" OR NOT _ok_stdout MATCHES "M3.2 headless docum
 endif()
 
 execute_process(
-  COMMAND "${TEST_EXECUTABLE}" --headless run-script "${_bad}"
+  COMMAND "${TEST_EXECUTABLE}"  run-script "${_bad}"
   ${_working_directory}
   RESULT_VARIABLE _bad_exit
   OUTPUT_VARIABLE _bad_stdout

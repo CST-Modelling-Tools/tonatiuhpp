@@ -39,7 +39,7 @@ file(WRITE "${script_path}" "${script_content}")
 foreach(side cli_first cli_second)
   set(directory "${OUTPUT_DIR}/${side}")
   execute_process(
-    COMMAND "${TEST_EXECUTABLE}" --headless trace-scene "${TEST_SCENE}"
+    COMMAND "${TEST_EXECUTABLE}"  trace-scene "${TEST_SCENE}"
       --rays 2048 --seed 0 --photon-export-dir "${directory}"
       --photon-surface "//Node/Shape" --update-trackers
     WORKING_DIRECTORY "${TEST_WORKING_DIRECTORY}"
@@ -55,7 +55,7 @@ foreach(side cli_first cli_second)
 endforeach()
 
 execute_process(
-  COMMAND "${TEST_EXECUTABLE}" --headless run-script "${script_path}"
+  COMMAND "${TEST_EXECUTABLE}"  run-script "${script_path}"
   WORKING_DIRECTORY "${TEST_WORKING_DIRECTORY}"
   RESULT_VARIABLE code OUTPUT_VARIABLE stdout ERROR_VARIABLE stderr TIMEOUT 90)
 if(NOT "${code}" STREQUAL "0" OR NOT stdout MATCHES "M4 CLI/script File photon parity fixture completed[.]")
@@ -81,7 +81,7 @@ endforeach()
 file(SHA256 "${OUTPUT_DIR}/cli_first/PhotonMap.dat" prior_data)
 file(SHA256 "${OUTPUT_DIR}/cli_first/PhotonMap_parameters.txt" prior_meta)
 execute_process(
-  COMMAND "${TEST_EXECUTABLE}" --headless trace-scene "${TEST_SCENE}"
+  COMMAND "${TEST_EXECUTABLE}"  trace-scene "${TEST_SCENE}"
     --rays 2048 --seed 0 --photon-export-dir "${OUTPUT_DIR}/cli_first"
     --photon-surface "//Node/Shape" --update-trackers
   WORKING_DIRECTORY "${TEST_WORKING_DIRECTORY}"
@@ -99,7 +99,7 @@ endif()
 file(WRITE "${OUTPUT_DIR}/occupied/keep.txt" "M4 fixture must survive\n")
 file(SHA256 "${OUTPUT_DIR}/occupied/keep.txt" prior_keep)
 execute_process(
-  COMMAND "${TEST_EXECUTABLE}" --headless trace-scene "${TEST_SCENE}"
+  COMMAND "${TEST_EXECUTABLE}"  trace-scene "${TEST_SCENE}"
     --rays 2048 --seed 0 --photon-export-dir "${OUTPUT_DIR}/occupied"
     --photon-surface "//Node/Shape" --update-trackers
   WORKING_DIRECTORY "${TEST_WORKING_DIRECTORY}"
@@ -116,7 +116,7 @@ if(EXISTS "${missing}")
   message(FATAL_ERROR "Invalid M4 fixture: missing directory unexpectedly exists")
 endif()
 execute_process(
-  COMMAND "${TEST_EXECUTABLE}" --headless trace-scene "${TEST_SCENE}"
+  COMMAND "${TEST_EXECUTABLE}"  trace-scene "${TEST_SCENE}"
     --rays 2048 --seed 0 --photon-export-dir "${missing}"
     --photon-surface "//Node/Shape" --update-trackers
   WORKING_DIRECTORY "${TEST_WORKING_DIRECTORY}"

@@ -11,6 +11,7 @@
 #include <QSettings>
 #include <QFileDialog>
 #include <QStandardPaths>
+#include "core/ApplicationDataPaths.h"
 #include <QTextStream>
 
 Q_DECLARE_METATYPE(QVector<QVariant>)
@@ -36,12 +37,7 @@ Q_DECLARE_METATYPE(QVector<QVariant>)
 namespace {
 QString appBundleDataPath(const QString& relativePath)
 {
-    QDir dir(QCoreApplication::applicationDirPath());
-#ifdef Q_OS_MACOS
-    return dir.absoluteFilePath("../Resources/" + relativePath);
-#else
-    return dir.absoluteFilePath("../" + relativePath);
-#endif
+    return TonatiuhppAppDataPaths::findDataDirectory(relativePath);
 }
 
 QString existingDirectoryOrFallback(const QString& preferredPath, const QString& fallbackPath = QString())
@@ -471,8 +467,16 @@ void ScriptWindow::on_actionExamples_triggered()
 {
     if (!isReady()) return;
 
+    const QString scriptsDirectory = appBundleDataPath("examples/scripts");
+    if (scriptsDirectory.isEmpty()) {
+        QMessageBox::warning(this, tr("Example scripts not found"),
+            tr("The Tonatiuh++ example scripts folder could not be located. "
+               "Check that examples/scripts/ exists in the source checkout or installed application."));
+        return;
+    }
+
     QString fileName = openFileWithDirectory(
-        this, "Open File", appBundleDataPath("examples/scripts"),
+        this, "Open File", scriptsDirectory,
         "Tonatiuh script file (*.tnhpps)"
     );
     if (fileName.isEmpty()) return;

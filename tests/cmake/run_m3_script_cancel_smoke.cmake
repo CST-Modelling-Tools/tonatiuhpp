@@ -17,7 +17,7 @@ endforeach()
 
 function(run_case name expected_code expected_text)
   execute_process(
-    COMMAND "${TEST_EXECUTABLE}" --headless run-script "${scripts}/${name}.tnhpps"
+    COMMAND "${TEST_EXECUTABLE}"  run-script "${scripts}/${name}.tnhpps"
     WORKING_DIRECTORY "${foreign}"
     RESULT_VARIABLE rc OUTPUT_VARIABLE stdout ERROR_VARIABLE stderr
     TIMEOUT 60
@@ -44,7 +44,7 @@ run_case(m3_3_cancel_recover 0 "M3.3 scripted cancellation/recovery PASSED:")
 run_case(m3_3_cancel_inactive 1 "tn.cancelTrace failed: no active script trace")
 run_case(m3_3_cancel_invalid 1 "options.noExport must be true")
 execute_process(
-  COMMAND "${TEST_EXECUTABLE}" --headless run-script "${scripts}/m3_3_cancel_unfinished.tnhpps"
+  COMMAND "${TEST_EXECUTABLE}"  run-script "${scripts}/m3_3_cancel_unfinished.tnhpps"
   WORKING_DIRECTORY "${foreign}"
   RESULT_VARIABLE orphan_code OUTPUT_VARIABLE orphan_out ERROR_VARIABLE orphan_err
   TIMEOUT 60

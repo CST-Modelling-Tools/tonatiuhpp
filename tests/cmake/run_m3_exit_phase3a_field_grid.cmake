@@ -16,7 +16,7 @@ set(baseline_path "${OUTPUT_DIR}/headless_baseline.csv")
 # Deliberately invalidate old GUI and headless results before running.
 file(REMOVE "${result_path}" "${baseline_path}")
 execute_process(
-  COMMAND "${TEST_EXECUTABLE}" --headless run-script "${script_path}"
+  COMMAND "${TEST_EXECUTABLE}"  run-script "${script_path}"
   WORKING_DIRECTORY "${OUTPUT_DIR}"
   RESULT_VARIABLE outcome OUTPUT_VARIABLE output ERROR_VARIABLE diagnostic
   TIMEOUT 65)

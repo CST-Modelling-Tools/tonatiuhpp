@@ -34,15 +34,15 @@ if(NOT "${TONATIUHPP_TEST_EXECUTABLE}" STREQUAL "")
   get_filename_component(TONATIUHPP_TEST_WORKING_DIR "${TONATIUHPP_TEST_EXE}" DIRECTORY)
   message(STATUS "Headless CTest smoke tests will use TONATIUHPP_TEST_EXECUTABLE: ${TONATIUHPP_TEST_EXE}")
 else()
-  if(NOT TARGET tonatiuhpp)
-    message(FATAL_ERROR "The tonatiuhpp target must exist before enabling build-tree tests.")
+  if(NOT TARGET tonatiuhpp-cli)
+    message(FATAL_ERROR "The tonatiuhpp-cli target must exist before enabling build-tree tests.")
   endif()
 
   # Generator expressions resolve the configured Release executable on
   # multi-config MSVC builds as well as Ninja/Linux/macOS builds.
-  set(TONATIUHPP_TEST_EXE "$<TARGET_FILE:tonatiuhpp>")
-  set(TONATIUHPP_TEST_WORKING_DIR "$<TARGET_FILE_DIR:tonatiuhpp>")
-  message(STATUS "Headless CTest smoke tests will use the build-tree tonatiuhpp executable.")
+  set(TONATIUHPP_TEST_EXE "$<TARGET_FILE:tonatiuhpp-cli>")
+  set(TONATIUHPP_TEST_WORKING_DIR "$<TARGET_FILE_DIR:tonatiuhpp-cli>")
+  message(STATUS "Headless CTest smoke tests use the build-tree tonatiuhpp-cli target.")
 endif()
 
 function(tonatiuhpp_set_headless_test_properties test_name)
@@ -86,7 +86,7 @@ if(TONATIUHPP_ENABLE_HEADLESS_SMOKE_TESTS)
 
   add_test(
     NAME headless.help
-    COMMAND "${TONATIUHPP_TEST_EXE}" --headless --help
+    COMMAND "${TONATIUHPP_TEST_EXE}"  --help
   )
   tonatiuhpp_set_headless_test_properties(headless.help)
   set_tests_properties(headless.help PROPERTIES
@@ -97,7 +97,7 @@ if(TONATIUHPP_ENABLE_HEADLESS_SMOKE_TESTS)
     NAME headless.invalid_arguments
     COMMAND "${CMAKE_COMMAND}"
       "-DTEST_EXECUTABLE=${TONATIUHPP_TEST_EXE}"
-      "-DTEST_ARGUMENTS=--headless|not-a-command"
+      "-DTEST_ARGUMENTS=not-a-command"
       "-DEXPECTED_EXIT_CODE=2"
       "-DTEST_WORKING_DIRECTORY=${TONATIUHPP_TEST_WORKING_DIR}"
       -P "${CMAKE_CURRENT_LIST_DIR}/cmake/expect_exit_code.cmake"
@@ -108,7 +108,7 @@ if(TONATIUHPP_ENABLE_HEADLESS_SMOKE_TESTS)
     NAME headless.run_script_missing_path
     COMMAND "${CMAKE_COMMAND}"
       "-DTEST_EXECUTABLE=${TONATIUHPP_TEST_EXE}"
-      "-DTEST_ARGUMENTS=--headless|run-script"
+      "-DTEST_ARGUMENTS=run-script"
       "-DEXPECTED_EXIT_CODE=2"
       "-DTEST_WORKING_DIRECTORY=${TONATIUHPP_TEST_WORKING_DIR}"
       -P "${CMAKE_CURRENT_LIST_DIR}/cmake/expect_exit_code.cmake"
@@ -119,7 +119,7 @@ if(TONATIUHPP_ENABLE_HEADLESS_SMOKE_TESTS)
     NAME headless.run_script_missing_file
     COMMAND "${CMAKE_COMMAND}"
       "-DTEST_EXECUTABLE=${TONATIUHPP_TEST_EXE}"
-      "-DTEST_ARGUMENTS=--headless|run-script|${CMAKE_CURRENT_BINARY_DIR}/missing_headless_script.tnhpps"
+      "-DTEST_ARGUMENTS=run-script|${CMAKE_CURRENT_BINARY_DIR}/missing_headless_script.tnhpps"
       "-DEXPECTED_EXIT_CODE=1"
       "-DTEST_WORKING_DIRECTORY=${TONATIUHPP_TEST_WORKING_DIR}"
       -P "${CMAKE_CURRENT_LIST_DIR}/cmake/expect_exit_code.cmake"
@@ -195,7 +195,7 @@ if(TONATIUHPP_ENABLE_HEADLESS_SMOKE_TESTS)
   # not trace rays or access sidecar CSVs. ShapeFunctionXYZ must be built.
   add_test(
     NAME headless.run_script_cpc_curved
-    COMMAND "${TONATIUHPP_TEST_EXE}" --headless run-script
+    COMMAND "${TONATIUHPP_TEST_EXE}"  run-script
       "${CMAKE_CURRENT_LIST_DIR}/../examples/devices/CPC/CPC-rotated.tnhpps"
   )
   tonatiuhpp_set_headless_test_properties(headless.run_script_cpc_curved)
@@ -203,7 +203,7 @@ if(TONATIUHPP_ENABLE_HEADLESS_SMOKE_TESTS)
 
   add_test(
     NAME headless.run_script_cpc_faceted
-    COMMAND "${TONATIUHPP_TEST_EXE}" --headless run-script
+    COMMAND "${TONATIUHPP_TEST_EXE}"  run-script
       "${CMAKE_CURRENT_LIST_DIR}/../examples/devices/CPC/CPC-rotated-step.tnhpps"
   )
   tonatiuhpp_set_headless_test_properties(headless.run_script_cpc_faceted)
@@ -212,7 +212,7 @@ if(TONATIUHPP_ENABLE_HEADLESS_SMOKE_TESTS)
   # M3 exit Phase 2: same non-destructive sun-position script as the native GUI.
   add_test(
     NAME headless.m3_exit_phase2_sun_position
-    COMMAND "${TONATIUHPP_TEST_EXE}" --headless run-script
+    COMMAND "${TONATIUHPP_TEST_EXE}"  run-script
       "${CMAKE_CURRENT_LIST_DIR}/scripts/m3_exit_phase2_sun_smoke.tnhpps"
   )
   tonatiuhpp_set_headless_test_properties(headless.m3_exit_phase2_sun_position)
@@ -327,7 +327,7 @@ if(TONATIUHPP_ENABLE_HEADLESS_SMOKE_TESTS)
 
     add_test(
       NAME headless.validate_cylinder_scene
-      COMMAND "${TONATIUHPP_TEST_EXE}" --headless validate-scene "${_tonatiuhpp_cylinder_scene}"
+      COMMAND "${TONATIUHPP_TEST_EXE}"  validate-scene "${_tonatiuhpp_cylinder_scene}"
     )
     tonatiuhpp_set_headless_test_properties(headless.validate_cylinder_scene)
     set_tests_properties(headless.validate_cylinder_scene PROPERTIES
@@ -336,7 +336,7 @@ if(TONATIUHPP_ENABLE_HEADLESS_SMOKE_TESTS)
 
     add_test(
       NAME headless.trace_cylinder_scene
-      COMMAND "${TONATIUHPP_TEST_EXE}" --headless trace-scene "${_tonatiuhpp_cylinder_scene}" --rays 10 --seed 123456789 --no-export
+      COMMAND "${TONATIUHPP_TEST_EXE}"  trace-scene "${_tonatiuhpp_cylinder_scene}" --rays 10 --seed 123456789 --no-export
     )
     tonatiuhpp_set_headless_test_properties(headless.trace_cylinder_scene)
     set_tests_properties(headless.trace_cylinder_scene PROPERTIES
@@ -393,7 +393,7 @@ if(TONATIUHPP_ENABLE_HEADLESS_SMOKE_TESTS)
   if(EXISTS "${_tracker_scene}")
     add_test(
       NAME headless.trace_tracker_opt_in
-      COMMAND "${TONATIUHPP_TEST_EXE}" --headless trace-scene "${_tracker_scene}"
+      COMMAND "${TONATIUHPP_TEST_EXE}"  trace-scene "${_tracker_scene}"
               --rays 4096 --seed 123456789 --no-export --update-trackers
     )
     tonatiuhpp_set_headless_test_properties(headless.trace_tracker_opt_in)
@@ -404,7 +404,7 @@ if(TONATIUHPP_ENABLE_HEADLESS_SMOKE_TESTS)
 
     add_test(
       NAME headless.trace_tracker_legacy
-      COMMAND "${TONATIUHPP_TEST_EXE}" --headless trace-scene "${_tracker_scene}"
+      COMMAND "${TONATIUHPP_TEST_EXE}"  trace-scene "${_tracker_scene}"
               --rays 4096 --seed 123456789 --no-export
     )
     tonatiuhpp_set_headless_test_properties(headless.trace_tracker_legacy)
@@ -558,7 +558,7 @@ if(TONATIUHPP_ENABLE_HEADLESS_SMOKE_TESTS)
   if(EXISTS "${_heliostat_scene}" AND EXISTS "${_heliostat_config}")
     add_test(
       NAME headless.validate_heliostat_scene
-      COMMAND "${TONATIUHPP_TEST_EXE}" --headless validate-scene "${_heliostat_scene}"
+      COMMAND "${TONATIUHPP_TEST_EXE}"  validate-scene "${_heliostat_scene}"
     )
     tonatiuhpp_set_headless_test_properties(headless.validate_heliostat_scene)
     set_tests_properties(headless.validate_heliostat_scene PROPERTIES
@@ -598,21 +598,46 @@ if(TONATIUHPP_ENABLE_HEADLESS_SMOKE_TESTS)
   endif()
 endif()
 
-# M5.2: same ONE kernel and first-party plugins, two actual native entrypoints.
-# Exercises short, fixed-seed ray-hit/history signatures, nonvisual scripts,
-# Flux Analysis, tracker/cancellation semantics and real File export.
+# Two independent CLI processes exercise fixed-seed hits/histories, scripts,
+# Flux Analysis, cancellation, plugin loading and File export. The separate
+# GUI-mode equivalence remains covered by scientific GoogleTests and manual GUI.
 # The 500-million-ray benchmark is expressly OUTSIDE this test.
-if(BUILD_TESTING AND TARGET tonatiuhpp_m5_core_headless)
+if(BUILD_TESTING AND TARGET tonatiuhpp-cli)
     find_package(Python3 COMPONENTS Interpreter REQUIRED)
-    add_test(NAME headless.m5_2_cross_adapter_end_to_end
+    add_test(NAME headless.cli_independent_process_equivalence
         COMMAND "${Python3_EXECUTABLE}"
             "${CMAKE_CURRENT_LIST_DIR}/m5/m5_2_adapter_acceptance.py"
-            --gui "$<TARGET_FILE:tonatiuhpp>"
-            --cli "$<TARGET_FILE:tonatiuhpp_m5_core_headless>"
+            --gui "$<TARGET_FILE:tonatiuhpp-gui>"
+            --cli "$<TARGET_FILE:tonatiuhpp-cli>"
             --source-root "${CMAKE_CURRENT_LIST_DIR}/.."
             --output-root "${CMAKE_CURRENT_BINARY_DIR}/m5_2_evidence"
             --mode build)
-    tonatiuhpp_set_headless_test_properties(headless.m5_2_cross_adapter_end_to_end)
-    set_tests_properties(headless.m5_2_cross_adapter_end_to_end PROPERTIES
+    tonatiuhpp_set_headless_test_properties(headless.cli_independent_process_equivalence)
+    set_tests_properties(headless.cli_independent_process_equivalence PROPERTIES
         LABELS "headless;smoke;scientific;equivalence" TIMEOUT 900)
 endif()
+
+# P2: verify real GUI and CLI names, kernel identity and legacy-mode rejection.
+find_package(Python3 COMPONENTS Interpreter REQUIRED)
+add_test(NAME architecture.gui_cli_runtime_boundary
+  COMMAND "${Python3_EXECUTABLE}"
+    "${CMAKE_CURRENT_LIST_DIR}/architecture/verify_p2_binaries.py"
+    --gui "$<TARGET_FILE:tonatiuhpp-gui>"
+    --cli "$<TARGET_FILE:tonatiuhpp-cli>"
+    --kernel "$<TARGET_FILE:TonatiuhppKernel>"
+    --libraries "$<TARGET_FILE:TonatiuhppLibraries>"
+    --presentation "$<TARGET_FILE:TonatiuhppGuiPresentation>")
+set_tests_properties(architecture.gui_cli_runtime_boundary PROPERTIES
+    LABELS "architecture;smoke" TIMEOUT 30)
+
+# File photon export must accept >10M rays in its CLI and scripted Run
+# validation paths. Both operations fail safely before any ray is traced.
+# 500-million-ray benchmark execution is expressly forbidden in this test.
+add_test(NAME headless.large_file_export_preflight
+    COMMAND "${Python3_EXECUTABLE}"
+        "${CMAKE_CURRENT_LIST_DIR}/architecture/verify_large_export_preflight.py"
+        --cli "$<TARGET_FILE:tonatiuhpp-cli>"
+        --scene "${CMAKE_CURRENT_LIST_DIR}/../examples/benchmarks/cylinder.tnhpp"
+        --build-test-dir "${CMAKE_CURRENT_BINARY_DIR}")
+set_tests_properties(headless.large_file_export_preflight PROPERTIES
+    LABELS "headless;scientific;smoke;architecture" TIMEOUT 120)

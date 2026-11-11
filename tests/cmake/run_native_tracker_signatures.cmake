@@ -32,7 +32,7 @@ foreach(_run IN ITEMS tracked_one tracked_two legacy_one legacy_two)
   execute_process(
     COMMAND "${CMAKE_COMMAND}" -E env
       "TONATIUHPP_A0_TRACE_SIGNATURE_FILE=${_diagnostic_path}"
-      "${TEST_EXECUTABLE}" --headless trace-scene "${SCENE_FILE}"
+      "${TEST_EXECUTABLE}"  trace-scene "${SCENE_FILE}"
       --rays 20001 --seed 123456789 --no-export ${_extra_args}
     WORKING_DIRECTORY "${TEST_WORKING_DIRECTORY}"
     RESULT_VARIABLE _exit_code

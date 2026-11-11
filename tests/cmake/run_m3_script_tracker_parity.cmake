@@ -19,7 +19,7 @@ file(REMOVE "${output_path}" "${baseline_path}" "${other_dir}/m3_3_tracker_resul
 
 foreach(attempt RANGE 1 2)
   execute_process(
-    COMMAND "${TEST_EXECUTABLE}" --headless run-script "${script_path}"
+    COMMAND "${TEST_EXECUTABLE}"  run-script "${script_path}"
     WORKING_DIRECTORY "${other_dir}"
     RESULT_VARIABLE exit_code OUTPUT_VARIABLE stdout_text ERROR_VARIABLE stderr_text
     TIMEOUT 60

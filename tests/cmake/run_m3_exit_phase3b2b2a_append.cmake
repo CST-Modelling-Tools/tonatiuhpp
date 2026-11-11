@@ -45,7 +45,7 @@ endforeach()
 
 foreach(side single append)
   execute_process(
-    COMMAND "${TEST_EXECUTABLE}" --headless run-script
+    COMMAND "${TEST_EXECUTABLE}"  run-script
       "${OUTPUT_DIR}/script/m3_exit_phase3b2b2a_${side}.tnhpps"
     WORKING_DIRECTORY "${OUTPUT_DIR}/script"
     RESULT_VARIABLE code OUTPUT_VARIABLE stdout ERROR_VARIABLE stderr
@@ -70,7 +70,7 @@ endif()
 
 # Settings changes must not silently reuse a File exporter or corrupt output.
 execute_process(
-  COMMAND "${TEST_EXECUTABLE}" --headless run-script
+  COMMAND "${TEST_EXECUTABLE}"  run-script
     "${OUTPUT_DIR}/script/m3_exit_phase3b2b2a_drift.tnhpps"
   WORKING_DIRECTORY "${OUTPUT_DIR}/script"
   RESULT_VARIABLE drift_code OUTPUT_VARIABLE drift_out ERROR_VARIABLE drift_err
@@ -91,7 +91,7 @@ endif()
 # The second Run must reject before opening a File exporter.
 file(SHA256 "${OUTPUT_DIR}/single/PhotonMap.dat" single_hash)
 execute_process(
-  COMMAND "${TEST_EXECUTABLE}" --headless run-script
+  COMMAND "${TEST_EXECUTABLE}"  run-script
     "${OUTPUT_DIR}/script/m3_exit_phase3b2b2a_tamper.tnhpps"
   WORKING_DIRECTORY "${OUTPUT_DIR}/script"
   RESULT_VARIABLE tamper_code OUTPUT_VARIABLE tamper_out ERROR_VARIABLE tamper_err

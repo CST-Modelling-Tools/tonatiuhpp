@@ -6,6 +6,7 @@ add_executable(tonatiuhpp_scientific_equivalence_tests
   ScriptSceneServicesTests.cpp
   ScriptSceneDocumentTests.cpp
   ScriptLegacyCorpusTests.cpp
+  ApplicationDataPathsTests.cpp
   "${CMAKE_SOURCE_DIR}/application/script/DataObject.cpp"
   "${CMAKE_SOURCE_DIR}/application/script/NodeObject.cpp"
   "${CMAKE_SOURCE_DIR}/application/script/ScriptHost.cpp"
@@ -42,32 +43,38 @@ target_compile_definitions(tonatiuhpp_scientific_equivalence_tests PRIVATE
 # The fixture uses the real MaterialSpecular scene factory plugin.
 add_dependencies(tonatiuhpp_scientific_equivalence_tests MaterialSpecular ShapeFunctionXYZ)
 
-# Stage the genuine production File exporter beside the scientific test
-# executable, where TonatiuhCore::pluginSearchPaths() already searches.
-# This is test-only; installed application plugin paths are unchanged.
-add_custom_target(tonatiuhpp_stage_scientific_file_plugin
-  COMMAND "${CMAKE_COMMAND}" -E make_directory
-          "$<TARGET_FILE_DIR:tonatiuhpp_scientific_equivalence_tests>/plugins/photons"
-  COMMAND "${CMAKE_COMMAND}" -E copy_if_different
-          "$<TARGET_FILE:PhotonsFile>"
-          "$<TARGET_FILE_DIR:tonatiuhpp_scientific_equivalence_tests>/plugins/photons/"
-  DEPENDS PhotonsFile
-  VERBATIM
-)
-
-add_dependencies(
-  tonatiuhpp_scientific_equivalence_tests
-  tonatiuhpp_stage_scientific_file_plugin
-)
+# TONATIUHPP_P1_CENTRAL_WIN_RUNTIME: Windows plugins already live under
+# build/bin/<config>/plugins. Do not place a second PhotonsFile DLL near tests.
+if(WIN32)
+  add_dependencies(tonatiuhpp_scientific_equivalence_tests PhotonsFile)
+else()
+  # Preserve the existing Linux/macOS test-only plugin staging unchanged.
+  add_custom_target(tonatiuhpp_stage_scientific_file_plugin
+    COMMAND "${CMAKE_COMMAND}" -E make_directory
+            "$<TARGET_FILE_DIR:tonatiuhpp_scientific_equivalence_tests>/plugins/photons"
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+            "$<TARGET_FILE:PhotonsFile>"
+            "$<TARGET_FILE_DIR:tonatiuhpp_scientific_equivalence_tests>/plugins/photons/"
+    DEPENDS PhotonsFile
+    VERBATIM)
+  add_dependencies(tonatiuhpp_scientific_equivalence_tests
+                   tonatiuhpp_stage_scientific_file_plugin)
+endif()
 
 target_compile_definitions(tonatiuhpp_scientific_equivalence_tests PRIVATE
   "TONATIUHPP_SCIENTIFIC_FILE_PLUGIN=\"$<TARGET_FILE:PhotonsFile>\""
 )
 
+if(WIN32)
+  set(_tonatiuhpp_p1_scientific_plugin_root "${CMAKE_BINARY_DIR}/bin/$<CONFIG>/plugins")
+else()
+  set(_tonatiuhpp_p1_scientific_plugin_root "${CMAKE_BINARY_DIR}/plugins")
+endif()
+
 target_compile_definitions(tonatiuhpp_scientific_equivalence_tests PRIVATE
   "TONATIUHPP_SPECULAR_SCENE_FILE=\"${CMAKE_CURRENT_LIST_DIR}/fixtures/specular-two-reflections.tnhpp\""
   "TONATIUHPP_TRACKER_SCENE_FILE=\"${CMAKE_CURRENT_LIST_DIR}/fixtures/one-axis-tracker.tnhpp\""
-  "TONATIUHPP_SCIENTIFIC_PLUGIN_DIRECTORY=\"${CMAKE_BINARY_DIR}/plugins\""
+  "TONATIUHPP_SCIENTIFIC_PLUGIN_DIRECTORY=\"${_tonatiuhpp_p1_scientific_plugin_root}\""
   "TONATIUHPP_LEGACY_SCRIPT_EXAMPLES_ROOT=\"${CMAKE_SOURCE_DIR}/../examples\""
   "TONATIUHPP_SCRIPT_INTERCEPTION_FIXTURE_FILE=\"${CMAKE_CURRENT_LIST_DIR}/../scripts/m3_2_interception_bounded.tnhpps\""
 )
@@ -79,8 +86,8 @@ target_link_libraries(tonatiuhpp_scientific_equivalence_tests PRIVATE
   Qt6::Gui
   Qt6::Concurrent
   Qt6::Qml
-  TonatiuhLibraries
-  TonatiuhKernel
+  TonatiuhppLibraries
+  TonatiuhppKernel
 )
 
 if(MSVC)
@@ -124,7 +131,7 @@ if(TONATIUHPP_BUILD_GUI_SUN_DIAGNOSTIC)
   )
   target_link_libraries(tonatiuhpp_gui_sun_diagnostic PRIVATE
     Coin::Coin SoQt::SoQt Qt6::Core Qt6::Gui Qt6::Widgets
-    TonatiuhLibraries TonatiuhKernel
+    TonatiuhppLibraries TonatiuhppKernel
   )
   if(MSVC)
     target_compile_options(tonatiuhpp_gui_sun_diagnostic PRIVATE /permissive- /Zc:__cplusplus)

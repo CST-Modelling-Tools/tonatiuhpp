@@ -1554,13 +1554,13 @@ TEST(ScientificGuiSeed, FixedSeedRepeatsThroughGuiStylePreparation)
 #ifdef Q_OS_WIN
 TEST(ScientificPluginPaths, WindowsBuildTreeIncludesMaterialPluginRoot)
 {
-    // Build-tree layout differs from installed layouts. The Windows exe is
-    // under build/application/Release, but plugins are in build/plugins.
+    // TONATIUHPP_P1_CENTRAL_WIN_RUNTIME: shared executables are in
+    // build/bin/<config>; scientific plugins are in its plugins/ subdir.
     const QDir pluginRoot(QString::fromUtf8(TONATIUHPP_SCIENTIFIC_PLUGIN_DIRECTORY));
     ASSERT_TRUE(pluginRoot.exists());
 
     const QString executableDir =
-        pluginRoot.absoluteFilePath("../application/Release");
+        pluginRoot.absoluteFilePath("..");
     const QString expected = QDir::cleanPath(pluginRoot.absolutePath());
     const QStringList searchPaths = TonatiuhCore::pluginSearchPaths(executableDir);
 

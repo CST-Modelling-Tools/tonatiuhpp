@@ -33,8 +33,8 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     Coin::Coin
     Qt6::Core 
     Qt6::Gui 
-    TonatiuhLibraries
-    TonatiuhKernel
+    TonatiuhppLibraries
+    TonatiuhppKernel
 )
 
 # Set plugin output directory

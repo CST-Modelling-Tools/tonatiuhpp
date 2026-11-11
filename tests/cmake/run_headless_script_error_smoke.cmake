@@ -43,7 +43,7 @@ if(DEFINED TEST_WORKING_DIRECTORY AND NOT TEST_WORKING_DIRECTORY STREQUAL "")
 endif()
 
 execute_process(
-  COMMAND "${TEST_EXECUTABLE}" --headless run-script "${_script_file}"
+  COMMAND "${TEST_EXECUTABLE}"  run-script "${_script_file}"
   ${_working_directory}
   RESULT_VARIABLE _exit_code
   OUTPUT_VARIABLE _stdout
@@ -63,7 +63,7 @@ if(NOT _stderr MATCHES "Headless script API does not support 'Screenshot'")
 endif()
 
 execute_process(
-  COMMAND "${TEST_EXECUTABLE}" --headless run-script "${_invalid_write_json_script}"
+  COMMAND "${TEST_EXECUTABLE}"  run-script "${_invalid_write_json_script}"
   ${_working_directory}
   RESULT_VARIABLE _exit_code
   OUTPUT_VARIABLE _stdout
@@ -83,7 +83,7 @@ if(NOT _stderr MATCHES "tn\\.writeJson requires a non-empty path")
 endif()
 
 execute_process(
-  COMMAND "${TEST_EXECUTABLE}" --headless run-script "${_syntax_error_script}"
+  COMMAND "${TEST_EXECUTABLE}"  run-script "${_syntax_error_script}"
   ${_working_directory}
   RESULT_VARIABLE _exit_code
   OUTPUT_VARIABLE _stdout
@@ -115,7 +115,7 @@ foreach(_case IN ITEMS
   list(GET _parts 2 _pattern)
 
   execute_process(
-    COMMAND "${TEST_EXECUTABLE}" --headless run-script "${_script}"
+    COMMAND "${TEST_EXECUTABLE}"  run-script "${_script}"
     ${_working_directory}
     RESULT_VARIABLE _exit_code
     OUTPUT_VARIABLE _stdout

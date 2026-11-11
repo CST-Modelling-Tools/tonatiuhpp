@@ -46,7 +46,7 @@ endif()
 
 foreach(side headless_first headless_second)
   execute_process(
-    COMMAND "${TEST_EXECUTABLE}" --headless run-script
+    COMMAND "${TEST_EXECUTABLE}"  run-script
       "${OUTPUT_DIR}/script/m3_shared_run_${side}.tnhpps"
     WORKING_DIRECTORY "${OUTPUT_DIR}/script"
     RESULT_VARIABLE code OUTPUT_VARIABLE stdout ERROR_VARIABLE stderr

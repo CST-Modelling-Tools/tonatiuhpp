@@ -41,7 +41,7 @@ target_link_libraries(${ProjectName} PRIVATE
     Qt6::Core 
     Qt6::Gui 
     Qt6::Widgets 
-    TonatiuhKernel
+    TonatiuhppKernel
     # Assuming COIN3D_LIBRARY and SOQT_LIBRARY are set in the top-level CMakeLists.txt
     ${COIN3D_LIBRARY}
     ${SOQT_LIBRARY}

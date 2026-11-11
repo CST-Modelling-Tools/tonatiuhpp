@@ -18,6 +18,7 @@
 #include <QProgressDialog>
 #include <QSettings>
 #include <QStandardPaths>
+#include "core/ApplicationDataPaths.h"
 #include <QStringList>
 #include <QTimer>
 #include <QTime>
@@ -129,12 +130,7 @@ std::uint64_t resolvedGuiMasterSeed()
 
 QString appBundleDataPath(const QString& relativePath)
 {
-    QDir dir(QCoreApplication::applicationDirPath());
-#ifdef Q_OS_MACOS
-    return dir.absoluteFilePath("../Resources/" + relativePath);
-#else
-    return dir.absoluteFilePath("../" + relativePath);
-#endif
+    return TonatiuhppAppDataPaths::findDataDirectory(relativePath);
 }
 
 QString existingDirectoryOrFallback(const QString& preferredPath, const QString& fallbackPath = QString())
@@ -293,8 +289,9 @@ MainWindow::MainWindow(QString fileName, CustomSplashScreen* splash, QWidget* pa
     m_pluginManager->load(QDir(pluginRoots.isEmpty()
         ? qApp->applicationDirPath() : pluginRoots.first()));
 
-    QStringList paths = {appBundleDataPath("resources")};
-    QDir::setSearchPaths("resources", paths);
+    const QString resourcesDirectory = appBundleDataPath("resources");
+    if (!resourcesDirectory.isEmpty())
+        QDir::setSearchPaths("resources", {resourcesDirectory});
 
     if (splash) splash->setMessage("Creating views");
     SetupDocument();
@@ -792,8 +789,16 @@ void MainWindow::on_actionHelpExamples_triggered()
 
     if (!OkToContinue()) return;
 
+    const QString examplesDirectory = appBundleDataPath("examples");
+    if (examplesDirectory.isEmpty()) {
+        QMessageBox::warning(this, tr("Examples not found"),
+            tr("The Tonatiuh++ examples folder could not be located. "
+               "Check that examples/ exists in the source checkout or installed application."));
+        return;
+    }
+
     QString fileName = openFileWithDirectory(
-        this, "Open File", appBundleDataPath("examples"),
+        this, "Open File", examplesDirectory,
         "All files (*);;"
         "Tonatiuh++ projects (*.tnhpp);;"
         "Tonatiuh++ scripts (*.tnhpps)"
@@ -807,8 +812,16 @@ void MainWindow::on_actionHelpExamples_triggered()
 
 void MainWindow::on_actionHelpScripts_triggered()
 {
+    const QString scriptsDirectory = appBundleDataPath("examples/scripts");
+    if (scriptsDirectory.isEmpty()) {
+        QMessageBox::warning(this, tr("Example scripts not found"),
+            tr("The Tonatiuh++ example scripts folder could not be located. "
+               "Check that examples/scripts/ exists in the source checkout or installed application."));
+        return;
+    }
+
     QString fileName = openFileWithDirectory(
-        this, "Open File", appBundleDataPath("examples/scripts"),
+        this, "Open File", scriptsDirectory,
         "Tonatiuh script files (*.tnhpps);; All files (*)"
     );
     if (fileName.isEmpty()) return;
@@ -3428,9 +3441,21 @@ double findInterception(QString surface, uint rays, MainWindow* mw)
 #include <QDesktopServices>
 void MainWindow::on_actionHelpDocumentation_triggered()
 {
-    QDesktopServices::openUrl(QUrl::fromLocalFile(appBundleDataPath("help/html/index.html")));
-//    HelpDialog dialog(this);
-//    dialog.exec();
+    const QString indexFile = TonatiuhppAppDataPaths::findDataFile(
+        QStringLiteral("help/html/index.html"));
+    if (indexFile.isEmpty()) {
+        QMessageBox::warning(this, tr("Documentation not found"),
+            tr("The Tonatiuh++ HTML documentation could not be found.\n\n"
+               "For a source checkout, run 'py scripts/build_runtime_help.py' "
+               "from the repository root. For an installed application, "
+               "check that help/html/index.html was packaged."));
+        return;
+    }
+    if (!QDesktopServices::openUrl(QUrl::fromLocalFile(indexFile))) {
+        QMessageBox::warning(this, tr("Cannot open documentation"),
+            tr("Could not open the local documentation in a browser:\n%1")
+                .arg(indexFile));
+    }
 }
 
 void MainWindow::on_actionSunPosition_triggered()

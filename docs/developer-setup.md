@@ -1,76 +1,57 @@
-# Developer Setup
+# Developer setup and tests
 
-## VS Code Settings Policy
+## Prerequisites and configuration
 
-The tracked `.vscode/settings.json` file should contain only portable workspace settings that are useful to all contributors. Do not commit machine-specific paths, local install prefixes, SDK paths, or installed executable paths there.
+Tonatiuh++ uses CMake and C++20, Qt 6, Coin3D, SoQt, Eigen, and other dependencies configured by the repository. The source of truth for exact dependencies and versions is `source/CMakeLists.txt`, `scripts/build_deps.py`, and `.github/workflows/ci.yml`.
 
-Keep local CMake values in an untracked `CMakeUserPresets.json` file or pass them on the command line.
+Keep personal SDK locations and installation directories outside tracked `.vscode/settings.json`: use a local, untracked `CMakeUserPresets.json` or CMake command-line cache arguments instead. Do not edit third-party dependencies or the scientific reference files just to get a build to pass.
 
-## GoogleTest Unit Tests
+## Windows (VS Code / PowerShell)
 
-When `BUILD_TESTING` is enabled, CMake registers unit tests with CTest through GoogleTest. Configuration first tries `find_package(GTest CONFIG QUIET)`; if no package config is found, it uses `FetchContent` to download the pinned GoogleTest `v1.14.0` release into the build tree. GoogleTest is not vendored in this repository.
+From the repository root, with the project's dependencies already configured:
 
-For offline configuration, install GoogleTest locally and make it discoverable with `CMAKE_PREFIX_PATH`, or configure with `-DBUILD_TESTING=OFF`.
+```powershell
+cmake -S source -B build -G "Visual Studio 17 2022" -A x64 -DBUILD_TESTING=ON
+cmake --build build --config Release --parallel
+ctest --test-dir build -C Release --output-on-failure
+```
 
-The initial unit-test target can be built and run with:
+Use your existing configured `build` directory when it already works; reconfiguring is not required for documentation-only changes. A clean configure may download GoogleTest through CMake `FetchContent` unless a compatible local `GTest` package is available.
+
+For targeted scientific/headless tests:
+
+```powershell
+ctest --test-dir build -C Release -R '^(scientific[.]|headless[.])' --output-on-failure
+```
+
+CTest labels overlap; use the full CTest run for an authoritative complete result.
+
+## Linux / macOS
+
+The CI workflow configures a Release Ninja build and runs CTest on each platform. Developer configuration is equivalent once the local dependencies and platform-specific packages are installed:
 
 ```sh
-cmake -S source -B build -DBUILD_TESTING=ON
-cmake --build build --target tonatiuhpp_math_tests
+cmake -S source -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
+cmake --build build --parallel
 ctest --test-dir build --output-on-failure
 ```
 
-## Windows VS Code CTest Workflow
+## GUI, standalone headless, and installation
 
-On Windows, headless CTest smoke tests are intended to run against an installed Tonatiuh++ runtime. Keep the machine-specific configuration in `source/CMakeUserPresets.json`; this file is local to the developer machine and is ignored by Git.
+The normal build produces **`tonatiuhpp-gui`** and **`tonatiuhpp-cli`** (`.exe` on Windows) with one shared scientific kernel. On Windows Release, both executables and required DLLs live under `build/bin/Release/`. The CLI is a standalone QCoreApplication program and does not take the old `--headless` switch. The GUI cannot be used as an alternative headless CLI.
 
-For VS Code Testing with CMake Tools, create or update `source/CMakeUserPresets.json` locally:
+Typical build-tree checks from the repository root:
 
-```json
-{
-  "version": 6,
-  "configurePresets": [
-    {
-      "name": "windows-installed-runtime-tests",
-      "displayName": "Windows installed runtime tests",
-      "generator": "Ninja",
-      "binaryDir": "${sourceDir}/../build",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release",
-        "BUILD_TESTING": "ON",
-        "CMAKE_INSTALL_PREFIX": "D:/tonatiuhpp",
-        "TONATIUHPP_TEST_EXECUTABLE": "D:/tonatiuhpp/bin/tonatiuhpp.exe"
-      }
-    }
-  ]
-}
+```powershell
+& .\build\bin\Release\tonatiuhpp-cli.exe --help
+& .\build\bin\Release\tonatiuhpp-cli.exe validate-scene .\examples\benchmarks\cylinder.tnhpp
+& .\build\bin\Release\tonatiuhpp-gui.exe
 ```
 
-The install prefix and test executable must agree:
+Changing the installed command names is intentional. Scripts, shortcuts, and file associations must reference the new names; no old executable aliases are installed.
 
-- `CMAKE_INSTALL_PREFIX=D:/tonatiuhpp` installs the current build into the local runtime tree.
-- `TONATIUHPP_TEST_EXECUTABLE=D:/tonatiuhpp/bin/tonatiuhpp.exe` tells CTest to run the installed executable with its adjacent Qt, Coin, SoQt, plugin, example, and resource files.
+Build-tree tests are **not** a substitute for installed-runtime or real interactive GUI testing. If installed-runtime validation is needed, install to a disposable directory and verify both binaries, native dependencies, plugin discovery, GUI startup and shutdown, and export behavior. Do not install over a working copy during routine refactoring.
 
-In VS Code:
+For delivery configurations, CMake uses `-DBUILD_TESTING=OFF` to exclude test-only binaries and the opt-in native GUI acceptance driver. The release workflow already passes this flag; its P2 installation and three-platform checks require independent validation. No public release is planned as part of routine code cleanup.
 
-1. Select the local `Windows installed runtime tests` configure preset from CMake Tools.
-2. Reconfigure the project so CMake regenerates tests with the local cache values.
-3. Build Tonatiuh++.
-4. Run CMake Tools: `Install` to refresh `D:/tonatiuhpp`.
-5. Run the tests from the Testing pane.
-
-Installed-runtime CTest on Windows must be run after `Install`; otherwise CTest may execute a stale `D:/tonatiuhpp/bin/tonatiuhpp.exe` that does not match the current build tree tests.
-
-The same tests can be run from a terminal after configure/install:
-
-```sh
-ctest --test-dir build --output-on-failure
-```
-
-The same value can be supplied without VS Code:
-
-```sh
-cmake -S source -B build -DBUILD_TESTING=ON -DCMAKE_INSTALL_PREFIX=D:/tonatiuhpp -DTONATIUHPP_TEST_EXECUTABLE=D:/tonatiuhpp/bin/tonatiuhpp.exe
-cmake --build build --target install
-ctest --test-dir build --output-on-failure
-```
+See [Scientific validation](scientific-validation.md) for regression and reference-integrity checks, and [Continuous integration](change-aware-ci.md) for the hosted test policy.

@@ -31,7 +31,7 @@ jobs:
             ifw_platform: macos
             asset_arch: arm64
             macos_arch: arm64
-            macos_app_bundle: TonatiuhPP.app
+            macos_app_bundle: tonatiuhpp-gui.app
     name: Build ${{ matrix.ifw_platform }} ${{ matrix.asset_arch }}
     runs-on: ${{ matrix.os }}
     env:
@@ -164,7 +164,8 @@ jobs:
             libgl1-mesa-dev \
             libglu1-mesa-dev \
             pkg-config \
-            ninja-build
+            ninja-build \
+            patchelf
 
       - name: Install Boost + Eigen (macOS)
         if: runner.os == 'macOS'
@@ -247,13 +248,15 @@ jobs:
         run: |
           set -euo pipefail
 
-          test -x dist/bin/tonatiuhpp
-          test -x dist/bin/tonatiuhpp-bin
+          test -x dist/bin/tonatiuhpp-gui
+          test -x dist/bin/tonatiuhpp-cli
+          test ! -e dist/bin/tonatiuhpp
+          test ! -e dist/bin/tonatiuhpp-bin
           test -f dist/bin/qt.conf
           test -d dist/bin/platforms
           test -f dist/bin/platforms/libqxcb.so
           test -f dist/lib/libQt6Core.so.6
-          grep -q 'QT_BUNDLED_PLUGIN_DIR' dist/bin/tonatiuhpp
+          env -u LD_LIBRARY_PATH -u QT_PLUGIN_PATH -u QT_QPA_PLATFORM_PLUGIN_PATH dist/bin/tonatiuhpp-cli --help >/dev/null
           python - <<'PY'
           import sys
           from pathlib import Path
@@ -290,6 +293,12 @@ jobs:
           MACOS_DIR="${APP_BUNDLE}/Contents/MacOS"
           APP_RESOURCES_DIR="${APP_BUNDLE}/Contents/Resources"
           APP_PLUGINS_DIR="${MACOS_DIR}/plugins"
+          if [ ! -x dist/bin/tonatiuhpp-cli ]; then
+            echo "Missing installed macOS CLI before app-bundle consolidation" >&2
+            exit 1
+          fi
+          mv dist/bin/tonatiuhpp-cli "${MACOS_DIR}/tonatiuhpp-cli"
+          chmod u+x "${MACOS_DIR}/tonatiuhpp-cli"
           mkdir -p "${FRAMEWORKS_DIR}"
           mkdir -p "${APP_RESOURCES_DIR}"
           mkdir -p "${APP_PLUGINS_DIR}"
@@ -299,7 +308,8 @@ jobs:
             [ -n "${dylib}" ] || continue
             PRIVATE_DYLIBS+=("${dylib}")
           done < <(
-            otool -L "${APP_EXEC}" | tail -n +2 | awk '{print $1}' | while read -r dep; do
+            { otool -L "${APP_EXEC}"; otool -L "${MACOS_DIR}/tonatiuhpp-cli"; } |
+            grep -E '^[[:space:]]' | awk '{print $1}' | while read -r dep; do
               base="$(basename "${dep}")"
               if [[ "${base}" == libTonatiuh*.dylib && -f "dist/bin/${base}" ]]; then
                 echo "${base}"
@@ -339,6 +349,7 @@ jobs:
           }
 
           ensure_rpath "${APP_EXEC}" "@executable_path/../Frameworks"
+          ensure_rpath "${MACOS_DIR}/tonatiuhpp-cli" "@executable_path/../Frameworks"
 
           for dylib in "${PRIVATE_DYLIBS[@]}"; do
             src="dist/bin/${dylib}"
@@ -350,6 +361,7 @@ jobs:
           done
 
           rewrite_private_refs "${APP_EXEC}"
+          rewrite_private_refs "${MACOS_DIR}/tonatiuhpp-cli"
           for dylib in "${PRIVATE_DYLIBS[@]}"; do
             rewrite_private_refs "${FRAMEWORKS_DIR}/${dylib}"
             rm -f "dist/bin/${dylib}"
@@ -415,6 +427,7 @@ jobs:
             exit 1
           fi
 
+          test -x "${APP_BUNDLE_PATH}/Contents/MacOS/tonatiuhpp-cli"
           INFO_PLIST="${APP_BUNDLE_PATH}/Contents/Info.plist"
           if [ ! -f "${INFO_PLIST}" ]; then
             echo "Missing Info.plist: ${INFO_PLIST}" >&2

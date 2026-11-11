@@ -653,7 +653,7 @@ int HeadlessScriptHost::runScript(const QString& fileName) const
           return undefined;
         }
         return function() {
-          throw new Error("Headless script API does not support '" + String(property) + "'. Available APIs: print(value), tn.getScene(), tn.Clear(), tn.InsertScene(node), tn.saveScene(path), tn.loadScene(path), tn.FindInterception(surface, rays), tn.ChangeSunPosition(...), tn.SetValue(url, field, value), tn.SetRaysGrid(width, height), tn.SetRaysNumber(count), photon export setters, tn.Run() (bounded File append / No export), tn.writeJson(path, value), tn.validateScene(path), tn.runBenchmark(path), tn.traceScene(options), tn.startTrace(options), tn.cancelTrace(), tn.finishTrace().");
+          throw new Error("Headless script API does not support '" + String(property) + "'. Available APIs: print(value), tn.getScene(), tn.Clear(), tn.InsertScene(node), tn.saveScene(path), tn.loadScene(path), tn.FindInterception(surface, rays), tn.ChangeSunPosition(...), tn.SetValue(url, field, value), tn.SetRaysGrid(width, height), tn.SetRaysNumber(count), photon export setters, tn.Run() (File append / No export), tn.writeJson(path, value), tn.validateScene(path), tn.runBenchmark(path), tn.traceScene(options), tn.startTrace(options), tn.cancelTrace(), tn.finishTrace().");
         };
       }
     });
