@@ -1,5 +1,5 @@
 // M5.1: one production TonatiuhKernel, libraries, simulation and script service,
-// linked by GUI and a genuine QCoreApplication standalone executable.
+// linked by GUI and CLI; this file is only a test probe.
 #include <QCoreApplication>
 #include <QDir>
 #include <QFileInfo>
@@ -11,7 +11,6 @@
 #include "core/PhotonExportFileService.h"
 #include "core/SimulationSession.h"
 #include "core/TonatiuhCore.h"
-#include "headless/HeadlessCommandRunner.h"
 #include "kernel/photons/PhotonsSettings.h"
 #include "script/ScriptHost.h"
 #include "script/ScriptSceneDocument.h"
@@ -65,6 +64,5 @@ int main(int argc, char** argv)
                 QStringLiteral("M5PluginSmoke_parameters.txt"))).isFile()) return 11;
         return 0;
     }
-    HeadlessCommandRunner runner;
-    return runner.run(app.arguments());
+    return 64; // Test-only executable: no production CLI fallback.
 }

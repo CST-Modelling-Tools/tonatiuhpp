@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.28)
 
 # Project name and version
-set(ProjectName TonatiuhLibraries)
+set(ProjectName TonatiuhppLibraries)
 set(ProjectVersion "${CMAKE_PROJECT_VERSION}")
 project(${ProjectName} VERSION ${ProjectVersion})
 
@@ -97,8 +97,7 @@ list(REMOVE_ITEM HEADERS
 
 # Define library target
 add_library(${ProjectName} SHARED ${SOURCES} ${HEADERS})
-# P2a physical ABI library filename; target identity follows in P2b.
-set_target_properties(${ProjectName} PROPERTIES OUTPUT_NAME "TonatiuhppLibraries")
+# The permanent CMake target name is the on-disk shared-library name.
 
 # Include directories for the target
 target_include_directories(${ProjectName} 

@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.28)
 
 # Define project
-set(ProjectName TonatiuhKernel)
+set(ProjectName TonatiuhppKernel)
 set(ProjectVersion "${CMAKE_PROJECT_VERSION}")
 project(${ProjectName} VERSION ${ProjectVersion})
 
@@ -161,8 +161,7 @@ set(RESOURCES resources.qrc)
 
 # Create the library
 add_library(${ProjectName} SHARED ${SOURCES} ${HEADERS} ${RESOURCES})
-# P2a physical ABI library filename; target identity follows in P2b.
-set_target_properties(${ProjectName} PROPERTIES OUTPUT_NAME "TonatiuhppKernel")
+# The permanent CMake target name is the on-disk shared-library name.
 
 # Target-specific include directories
 target_include_directories(${ProjectName} 
@@ -180,7 +179,7 @@ target_link_libraries(${ProjectName}
         Coin::Coin
         Qt6::Core
         Qt6::Gui
-        TonatiuhLibraries
+        TonatiuhppLibraries
 )
 
 
@@ -194,7 +193,7 @@ target_compile_definitions(${ProjectName} PRIVATE TONATIUH_KERNEL_EXPORT)
 
 # M5.1: only optional GUI presentation code uses Widgets and PrintSupport.
 # Physics, scene and photon exporter plugins link just ONE shared kernel.
-add_library(TonatiuhGuiPresentation SHARED
+add_library(TonatiuhppGuiPresentation SHARED
     photons/PhotonsWidget.cpp
     photons/PhotonsWidget.h
     ../libraries/Coin3D/ContainerEditorMFVec2.cpp
@@ -210,19 +209,18 @@ add_library(TonatiuhGuiPresentation SHARED
     ../plugins/photons/PhotonsFile/PhotonsFileWidget.cpp
     ../plugins/photons/PhotonsFile/PhotonsFileWidget.h
     ../plugins/photons/PhotonsFile/PhotonsFileWidget.ui)
-target_compile_definitions(TonatiuhGuiPresentation PRIVATE
+target_compile_definitions(TonatiuhppGuiPresentation PRIVATE
     TONATIUH_GUI_PRESENTATION_EXPORT)
-set_target_properties(TonatiuhGuiPresentation PROPERTIES
-    OUTPUT_NAME "TonatiuhppGuiPresentation")
-target_include_directories(TonatiuhGuiPresentation PRIVATE
+
+target_include_directories(TonatiuhppGuiPresentation PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/..
     ${CMAKE_CURRENT_SOURCE_DIR}/../libraries
     ${CMAKE_CURRENT_SOURCE_DIR}/../plugins/photons/PhotonsFile
     ${COIN3D_INCLUDE_DIR})
-target_link_libraries(TonatiuhGuiPresentation PRIVATE
-    TonatiuhKernel TonatiuhLibraries Coin::Coin
+target_link_libraries(TonatiuhppGuiPresentation PRIVATE
+    TonatiuhppKernel TonatiuhppLibraries Coin::Coin
     Qt6::Core Qt6::Gui Qt6::Widgets Qt6::PrintSupport)
-install(TARGETS TonatiuhGuiPresentation
+install(TARGETS TonatiuhppGuiPresentation
     RUNTIME DESTINATION "${GLOBAL_INSTALL_BIN_DIR}"
     LIBRARY DESTINATION "${GLOBAL_INSTALL_BIN_DIR}"
     ARCHIVE DESTINATION "${GLOBAL_INSTALL_BIN_DIR}")

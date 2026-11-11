@@ -18,7 +18,7 @@ ctest --test-dir build -C Release --output-on-failure
 
 These checks validate the frozen reference integrity, the audit tool's error handling, and the configured CTest suite (including bounded scientific/headless comparisons). They **do not** perform a new 500-million-ray simulation. On Linux/macOS single-config builds, omit `-C Release` if unnecessary.
 
-The source contains more targeted tests for canonical photon exports, fixed-seed scene hits, ordered per-ray histories, script data, flux analysis, tracker behavior, and headless cross-adapter equality. The active test definitions are in `tests/CMakeLists.txt` and `tests/scientific/CMakeLists.txt`.
+The source contains more targeted tests for canonical photon exports, fixed-seed scene hits, ordered per-ray histories, script data, flux analysis, tracker behavior, and independent CLI-process repeatability and GUI-style scientific checks. The active test definitions are in `tests/CMakeLists.txt` and `tests/scientific/CMakeLists.txt`.
 
 ## Accepted full-scale flux reference
 
@@ -34,11 +34,11 @@ On 2026-11-10, the Windows M5 Release executable with SHA-256 `8482dad2cfea76238
 
 ## Optional full 500-million-ray manual verification
 
-**Use only by a deliberate scientific acceptance decision, never as a routine CI step.** The test is computationally expensive. From the Windows repository root, first build the Release executable, ensure a clean source revision, and check that the frozen reference is intact.
+**Historical opt-in procedure only: do not execute it as part of this refactoring. Use only by a separate deliberate scientific acceptance decision, never as a routine CI step.** The test is computationally expensive. From the Windows repository root, first build the Release executable, ensure a clean source revision, and check that the frozen reference is intact.
 
 ```powershell
 $root = (Get-Location).Path
-$exe = (Resolve-Path 'build/application/Release/tonatiuhpp.exe').Path
+$exe = (Resolve-Path 'build/bin/Release/tonatiuhpp-cli.exe').Path
 $evidence = Join-Path $root ('build/a0-full-' + (Get-Date -Format 'yyyyMMdd-HHmmss'))
 New-Item -ItemType Directory -Path $evidence -Force | Out-Null
 

@@ -23,7 +23,7 @@ foreach(_mode IN ITEMS record_one record_two no_record)
     COMMAND "${CMAKE_COMMAND}" -E env
       "TONATIUHPP_A0_RAY_HISTORY_FILE=${_history}"
       "TONATIUHPP_A0_TRACE_SIGNATURE_FILE=${_hits}"
-      "${TEST_EXECUTABLE}" --headless trace-scene "${SCENE_FILE}"
+      "${TEST_EXECUTABLE}"  trace-scene "${SCENE_FILE}"
       --rays 20001 --seed 123456789 ${_export_args} ${_tracker_args}
     WORKING_DIRECTORY "${TEST_WORKING_DIRECTORY}"
     RESULT_VARIABLE _code

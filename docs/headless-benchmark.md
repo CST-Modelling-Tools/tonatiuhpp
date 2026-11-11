@@ -1,22 +1,22 @@
 # Headless commands, scripting, and benchmark
 
-Tonatiuh++ supports nonvisual operation through the GUI executable's `--headless` mode and an independent executable, `tonatiuhpp_m5_core_headless`. Both use the same scientific kernel, simulation services, official plugins, and scripting implementation.
+Tonatiuh++ supports nonvisual operation through the permanent standalone `tonatiuhpp-cli` executable (`tonatiuhpp-cli.exe` on Windows). It shares one scientific kernel, simulation services, official plugins, and scripting implementation with `tonatiuhpp-gui`. The GUI no longer offers a `--headless` command path.
 
-The commands below use `tonatiuhpp --headless`; when using the standalone executable, use its executable name with the same headless command interface.
+The CLI commands below are direct commands. There is no `--headless` prefix or old executable alias.
 
 ## Commands
 
 ```text
-tonatiuhpp --headless --help
-tonatiuhpp --headless validate-scene examples/benchmarks/cylinder.tnhpp
-tonatiuhpp --headless trace-scene examples/benchmarks/cylinder.tnhpp --rays 10000 --seed 123456789 --no-export
-tonatiuhpp --headless benchmark examples/benchmarks/benchmark_config_v2.example.json
-tonatiuhpp --headless run-script path/to/script.tnhpps
+tonatiuhpp-cli --help
+tonatiuhpp-cli validate-scene examples/benchmarks/cylinder.tnhpp
+tonatiuhpp-cli trace-scene examples/benchmarks/cylinder.tnhpp --rays 10000 --seed 123456789 --no-export
+tonatiuhpp-cli benchmark examples/benchmarks/benchmark_config_v2.example.json
+tonatiuhpp-cli run-script path/to/script.tnhpps
 ```
 
 **Do not run the provided v2 benchmark configuration casually:** it specifies 500,000,000 rays. See [Scientific validation](scientific-validation.md) for smaller routine checks and an explicitly controlled full-scale run.
 
-The CLI reports successful completion or an error through its exit status; argument errors return code `2`. The published CLI and the standalone client require real runtime dependencies and official plugins.
+The CLI reports successful completion or an error through its exit status; argument errors return code `2`. The standalone CLI requires its common runtime dependencies and official plugins.
 
 ## Scene tracing and File export
 
@@ -25,16 +25,16 @@ The CLI reports successful completion or an error through its exit status; argum
 No-export example:
 
 ```text
-tonatiuhpp --headless trace-scene examples/benchmarks/cylinder.tnhpp --rays 2048 --seed 123456789 --no-export
+tonatiuhpp-cli trace-scene examples/benchmarks/cylinder.tnhpp --rays 2048 --seed 123456789 --no-export
 ```
 
 File export example (create a fresh **empty absolute** directory first):
 
 ```text
-tonatiuhpp --headless trace-scene examples/benchmarks/cylinder.tnhpp --rays 2048 --seed 123456789 --photon-export-dir C:/TonatiuhTemp/PhotonOutput --photon-file-name RunA --photon-file-size -1
+tonatiuhpp-cli trace-scene examples/benchmarks/cylinder.tnhpp --rays 2048 --seed 123456789 --photon-export-dir C:/TonatiuhTemp/PhotonOutput --photon-file-name RunA --photon-file-size -1
 ```
 
-Optional File-export switches are `--photon-file-name NAME`, `--photon-file-size N` (`-1` selects one file), and repeatable `--photon-surface URL` for surface selection. Direct File export is limited to **10,000,000 rays** and refuses conflicting options or unsafe output destinations. File-export and no-export modes are mutually exclusive.
+Optional File-export switches are `--photon-file-name NAME`, `--photon-file-size N` (`-1` selects one file), and repeatable `--photon-surface URL` for surface selection. Direct File export has **no artificial 10-million-ray total limit**. It can process large runs while flushing photon records in bounded batches to disk. The requested ray count must fit the supported ray-count type, and the filesystem must have enough capacity; write failures remain fatal. `--photon-file-size N` controls photons **per output segment**, not the total number of photons allowed. The exporter still rejects conflicting options and unsafe output destinations. File-export and no-export modes are mutually exclusive.
 
 The `--update-trackers` option is explicit: it applies GUI-like tracker updates in `trace-scene`. Do not assume an omitted option has the same effective tracker behavior for every scene.
 
@@ -45,7 +45,7 @@ For reproducibility, compare scientific hit/history signatures and canonical pho
 Use:
 
 ```text
-tonatiuhpp --headless run-script path/to/script.tnhpps
+tonatiuhpp-cli run-script path/to/script.tnhpps
 ```
 
 The shared `ScriptHost` supplies JavaScript execution and script-relative paths. The basic nonvisual API includes:

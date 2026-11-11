@@ -12,10 +12,10 @@ This Markdown file is kept because `.github/workflows/release.yml` uses `docs/re
 
 ## Headless operation
 
-- GUI executable: `tonatiuhpp --headless`.
-- Independent installed QCoreApplication executable: `tonatiuhpp_m5_core_headless`.
+- GUI executable: `tonatiuhpp-gui` (Windows `.exe`), with no headless CLI dispatch.
+- Independent QCoreApplication client: `tonatiuhpp-cli` (Windows `.exe`), using direct commands without `--headless` and no old executable aliases.
 - Supported nonvisual commands: `--help`, `validate-scene`, `trace-scene`, `benchmark`, and `run-script`.
-- Direct `trace-scene` supports no export or bounded File photon export to an existing empty absolute directory, with optional surface and file settings.
+- Direct `trace-scene` supports no export or File photon export without an arbitrary total ray-count cap to an existing empty absolute directory, with optional surface and file settings.
 - Shared JavaScript host with script-local paths, scene and domain services, and explicit GUI-only presentation boundaries.
 
 See [Headless commands and benchmark](headless-benchmark.md) for current syntax and limitations.

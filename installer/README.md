@@ -54,7 +54,7 @@ This will:
 
 The script only allows the package data target under the intended Qt IFW package path, to avoid accidental staging elsewhere.
 
-On Linux, the staging step validates that the launcher, `bin/qt.conf`, bundled
+On Linux, the staging step validates that both direct executables, `bin/qt.conf`, bundled
 Qt runtime libraries under `lib/`, and bundled Qt plugin directories under `bin/`
 come from the same Qt build used for Tonatiuh++. Packaging fails if the staged
 payload points at system Qt plugins or mixes Qt runtime/plugin versions.

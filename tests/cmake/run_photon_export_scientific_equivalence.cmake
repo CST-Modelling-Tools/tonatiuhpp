@@ -25,7 +25,7 @@ foreach(_run IN ITEMS first second baseline)
   execute_process(
     COMMAND "${CMAKE_COMMAND}" -E env
       "TONATIUHPP_A0_TRACE_SIGNATURE_FILE=${_signature}"
-      "${TEST_EXECUTABLE}" --headless trace-scene "${SCENE_FILE}"
+      "${TEST_EXECUTABLE}"  trace-scene "${SCENE_FILE}"
       --rays 20001 --seed 123456789 ${_export_args} ${_tracker_args}
     WORKING_DIRECTORY "${TEST_WORKING_DIRECTORY}"
     RESULT_VARIABLE _exit OUTPUT_VARIABLE _stdout ERROR_VARIABLE _stderr

@@ -12,7 +12,7 @@ cmake_minimum_required(VERSION 3.20) # 3.20+ gives modern features; raise if you
 project(TonatiuhPP VERSION 0.1.8.26 LANGUAGES CXX)
 
 # Name of the main GUI target (used for install-time deployment; logical target name)
-set(MAIN_APP_TARGET "TonatiuhPP" CACHE STRING "Main GUI executable target name")
+set(MAIN_APP_TARGET "tonatiuhpp-gui")
 
 # Options
 option(TONATIUHPP_BUNDLE_RUNTIME "Bundle Qt/Coin runtime libs on install (Linux/Windows)" ON)
@@ -500,8 +500,11 @@ endif()
 add_subdirectory(application)
 add_subdirectory(plugins)
 
+file(GENERATE OUTPUT "${CMAKE_BINARY_DIR}/p2-artifacts-$<CONFIG>.txt"
+  CONTENT "GUI=$<TARGET_FILE:tonatiuhpp-gui>\nCLI=$<TARGET_FILE:tonatiuhpp-cli>\nKERNEL=$<TARGET_FILE:TonatiuhppKernel>\nLIBRARIES=$<TARGET_FILE:TonatiuhppLibraries>\nPRESENTATION=$<TARGET_FILE:TonatiuhppGuiPresentation>\n")
+
 # M5.1 official scene + File exporter plugin links must be compatible with the
-# same QtWidgets/SoQt-free TonatiuhKernel as the QCoreApplication CLI.
+# same QtWidgets/SoQt-free TonatiuhppKernel as the QCoreApplication CLI.
 # This runs AFTER add_subdirectory(plugins), when plugin targets exist.
 foreach(_m5_plugin IN ITEMS
     AirMirval MaterialSpecular PhotonsFile
@@ -523,13 +526,14 @@ endif()
 # to build/bin/<config>. This always-running dependency also fixes incremental
 # builds that previously skipped an executable's POST_BUILD copy hook.
 if(WIN32)
-  set(_tonatiuhpp_p1_executables tonatiuhpp tonatiuhpp_m5_core_headless)
+  set(_tonatiuhpp_p1_executables tonatiuhpp-gui tonatiuhpp-cli)
   if(BUILD_TESTING)
     list(APPEND _tonatiuhpp_p1_executables
       tonatiuhpp_scientific_equivalence_tests
       tonatiuhpp_math_tests tonatiuhpp_math_box2d_tests
       tonatiuhpp_standard_random_tests
-      tonatiuhpp_m5_runtime_smoke tonatiuhpp_m5_services_smoke)
+      tonatiuhpp_m5_runtime_smoke tonatiuhpp_m5_services_smoke
+      tonatiuhpp_cli_components_smoke)
   endif()
 
   set(_tonatiuhpp_p1_runtime_dll_expressions)
@@ -696,6 +700,33 @@ if(UNIX AND NOT APPLE AND TONATIUHPP_BUNDLE_RUNTIME)
        endif()
      endif()
     ")
+
+  # Qt plugins copied from the SDK may retain an SDK RUNPATH. For deployed
+  # direct ELF executables, make their Qt dependencies resolve to <prefix>/lib.
+  find_program(TONATIUHPP_PATCHELF_EXECUTABLE NAMES patchelf)
+  if(NOT TONATIUHPP_PATCHELF_EXECUTABLE)
+    message(STATUS "patchelf not found: required only for installing bundled Linux Qt plugins")
+  endif()
+  install(CODE
+    "if(NOT EXISTS \"${TONATIUHPP_PATCHELF_EXECUTABLE}\")
+       message(FATAL_ERROR \"Bundled Linux runtime install requires patchelf.\")
+     endif()
+     set(_installed_bindir \"\${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR}\")
+     set(_installed_libdir \"\${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}\")
+     file(GLOB_RECURSE _installed_plugins \"\${_installed_bindir}/*.so\")
+     foreach(_plugin IN LISTS _installed_plugins)
+       get_filename_component(_plugin_dir \"\${_plugin}\" DIRECTORY)
+       file(RELATIVE_PATH _rel_lib \"\${_plugin_dir}\" \"\${_installed_libdir}\")
+       file(RELATIVE_PATH _rel_bin \"\${_plugin_dir}\" \"\${_installed_bindir}\")
+       execute_process(
+         COMMAND \"${TONATIUHPP_PATCHELF_EXECUTABLE}\" --set-rpath
+                 \"$ORIGIN/\${_rel_lib}:$ORIGIN/\${_rel_bin}:$ORIGIN\" \"\${_plugin}\"
+         RESULT_VARIABLE _patch_exit ERROR_VARIABLE _patch_error)
+       if(NOT _patch_exit EQUAL 0)
+         message(FATAL_ERROR \"Failed to set bundled plugin RUNPATH for \${_plugin}: \${_patch_error}\")
+       endif()
+     endforeach()"
+  )
 endif()
 
 # ----------------------------
@@ -735,27 +766,25 @@ if(WIN32)
 
   find_program(WINDEPLOYQT_EXECUTABLE NAMES windeployqt HINTS "${_qt_bin}")
   if(WINDEPLOYQT_EXECUTABLE AND TONATIUHPP_BUNDLE_RUNTIME)
-    # In multi-config generators, MAIN_APP_TARGET may be suffixed; use generator expression
+    # Deploy both permanent executables into the same installed bin root.
+    # Generator expressions avoid Debug/Release filename guesses.
     install(CODE
-      "set(_installed_exe \"${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR}/${MAIN_APP_TARGET}$<IF:$<CONFIG:Debug>,d,>\")
-       message(STATUS \"Running windeployqt on: \${_installed_exe}\")
-       if(EXISTS \"\${_installed_exe}.exe\")
-         set(_exe \"\${_installed_exe}.exe\")
-       else()
-         set(_exe \"\${_installed_exe}\")
-       endif()
-       execute_process(
-         COMMAND \"${WINDEPLOYQT_EXECUTABLE}\" \"\${_exe}\"
-                 --no-translations --compiler-runtime --verbose 1
-         RESULT_VARIABLE _wdq_rv
-         OUTPUT_VARIABLE _wdq_out
-         ERROR_VARIABLE  _wdq_err
-       )
-       if(NOT _wdq_rv EQUAL 0)
-         message(WARNING \"windeployqt returned code \${_wdq_rv}\")
-         message(STATUS \"windeployqt stdout: \${_wdq_out}\")
-         message(STATUS \"windeployqt stderr: \${_wdq_err}\")
-       endif()"
+      "set(_installed_bindir \"\${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR}\")
+       foreach(_exe_name IN ITEMS
+           \"$<TARGET_FILE_NAME:tonatiuhpp-gui>\"
+           \"$<TARGET_FILE_NAME:tonatiuhpp-cli>\")
+         set(_exe \"\${_installed_bindir}/\${_exe_name}\")
+         if(NOT EXISTS \"\${_exe}\")
+           message(FATAL_ERROR \"Missing installed Tonatiuh++ executable: \${_exe}\")
+         endif()
+         execute_process(
+           COMMAND \"${WINDEPLOYQT_EXECUTABLE}\" \"\${_exe}\"
+                   --no-translations --compiler-runtime --verbose 1
+           RESULT_VARIABLE _wdq_rv OUTPUT_VARIABLE _wdq_out ERROR_VARIABLE _wdq_err)
+         if(NOT _wdq_rv EQUAL 0)
+           message(FATAL_ERROR \"windeployqt failed for \${_exe}: \${_wdq_err}\\n\${_wdq_out}\")
+         endif()
+       endforeach()"
     )
   endif()
 
@@ -823,32 +852,7 @@ else()
   message(STATUS "Resources directory not found: ${_RESOURCES_SRC} (skipping install)")
 endif()
 
-# ----------------------------
-# Linux launcher script
-# ----------------------------
-if(UNIX AND NOT APPLE)
-  # Make the wrapper the default entrypoint in packaged Linux installs.
-  # The real ELF binary is renamed to tonatiuhpp-bin so launching Tonatiuh++
-  # from the archive always goes through the wrapper that exports the bundled
-  # lib/ directory via LD_LIBRARY_PATH.
-  install(CODE
-    "set(_installed_bin \"\${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR}/tonatiuhpp\")
-     set(_installed_real_bin \"\${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR}/tonatiuhpp-bin\")
-     if(EXISTS \"\${_installed_bin}\")
-       if(EXISTS \"\${_installed_real_bin}\")
-         file(REMOVE \"\${_installed_real_bin}\")
-       endif()
-       file(RENAME \"\${_installed_bin}\" \"\${_installed_real_bin}\")
-     else()
-       message(FATAL_ERROR \"Expected installed Linux executable not found: \${_installed_bin}\")
-     endif()")
-
-  install(
-    PROGRAMS "${CMAKE_CURRENT_LIST_DIR}/../scripts/tonatiuhpp.sh"
-    DESTINATION "${CMAKE_INSTALL_BINDIR}"
-    RENAME "tonatiuhpp"
-  )
-endif()
+# P2: Linux installs two direct ELF executables without compatibility wrappers.
 
 # ----------------------------
 # ✅ Final Status

@@ -11,7 +11,7 @@ file(MAKE_DIRECTORY "${OUTPUT_DIR}/script")
 file(COPY_FILE "${TEST_SCRIPT}"
   "${OUTPUT_DIR}/script/m3_exit_phase3b2a_export_config.tnhpps" ONLY_IF_DIFFERENT)
 execute_process(
-  COMMAND "${TEST_EXECUTABLE}" --headless run-script
+  COMMAND "${TEST_EXECUTABLE}"  run-script
     "${OUTPUT_DIR}/script/m3_exit_phase3b2a_export_config.tnhpps"
   WORKING_DIRECTORY "${OUTPUT_DIR}/script"
   RESULT_VARIABLE result

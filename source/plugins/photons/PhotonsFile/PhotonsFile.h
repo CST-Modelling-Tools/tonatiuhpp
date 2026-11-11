@@ -2,6 +2,7 @@
 
 #include <QMap>
 #include <QString>
+#include <QtGlobal>
 
 #include "kernel/photons/PhotonsAbstract.h"
 
@@ -40,8 +41,8 @@ private:
     bool m_oneFile;
     ulong m_nPhotonsPerFile;
 
-    int m_fileCurrent;
-    ulong m_exportedPhotons;
+    quint64 m_fileCurrent;
+    quint64 m_exportedPhotons;
     double m_photonPower;
     QVector<InstanceNode*> m_surfaces; //? map
 	QVector<Transform> m_surfaceWorldToObject;

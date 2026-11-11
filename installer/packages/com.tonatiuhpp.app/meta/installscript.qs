@@ -1,6 +1,6 @@
 function tonatiuhExecutablePath()
 {
-    var path = installer.value("TargetDir") + "/bin/tonatiuhpp.exe";
+    var path = installer.value("TargetDir") + "/bin/tonatiuhpp-gui.exe";
     return path.replace(/\//g, "\\");
 }
 

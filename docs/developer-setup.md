@@ -38,10 +38,20 @@ ctest --test-dir build --output-on-failure
 
 ## GUI, standalone headless, and installation
 
-The normal build produces the GUI executable and the independent `tonatiuhpp_m5_core_headless` program. The independent headless executable uses the same scientific targets; it is installed alongside the GUI executable and official plugins.
+The normal build produces **`tonatiuhpp-gui`** and **`tonatiuhpp-cli`** (`.exe` on Windows) with one shared scientific kernel. On Windows Release, both executables and required DLLs live under `build/bin/Release/`. The CLI is a standalone QCoreApplication program and does not take the old `--headless` switch. The GUI cannot be used as an alternative headless CLI.
+
+Typical build-tree checks from the repository root:
+
+```powershell
+& .\build\bin\Release\tonatiuhpp-cli.exe --help
+& .\build\bin\Release\tonatiuhpp-cli.exe validate-scene .\examples\benchmarks\cylinder.tnhpp
+& .\build\bin\Release\tonatiuhpp-gui.exe
+```
+
+Changing the installed command names is intentional. Scripts, shortcuts, and file associations must reference the new names; no old executable aliases are installed.
 
 Build-tree tests are **not** a substitute for installed-runtime or real interactive GUI testing. If installed-runtime validation is needed, install to a disposable directory and verify both binaries, native dependencies, plugin discovery, GUI startup and shutdown, and export behavior. Do not install over a working copy during routine refactoring.
 
-For delivery configurations, CMake uses `-DBUILD_TESTING=OFF` to exclude test-only binaries and the opt-in native GUI acceptance driver. The release workflow already passes this flag. No public release is planned as part of routine code cleanup.
+For delivery configurations, CMake uses `-DBUILD_TESTING=OFF` to exclude test-only binaries and the opt-in native GUI acceptance driver. The release workflow already passes this flag; its P2 installation and three-platform checks require independent validation. No public release is planned as part of routine code cleanup.
 
 See [Scientific validation](scientific-validation.md) for regression and reference-integrity checks, and [Continuous integration](change-aware-ci.md) for the hosted test policy.

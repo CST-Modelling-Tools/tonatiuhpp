@@ -35,7 +35,7 @@ endforeach()
 
 foreach(side headless_a headless_b)
   execute_process(
-    COMMAND "${TEST_EXECUTABLE}" --headless run-script
+    COMMAND "${TEST_EXECUTABLE}"  run-script
       "${OUTPUT_DIR}/script/m3_exit_phase3b2b1_${side}.tnhpps"
     WORKING_DIRECTORY "${OUTPUT_DIR}/script"
     RESULT_VARIABLE code OUTPUT_VARIABLE stdout ERROR_VARIABLE stderr
@@ -66,7 +66,7 @@ endif()
 # headless scripted Run adapter must instead refuse any nonempty directory.
 file(SHA256 "${OUTPUT_DIR}/headless_a/PhotonMap.dat" initial_hash)
 execute_process(
-  COMMAND "${TEST_EXECUTABLE}" --headless run-script
+  COMMAND "${TEST_EXECUTABLE}"  run-script
     "${OUTPUT_DIR}/script/m3_exit_phase3b2b1_headless_a.tnhpps"
   WORKING_DIRECTORY "${OUTPUT_DIR}/script"
   RESULT_VARIABLE rejected OUTPUT_VARIABLE stdout ERROR_VARIABLE stderr

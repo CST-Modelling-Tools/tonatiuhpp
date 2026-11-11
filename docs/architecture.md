@@ -4,23 +4,23 @@
 
 Tonatiuh++ provides interactive concentrated-solar-power ray tracing, scientific scene plugins, scripting, photon File export, and nonvisual automation. The current implementation shares its scientific engine among the graphical application and headless clients.
 
-The supported application entry points are:
+The permanent application entry points are:
 
-- `tonatiuhpp` (on Windows, `tonatiuhpp.exe`): interactive GUI and an existing `--headless` path which uses `QCoreApplication` rather than opening `MainWindow`.
-- `tonatiuhpp_m5_core_headless`: independent installed `QCoreApplication` executable for the same nonvisual commands and scientific services.
+- `tonatiuhpp-gui` (Windows: `tonatiuhpp-gui.exe`): the Qt Widgets/SoQt interactive application.
+- `tonatiuhpp-cli` (Windows: `tonatiuhpp-cli.exe`): the QCoreApplication-only command-line client; use `tonatiuhpp-cli --help`, `validate-scene`, `trace-scene`, `run-script`, or `benchmark` directly, without `--headless`.
 
-Both headless entry points call the same scientific implementation. They are not separately maintained physics engines.
+Both reuse the same physical scientific kernel, compiled services, and official plugins. The retired public executable names have no compatibility aliases.
 
 ## Build targets and dependencies
 
 | Target | Current responsibility |
 | --- | --- |
-| `TonatiuhKernel` | Scientific and optical scene/ray-tracing types and algorithms |
-| `TonatiuhLibraries` | Nonvisual utility and numerical support |
+| `TonatiuhppKernel` | Scientific and optical scene/ray-tracing types and algorithms |
+| `TonatiuhppLibraries` | Nonvisual utility and numerical support |
 | `TonatiuhSimulation` | Shared preparation, execution, and simulation-session services |
 | `TonatiuhScriptRuntime` | GUI-independent script execution and shared runtime services |
 | `TonatiuhScripting` | Shared scene/document and scripting services |
-| `TonatiuhGuiPresentation` | GUI-only widgets, visualization, and presentation support |
+| `TonatiuhppGuiPresentation` | GUI-only widgets, visualization, and presentation support |
 
 Build entry point: `source/CMakeLists.txt`; individual target declarations live in `source/kernel/CMakeLists.txt`, `source/libraries/CMakeLists.txt`, and `source/application/CMakeLists.txt`.
 
@@ -42,6 +42,6 @@ Other historical plugin source directories may still exist in the repository but
 
 ## Scientific acceptance boundaries
 
-The current shared engine has passed native Windows scientific/GUI/headless acceptance and the project's three-platform CI suite. The full 500-million-ray Windows heliostat benchmark also matched the unchanged frozen reference exactly on the M5 merge candidate. These are validations of the specified cases, not a claim that all possible optical systems have been exhaustively tested or that platform packages are ready for release.
+The merged M5 scientific implementation previously passed native Windows and three-platform CI acceptance; the integrated P2 executable and packaging migration requires a new native and hosted validation run. The full 500-million-ray Windows heliostat benchmark also matched the unchanged frozen reference exactly on the M5 merge candidate. These are validations of the specified cases, not a claim that all possible optical systems have been exhaustively tested or that platform packages are ready for release.
 
 See [Scientific validation](scientific-validation.md) for the exact reference and safe verification commands. Release packaging and installation validation are separate activities.

@@ -365,11 +365,17 @@ jobs:
 
       # TONATIUHPP_P1_CENTRAL_WIN_RUNTIME: Windows CTest uses build/bin/<config>
       # with build-staged runtime DLLs; no PATH workaround.
+      - name: Verify permanent GUI/CLI architecture
+        if: ${{ steps.changes.outputs.docs_only != 'true' }}
+        shell: bash
+        run: |
+          ctest --test-dir build -C Release --output-on-failure -R '^architecture[.]gui_cli_runtime_boundary$'
+
       - name: Verify headless tests are registered
         if: ${{ steps.changes.outputs.docs_only != 'true' }}
         shell: bash
         run: |
-          ctest --test-dir build -N -R '^headless[.]' > build/headless-discovery.txt
+          ctest --test-dir build -C Release -N -R '^headless[.]' > build/headless-discovery.txt
           cat build/headless-discovery.txt
           grep -Fq 'headless.trace_cylinder_scene' build/headless-discovery.txt
           grep -Fq 'headless.benchmark_repeatability' build/headless-discovery.txt
@@ -382,7 +388,7 @@ jobs:
         if: ${{ steps.changes.outputs.docs_only != 'true' }}
         shell: bash
         run: |
-          ctest --test-dir build --output-on-failure
+          ctest --test-dir build -C Release --output-on-failure
 
       - name: Upload build artifacts
         if: ${{ always() && steps.changes.outputs.docs_only != 'true' }}

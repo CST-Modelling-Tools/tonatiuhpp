@@ -4,7 +4,7 @@ This folder documents **the current codebase**, not the sequence of changes used
 
 ## Start here
 
-- [Architecture](architecture.md): shared simulation and scripting services, GUI/headless separation, and official plugins.
+- [Architecture](architecture.md): shared simulation and scripting services, permanent GUI/CLI separation, and official plugins.
 - [Build and test](developer-setup.md): development setup, native testing, and safe local build practices.
 - [Headless commands and benchmark](headless-benchmark.md): CLI usage, script interface, photon File export, and benchmark file formats.
 - [Scientific validation](scientific-validation.md): reproducibility checks, immutable benchmark inputs, and optional full-scale verification.

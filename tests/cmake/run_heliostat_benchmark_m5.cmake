@@ -77,7 +77,7 @@ foreach(_run RANGE 1 ${_runs})
   string(JSON _config SET "${_config}" flux_grid_output_file "\"${_csv_path}\"")
   file(WRITE "${_config_path}" "${_config}\n")
   execute_process(
-    COMMAND "${TEST_EXECUTABLE}" --headless benchmark "${_config_path}"
+    COMMAND "${TEST_EXECUTABLE}"  benchmark "${_config_path}"
     ${_workdir}
     RESULT_VARIABLE _exit
     OUTPUT_VARIABLE _stdout

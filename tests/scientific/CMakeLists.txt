@@ -86,8 +86,8 @@ target_link_libraries(tonatiuhpp_scientific_equivalence_tests PRIVATE
   Qt6::Gui
   Qt6::Concurrent
   Qt6::Qml
-  TonatiuhLibraries
-  TonatiuhKernel
+  TonatiuhppLibraries
+  TonatiuhppKernel
 )
 
 if(MSVC)
@@ -131,7 +131,7 @@ if(TONATIUHPP_BUILD_GUI_SUN_DIAGNOSTIC)
   )
   target_link_libraries(tonatiuhpp_gui_sun_diagnostic PRIVATE
     Coin::Coin SoQt::SoQt Qt6::Core Qt6::Gui Qt6::Widgets
-    TonatiuhLibraries TonatiuhKernel
+    TonatiuhppLibraries TonatiuhppKernel
   )
   if(MSVC)
     target_compile_options(tonatiuhpp_gui_sun_diagnostic PRIVATE /permissive- /Zc:__cplusplus)

@@ -11,7 +11,7 @@ import sys
 from pathlib import Path
 
 PACKAGE_ID = "com.tonatiuhpp.app"
-MACOS_APP_BUNDLE_NAME = "TonatiuhPP.app"
+MACOS_APP_BUNDLE_NAME = "tonatiuhpp-gui.app"
 LINUX_QT_PLUGIN_DIRECTORIES = (
     "platforms",
     "xcbglintegrations",
@@ -160,6 +160,9 @@ def validate_macos_app_bundle(app_bundle: Path) -> None:
     executable_path = macos_dir / executable_name
     if not executable_path.is_file():
         raise SystemExit(f"macOS bundle executable is missing: {executable_path}")
+    cli_path = macos_dir / "tonatiuhpp-cli"
+    if not cli_path.is_file() or not os.access(cli_path, os.X_OK):
+        raise SystemExit(f"macOS GUI bundle missing standalone CLI: {cli_path}")
     if not os.access(executable_path, os.X_OK):
         raise SystemExit(f"macOS bundle executable is not executable: {executable_path}")
 
@@ -172,14 +175,14 @@ def find_staged_application(staging_dir: Path) -> tuple[Path, bool]:
 
     bin_dir = staging_dir / "bin"
     candidates = [
-        bin_dir / "tonatiuhpp.exe",
-        bin_dir / "TonatiuhPP.exe",
-        bin_dir / "tonatiuhpp",
-        bin_dir / "TonatiuhPP",
+        bin_dir / ("tonatiuhpp-gui.exe" if os.name == "nt" else "tonatiuhpp-gui"),
     ]
 
     for candidate in candidates:
-        if candidate.exists():
+        if candidate.is_file():
+            cli_name = "tonatiuhpp-cli.exe" if os.name == "nt" else "tonatiuhpp-cli"
+            if not (bin_dir / cli_name).is_file():
+                raise SystemExit(f"Staged standalone CLI missing: {bin_dir / cli_name}")
             return candidate, False
 
     raise SystemExit(
@@ -265,7 +268,9 @@ def run_linux_ldd(path: Path, lib_dir: Path) -> str:
         raise SystemExit("Linux payload validation requires ldd.")
 
     env = os.environ.copy()
-    env["LD_LIBRARY_PATH"] = f"{lib_dir}{os.pathsep}{env.get('LD_LIBRARY_PATH', '')}".rstrip(os.pathsep)
+    env.pop("LD_LIBRARY_PATH", None)
+    env.pop("QT_PLUGIN_PATH", None)
+    env.pop("QT_QPA_PLATFORM_PLUGIN_PATH", None)
     result = subprocess.run(
         [ldd, str(path)],
         check=False,
@@ -353,23 +358,16 @@ def verify_linux_qt_plugin_versions(plugin_files: list[Path], qt_version: str) -
 def verify_linux_bundling(staging_dir: Path, verbose: bool = False) -> None:
     bin_dir = staging_dir / "bin"
     lib_dir = staging_dir / "lib"
-    launcher = bin_dir / "tonatiuhpp"
-    real_binary = bin_dir / "tonatiuhpp-bin"
+    gui_binary = bin_dir / "tonatiuhpp-gui"
+    cli_binary = bin_dir / "tonatiuhpp-cli"
     qt_conf = bin_dir / "qt.conf"
     qt_version_marker = bin_dir / "qt-runtime-version.txt"
     platform_plugin = bin_dir / "platforms" / "libqxcb.so"
     qt_core = lib_dir / "libQt6Core.so.6"
 
-    if not launcher.exists():
-        raise SystemExit(
-            "Linux staging did not include the Tonatiuh++ launcher script.\n"
-            "Ensure the CMake install step installed bin/tonatiuhpp."
-        )
-    if not real_binary.exists():
-        raise SystemExit(
-            "Linux staging did not include the real Tonatiuh++ binary.\n"
-            "Ensure the CMake install step installed bin/tonatiuhpp-bin."
-        )
+    for binary in (gui_binary, cli_binary):
+        if not binary.is_file() or not os.access(binary, os.X_OK):
+            raise SystemExit(f"Linux installed direct executable missing/not executable: {binary}")
     if not qt_conf.exists():
         raise SystemExit(
             "Linux staging did not include bin/qt.conf.\n"
@@ -397,16 +395,8 @@ def verify_linux_bundling(staging_dir: Path, verbose: bool = False) -> None:
     if not re.search(rf"(?im)^\s*Libraries\s*=\s*{re.escape(lib_dir.name)}\s*$", qt_conf_text):
         raise SystemExit(f"Linux bin/qt.conf must set Libraries={lib_dir.name}")
 
-    launcher_text = launcher.read_text(encoding="utf-8", errors="replace")
-    if "QT_BUNDLED_PLUGIN_DIR" not in launcher_text:
-        raise SystemExit(
-            "Linux launcher does not configure the bundled Qt plugin directory.\n"
-            "Ensure scripts/tonatiuhpp.sh is installed as bin/tonatiuhpp."
-        )
-    if "/usr/lib" in launcher_text and "qt6/plugins" in launcher_text:
-        raise SystemExit(
-            "Linux launcher still contains the old system Qt plugin search path."
-        )
+    if (bin_dir / "tonatiuhpp").exists() or (bin_dir / "tonatiuhpp-bin").exists():
+        raise SystemExit("Obsolete Linux GUI alias/launcher found in new payload")
 
     qt_version = qt_version_marker.read_text(encoding="utf-8", errors="replace").strip()
     if not qt_version:
@@ -433,7 +423,7 @@ def verify_linux_bundling(staging_dir: Path, verbose: bool = False) -> None:
     verify_linux_qt_plugin_versions(plugin_files, qt_version)
 
     qt_plugin_paths = set(plugin_files)
-    qt_linked_files = [real_binary]
+    qt_linked_files = [gui_binary, cli_binary]
     qt_linked_files.extend(find_linux_bundled_so_files(bin_dir))
     for binary in dict.fromkeys(qt_linked_files):
         verify_linux_qt_links(

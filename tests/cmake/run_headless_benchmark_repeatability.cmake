@@ -41,7 +41,7 @@ foreach(_run IN ITEMS 1 2)
 ")
 
   execute_process(
-    COMMAND "${TEST_EXECUTABLE}" --headless benchmark "${_config_file}"
+    COMMAND "${TEST_EXECUTABLE}"  benchmark "${_config_file}"
     ${_working_directory}
     RESULT_VARIABLE _exit_code
     OUTPUT_VARIABLE _stdout

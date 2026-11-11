@@ -44,7 +44,7 @@ if(DEFINED TEST_WORKING_DIRECTORY AND NOT TEST_WORKING_DIRECTORY STREQUAL "")
 endif()
 
 execute_process(
-  COMMAND "${TEST_EXECUTABLE}" --headless benchmark "${_config_file}"
+  COMMAND "${TEST_EXECUTABLE}"  benchmark "${_config_file}"
   ${_working_directory}
   RESULT_VARIABLE _exit_code
   OUTPUT_VARIABLE _stdout

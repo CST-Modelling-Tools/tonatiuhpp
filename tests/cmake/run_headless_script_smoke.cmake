@@ -103,7 +103,7 @@ if(DEFINED TEST_WORKING_DIRECTORY AND NOT TEST_WORKING_DIRECTORY STREQUAL "")
 endif()
 
 execute_process(
-  COMMAND "${TEST_EXECUTABLE}" --headless run-script "${_script_file}"
+  COMMAND "${TEST_EXECUTABLE}"  run-script "${_script_file}"
   ${_working_directory}
   RESULT_VARIABLE _exit_code
   OUTPUT_VARIABLE _stdout

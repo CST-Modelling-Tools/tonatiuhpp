@@ -38,7 +38,7 @@ function(m4_script suffix ray_count file_size append repeat)
   set(out "${OUTPUT_DIR}/scripts/${suffix}.tnhpps")
   file(WRITE "${out}" "${source}")
   execute_process(
-    COMMAND "${TEST_EXECUTABLE}" --headless run-script "${out}"
+    COMMAND "${TEST_EXECUTABLE}"  run-script "${out}"
     WORKING_DIRECTORY "${TEST_WORKING_DIRECTORY}"
     RESULT_VARIABLE rc OUTPUT_VARIABLE stdout ERROR_VARIABLE stderr TIMEOUT 140)
   if(NOT "${rc}" STREQUAL "0" OR NOT stdout MATCHES "M4 extended File export fixture completed[.]")
@@ -50,7 +50,7 @@ function(m4_cli suffix ray_count file_size)
   set(target_dir "${OUTPUT_DIR}/${suffix}")
   file(MAKE_DIRECTORY "${target_dir}")
   execute_process(
-    COMMAND "${TEST_EXECUTABLE}" --headless trace-scene "${TEST_SCENE}"
+    COMMAND "${TEST_EXECUTABLE}"  trace-scene "${TEST_SCENE}"
       --rays "${ray_count}" --seed 0 --photon-export-dir "${target_dir}"
       --photon-surface "//Node/Shape" --update-trackers
       --photon-file-name "PhotonMap" --photon-file-size "${file_size}"
@@ -94,7 +94,7 @@ m4_compare(cli_large script_large)
 # the parent. We intentionally pass a relative parent traversal string.
 file(MAKE_DIRECTORY "${OUTPUT_DIR}/invalid_basename")
 execute_process(
-  COMMAND "${TEST_EXECUTABLE}" --headless trace-scene "${TEST_SCENE}"
+  COMMAND "${TEST_EXECUTABLE}"  trace-scene "${TEST_SCENE}"
     --rays 2048 --seed 0 --photon-export-dir "${OUTPUT_DIR}/invalid_basename"
     --photon-file-name "../unsafe" --photon-file-size 128
   WORKING_DIRECTORY "${TEST_WORKING_DIRECTORY}"
@@ -105,7 +105,7 @@ if("${rc}" STREQUAL "0" OR EXISTS "${OUTPUT_DIR}/unsafe.dat" OR
 endif()
 
 execute_process(
-  COMMAND "${TEST_EXECUTABLE}" --headless trace-scene "${TEST_SCENE}"
+  COMMAND "${TEST_EXECUTABLE}"  trace-scene "${TEST_SCENE}"
     --rays 2048 --seed 0 --no-export --photon-file-size 128
   WORKING_DIRECTORY "${TEST_WORKING_DIRECTORY}"
   RESULT_VARIABLE rc OUTPUT_VARIABLE stdout ERROR_VARIABLE stderr TIMEOUT 30)

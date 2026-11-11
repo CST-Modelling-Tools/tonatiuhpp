@@ -17,7 +17,7 @@ if (!tn.writeJson('artifacts/result.json', {status: 'M3.3 relative IO'}))
 print('M3.3 relative IO passed');
 ]=])
 execute_process(
-  COMMAND "${TEST_EXECUTABLE}" --headless run-script "${script_file}"
+  COMMAND "${TEST_EXECUTABLE}"  run-script "${script_file}"
   WORKING_DIRECTORY "${OUTPUT_DIR}/elsewhere"
   RESULT_VARIABLE exit_code OUTPUT_VARIABLE stdout_text ERROR_VARIABLE stderr_text
   TIMEOUT 30

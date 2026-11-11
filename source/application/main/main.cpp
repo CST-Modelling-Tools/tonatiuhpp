@@ -13,7 +13,6 @@
 #include <QTextStream>
 
 #include <Inventor/Qt/SoQt.h>
-#include "headless/HeadlessCommandRunner.h"
 #include "script/ScriptHost.h"
 #include "script/GuiScriptSceneAdapter.h"
 #include "MainWindow.h"
@@ -77,16 +76,6 @@ void initializePresentationBridges()
     });
 }
 
-bool hasHeadlessArgument(int argc, char** argv)
-{
-    for (int i = 1; i < argc; ++i) {
-        if (QString::fromLocal8Bit(argv[i]) == "--headless")
-            return true;
-    }
-
-    return false;
-}
-
 QString startupFileFromPositionalArguments(const QStringList& arguments, QString* warningMessage)
 {
     QStringList startupFiles;
@@ -113,14 +102,15 @@ QString startupFileFromPositionalArguments(const QStringList& arguments, QString
 
 int main(int argc, char** argv)
 {  
-    if (hasHeadlessArgument(argc, argv)) {
-        QCoreApplication app(argc, argv);
-        TonatiuhCore::setHeadlessPluginMode(true);
-        app.setApplicationName("Tonatiuh");
-        app.setApplicationVersion(APP_VERSION);
-
-        HeadlessCommandRunner runner;
-        return runner.run(app.arguments());
+    // The GUI never becomes a CLI or initializes a headless physics process.
+    // Reject stale scripts before QtWidgets/SoQt initialization to fail fast.
+    for (int i = 1; i < argc; ++i) {
+        if (QString::fromLocal8Bit(argv[i]) == QStringLiteral("--headless")) {
+            QTextStream err(stderr);
+            err << "The GUI does not support --headless. Use tonatiuhpp-cli."
+                << Qt::endl;
+            return 2;
+        }
     }
 
     // application

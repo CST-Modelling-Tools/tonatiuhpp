@@ -95,7 +95,6 @@ int HeadlessCommandRunner::run(const QStringList& arguments) const
     if (!args.isEmpty())
         args.removeFirst();
 
-    args.removeAll("--headless");
 
     if (args.isEmpty() || args[0] == "--help" || args[0] == "-h") {
         printUsage();
@@ -423,8 +422,6 @@ bool HeadlessCommandRunner::parseTraceSceneArguments(const QStringList& args, Tr
         if (!PhotonExportFileService::validateFileOptions(
                 parsed->photonFileName, parsed->photonFileSize, errorMessage))
             return false;
-        if (parsed->rays > PhotonExportFileService::kMaxExportRays)
-            return failParse(errorMessage, "File photon export exceeds the 10-million-ray bound.");
     }
 
     return true;
@@ -463,16 +460,16 @@ void HeadlessCommandRunner::printUsage() const
     out << "Tonatiuh++ headless mode" << Qt::endl;
     out << Qt::endl;
     out << "Usage:" << Qt::endl;
-    out << "  tonatiuhpp --headless --help" << Qt::endl;
-    out << "  tonatiuhpp --headless validate-scene <scene.tnhpp>" << Qt::endl;
-    out << "  tonatiuhpp --headless trace-scene <scene.tnhpp> --rays N --seed S --no-export [--update-trackers]\n  tonatiuhpp --headless trace-scene <scene.tnhpp> --rays N --seed S --photon-export-dir DIR [--update-trackers]" << Qt::endl;
-    out << "  tonatiuhpp --headless benchmark <benchmark_config.json>" << Qt::endl;
-    out << "  tonatiuhpp --headless run-script <script.tnhpps>" << Qt::endl;
+    out << "  tonatiuhpp-cli --help" << Qt::endl;
+    out << "  tonatiuhpp-cli validate-scene <scene.tnhpp>" << Qt::endl;
+    out << "  tonatiuhpp-cli trace-scene <scene.tnhpp> --rays N --seed S --no-export [--update-trackers]\n  tonatiuhpp-cli trace-scene <scene.tnhpp> --rays N --seed S --photon-export-dir DIR [--update-trackers]" << Qt::endl;
+    out << "  tonatiuhpp-cli benchmark <benchmark_config.json>" << Qt::endl;
+    out << "  tonatiuhpp-cli run-script <script.tnhpps>" << Qt::endl;
     out << Qt::endl;
     out << "Commands:" << Qt::endl;
     out << "  validate-scene <scene.tnhpp>                         Validate that a Tonatiuh++ scene can be loaded." << Qt::endl;
     out << "  trace-scene <scene.tnhpp> --rays N --seed S (--no-export | --photon-export-dir DIR) [--update-trackers]" << Qt::endl;
-    out << "                                                     File export requires an existing empty absolute directory (max 10000000 rays)." << Qt::endl;
+    out << "                                                     File export requires an existing empty absolute directory; sufficient disk space is required." << Qt::endl;
     out << "                                                     --photon-file-name NAME and --photon-file-size N (-1 for one file) are optional." << Qt::endl;
     out << "                                                     --photon-surface URL selects a surface (repeatable; File export only)." << Qt::endl;
     out << "                                                     --update-trackers applies GUI-like tracking (opt-in)." << Qt::endl;
@@ -491,6 +488,6 @@ int HeadlessCommandRunner::printUsageError(const QString& message) const
 {
     QTextStream err(stderr);
     err << message << Qt::endl;
-    err << "Use tonatiuhpp --headless --help for usage." << Qt::endl;
+    err << "Use tonatiuhpp-cli --help for usage." << Qt::endl;
     return 2;
 }

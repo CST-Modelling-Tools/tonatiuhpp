@@ -22,7 +22,7 @@ endforeach()
 
 foreach(attempt RANGE 1 2)
   execute_process(
-    COMMAND "${TEST_EXECUTABLE}" --headless run-script "${script_file}"
+    COMMAND "${TEST_EXECUTABLE}"  run-script "${script_file}"
     WORKING_DIRECTORY "${other_dir}"
     RESULT_VARIABLE outcome OUTPUT_VARIABLE stdout_text ERROR_VARIABLE stderr_text
     TIMEOUT 85)

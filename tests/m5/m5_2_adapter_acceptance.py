@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""M5.2 bounded, cross-platform, two-entrypoint scientific acceptance.
+"""M5.2 bounded, cross-platform, cli-process scientific acceptance.
 
 Never runs a benchmark, alters frozen references, edits source-tree fixtures,
 commits, pushes or contacts GitHub. All output is in a fresh unique test root.
@@ -65,9 +65,9 @@ class Suite:
         self.output_parent = Path(args.output_root).resolve()
         self.output_parent.mkdir(parents=True, exist_ok=True)
         self.runroot = Path(tempfile.mkdtemp(prefix=f"m5_2_{args.mode}_", dir=self.output_parent))
-        self.journal: dict = {"schema": "tonatiuhpp.m5.2.two-entrypoint.v1",
+        self.journal: dict = {"schema": "tonatiuhpp.m5.2.cli-process.v1",
                               "mode": args.mode, "source_root": str(self.root),
-                              "gui": str(self.gui), "cli": str(self.cli),
+                              "process_a": str(self.gui), "process_b": str(self.cli),
                               "started_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
                               "checks": [], "result": "IN_PROGRESS"}
         self.comparator = self.load_comparator()
@@ -122,9 +122,8 @@ class Suite:
     def run(self, adapter: str, args: list[str], *, cwd: Path | None = None,
             env_extra: dict[str, str] | None = None, expected: int = 0,
             contains: str | None = None, timeout: int = TIMEOUT) -> subprocess.CompletedProcess:
-        require(adapter in {"gui", "cli"}, f"Invalid adapter: {adapter}")
-        binary = self.gui if adapter == "gui" else self.cli
-        command = [str(binary)] + (["--headless"] if adapter == "gui" else []) + list(args)
+        require(adapter in {"process_a", "process_b"}, f"Invalid CLI run: {adapter}")
+        command = [str(self.cli)] + list(args)
         env = dict(self.env)
         if env_extra:
             env.update(env_extra)
@@ -181,16 +180,16 @@ class Suite:
         if self.args.mode == "installed":
             cases = [("cylinder", False), ("sphere_material_plugin", False)]
         for case, trackers in cases:
-            left = self.trace("gui", case, 2048, trackers=trackers)
-            right = self.trace("cli", case, 2048, trackers=trackers)
+            left = self.trace("process_a", case, 2048, trackers=trackers)
+            right = self.trace("process_b", case, 2048, trackers=trackers)
             require(left == right,
-                    f"{case}: GUI-binary QCore and standalone QCore effective inputs/hits/histories differ")
+                    f"{case}: Independent CLI processes effective inputs/hits/histories differ")
             self.log(f"native-trace-{case}", "2048 seeded rays; exact scientific hit and ordered-history parity")
 
     def check_usage_and_scene_loading(self) -> None:
         require(self.gui.is_file() and self.cli.is_file() and self.gui != self.cli,
-                "Two distinct executable files are required")
-        for adapter in ("gui", "cli"):
+                "Distinct GUI and CLI artifacts must exist")
+        for adapter in ("process_a", "process_b"):
             self.run(adapter, ["--help"], contains="Tonatiuh++ headless mode")
             self.run(adapter, ["validate-scene", str(self.scenes["cylinder"])],
                      contains="Scene validation succeeded:")
@@ -246,8 +245,8 @@ class Suite:
         if self.args.mode == "installed":
             stems = ["m3_3_gui_headless_parity", "m3_flux_shared_parity"]
         for stem in stems:
-            x = self.script_fixture("gui", stem)
-            y = self.script_fixture("cli", stem)
+            x = self.script_fixture("process_a", stem)
+            y = self.script_fixture("process_b", stem)
             require(x == y, f"{stem}: independent executables produced different scientific script artifacts")
             self.log("script-" + stem, "script-relative artifact byte equivalence; bounded native domain API")
 
@@ -263,7 +262,7 @@ class Suite:
         results: dict[str, dict[str, bytes | int]] = {}
         for name, expected, marker in cases:
             results[name] = {}
-            for adapter in ("gui", "cli"):
+            for adapter in ("process_a", "process_b"):
                 dest = self.runroot / "cancel" / name / adapter
                 dest.mkdir(parents=True, exist_ok=False)
                 fixture = self.root / "tests/scripts" / (name + ".tnhpps")
@@ -283,8 +282,8 @@ class Suite:
                             "Cancellation/recovery scientific artifact invalid")
                     results[name][adapter] = normalize_bytes(artifact)
             if expected == 0:
-                require(results[name]["gui"] == results[name]["cli"],
-                        "Cancellation/recovery scientific result differs between executables")
+                require(results[name]["process_a"] == results[name]["process_b"],
+                        "Cancellation/recovery scientific result differs between independent CLI processes")
             self.log("script-cancel-" + name, "matched completion/error contract and resource cleanup")
 
     def export_dir(self, adapter: str, flavor: str) -> Path:
@@ -320,23 +319,23 @@ class Suite:
 
     def check_export_parity(self) -> None:
         dirs = {f"{adapter}-{flavor}": self.file_export(adapter, flavor)
-                for adapter, flavor in (("gui", "direct"), ("cli", "direct"),
-                                        ("gui", "script"), ("cli", "script"))}
+                for adapter, flavor in (("process_a", "direct"), ("process_b", "direct"),
+                                        ("process_a", "script"), ("process_b", "script"))}
         observations = {}
         for label, folder in dirs.items():
             records, power, count, surfaces = self.comparator.read_export(folder)
             require(count > 0 and math.isfinite(power) and power > 0 and bool(surfaces),
                     f"{label}: no scientific File signal")
             observations[label] = (records, power, count, surfaces)
-        ref = observations["gui-direct"]
+        ref = observations["process_a-direct"]
         for label, data in observations.items():
-            require(data[:3] == ref[:3], f"{label}: File physical photon records/power differ from GUI CLI baseline")
+            require(data[:3] == ref[:3], f"{label}: File physical photon records/power differ from independent CLI baseline")
         sha = {label: {p.name: sha256(p) for p in folder.iterdir() if p.is_file()}
                for label, folder in dirs.items()}
         self.journal["file_export_hashes"] = sha
         self.log("file-export-four-path-parity", f"{ref[2]} canonical photons; exact multiset and power equivalence; SHA256 recorded")
         # Fail closed against overwrite, including unrelated existing files.
-        for adapter in ("gui", "cli"):
+        for adapter in ("process_a", "process_b"):
             occupied = self.runroot / "occupied" / adapter
             occupied.mkdir(parents=True, exist_ok=False)
             sentinel = occupied / "keep.txt"
@@ -348,7 +347,7 @@ class Suite:
                      contains="Photon export failed")
             require(sha256(sentinel) == before and not (occupied / "PhotonMap.dat").exists(),
                     f"{adapter}: rejected export changed an existing document")
-        self.log("file-export-fail-closed", "both adapters preserve occupied directory contents")
+        self.log("file-export-fail-closed", "both CLI processes preserve occupied directory contents")
 
     def finish(self) -> None:
         try:
@@ -361,7 +360,7 @@ class Suite:
             self.check_export_parity()
             self.journal["result"] = "PASS"
             self.save()
-            print(f"M5.2 {self.args.mode.upper()} TWO-ENTRYPOINT SCIENTIFIC GATES PASSED", flush=True)
+            print(f"M5.2 {self.args.mode.upper()} CLI SCIENTIFIC REPEATABILITY GATES PASSED", flush=True)
             print(f"M5.2 durable evidence: {self.runroot / 'evidence.json'}", flush=True)
         except BaseException as e:
             self.journal["result"] = "FAIL"
@@ -374,7 +373,7 @@ class Suite:
 
 def main():
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--gui", required=True, help="Historical GUI executable, called with --headless")
+    p.add_argument("--gui", required=True, help="GUI executable validated for existence but never run as CLI")
     p.add_argument("--cli", required=True, help="Standalone QCoreApplication executable")
     p.add_argument("--source-root", required=True, help="Tonatiuh++ source repository root")
     p.add_argument("--output-root", required=True, help="Fresh acceptance evidence parent outside source fixtures")

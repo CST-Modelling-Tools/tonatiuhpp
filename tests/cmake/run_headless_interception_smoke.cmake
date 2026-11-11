@@ -4,7 +4,7 @@ if(NOT DEFINED TEST_EXECUTABLE OR NOT DEFINED TEST_SCRIPT OR NOT DEFINED ERROR_S
   message(FATAL_ERROR "Executable and two script paths are required")
 endif()
 execute_process(
-  COMMAND "${TEST_EXECUTABLE}" --headless run-script "${TEST_SCRIPT}"
+  COMMAND "${TEST_EXECUTABLE}"  run-script "${TEST_SCRIPT}"
   WORKING_DIRECTORY "${TEST_WORKING_DIRECTORY}"
   RESULT_VARIABLE ok_exit OUTPUT_VARIABLE ok_output ERROR_VARIABLE ok_error
   TIMEOUT 45
@@ -16,7 +16,7 @@ if(NOT ok_output MATCHES [=[M3\.2 bounded interception smoke passed]=])
   message(FATAL_ERROR "Bounded interception success marker missing: ${ok_output}")
 endif()
 execute_process(
-  COMMAND "${TEST_EXECUTABLE}" --headless run-script "${ERROR_SCRIPT}"
+  COMMAND "${TEST_EXECUTABLE}"  run-script "${ERROR_SCRIPT}"
   WORKING_DIRECTORY "${TEST_WORKING_DIRECTORY}"
   RESULT_VARIABLE bad_exit OUTPUT_VARIABLE bad_output ERROR_VARIABLE bad_error
   TIMEOUT 15

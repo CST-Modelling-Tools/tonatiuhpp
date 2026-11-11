@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.28)
 
 # Logical target name may include '+'; we'll give the on-disk exe a simpler name.
-set(ProjectName tonatiuhpp)
+set(ProjectName tonatiuhpp-gui)
 set(ProjectVersion "${CMAKE_PROJECT_VERSION}")
 project(${ProjectName} VERSION ${ProjectVersion})
 
@@ -13,7 +13,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 # Headers
 # ----------------------------
 set(HEADERS
-    benchmark/BenchmarkRunner.h
     calculator/CelestialWidget.h
     calculator/HorizontalWidget.h
     calculator/Image.h
@@ -35,8 +34,6 @@ set(HEADERS
     core/FluxGridComputation.h
     core/GuiTraceSessionExecution.h
     core/TonatiuhCore.h
-    headless/HeadlessCommandRunner.h
-    headless/HeadlessScriptHost.h
     headless/HeadlessScriptFluxBackend.h
     main/CustomSplashScreen.h
     main/Document.h
@@ -97,7 +94,6 @@ set(HEADERS
 # Sources
 # ----------------------------
 set(SOURCES
-    benchmark/BenchmarkRunner.cpp
     calculator/CelestialWidget.cpp
     calculator/HorizontalWidget.cpp
     calculator/Image.cpp
@@ -114,8 +110,6 @@ set(SOURCES
     commands/CmdSetFieldText.cpp
     core/CorePluginRegistry.cpp
     core/TonatiuhCore.cpp
-    headless/HeadlessCommandRunner.cpp
-    headless/HeadlessScriptHost.cpp
     main/CustomSplashScreen.cpp
     main/Document.cpp
     main/LineEditPlaceHolder.cpp
@@ -228,7 +222,7 @@ target_include_directories(TonatiuhSimulation PUBLIC
 # Removing QtGui and the transitive Widgets/SoQt link debt is M5.1B work.
 target_link_libraries(TonatiuhSimulation PUBLIC
     Qt6::Core Qt6::Concurrent Qt6::Gui Coin::Coin
-    TonatiuhKernel TonatiuhLibraries
+    TonatiuhppKernel TonatiuhppLibraries
 )
 
 set(TONATIUHPP_M5_SCRIPTING_SOURCES
@@ -275,6 +269,11 @@ add_library(TonatiuhScripting STATIC
     ${TONATIUHPP_M5_SCRIPTING_SOURCES}
     ${TONATIUHPP_M5_SCRIPTING_HEADERS}
 )
+# Shared GUI-script and CLI-script plumbing; only one compiled implementation.
+# These sources contain no QtWidgets/SoQt includes or second physics kernel.
+target_sources(TonatiuhScripting PRIVATE
+    headless/HeadlessScriptHost.cpp headless/HeadlessScriptHost.h
+    benchmark/BenchmarkRunner.cpp benchmark/BenchmarkRunner.h)
 target_include_directories(TonatiuhScripting PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/..
@@ -283,7 +282,7 @@ target_include_directories(TonatiuhScripting PUBLIC
 )
 target_link_libraries(TonatiuhScripting PUBLIC
     Qt6::Core Qt6::Qml Qt6::Gui Coin::Coin
-    TonatiuhScriptRuntime TonatiuhSimulation TonatiuhKernel TonatiuhLibraries
+    TonatiuhScriptRuntime TonatiuhSimulation TonatiuhppKernel TonatiuhppLibraries
 )
 
 # Enforce the first boundary at configure time: these targets may not
@@ -333,7 +332,7 @@ function(tonatiuhpp_m5_assert_runtime_closure)
                 continue()
             endif()
             foreach(_forbidden IN ITEMS
-                Qt6::Widgets SoQt::SoQt TonatiuhKernel TonatiuhLibraries
+                Qt6::Widgets SoQt::SoQt TonatiuhppKernel TonatiuhppLibraries
                 TonatiuhSimulation TonatiuhScripting Coin::Coin SunPath)
                 string(FIND "${_links}" "${_forbidden}" _found)
                 if(NOT _found EQUAL -1)
@@ -363,34 +362,32 @@ target_sources(TonatiuhSimulation PRIVATE
 list(REMOVE_ITEM SOURCES core/TonatiuhCore.cpp core/CorePluginRegistry.cpp)
 list(REMOVE_ITEM HEADERS core/TonatiuhCore.h core/CorePluginRegistry.h)
 
-add_executable(tonatiuhpp_m5_core_headless
-    "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/m5/M5CoreHeadlessMain.cpp"
-    headless/HeadlessCommandRunner.cpp headless/HeadlessCommandRunner.h
-    headless/HeadlessScriptHost.cpp headless/HeadlessScriptHost.h
-    benchmark/BenchmarkRunner.cpp benchmark/BenchmarkRunner.h)
-target_include_directories(tonatiuhpp_m5_core_headless PRIVATE
+# The real CLI owns only QCoreApplication + CLI command dispatch. GUI
+# widgets/SoQt and any test-only M5 smoke implementation are excluded.
+add_executable(tonatiuhpp-cli
+    headless/CliMain.cpp
+    headless/HeadlessCommandRunner.cpp headless/HeadlessCommandRunner.h)
+target_include_directories(tonatiuhpp-cli PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/..
     ${CMAKE_CURRENT_SOURCE_DIR}/../libraries
     ${COIN3D_INCLUDE_DIR})
-target_link_libraries(tonatiuhpp_m5_core_headless PRIVATE
+target_link_libraries(tonatiuhpp-cli PRIVATE
     TonatiuhScripting TonatiuhSimulation TonatiuhScriptRuntime
-    TonatiuhKernel TonatiuhLibraries
+    TonatiuhppKernel TonatiuhppLibraries
     Qt6::Core Qt6::Gui Qt6::Qml Qt6::Concurrent Coin::Coin)
 if(WIN32)
-    target_link_libraries(tonatiuhpp_m5_core_headless PRIVATE opengl32)
+    target_link_libraries(tonatiuhpp-cli PRIVATE opengl32)
 endif()
 # P1: application executables use the top-level runtime policy.
-target_compile_definitions(tonatiuhpp_m5_core_headless PRIVATE
+target_compile_definitions(tonatiuhpp-cli PRIVATE
     APP_VERSION="${ProjectVersion}")
 
-# P2a: on-disk CLI name is permanent; logical target is renamed in P2b.
-set_target_properties(tonatiuhpp_m5_core_headless PROPERTIES
-    OUTPUT_NAME "tonatiuhpp-cli")
+# Permanent executable name matches its CMake target.
 
 # M5.2: the actual standalone QCoreApplication executable is part of
 # the installed runtime, next to the ONE-kernel libraries and official plugins.
-install(TARGETS tonatiuhpp_m5_core_headless
+install(TARGETS tonatiuhpp-cli
     RUNTIME DESTINATION "${GLOBAL_INSTALL_BIN_DIR}")
 
 # Full transitive CMake target graph protection for the *only* physics kernel,
@@ -414,9 +411,9 @@ function(tonatiuhpp_m5_assert_one_kernel_link_closure root)
             endif()
             foreach(_forbidden IN ITEMS
                 Qt6::Widgets Qt6::PrintSupport SoQt::SoQt
-                TonatiuhGuiPresentation TonatiuhHeadlessKernel
+                TonatiuhppGuiPresentation TonatiuhHeadlessKernel
                 TonatiuhHeadlessLibraries TonatiuhHeadlessSimulation
-                TonatiuhHeadlessScripting SunPath tonatiuhpp)
+                TonatiuhHeadlessScripting SunPath tonatiuhpp-gui)
                 string(FIND "${_links}" "${_forbidden}" _found)
                 if(NOT _found EQUAL -1)
                     message(FATAL_ERROR "M5 one-kernel boundary: ${root} -> ${_current} -> ${_forbidden}")
@@ -433,18 +430,34 @@ function(tonatiuhpp_m5_assert_one_kernel_link_closure root)
 endfunction()
 
 foreach(_m5_target IN ITEMS
-    TonatiuhLibraries TonatiuhKernel TonatiuhScriptRuntime
-    TonatiuhSimulation TonatiuhScripting tonatiuhpp_m5_core_headless)
+    TonatiuhppLibraries TonatiuhppKernel TonatiuhScriptRuntime
+    TonatiuhSimulation TonatiuhScripting tonatiuhpp-cli)
     tonatiuhpp_m5_assert_one_kernel_link_closure(${_m5_target})
 endforeach()
 
 if(BUILD_TESTING)
+    add_executable(tonatiuhpp_cli_components_smoke
+        "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/m5/M5CoreHeadlessMain.cpp")
+    target_include_directories(tonatiuhpp_cli_components_smoke PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}/..
+        ${CMAKE_CURRENT_SOURCE_DIR}/../libraries
+        ${COIN3D_INCLUDE_DIR})
+    target_link_libraries(tonatiuhpp_cli_components_smoke PRIVATE
+        TonatiuhScripting TonatiuhSimulation TonatiuhScriptRuntime
+        TonatiuhppKernel TonatiuhppLibraries
+        Qt6::Core Qt6::Gui Qt6::Qml Qt6::Concurrent Coin::Coin)
+    if(WIN32)
+        target_link_libraries(tonatiuhpp_cli_components_smoke PRIVATE opengl32)
+    endif()
+    target_compile_definitions(tonatiuhpp_cli_components_smoke PRIVATE
+        APP_VERSION="${ProjectVersion}")
     add_test(NAME headless.m5_nonvisual_core_link
-        COMMAND $<TARGET_FILE:tonatiuhpp_m5_core_headless> --m5-core-smoke)
+        COMMAND $<TARGET_FILE:tonatiuhpp_cli_components_smoke> --m5-core-smoke)
     set_tests_properties(headless.m5_nonvisual_core_link PROPERTIES
         LABELS "headless;scientific;smoke" TIMEOUT 45)
     add_test(NAME headless.m5_unified_file_plugin
-        COMMAND $<TARGET_FILE:tonatiuhpp_m5_core_headless> --m5-plugin-smoke)
+        COMMAND $<TARGET_FILE:tonatiuhpp_cli_components_smoke> --m5-plugin-smoke)
     set_tests_properties(headless.m5_unified_file_plugin PROPERTIES
         LABELS "headless;scientific;smoke" TIMEOUT 45)
 endif()
@@ -491,8 +504,8 @@ target_include_directories(${ProjectName} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../libraries
     ${COIN3D_INCLUDE_DIR}
     ${SOQT_INCLUDE_DIR}
-    $<TARGET_PROPERTY:TonatiuhLibraries,INTERFACE_INCLUDE_DIRECTORIES>
-    $<TARGET_PROPERTY:TonatiuhKernel,INTERFACE_INCLUDE_DIRECTORIES>
+    $<TARGET_PROPERTY:TonatiuhppLibraries,INTERFACE_INCLUDE_DIRECTORIES>
+    $<TARGET_PROPERTY:TonatiuhppKernel,INTERFACE_INCLUDE_DIRECTORIES>
 )
 
 # ----------------------------
@@ -515,9 +528,9 @@ target_link_libraries(${ProjectName}
         Qt6::Concurrent
         TonatiuhScripting
         TonatiuhSimulation
-        TonatiuhLibraries
-        TonatiuhKernel
-        TonatiuhGuiPresentation
+        TonatiuhppLibraries
+        TonatiuhppKernel
+        TonatiuhppGuiPresentation
 )
 
 # Windows-specific OpenGL lib
@@ -574,9 +587,9 @@ install(TARGETS ${ProjectName}
 # It is excluded from production builds configured with BUILD_TESTING=OFF.
 # The helper is inert in other test builds without the explicit test env vars.
 if(BUILD_TESTING)
-    target_sources(tonatiuhpp PRIVATE
+    target_sources(tonatiuhpp-gui PRIVATE
         "${CMAKE_SOURCE_DIR}/../tests/m5/M5GuiNativeAcceptance.cpp"
         "${CMAKE_SOURCE_DIR}/../tests/m5/M5GuiNativeAcceptance.h")
-    target_include_directories(tonatiuhpp PRIVATE "${CMAKE_SOURCE_DIR}/../tests/m5")
-    target_compile_definitions(tonatiuhpp PRIVATE TONATIUHPP_M5_NATIVE_GUI_TEST)
+    target_include_directories(tonatiuhpp-gui PRIVATE "${CMAKE_SOURCE_DIR}/../tests/m5")
+    target_compile_definitions(tonatiuhpp-gui PRIVATE TONATIUHPP_M5_NATIVE_GUI_TEST)
 endif()

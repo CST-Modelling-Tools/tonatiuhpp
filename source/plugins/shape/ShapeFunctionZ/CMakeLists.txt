@@ -39,8 +39,8 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     Qt6::Core 
     Qt6::Gui 
     Qt6::Qml
-    TonatiuhLibraries
-    TonatiuhKernel
+    TonatiuhppLibraries
+    TonatiuhppKernel
 )
 
 # Find the required Qt components

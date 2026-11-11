@@ -26,9 +26,9 @@
 
 namespace PhotonExportFileService
 {
-// Bounded cross-interface export until the complete native M4 acceptance
-// matrix establishes larger runs. This is not a physics or RNG limit.
-inline constexpr qulonglong kMaxExportRays = 10000000ULL;
+// Photon File export has no arbitrary global ray-count cap. The source
+// ray-count type, physical storage and actual write failures remain enforced.
+// FileSize below is a per-file photon segment size, not a total export limit.
 
 // All three adapters accept the same conservative cross-platform File output
 // parameters. A negative sentinel other than -1 is deliberately rejected.

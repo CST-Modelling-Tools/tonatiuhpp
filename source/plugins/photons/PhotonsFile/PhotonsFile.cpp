@@ -237,10 +237,10 @@ ulong PhotonsFile::savePhotons(const std::vector<Photon>& photons)
         ulong nBegin = 0;
         while (nBegin < photons.size()) {
             ulong rangeBegin = nBegin;
-            m_fileCurrent = int(m_exportedPhotons/m_nPhotonsPerFile) + 1;
+            m_fileCurrent = m_exportedPhotons / m_nPhotonsPerFile + 1;
             ulong nFile = m_exportedPhotons % m_nPhotonsPerFile;
             ulong nEnd = rangeBegin + std::min<ulong>(m_nPhotonsPerFile - nFile, photons.size() - rangeBegin);
-            QString fileName = QString("%1_%2.dat").arg(m_fileName, QString::number(m_fileCurrent));
+            QString fileName = QString("%1_%2.dat").arg(m_fileName, QString::number(static_cast<qulonglong>(m_fileCurrent)));
             fileName = dir.absoluteFilePath(fileName);
             if (!openOutputFile(fileName))
                 return writtenTotal;
@@ -345,7 +345,7 @@ ulong PhotonsFile::writePhotons(const std::vector<Photon>& photons, ulong nBegin
 
     ulong nMax = photons.size();
     ulong written = 0;
-    ulong exportedPhotons = m_exportedPhotons;
+    quint64 exportedPhotons = m_exportedPhotons;
     double previousPhotonID = 0;
     QVector<InstanceNode*> surfaces = m_surfaces;
     QVector<Transform> surfaceWorldToObject = m_surfaceWorldToObject;

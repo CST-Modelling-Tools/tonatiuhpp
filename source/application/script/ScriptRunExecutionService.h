@@ -9,6 +9,7 @@
 // Per-host state retains the owned instance tree behind serialized surface pointers.
 
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <utility>
 
@@ -164,9 +165,8 @@ public:
         if (error) error->clear();
         if (!request.scene)
             return fail(error, "tn.Run: active scene is unavailable.");
-        if (!request.explicitRays || request.rays < 1 ||
-            request.rays > PhotonExportFileService::kMaxExportRays)
-            return fail(error, "tn.Run: effective ray count exceeds the explicit M4 10-million-ray safety bound.");
+        if (!request.explicitRays || request.rays < 1)
+            return fail(error, "tn.Run: effective ray count must be explicitly set to a positive integer.");
 
         if (m_current && m_current->poisoned)
             return fail(error, "tn.Run: previous export failed; exporter and any unwritten photons remain retained. Further runs are blocked.");
@@ -182,8 +182,10 @@ public:
                 return fail(error, "tn.Run: cannot append after replacing the scene; use a fresh output directory.");
             if (!sameOptions(request.exportOptions, active->options))
                 return fail(error, "tn.Run: cannot append after changing exporter/buffer settings; use a fresh output directory.");
-            if (active->completedRays + request.rays > PhotonExportFileService::kMaxExportRays)
-                return fail(error, "tn.Run: scripted append exceeds the 10-million-ray bound.");
+            // Guard the actual accounting type, never an arbitrary export budget.
+            if (active->completedRays > std::numeric_limits<std::uint64_t>::max() -
+                    static_cast<std::uint64_t>(request.rays))
+                return fail(error, "tn.Run: cumulative ray count exceeds 64-bit accounting capacity.");
             if (!active->appendable)
                 return fail(error, "tn.Run: append requires a nonempty previous photon File output.");
             if (!verifyOutputUnchanged(active, error)) return false;
