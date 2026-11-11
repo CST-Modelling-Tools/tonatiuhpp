@@ -1,7 +1,7 @@
 // M5: real Qt-widget presenter acceptance. Compiled into the GUI only while
 // BUILD_TESTING is true, and inert without an explicit test-mode environment.
 // No changes to the scientific kernel, plugins, ray propagation or RNG.
-#include "M5GuiNativeAcceptance.h"
+#include "NativeGuiAcceptance.h"
 
 #include <algorithm>
 #include <cmath>
@@ -385,7 +385,7 @@ private:
 
 } // namespace
 
-void installM5GuiNativeAcceptance(MainWindow* mainWindow)
+void installNativeGuiAcceptance(MainWindow* mainWindow)
 {
     const QString report = qEnvironmentVariable("TONATIUHPP_M5_GUI_NATIVE_REPORT");
     if (report.isEmpty()) return; // No effect during normal operation.

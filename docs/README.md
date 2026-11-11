@@ -8,6 +8,7 @@ This folder documents **the current codebase**, not the sequence of changes used
 - [Build and test](developer-setup.md): development setup, native testing, and safe local build practices.
 - [Headless commands and benchmark](headless-benchmark.md): CLI usage, script interface, photon File export, and benchmark file formats.
 - [Scientific validation](scientific-validation.md): reproducibility checks, immutable benchmark inputs, and optional full-scale verification.
+- [Testing architecture and commands](testing.md)
 - [Continuous integration](change-aware-ci.md): which checks run for documentation-only and code changes.
 - [Benchmark configuration schema](benchmark_config_schema_v1.json): current machine-readable benchmark configuration contract.
 

@@ -79,6 +79,10 @@ jobs:
         shell: bash
         run: python -m unittest discover -s tests/ci -p 'test_ci_change_classifier.py' -v
 
+      - name: Test CTest inventory helper
+        shell: bash
+        run: python -m unittest discover -s tests/tooling -p 'test_ctest_inventory.py' -v
+
       - name: Verify documentation-only changes
         if: ${{ steps.changes.outputs.docs_only == 'true' }}
         shell: bash
