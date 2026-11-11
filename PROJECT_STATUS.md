@@ -93,3 +93,9 @@ Define a consistent label taxonomy: level (`unit`/`integration`/`system`), domai
 3. Continue with **Phase A as the first deliverable and Phase B as the first substantial checkpoint**. Work in a single coherent pass: establish inventory/policy; revise CMake structure and functional file locations; preserve test identity and fixtures; verify local native tests before asking for a three-OS PR CI checkpoint. No premature micro-commits.
 4. After A+B validation, continue through C, D and E using the gates above, combining commits where technically sensible. No 500M rerun, no unintended GUI/CLI architectural redesign, no public release.
 5. Keep the status short and authoritative. Detailed superseded runtime-refactor diaries remain in repository Git history; they should not be resurrected or treated as active tasks.
+
+## Phase A+B structural candidate (native validation pending)
+
+- The guarded A+B candidate adds `docs/testing.md` and `scripts/ctest_inventory.py`, splits native CTest integration registration into in-scope includes, and relocates the three historical `tests/m5` files under `tests/integration/{cli,gui}`. It preserves CTest test names, production code and the original scientific fixture/reference files.
+- This is a **local working-tree candidate only**, not yet a validated commit. Before claiming completion: record pre/post CTest JSON inventories (all existing 180 names), configure/build Windows Release, run complete CTest, verify GUI launches, then validate Windows/Ubuntu/macOS CI at a substantive PR checkpoint. The 500M benchmark must not run.
+- When those gates pass, replace this pending note with the exact Windows/CI command, results and commit/PR state. Do not mistake planning or a successful patch preflight for native acceptance.

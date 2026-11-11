@@ -17,7 +17,7 @@
 #include "script/GuiScriptSceneAdapter.h"
 #include "MainWindow.h"
 #ifdef TONATIUHPP_M5_NATIVE_GUI_TEST
-#include "M5GuiNativeAcceptance.h"
+#include "NativeGuiAcceptance.h"
 #endif
 #include "core/TonatiuhCore.h"
 #include "kernel/scene/TPerspectiveCamera.h"
@@ -199,7 +199,7 @@ int main(int argc, char** argv)
         MainWindow mw(fileName, &splash);
         mw.show();
 #ifdef TONATIUHPP_M5_NATIVE_GUI_TEST
-        installM5GuiNativeAcceptance(&mw);
+        installNativeGuiAcceptance(&mw);
 #endif
         splash.setFinishWindow();
         if (!startupWarning.isEmpty())
