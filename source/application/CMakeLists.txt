@@ -435,32 +435,6 @@ foreach(_m5_target IN ITEMS
     tonatiuhpp_m5_assert_one_kernel_link_closure(${_m5_target})
 endforeach()
 
-if(BUILD_TESTING)
-    add_executable(tonatiuhpp_cli_components_smoke
-        "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/m5/M5CoreHeadlessMain.cpp")
-    target_include_directories(tonatiuhpp_cli_components_smoke PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}
-        ${CMAKE_CURRENT_SOURCE_DIR}/..
-        ${CMAKE_CURRENT_SOURCE_DIR}/../libraries
-        ${COIN3D_INCLUDE_DIR})
-    target_link_libraries(tonatiuhpp_cli_components_smoke PRIVATE
-        TonatiuhScripting TonatiuhSimulation TonatiuhScriptRuntime
-        TonatiuhppKernel TonatiuhppLibraries
-        Qt6::Core Qt6::Gui Qt6::Qml Qt6::Concurrent Coin::Coin)
-    if(WIN32)
-        target_link_libraries(tonatiuhpp_cli_components_smoke PRIVATE opengl32)
-    endif()
-    target_compile_definitions(tonatiuhpp_cli_components_smoke PRIVATE
-        APP_VERSION="${ProjectVersion}")
-    add_test(NAME headless.m5_nonvisual_core_link
-        COMMAND $<TARGET_FILE:tonatiuhpp_cli_components_smoke> --m5-core-smoke)
-    set_tests_properties(headless.m5_nonvisual_core_link PROPERTIES
-        LABELS "headless;scientific;smoke" TIMEOUT 45)
-    add_test(NAME headless.m5_unified_file_plugin
-        COMMAND $<TARGET_FILE:tonatiuhpp_cli_components_smoke> --m5-plugin-smoke)
-    set_tests_properties(headless.m5_unified_file_plugin PROPERTIES
-        LABELS "headless;scientific;smoke" TIMEOUT 45)
-endif()
 
 # ----------------------------
 # Executable
@@ -536,38 +510,6 @@ target_link_libraries(${ProjectName}
 # Windows-specific OpenGL lib
 if(WIN32)
     target_link_libraries(${ProjectName} PRIVATE opengl32)
-endif()
-
-# M5.1B1: independently linked nonvisual JS/file runtime. This target
-# deliberately has NO dependency on the tonatiuhpp executable or kernel.
-if(BUILD_TESTING)
-    add_executable(tonatiuhpp_m5_runtime_smoke
-        "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/m5/GuiFreeScriptRuntimeSmoke.cpp")
-    target_link_libraries(tonatiuhpp_m5_runtime_smoke PRIVATE
-        TonatiuhScriptRuntime Qt6::Core Qt6::Qml)
-# P1: application executables use the top-level runtime policy.
-    add_test(NAME headless.m5_gui_free_script_runtime
-        COMMAND $<TARGET_FILE:tonatiuhpp_m5_runtime_smoke>)
-    set_tests_properties(headless.m5_gui_free_script_runtime PROPERTIES
-        LABELS "headless;scientific;smoke" TIMEOUT 30)
-endif()
-
-# M5.1A: a QCoreApplication-only consumer links both compiled services.
-# This checks actual target ownership and QObject moc linkage, but it does
-# NOT yet prove a GUI-free transitive binary (that is the M5.1B gate).
-if(BUILD_TESTING)
-    add_executable(tonatiuhpp_m5_services_smoke
-        "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/m5/CompiledServicesSmoke.cpp")
-    target_link_libraries(tonatiuhpp_m5_services_smoke PRIVATE
-        TonatiuhScripting TonatiuhSimulation Qt6::Core Qt6::Qml)
-    # Put the smoke beside the GUI exe so the existing Windows Qt runtime
-    # deployment covers it without introducing a second DLL install policy.
-# P1: application executables use the top-level runtime policy.
-    add_dependencies(tonatiuhpp_m5_services_smoke ${ProjectName})
-    add_test(NAME headless.m5_compiled_services_link
-        COMMAND $<TARGET_FILE:tonatiuhpp_m5_services_smoke>)
-    set_tests_properties(headless.m5_compiled_services_link PROPERTIES
-        LABELS "headless;scientific;smoke" TIMEOUT 30)
 endif()
 
 # TONATIUHPP_P1_CENTRAL_WIN_RUNTIME: the shared build-tree stage

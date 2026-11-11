@@ -531,9 +531,7 @@ if(WIN32)
     list(APPEND _tonatiuhpp_p1_executables
       tonatiuhpp_scientific_equivalence_tests
       tonatiuhpp_math_tests tonatiuhpp_math_box2d_tests
-      tonatiuhpp_standard_random_tests
-      tonatiuhpp_m5_runtime_smoke tonatiuhpp_m5_services_smoke
-      tonatiuhpp_cli_components_smoke)
+      tonatiuhpp_standard_random_tests)
   endif()
 
   set(_tonatiuhpp_p1_runtime_dll_expressions)

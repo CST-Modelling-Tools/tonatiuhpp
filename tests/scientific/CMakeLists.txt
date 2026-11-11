@@ -7,21 +7,6 @@ add_executable(tonatiuhpp_scientific_equivalence_tests
   ScriptSceneDocumentTests.cpp
   ScriptLegacyCorpusTests.cpp
   ApplicationDataPathsTests.cpp
-  "${CMAKE_SOURCE_DIR}/application/script/DataObject.cpp"
-  "${CMAKE_SOURCE_DIR}/application/script/NodeObject.cpp"
-  "${CMAKE_SOURCE_DIR}/application/script/ScriptHost.cpp"
-  "${CMAKE_SOURCE_DIR}/application/script/ScriptSceneServices.cpp"
-  "${CMAKE_SOURCE_DIR}/application/script/ScriptSceneDocument.cpp"
-  "${CMAKE_SOURCE_DIR}/application/script/ScriptInterceptionService.cpp"
-  "${_tonatiuhpp_equivalence_core_dir}/CorePluginRegistry.cpp"
-  "${_tonatiuhpp_equivalence_core_dir}/NativeTraceSignature.cpp"
-  "${_tonatiuhpp_equivalence_core_dir}/NativeRayHistorySignature.cpp"
-  "${_tonatiuhpp_equivalence_core_dir}/RayTraceExecutor.cpp"
-  "${_tonatiuhpp_equivalence_core_dir}/SceneInstanceBuilder.cpp"
-  "${_tonatiuhpp_equivalence_core_dir}/SceneLoader.cpp"
-  "${_tonatiuhpp_equivalence_core_dir}/SimulationSession.cpp"
-  "${_tonatiuhpp_equivalence_core_dir}/TonatiuhCore.cpp"
-  "${_tonatiuhpp_equivalence_core_dir}/TracePreparation.cpp"
 )
 
 target_include_directories(tonatiuhpp_scientific_equivalence_tests PRIVATE
@@ -86,6 +71,9 @@ target_link_libraries(tonatiuhpp_scientific_equivalence_tests PRIVATE
   Qt6::Gui
   Qt6::Concurrent
   Qt6::Qml
+  TonatiuhScriptRuntime
+  TonatiuhScripting
+  TonatiuhSimulation
   TonatiuhppLibraries
   TonatiuhppKernel
 )

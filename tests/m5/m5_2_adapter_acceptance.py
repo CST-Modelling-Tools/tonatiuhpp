@@ -67,7 +67,8 @@ class Suite:
         self.runroot = Path(tempfile.mkdtemp(prefix=f"m5_2_{args.mode}_", dir=self.output_parent))
         self.journal: dict = {"schema": "tonatiuhpp.m5.2.cli-process.v1",
                               "mode": args.mode, "source_root": str(self.root),
-                              "process_a": str(self.gui), "process_b": str(self.cli),
+                              "gui_artifact": str(self.gui),
+                              "process_a": str(self.cli), "process_b": str(self.cli),
                               "started_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
                               "checks": [], "result": "IN_PROGRESS"}
         self.comparator = self.load_comparator()
