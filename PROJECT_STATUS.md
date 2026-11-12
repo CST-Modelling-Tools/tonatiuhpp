@@ -256,3 +256,18 @@ Define a consistent label taxonomy: level (`unit`/`integration`/`system`), domai
   installed-runtime acceptance to a required gate; IFW packaging,
   release environment independence and maintenance updates remain
   separate evidence requirements. **PR #46 remains draft/unmerged.**
+
+### Phase E preliminary Qt IFW production-payload pilot
+
+- The next exploratory CI checkpoint will stage the existing
+  `BUILD_TESTING=OFF` CMake install through
+  `installer/prepare_ifw_payload.py`, make a separate copy of the
+  `com.tonatiuhpp.app/data` payload in runner temporary storage,
+  relocate it, and execute production CLI scientific acceptance plus
+  actual native GUI startup. This is separate from the already-tested
+  `BUILD_TESTING=ON` dialog acceptance and plain production CMake
+  install smoke. Do not infer full GUI numerical acceptance or actual
+  IFW installer/update/uninstall execution from these checks.
+- Pilot remains `continue-on-error` until individual Linux, macOS and
+  Windows results, loader paths and numerical evidence are reviewed.
+  All prior required Phase D tests remain unchanged; PR #46 stays draft.

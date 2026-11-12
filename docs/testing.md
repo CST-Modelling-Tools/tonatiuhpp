@@ -378,3 +378,23 @@ The GUI-only DLL checks have negative/positive Python self-tests,
 which must fail closed when PrintSupport is omitted. Both preliminary
 and production runs keep the frozen 500-million-ray benchmark and
 scientific kernel unchanged.
+
+### Phase E production Qt IFW *payload* acceptance pilot
+
+In addition to the relocated CMake install, the Phase E CI now
+uses the existing `installer/prepare_ifw_payload.py` from a disposable
+`BUILD_TESTING=OFF` CMake staging tree. Its generated Qt IFW
+`installer/packages/com.tonatiuhpp.app/data` is copied to a separate
+external runtime prefix, relocated again, and exercised with the
+same production CLI scientific checks and real native GUI startup
+smoke. The resulting manifest and per-process evidence are retained
+under `build/tests/ifw_payload_acceptance`.
+
+This is a **payload-content/runtime** check, not installation of a
+`binarycreator`-generated Qt IFW executable, an unattended installer
+transaction, an updater or uninstaller test, signing or notarization.
+It remains **non-gating until all three OS pilots actually pass**.
+Using source test scripts as comparators is permitted; the launched
+binaries, plugins and scene files must originate from the copied IFW
+payload, not the source/SDK/build tree. The 500-million-ray frozen
+benchmark remains unchanged.

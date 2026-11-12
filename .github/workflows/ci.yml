@@ -557,6 +557,60 @@ jobs:
             "${args[@]}"
           fi
 
+      # Phase E Qt IFW *payload* contract: stage production binaries using
+      # the existing release package-data preparation, copy the resulting
+      # payload outside the checkout, and validate that the actual packaged
+      # GUI/CLI remain runnable after prefix relocation. This does NOT run
+      # binarycreator or validate updater/install transactions.
+      - name: Pilot Qt IFW production payload scientific runtime
+        if: ${{ steps.changes.outputs.docs_only != 'true' }}
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          scratch="${RUNNER_TEMP//\\//}/tonatiuhpp-ifw-payload-${GITHUB_RUN_ID}-${RUNNER_OS}"
+          mkdir -p "$scratch"
+          cmake --install build --config Release --prefix "$scratch/ifw-staging"
+          if [[ "$RUNNER_OS" == "macOS" ]]; then
+            bash scripts/prepare_macos_installed_pilot.sh "$scratch/ifw-staging"
+          fi
+          python installer/prepare_ifw_payload.py --build-dir build --config Release \
+            --skip-build --skip-install --staging-dir "$scratch/ifw-staging"
+          python - "$scratch/cmake-install" build/tests/ifw_payload_manifest.json <<'PY'
+          import json
+          from pathlib import Path
+          import shutil
+          import sys
+          payload = Path("installer/packages/com.tonatiuhpp.app/data").resolve(strict=True)
+          dest = Path(sys.argv[1])
+          assert not dest.exists(), "Refusing to overwrite existing IFW payload test root"
+          shutil.copytree(payload, dest, symlinks=True)
+          manifest = {"schema": "tonatiuhpp.phase-e.ifw-payload.v1",
+                      "scope": "IFW package data only; installer execution not verified",
+                      "files": sum(p.is_file() for p in dest.rglob("*")),
+                      "platform": sys.platform,
+                      "payload": str(dest)}
+          Path(sys.argv[2]).write_text(json.dumps(manifest, indent=2) + "\n")
+          print("IFW_PAYLOAD_MANIFEST=" + json.dumps(manifest, sort_keys=True))
+          PY
+          args=(python tests/integration/installation/run_installed_acceptance.py
+            --production-smoke
+            --source-root "${GITHUB_WORKSPACE}"
+            --install-origin "$scratch/cmake-install"
+            --scratch-root "$scratch"
+            --output-root build/tests/ifw_payload_acceptance)
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            args+=(--windows-ci-mesa)
+            export QT_QPA_PLATFORM=windows GALLIUM_DRIVER=llvmpipe LIBGL_ALWAYS_SOFTWARE=1
+            "${args[@]}"
+          elif [[ "$RUNNER_OS" == "Linux" ]]; then
+            export QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1
+            xvfb-run -a -s "-screen 0 1280x1024x24 +extension GLX" "${args[@]}"
+          else
+            export QT_QPA_PLATFORM=cocoa
+            "${args[@]}"
+          fi
+
       - name: Upload build artifacts
         if: ${{ always() && steps.changes.outputs.docs_only != 'true' }}
         uses: actions/upload-artifact@v6
