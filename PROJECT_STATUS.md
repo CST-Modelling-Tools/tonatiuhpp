@@ -204,3 +204,26 @@ Define a consistent label taxonomy: level (`unit`/`integration`/`system`), domai
   installs from Qt IFW installer/update behavior. Frozen 500M artifact
   remains immutable; no production physics change. PR stays draft
   until scientific evidence supports a final acceptance decision.
+
+### Phase E first CI evidence — genuine installed-runtime failures
+
+- First pilot [43269447246](https://github.com/CST-Modelling-Tools/tonatiuhpp/actions/runs/43269447246)
+  ran Linux/macOS/Windows CMake installation into disposable runner temporary
+  roots. The installed CLI passed on Linux and Windows; all three relocated
+  GUI/runtime paths were **not yet accepted**. The step was
+  `continue-on-error`, hence green overall jobs must not be conflated
+  with pilot success.
+- Linux: missing `libQt6OpenGL.so.6` at GUI launch (exit 127) despite the
+  library being present in installed `lib`. Patch installed bundled shared
+  library `RUNPATH` for transitive dependencies.
+- macOS: missing private `@rpath/libTonatiuhppKernel.dylib` from raw
+  CMake-installed CLI; macdeployqt does not bundle all private runtime
+  modules. Reuse release app consolidation in the pilot.
+- Windows: missing runtime DLL at installed GUI startup
+  (`0xC0000135`), while installed CLI passed. Add explicit Qt6OpenGL
+  DLL deployment for SoQt's indirect dependency, then require actual
+  rerun evidence before concluding this was the missing DLL.
+- No benchmark regeneration or production scientific changes. Next:
+  inspect second pilot outcomes and harden remaining installed dependencies;
+  explicit new production `BUILD_TESTING=OFF` payload validation remains
+  required for final Phase E acceptance.

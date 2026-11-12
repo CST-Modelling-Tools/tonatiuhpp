@@ -804,6 +804,25 @@ if(WIN32)
     )
   endif()
 
+  # SoQt's native OpenGL widget introduces Qt6OpenGL as an indirect DLL.
+  # windeployqt can miss this dependency when scanning only the executables,
+  # although the GUI uses it at runtime via SoQt. Explicitly bundle the
+  # matching Qt SDK module from the Qt prefix instead of relying on the SDK
+  # in a developer's PATH during installed GUI startup.
+  if(TONATIUHPP_BUNDLE_RUNTIME)
+    install(CODE
+      "file(GLOB _opengl_dlls \"${_qt_bin}/Qt6OpenGL*.dll\")
+       if(NOT _opengl_dlls)
+         message(FATAL_ERROR \"Missing Qt6OpenGL runtime DLLs from Qt SDK: ${_qt_bin}\")
+       endif()
+       file(INSTALL
+         DESTINATION \"\${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR}\"
+         TYPE FILE
+         FILES \${_opengl_dlls}
+       )"
+    )
+  endif()
+
   # Export a small PATH helper for local debugging
   set(_thirdparty_bin "${CMAKE_CURRENT_LIST_DIR}/../third_party/_install/bin")
   set(_qt_bin_hint "${_qt_bin}")

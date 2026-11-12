@@ -304,3 +304,35 @@ must be assessed rather than inferred from CLI process success.
 No frozen 500-million-ray benchmark is run or regenerated. All installed
 work is confined to new external CI temporary directories, not a
 developer/user installation.
+
+### First relocated-install pilot evidence (run 43269447246)
+
+All three ordinary platform CI jobs passed their existing build-tree
+regressions and native GUI acceptance. Their **new Phase E pilots did not
+pass**, despite green parent jobs because those pilots were non-gating:
+
+- **Linux:** installed CLI scientific acceptance passed, including real
+  installed scene and material-plugin loading. Relocated GUI exited 127
+  before any scientific test: `libQt6OpenGL.so.6` was not found. The
+  CMake install log shows that library present in installed `lib/`;
+  this is consistent with ELF `RUNPATH` nontransitivity. The follow-up
+  change gives each installed shared library a local `$ORIGIN` RUNPATH.
+- **macOS:** the raw CMake-installed CLI aborted with
+  `Library not loaded: @rpath/libTonatiuhppKernel.dylib`.
+  `macdeployqt` alone does not consolidate Tonatiuh++ private
+  libraries. The follow-up pilot reuses the release workflow's macOS
+  app bundle consolidation, stages private Coin/SoQt and QtOpenGL
+  dependencies, and loads installed examples from inside the bundle.
+- **Windows:** the relocated CLI scientific tests passed, and the
+  pinned CI Mesa software WGL runtime was staged. The installed GUI
+  then exited `3221225781` (`0xC0000135`), indicating a missing
+  DLL before scientific tests. In addition to `windeployqt`, the
+  follow-up install includes the indirect Qt6OpenGL runtime DLLs needed
+  by SoQt. Which DLL the loader lacked in the initial run is not
+  proven by the exit code alone.
+
+These are **first-pilot diagnoses and proposed remedies, not accepted
+three-platform installed runtime results**. The separate second CI
+run must prove each relocated app exercises the actual GUI science.
+These tests do not execute the frozen benchmark and do not validate
+`BUILD_TESTING=OFF` IFW installers or updater lifecycle.
