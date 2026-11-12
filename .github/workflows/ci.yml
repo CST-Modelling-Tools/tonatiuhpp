@@ -448,12 +448,19 @@ jobs:
       # Windows hosted Actions may lack an interactive WGL desktop even though
       # manual Windows Release native GUI CTests passed 3/3. Probe it without
       # substituting Qt offscreen or misreporting a non-gating success.
+      - name: Prepare Windows native GUI fault diagnostics
+        if: ${{ steps.changes.outputs.docs_only != 'true' && runner.os == 'Windows' }}
+        shell: pwsh
+        run: |
+          ./scripts/diagnose_windows_gui_ci.ps1 -Phase before
+
       - name: Probe hosted Windows native GUI acceptance
         if: ${{ steps.changes.outputs.docs_only != 'true' && runner.os == 'Windows' }}
         continue-on-error: true
         shell: bash
         env:
           QT_QPA_PLATFORM: windows
+          QT_DEBUG_PLUGINS: "1"
         run: |
           set -euo pipefail
           cmake -S source -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DTONATIUHPP_ENABLE_NATIVE_GUI_ACCEPTANCE=ON
@@ -461,6 +468,12 @@ jobs:
           ctest --test-dir build -C Release -N -R '^gui[.]native_' | tee build/gui-native-inventory.txt
           grep -Fq 'Total Tests: 3' build/gui-native-inventory.txt
           ctest --test-dir build -C Release --verbose -R '^gui[.]native_' --output-junit "${GITHUB_WORKSPACE}/build/gui-native-results.xml" 2>&1 | tee build/gui-native-pilot.log
+
+      - name: Inspect hosted Windows native GUI fault
+        if: ${{ always() && steps.changes.outputs.docs_only != 'true' && runner.os == 'Windows' }}
+        shell: pwsh
+        run: |
+          ./scripts/diagnose_windows_gui_ci.ps1 -Phase after
 
       - name: Upload build artifacts
         if: ${{ always() && steps.changes.outputs.docs_only != 'true' }}
