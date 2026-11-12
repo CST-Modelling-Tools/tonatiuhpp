@@ -3,7 +3,8 @@ foreach(_required IN ITEMS TEST_EXECUTABLE TEST_WORKING_DIRECTORY SCENE_FILE OUT
     message(FATAL_ERROR "Missing ${_required}")
   endif()
 endforeach()
-file(MAKE_DIRECTORY "${OUTPUT_DIR}")
+include("${CMAKE_CURRENT_LIST_DIR}/PrepareTestOutput.cmake")
+tonatiuhpp_prepare_test_output("${OUTPUT_DIR}" "${TEST_BUILD_ROOT}" "${TEST_OUTPUT_LEAF}")
 set(_tracker_args)
 if(UPDATE_TRACKERS)
   list(APPEND _tracker_args --update-trackers)
@@ -15,7 +16,6 @@ foreach(_mode IN ITEMS record_one record_two no_record)
   set(_export_args --no-export)
   if(NOT _mode STREQUAL "no_record")
     set(_export_dir "${OUTPUT_DIR}/${_mode}_photons")
-    file(REMOVE_RECURSE "${_export_dir}")
     file(MAKE_DIRECTORY "${_export_dir}")
     set(_export_args --photon-export-dir "${_export_dir}")
   endif()
@@ -43,7 +43,9 @@ foreach(_other IN ITEMS record_two no_record)
   execute_process(
     COMMAND "${PYTHON_EXECUTABLE}" "${SOURCE_DIR}/scientific/compare_native_ray_histories.py"
       "${OUTPUT_DIR}/record_one_history.json" "${OUTPUT_DIR}/${_other}_history.json"
-    RESULT_VARIABLE _code OUTPUT_VARIABLE _stdout ERROR_VARIABLE _stderr)
+    RESULT_VARIABLE _code OUTPUT_VARIABLE _stdout ERROR_VARIABLE _stderr
+    TIMEOUT 30
+)
   if(NOT _code EQUAL 0)
     message(FATAL_ERROR "Ray histories mismatch: ${_other}\n${_stdout}${_stderr}")
   endif()
@@ -51,7 +53,9 @@ foreach(_other IN ITEMS record_two no_record)
   execute_process(
     COMMAND "${PYTHON_EXECUTABLE}" "${SOURCE_DIR}/scientific/compare_native_trace_signatures.py"
       "${OUTPUT_DIR}/record_one_hits.json" "${OUTPUT_DIR}/${_other}_hits.json"
-    RESULT_VARIABLE _hitcode OUTPUT_VARIABLE _hitstdout ERROR_VARIABLE _hitstderr)
+    RESULT_VARIABLE _hitcode OUTPUT_VARIABLE _hitstdout ERROR_VARIABLE _hitstderr
+    TIMEOUT 30
+)
   if(NOT _hitcode EQUAL 0)
     message(FATAL_ERROR "Exact-hit science mismatch: ${_other}\n${_hitstdout}${_hitstderr}")
   endif()
@@ -59,7 +63,9 @@ endforeach()
 execute_process(
   COMMAND "${PYTHON_EXECUTABLE}" "${SOURCE_DIR}/scientific/compare_photon_exports.py"
     "${OUTPUT_DIR}/record_one_photons" "${OUTPUT_DIR}/record_two_photons"
-  RESULT_VARIABLE _photoncode OUTPUT_VARIABLE _photonstdout ERROR_VARIABLE _photonstderr)
+  RESULT_VARIABLE _photoncode OUTPUT_VARIABLE _photonstdout ERROR_VARIABLE _photonstderr
+    TIMEOUT 30
+)
 if(NOT _photoncode EQUAL 0)
   message(FATAL_ERROR "Canonical photon files differ\n${_photonstdout}${_photonstderr}")
 endif()

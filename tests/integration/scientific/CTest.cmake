@@ -31,6 +31,7 @@
         "-DTEST_WORKING_DIRECTORY=${TONATIUHPP_TEST_WORKING_DIR}"
         "-DSCENE_FILE=${_tracker_scene}"
         "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/headless_tracker_signatures"
+        "-DTEST_BUILD_ROOT=${CMAKE_CURRENT_BINARY_DIR}"
         -P "${TONATIUHPP_TESTS_ROOT}/cmake/run_native_tracker_signatures.cmake"
     )
     tonatiuhpp_set_headless_test_properties(headless.trace_tracker_exact_signatures)
@@ -41,8 +42,8 @@
   endif()
 
   # True native CLI photon file-export repeatability and scientific parity.
-  # Keep this optional if Python is unavailable in a local developer build.
-  find_package(Python3 COMPONENTS Interpreter QUIET)
+  # The full standard suite requires Python; it is checked at configure time.
+  find_package(Python3 COMPONENTS Interpreter REQUIRED)
   if(Python3_Interpreter_FOUND AND EXISTS "${_tonatiuhpp_cylinder_scene}")
     add_test(
       NAME headless.photon_export_scientific_equivalence
@@ -51,6 +52,8 @@
         "-DTEST_WORKING_DIRECTORY=${TONATIUHPP_TEST_WORKING_DIR}"
         "-DSCENE_FILE=${_tonatiuhpp_cylinder_scene}"
         "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/headless_photon_export"
+        "-DTEST_BUILD_ROOT=${CMAKE_CURRENT_BINARY_DIR}"
+        "-DTEST_OUTPUT_LEAF=headless_photon_export"
         "-DPYTHON_EXECUTABLE=${Python3_EXECUTABLE}"
         "-DSOURCE_DIR=${TONATIUHPP_TESTS_ROOT}"
         -P "${TONATIUHPP_TESTS_ROOT}/cmake/run_photon_export_scientific_equivalence.cmake"
@@ -111,6 +114,8 @@
         "-DTEST_WORKING_DIRECTORY=${TONATIUHPP_TEST_WORKING_DIR}"
         "-DSCENE_FILE=${_tracker_scene}"
         "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/headless_tracker_photon_export"
+        "-DTEST_BUILD_ROOT=${CMAKE_CURRENT_BINARY_DIR}"
+        "-DTEST_OUTPUT_LEAF=headless_tracker_photon_export"
         "-DPYTHON_EXECUTABLE=${Python3_EXECUTABLE}"
         "-DSOURCE_DIR=${TONATIUHPP_TESTS_ROOT}"
         "-DUPDATE_TRACKERS=ON"
@@ -147,6 +152,8 @@
             "-DTEST_WORKING_DIRECTORY=${TONATIUHPP_TEST_WORKING_DIR}"
             "-DSCENE_FILE=${_ray_history_scene}"
             "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/headless_ray_history_${_case}"
+            "-DTEST_BUILD_ROOT=${CMAKE_CURRENT_BINARY_DIR}"
+            "-DTEST_OUTPUT_LEAF=headless_ray_history_${_case}"
             "-DPYTHON_EXECUTABLE=${Python3_EXECUTABLE}"
             "-DSOURCE_DIR=${TONATIUHPP_TESTS_ROOT}"
             "-DUPDATE_TRACKERS=${_ray_history_tracker}"

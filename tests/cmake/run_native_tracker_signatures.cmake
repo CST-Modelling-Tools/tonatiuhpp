@@ -6,7 +6,8 @@ foreach(_required IN ITEMS TEST_EXECUTABLE TEST_WORKING_DIRECTORY SCENE_FILE OUT
   endif()
 endforeach()
 
-file(MAKE_DIRECTORY "${OUTPUT_DIR}")
+include("${CMAKE_CURRENT_LIST_DIR}/PrepareTestOutput.cmake")
+tonatiuhpp_prepare_test_output("${OUTPUT_DIR}" "${TEST_BUILD_ROOT}" "headless_tracker_signatures")
 set(_signature_fields
   schema mode scene_sha256 rays seed grid_width grid_height
   aperture_area_bits irradiance_bits power_per_ray_bits

@@ -6,7 +6,8 @@ if(NOT DEFINED OUTPUT_DIR OR OUTPUT_DIR STREQUAL "")
   message(FATAL_ERROR "OUTPUT_DIR is required.")
 endif()
 
-file(MAKE_DIRECTORY "${OUTPUT_DIR}")
+include("${CMAKE_CURRENT_LIST_DIR}/PrepareTestOutput.cmake")
+tonatiuhpp_prepare_test_output("${OUTPUT_DIR}" "${TEST_BUILD_ROOT}" "headless_run_script_errors")
 file(TO_CMAKE_PATH "${OUTPUT_DIR}/run_script_gui_only_api.tnhpps" _script_file)
 file(TO_CMAKE_PATH "${OUTPUT_DIR}/run_script_invalid_write_json_path.tnhpps" _invalid_write_json_script)
 file(TO_CMAKE_PATH "${OUTPUT_DIR}/run_script_syntax_error.tnhpps" _syntax_error_script)
@@ -48,6 +49,8 @@ execute_process(
   RESULT_VARIABLE _exit_code
   OUTPUT_VARIABLE _stdout
   ERROR_VARIABLE _stderr
+
+    TIMEOUT 30
 )
 
 if(NOT "${_exit_code}" STREQUAL "1")
@@ -68,6 +71,8 @@ execute_process(
   RESULT_VARIABLE _exit_code
   OUTPUT_VARIABLE _stdout
   ERROR_VARIABLE _stderr
+
+    TIMEOUT 30
 )
 
 if(NOT "${_exit_code}" STREQUAL "1")
@@ -88,6 +93,8 @@ execute_process(
   RESULT_VARIABLE _exit_code
   OUTPUT_VARIABLE _stdout
   ERROR_VARIABLE _stderr
+
+    TIMEOUT 30
 )
 
 if(NOT "${_exit_code}" STREQUAL "1")
@@ -120,7 +127,9 @@ foreach(_case IN ITEMS
     RESULT_VARIABLE _exit_code
     OUTPUT_VARIABLE _stdout
     ERROR_VARIABLE _stderr
-  )
+
+    TIMEOUT 30
+)
 
   if(NOT "${_exit_code}" STREQUAL "1")
     message(STATUS "stdout:\n${_stdout}")

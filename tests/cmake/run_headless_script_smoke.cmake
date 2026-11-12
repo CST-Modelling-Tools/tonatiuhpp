@@ -10,7 +10,8 @@ if(NOT DEFINED OUTPUT_DIR OR OUTPUT_DIR STREQUAL "")
   message(FATAL_ERROR "OUTPUT_DIR is required.")
 endif()
 
-file(MAKE_DIRECTORY "${OUTPUT_DIR}")
+include("${CMAKE_CURRENT_LIST_DIR}/PrepareTestOutput.cmake")
+tonatiuhpp_prepare_test_output("${OUTPUT_DIR}" "${TEST_BUILD_ROOT}" "headless_run_script_cylinder")
 string(RANDOM LENGTH 8 ALPHABET "0123456789abcdef" _run_id)
 
 file(TO_CMAKE_PATH "${SCENE_FILE}" _scene_file)
@@ -108,6 +109,8 @@ execute_process(
   RESULT_VARIABLE _exit_code
   OUTPUT_VARIABLE _stdout
   ERROR_VARIABLE _stderr
+
+    TIMEOUT 60
 )
 
 if(NOT "${_exit_code}" STREQUAL "0")

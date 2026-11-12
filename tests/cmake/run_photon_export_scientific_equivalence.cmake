@@ -10,13 +10,13 @@ if(UPDATE_TRACKERS)
   list(APPEND _tracker_args --update-trackers)
 endif()
 
-file(MAKE_DIRECTORY "${OUTPUT_DIR}")
+include("${CMAKE_CURRENT_LIST_DIR}/PrepareTestOutput.cmake")
+tonatiuhpp_prepare_test_output("${OUTPUT_DIR}" "${TEST_BUILD_ROOT}" "${TEST_OUTPUT_LEAF}")
 foreach(_run IN ITEMS first second baseline)
   set(_signature "${OUTPUT_DIR}/${_run}_signature.json")
   file(REMOVE "${_signature}")
   if(NOT _run STREQUAL "baseline")
     set(_output "${OUTPUT_DIR}/${_run}")
-    file(REMOVE_RECURSE "${_output}")
     file(MAKE_DIRECTORY "${_output}")
     set(_export_args --photon-export-dir "${_output}")
   else()
@@ -45,15 +45,21 @@ endforeach()
 execute_process(
   COMMAND "${PYTHON_EXECUTABLE}" "${SOURCE_DIR}/scientific/compare_native_trace_signatures.py"
     "${OUTPUT_DIR}/first_signature.json" "${OUTPUT_DIR}/second_signature.json"
-  RESULT_VARIABLE _match_a OUTPUT_VARIABLE _out_a ERROR_VARIABLE _err_a)
+  RESULT_VARIABLE _match_a OUTPUT_VARIABLE _out_a ERROR_VARIABLE _err_a
+    TIMEOUT 30
+)
 execute_process(
   COMMAND "${PYTHON_EXECUTABLE}" "${SOURCE_DIR}/scientific/compare_native_trace_signatures.py"
     "${OUTPUT_DIR}/first_signature.json" "${OUTPUT_DIR}/baseline_signature.json"
-  RESULT_VARIABLE _match_b OUTPUT_VARIABLE _out_b ERROR_VARIABLE _err_b)
+  RESULT_VARIABLE _match_b OUTPUT_VARIABLE _out_b ERROR_VARIABLE _err_b
+    TIMEOUT 30
+)
 execute_process(
   COMMAND "${PYTHON_EXECUTABLE}" "${SOURCE_DIR}/scientific/compare_photon_exports.py"
     "${OUTPUT_DIR}/first" "${OUTPUT_DIR}/second"
-  RESULT_VARIABLE _match_c OUTPUT_VARIABLE _out_c ERROR_VARIABLE _err_c)
+  RESULT_VARIABLE _match_c OUTPUT_VARIABLE _out_c ERROR_VARIABLE _err_c
+    TIMEOUT 30
+)
 if(NOT _match_a EQUAL 0 OR NOT _match_b EQUAL 0 OR NOT _match_c EQUAL 0)
   message(FATAL_ERROR "Photon export scientific mismatch:\n${_out_a}${_err_a}\n${_out_b}${_err_b}\n${_out_c}${_err_c}")
 endif()

@@ -5,7 +5,8 @@ if(NOT DEFINED OUTPUT_DIR OR OUTPUT_DIR STREQUAL "")
   message(FATAL_ERROR "OUTPUT_DIR is required.")
 endif()
 
-file(MAKE_DIRECTORY "${OUTPUT_DIR}")
+include("${CMAKE_CURRENT_LIST_DIR}/PrepareTestOutput.cmake")
+tonatiuhpp_prepare_test_output("${OUTPUT_DIR}" "${TEST_BUILD_ROOT}" "headless_scene_document")
 file(TO_CMAKE_PATH "${OUTPUT_DIR}/scene_document_ok.tnhpps" _ok)
 file(TO_CMAKE_PATH "${OUTPUT_DIR}/scene_document_bad.tnhpps" _bad)
 file(WRITE "${_ok}" "tn.Clear();\nvar node = new NodeObject;\nnode.setName('M3_2_Headless_Document');\nnode.createNode('child');\ntn.InsertScene(node);\nif (!tn.getScene().getPart('world.sun.position')) throw new Error('Missing sun');\nprint('M3.2 headless document passed');\n")
@@ -22,6 +23,8 @@ execute_process(
   RESULT_VARIABLE _ok_exit
   OUTPUT_VARIABLE _ok_stdout
   ERROR_VARIABLE _ok_stderr
+
+    TIMEOUT 30
 )
 if(NOT "${_ok_exit}" STREQUAL "0" OR NOT _ok_stdout MATCHES "M3.2 headless document passed")
   message(STATUS "stdout:\n${_ok_stdout}")
@@ -35,6 +38,8 @@ execute_process(
   RESULT_VARIABLE _bad_exit
   OUTPUT_VARIABLE _bad_stdout
   ERROR_VARIABLE _bad_stderr
+
+    TIMEOUT 30
 )
 if(NOT "${_bad_exit}" STREQUAL "1"
     OR NOT _bad_stderr MATCHES "tn\\.InsertScene requires a NodeObject"

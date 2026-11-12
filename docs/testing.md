@@ -95,3 +95,12 @@ After the CMake/layout migration:
 - **E - Installed:** disposable external install, GUI/CLI startup, native plugin loading and small exports using installed dependencies rather than developer SDK/build paths. Verify Windows/Linux/macOS separately and distinguish runtime acceptance from complete IFW updater validation.
 
 Do not combine unsupported GUI, installed and CLI claims. Record any scientific reference provenance and exact platform/build scope alongside the test result. Review `PROJECT_STATUS.md` before continuing, and update its validation/branch/commit state only after evidence is available.
+
+## Phase C: execution safety, a real fast tier, and CI evidence
+
+- CTest configures with mandatory Python and checked-in scientific fixtures: a missing required prerequisite must fail configuration, not silently reduce the test inventory. CI checks the platform baseline (180 Windows, 179 Ubuntu/macOS) and required sentinels; the one Windows-only test is `scientific.ScientificPluginPaths.WindowsBuildTreeIncludesMaterialPluginRoot`.
+- `ctest --test-dir build -C Release -L fast --output-on-failure` is a deliberate, small **15-test** quick tier (13 mathematical/random GoogleTests plus the CLI help/invalid-arguments checks). The historical `smoke` label still includes long scientific tests and is **not** a quick tier. Full `ctest --test-dir build -C Release --output-on-failure` remains the authoritative native regression.
+- Recursive cleanup in registered CTest drivers is routed through `tests/cmake/PrepareTestOutput.cmake`; it accepts only a named direct child of an existing CTest build root, rejects redirected/symlink paths, and never deletes arbitrary source or user directories. The guard is covered by synthetic Python `unittest` cases, including deliberate failure paths.
+- Nested CMake `execute_process()` calls in the reviewed drivers have their own bounded timeouts, subordinate to applicable CTest limits. This improves failure containment without changing the test's scientific inputs or the actual comparator assertions.
+- CI emits `build/ctest-inventory.json` and `build/ctest-results.xml` (CTest JUnit), included in the existing build artifact upload. These reports establish build-tree regression coverage only; they do not claim native GUI, installed-runtime or installer acceptance.
+- The immutable frozen 500-million-ray reference and the opt-in full benchmark driver remain unchanged and must not be executed by routine CI or this refactor.

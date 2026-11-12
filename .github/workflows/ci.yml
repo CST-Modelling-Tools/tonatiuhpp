@@ -79,9 +79,9 @@ jobs:
         shell: bash
         run: python -m unittest discover -s tests/ci -p 'test_ci_change_classifier.py' -v
 
-      - name: Test CTest inventory helper
+      - name: Test Python test-infrastructure tooling
         shell: bash
-        run: python -m unittest discover -s tests/tooling -p 'test_ctest_inventory.py' -v
+        run: python -m unittest discover -s tests/tooling -p 'test_*.py' -v
 
       - name: Verify documentation-only changes
         if: ${{ steps.changes.outputs.docs_only == 'true' }}
@@ -388,11 +388,20 @@ jobs:
           grep -Fq 'headless.benchmark_heliostat_10k' build/headless-discovery.txt
           grep -Fq 'headless.benchmark_heliostat_1m_repeatability' build/headless-discovery.txt
 
+      - name: Verify full CTest inventory
+        if: ${{ steps.changes.outputs.docs_only != 'true' }}
+        shell: bash
+        run: |
+          expected=179
+          if [[ "$RUNNER_OS" == "Windows" ]]; then expected=180; fi
+          python scripts/ctest_inventory.py --build-dir build --config Release --expect-count "$expected" --require-sentinels --json-out build/ctest-inventory.json
+          python -c "import json; from pathlib import Path; d=json.loads(Path('build/ctest-inventory.json').read_text(encoding='utf-8')); fast=[t for t in d['tests'] if 'fast' in t['labels']]; unit=[t for t in fast if 'unit' in t['labels']]; print('fast/unit:',len(fast),len(unit)); assert (len(fast),len(unit)) == (15,13)"
+
       - name: Test
         if: ${{ steps.changes.outputs.docs_only != 'true' }}
         shell: bash
         run: |
-          ctest --test-dir build -C Release --output-on-failure
+          ctest --test-dir build -C Release --output-on-failure --output-junit "${GITHUB_WORKSPACE}/build/ctest-results.xml"
 
       - name: Upload build artifacts
         if: ${{ always() && steps.changes.outputs.docs_only != 'true' }}
