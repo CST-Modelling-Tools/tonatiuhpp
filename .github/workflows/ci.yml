@@ -403,6 +403,81 @@ jobs:
         run: |
           ctest --test-dir build -C Release --output-on-failure --output-junit "${GITHUB_WORKSPACE}/build/ctest-results.xml"
 
+      # Phase D native GUI acceptance: standard CTest inventory stays at
+      # 179/180 for the ordinary build-tree regression above. Separately enable
+      # 3 actual GUI CTests on display-capable Linux/macOS CI runners. These
+      # checks are now required after their verified 2026-11-12 pilot runs.
+      - name: Install native Linux GUI display dependencies
+        if: ${{ steps.changes.outputs.docs_only != 'true' && runner.os == 'Linux' }}
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends xvfb xauth mesa-utils libgl1-mesa-dri libglx-mesa0
+
+      - name: Native Linux X11/GLX GUI scientific acceptance
+        if: ${{ steps.changes.outputs.docs_only != 'true' && runner.os == 'Linux' }}
+        shell: bash
+        env:
+          QT_QPA_PLATFORM: xcb
+          LIBGL_ALWAYS_SOFTWARE: "1"
+        run: |
+          set -euo pipefail
+          xvfb-run -a -s "-screen 0 1280x1024x24 +extension GLX" glxinfo -B | tee build/gui-glxinfo.txt
+          cmake -S source -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DTONATIUHPP_ENABLE_NATIVE_GUI_ACCEPTANCE=ON -DTONATIUHPP_GUI_ACCEPTANCE_USE_XVFB=ON
+          cmake --build build --config Release --parallel
+          ctest --test-dir build -C Release -N -R '^gui[.]native_' | tee build/gui-native-inventory.txt
+          grep -Fq 'Total Tests: 3' build/gui-native-inventory.txt
+          ctest --test-dir build -C Release --verbose -R '^gui[.]native_' --output-junit "${GITHUB_WORKSPACE}/build/gui-native-results.xml" 2>&1 | tee build/gui-native-pilot.log
+
+      - name: Native macOS Cocoa GUI scientific acceptance
+        if: ${{ steps.changes.outputs.docs_only != 'true' && runner.os == 'macOS' }}
+        shell: bash
+        env:
+          QT_QPA_PLATFORM: cocoa
+        run: |
+          set -euo pipefail
+          cmake -S source -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DTONATIUHPP_ENABLE_NATIVE_GUI_ACCEPTANCE=ON
+          # Enabling GUI CTests regenerates obsolete AGL framework links on
+          # macOS; scrub the freshly generated manifests before the relink.
+          python scripts/scrub_macos_agl_generated_links.py --build-dir build
+          cmake --build build --config Release --parallel
+          ctest --test-dir build -C Release -N -R '^gui[.]native_' | tee build/gui-native-inventory.txt
+          grep -Fq 'Total Tests: 3' build/gui-native-inventory.txt
+          ctest --test-dir build -C Release --verbose -R '^gui[.]native_' --output-junit "${GITHUB_WORKSPACE}/build/gui-native-results.xml" 2>&1 | tee build/gui-native-pilot.log
+
+      # Windows hosted Actions may lack an interactive WGL desktop even though
+      # manual Windows Release native GUI CTests passed 3/3. Probe it without
+      # substituting Qt offscreen or misreporting a non-gating success.
+      # Hosted Windows exposes a real desktop, but Hyper-V Video lacks
+      # a suitable Qt OpenGL/WGL function dispatch. Pin a verified Mesa
+      # software WGL only for native GUI scientific acceptance.
+      - name: Stage pinned Windows Mesa software WGL
+        if: ${{ steps.changes.outputs.docs_only != 'true' && runner.os == 'Windows' }}
+        shell: pwsh
+        run: |
+          ./scripts/install_ci_windows_mesa.ps1 -Action install
+
+      - name: Native Windows WGL GUI scientific acceptance
+        if: ${{ steps.changes.outputs.docs_only != 'true' && runner.os == 'Windows' }}
+        shell: bash
+        env:
+          QT_QPA_PLATFORM: windows
+          GALLIUM_DRIVER: llvmpipe
+          LIBGL_ALWAYS_SOFTWARE: "1"
+        run: |
+          set -euo pipefail
+          cmake -S source -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DTONATIUHPP_ENABLE_NATIVE_GUI_ACCEPTANCE=ON
+          cmake --build build --config Release --parallel
+          ctest --test-dir build -C Release -N -R '^gui[.]native_' | tee build/gui-native-inventory.txt
+          grep -Fq 'Total Tests: 3' build/gui-native-inventory.txt
+          ctest --test-dir build -C Release --verbose -R '^gui[.]native_' --output-junit "${GITHUB_WORKSPACE}/build/gui-native-results.xml" 2>&1 | tee build/gui-native-pilot.log
+
+      - name: Remove CI-only Windows Mesa before artifact upload
+        if: ${{ always() && steps.changes.outputs.docs_only != 'true' && runner.os == 'Windows' }}
+        shell: pwsh
+        run: |
+          ./scripts/install_ci_windows_mesa.ps1 -Action remove
+
       - name: Upload build artifacts
         if: ${{ always() && steps.changes.outputs.docs_only != 'true' }}
         uses: actions/upload-artifact@v6

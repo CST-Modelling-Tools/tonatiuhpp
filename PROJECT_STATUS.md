@@ -2,7 +2,7 @@
 
 Last updated: 2026-11-12
 
-**Active work:** Phase D — genuine automated native GUI scientific acceptance. The testing architecture's Phases A, B and C are **accepted and merged**; Phase E (installed-runtime and packaging acceptance) follows D. This work is maintenance, not a public release or a new scientific model.
+**Active work:** Phase D — three-platform native GUI scientific acceptance evidence verified on PR #45; final required CI gate hardening and user-authorized merge pending. The testing architecture's Phases A, B and C are **accepted and merged**; Phase E (installed-runtime and packaging acceptance) follows D. This work is maintenance, not a public release or a new scientific model.
 
 **This document is the current handoff.** Older 2026-11-10 P0/P1/P2 candidate/pending diaries and runtime-refactor plans have been superseded by merged code and remain in Git history. Do not resume those plans. Read `AGENT.md` and `docs/testing.md` before changing code.
 
@@ -98,3 +98,80 @@ Define a consistent label taxonomy: level (`unit`/`integration`/`system`), domai
 - **D — NEXT / NOT STARTED:** Register and scientifically validate actual `tonatiuhpp-gui` interactions in bounded CTest drivers; establish reliable display-backed CI evidence per OS before making requirements mandatory. Do not change scientific references or trigger the frozen benchmark.
 - **E — NOT STARTED:** Independently validate installed GUI/CLI runtime paths, dependencies, scientific plugins and selected small numerical outputs from disposable external install/payload roots.
 - **Current scope:** All A–C acceptance evidence precedes this status-only update. Updating this Markdown document does **not** rerun any tests, authorize a release, or imply acceptance of D or E.
+
+## Phase D implementation candidate checkpoint (2026-11-12)
+
+- **Status:** Implementation candidate, **not accepted or merged**. Development branch:
+  `maintenance/native-gui-scientific-acceptance`, based on Phase D baseline
+  `a7473a2d805529c3efb1cfb00c043978255d15be` (PR #44 merged).
+- Proposed optional registration: `TONATIUHPP_ENABLE_NATIVE_GUI_ACCEPTANCE=ON`
+  adds three real GUI CTests, with optional Linux `xvfb-run` launch through
+  `TONATIUHPP_GUI_ACCEPTANCE_USE_XVFB=ON`. Default existing Windows 180 /
+  Linux and macOS 179 CTest inventory stays unchanged.
+- The test-only Python runner executes actual GUI Qt workflows with bounded
+  process lifetimes, isolated logs and reports, an independent cylinder GUI/CLI
+  photon-export comparator, and 8x8 m planar 1,000 W/m² interception/flux
+  analytical checks using the preexisting small scientific scripts.
+- Python synthetic numerical-oracle positive/negative tests passed locally
+  (13 tests). **Real Qt native acceptance has not yet been run or demonstrated
+  on any supported OS in this checkpoint; CI acceptance is pending.** This
+  statement is not an authorization to merge Phase D, modify physics or
+  rerun the 500-million-ray frozen benchmark.
+- Next: run on the maintainer's native Windows Release build in a genuine
+  visible SoQt/OpenGL session, review retained per-mode scientific evidence,
+  then establish reliable Ubuntu/macOS display-backed CI separately; record
+  exact results before enabling required platform GUI gates.
+
+### Phase D native GUI acceptance — three-platform evidence (2026-11-12)
+
+- Native Windows Release maintainer evidence: **183/183** CTests, including
+  the three real graphical workflows, plus independently reviewed numerical
+  `acceptance.json` output. Earlier isolated native GUI run: 3/3.
+- Ubuntu 24.04 hosted X11/GLX (Mesa llvmpipe) in CI run
+  [43185720709](https://github.com/CST-Modelling-Tools/tonatiuhpp/actions/runs/43185720709):
+  **3/3** native GUI CTests, true widget/SoQt session and numerical reports,
+  alongside successful ordinary 179/179 build-tree CTests.
+- macOS Cocoa in that same CI run, after correcting regenerated obsolete
+  AGL linker flags: **3/3** native GUI CTests, real Cocoa widget session and
+  numerical reports, alongside successful ordinary 179/179 build-tree CTests.
+- The real File-export GUI and CLI produce identical canonical photon
+  multisets **within each platform**: 3184 records on Windows/Linux and 3197
+  on macOS (per-photon power 0.0719665 W). This is not a claim of exact
+  cross-platform RNG equality. Script interception is 63857.145538085264 W
+  Windows/Linux and 63889.13809597008 W macOS; native Qt flux integrals are
+  63857.145538085264 W Windows/Linux and 64225.0599537606 W macOS, against
+  the independently expected 64000 W ideal planar absorber reference.
+- **Phase D tested-scope cross-platform evidence is now verified.** The
+  three graphical tests are being promoted to required Ubuntu/macOS CI
+  checks; hosted Windows graphical feasibility is being probed independently
+  while the real Windows desktop evidence remains accepted. Final PR review,
+  the new required-gate CI run and user-authorized merge are still pending.
+- Acceptance scope remains limited to the three small reference fixtures
+  and documented 20% Monte Carlo/analytic criterion. No change to scientific
+  kernel, sampling, photon serialization or immutable 500-million-ray
+  heliostat benchmark. Phase E installed-runtime acceptance is separate.
+
+### Phase D Windows hosted crash remediation (2026-11-12)
+
+- Windows WER/CDB [43212203419](https://github.com/CST-Modelling-Tools/tonatiuhpp/actions/runs/43212203419):
+  null OpenGL dispatch in `Qt6Gui!QOpenGLFunctions::glViewport` during
+  native expose/flush; `0xC0000005` underlying exception, outer
+  `0xC000041D` callback termination. A 1024x768 `WinSta0\\Default`
+  desktop existed; graphics adapter was `Microsoft Hyper-V Video`.
+  No scientific GUI test action or numerical assertion had begun.
+- Pinned Mesa3D 25.1.9 MSVC software WGL remediation:
+  [43220096714](https://github.com/CST-Modelling-Tools/tonatiuhpp/actions/runs/43220096714)
+  achieved **3/3 actual hosted Windows native GUI tests** and
+  **180/180 ordinary Windows CTests**. Canonical GUI/CLI photons
+  3184/3184, interception and Qt flux 63857.145538085264 W,
+  and script flux 63857.114 W. Native Windows desktop evidence
+  183/183 remains independently valid.
+- This milestone removes temporary WER diagnostic code/checkpoint
+  instrumentation and makes hosted Windows graphical acceptance **required**
+  just as Linux/macOS graphical gates already are. Mesa dependency is
+  SHA256 pinned and staged only inside CI's disposable build/bin/Release
+  directory, then removed before upload; not a production dependency.
+- **Final required-gate CI run pending** at this checkpoint. Do not merge
+  until all three mandatory OS graphical checks pass and the maintainer
+  explicitly approves merging. Immutable 500-million-ray benchmark
+  and production scientific kernel remain unchanged.

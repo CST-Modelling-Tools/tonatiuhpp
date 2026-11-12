@@ -104,3 +104,160 @@ Do not combine unsupported GUI, installed and CLI claims. Record any scientific 
 - Nested CMake `execute_process()` calls in the reviewed drivers have their own bounded timeouts, subordinate to applicable CTest limits. This improves failure containment without changing the test's scientific inputs or the actual comparator assertions.
 - CI emits `build/ctest-inventory.json` and `build/ctest-results.xml` (CTest JUnit), included in the existing build artifact upload. These reports establish build-tree regression coverage only; they do not claim native GUI, installed-runtime or installer acceptance.
 - The immutable frozen 500-million-ray reference and the opt-in full benchmark driver remain unchanged and must not be executed by routine CI or this refactor.
+
+## Phase D: native GUI scientific acceptance (opt-in validation candidate)
+
+The initial Phase D suite is separate from the accepted build-tree CTest
+inventory until a **real display/Qt/SoQt/OpenGL runner** has demonstrated
+success. It is not a substitute for the full native regression suite, and it
+does not run the frozen 500-million-ray benchmark.
+
+Configure a separate test-enabled build with
+`-DTONATIUHPP_ENABLE_NATIVE_GUI_ACCEPTANCE=ON`, or reconfigure the
+already-tested Release build (the flag affects only CTest registration):
+
+```powershell
+cmake -S source -B build -DTONATIUHPP_ENABLE_NATIVE_GUI_ACCEPTANCE=ON
+cmake --build build --config Release --parallel
+ctest --test-dir build -C Release -N -R '^gui[.]native_'
+ctest --test-dir build -C Release -R '^gui[.]native_' --output-on-failure
+```
+
+Running the real GUI may take focus. The test runner starts separate genuine
+`tonatiuhpp-gui` processes and executes actual Ray Tracing, Script Editor
+and Flux Analysis widgets. Do not use `QT_QPA_PLATFORM=offscreen` or
+`QT_QPA_PLATFORM=minimal`; a working OpenGL/SoQt display is required.
+For a verified Linux X11/GLX runner, optionally configure with
+`-DTONATIUHPP_GUI_ACCEPTANCE_USE_XVFB=ON` and install `xvfb-run`
+and Mesa GLX. No OS is automatically claimed supported merely because it
+can compile the GUI or run headless CTests.
+
+Three distinct CTests are registered when explicitly enabled:
+
+- `gui.native_interactive_file`: real widget-selected 2,048-ray File
+  photon export on the existing cylinder scene, compared as canonical photon
+  record multisets and power metadata with an independent 2,048-ray CLI run
+  using the same seed. This is real **GUI/CLI cross-interface evidence**, not
+  two CLI runs.
+- `gui.native_seeded_interception`: actual Script Editor invokes the
+  existing 2,048-ray planar 8 m x 8 m absorber fixture; its scientific CSV
+  must satisfy the independently known 64,000 W ideal direct-normal
+  interception at 1,000 W/m² with an initial conservative 20% Monte Carlo/
+  implementation tolerance. The fixture itself is unchanged.
+- `gui.native_interactive_flux`: actual 8x8 Qt color map and visible flux
+  statistics must agree with their own 1 m²-cell integral and max; native GUI
+  Script Editor TSV outputs must also satisfy the 64,000 W analytical total
+  (20% tolerance) and agree with the Flux dialog's independently executed
+  total within the same bound.
+
+These thresholds are **candidate assertions** pending real three-OS evidence;
+do not narrow or relax them merely to make CI green without assessing physics
+and fixture provenance. The analytic reference assumes a zenith-illuminated,
+fully absorbing 8x8 m planar surface and normal irradiance 1,000 W/m².
+Comparing two outputs alone is not independent physical validation.
+
+Each mode gets a fresh unique output directory within the configured build
+test root; it retains the native JSON report, `acceptance.json`, stdout/stderr,
+CLI logs where applicable, script outputs and Qt flux PNG, even on failure.
+The GUI helper's 120 s watchdog is supplemented by a 145 s process timeout
+and a 180 s CTest timeout. The real GUI helper remains test-only under
+`BUILD_TESTING=ON` and inert without its explicitly set environment variables.
+
+Python tooling checks (run without a native GUI or a display):
+
+```powershell
+python -m unittest discover -s tests/tooling -p 'test_*.py' -v
+```
+
+**Acceptance is pending.** Before enabling required GUI gates, capture real
+Windows, Ubuntu and macOS results independently, review the scientific
+numerical reports and runner graphics setup, and compare CTest identities with
+the accepted default 180/179 inventory. Keep Phase E installed-runtime
+acceptance separate.
+
+### Phase D acceptance evidence and required graphical CI
+
+Native GUI acceptance was verified on three genuine GUI backends on
+2026-11-12: a maintainer Windows Release full CTest run (**183/183**, three
+GUI workflows), hosted Ubuntu 24.04 X11/GLX Mesa `llvmpipe` (**3/3 native
+GUI workflows**) and hosted macOS Cocoa (**3/3 native GUI workflows**).
+The ordinary three-platform build-tree CI checks passed on the same PR.
+Linux and macOS outcomes were checked in the graphical step logs rather
+than inferred from their green parent jobs; early pilots were
+`continue-on-error` and therefore could not prove acceptance from their
+overall job status alone.
+
+With Phase D enabled only for the separate graphical CI steps, the regular
+`ctest` inventory remains **180 Windows / 179 Linux and macOS**. The
+Linux and macOS graphical steps now become **required CI gates**:
+they configure `TONATIUHPP_ENABLE_NATIVE_GUI_ACCEPTANCE=ON`, explicitly
+verify discovery of three GUI CTests and run all three with verbose numerical
+output/JUnit evidence. Linux uses genuine X11/GLX through `xvfb-run`,
+and macOS uses Cocoa with the generated-link AGL scrub after CMake
+reconfiguration. An initial hosted Windows graphical probe is exploratory
+(`continue-on-error`), because a local physical Windows desktop and a
+hosted Windows session are different environments.
+
+Numerical evidence from run
+[43185720709](https://github.com/CST-Modelling-Tools/tonatiuhpp/actions/runs/43185720709):
+  
+| Metric | Windows local | Linux CI | macOS CI |
+| --- | ---: | ---: | ---: |
+| GUI/CLI canonical photon records (each) | 3184 | 3184 | 3197 |
+| Photon power (W/photon) | 0.0719665 | 0.0719665 | 0.0719665 |
+| Script interception power (W) | 63857.145538085264 | 63857.145538085264 | 63889.13809597008 |
+| Qt 8×8 flux integral (W) | 63857.145538085264 | 63857.145538085264 | 64225.0599537606 |
+| GUI script TSV flux integral (W) | 63857.114 | 63857.114 | 64225.057 |
+| Independent analytical reference (W) | 64000 | 64000 | 64000 |
+
+**Interpretation:** GUI/CLI photon equality is **within each platform**;
+differences in seeded ray sampling and photon count across platforms are not
+silently treated as exact cross-platform equivalence. The bounded analytical
+planar-reference power assertion uses a conservative 20% threshold for these
+small fixtures, not a universal uncertainty estimate or validation of all
+solar optical models. Independent GUI Script Editor and Qt Flux Dialog results
+are compared at their respective precisions. The 500-million-ray frozen
+heliostat benchmark has not been rerun or modified.
+
+The initial Phase D graphical pilot evidence was accepted for its tested scope.
+Final hosted-Windows remediation and the required three-OS graphical CI status
+are documented below. Installed package/runtime acceptance remains **Phase E**.
+
+### Windows hosted CI — OpenGL crash diagnosis and verified remediation
+
+The hosted Windows GUI originally crashed before opening its first test dialog.
+WER and CDB in [diagnostic run 43212203419](https://github.com/CST-Modelling-Tools/tonatiuhpp/actions/runs/43212203419)
+identified an access violation `0xC0000005` at
+`Qt6Gui!QOpenGLFunctions::glViewport`: the current OpenGL dispatch pointer
+was null during a native Qt `QOpenGLWindow` expose/flush callback, yielding
+the outer process exit `0xC000041D`. The hosted machine *did* have a
+1024×768 `WinSta0\\Default` desktop and used `Microsoft Hyper-V Video`.
+This was a Qt/OpenGL runtime problem before scientific calculations, not
+evidence of an incorrect photon export or flux implementation.
+
+[Remediation run 43220096714](https://github.com/CST-Modelling-Tools/tonatiuhpp/actions/runs/43220096714)
+passed **180/180 ordinary Windows CTests and 3/3 native Windows GUI CTests**
+using Mesa3D **25.1.9 MSVC** software WGL. Actual results:
+GUI/CLI photon records **3184/3184** with canonical record equality,
+interception **63857.145538085264 W**, Qt map integral
+**63857.145538085264 W**, script flux **63857.114 W**,
+against the independently defined **64000 W** planar reference.
+These match the real Windows desktop results.
+
+On CI only, `scripts/install_ci_windows_mesa.ps1` downloads
+`mesa3d-25.1.9-release-msvc.7z` from
+`pal1000/mesa-dist-win`, checks SHA-256
+`dd83c3c4cc4d7706c9e21b277388447a2fc5367b0912f9ee45621e36aeb3b7d2`,
+verifies AMD64 PE architectures for its required WGL libraries,
+stages x64 software-OpenGL DLLs beside the disposable build GUI, and removes
+them before artifact upload. It does not install global drivers or alter
+the production physics, RNG, kernel, packaging, or installed GUI.
+The real `QT_QPA_PLATFORM=windows` and native SoQt/GUI workflow are retained,
+not replaced by `offscreen` or `minimal`. This establishes software-OpenGL
+acceptance, not hardware GPU qualification.
+
+Following this verified exploratory success, the Windows native GUI step
+becomes a **required** CI gate alongside Linux X11/GLX and macOS Cocoa.
+The first new required-gate run must itself pass before marking Phase D
+ready for final maintainer acceptance. The frozen 500-million-ray benchmark
+remains unchanged.

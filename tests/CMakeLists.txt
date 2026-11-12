@@ -82,3 +82,14 @@ endif()
 
 include("${TONATIUHPP_TESTS_ROOT}/integration/cli/ProcessRepeatability.cmake")
 include("${TONATIUHPP_TESTS_ROOT}/architecture/CTest.cmake")
+
+# Real Qt/SoQt/OpenGL GUI workflows require an actual display. Keep the
+# accepted 180/179 default build-tree CTest inventory stable until each runner
+# has demonstrated native graphics support.
+option(TONATIUHPP_ENABLE_NATIVE_GUI_ACCEPTANCE
+  "Register real display-backed GUI scientific acceptance tests" OFF)
+option(TONATIUHPP_GUI_ACCEPTANCE_USE_XVFB
+  "Launch opt-in native GUI acceptance inside Linux xvfb-run (requires GLX)" OFF)
+if(TONATIUHPP_ENABLE_NATIVE_GUI_ACCEPTANCE)
+  include("${TONATIUHPP_TESTS_ROOT}/integration/gui/CTest.cmake")
+endif()
