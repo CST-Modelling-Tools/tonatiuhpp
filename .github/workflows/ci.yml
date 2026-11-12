@@ -454,6 +454,12 @@ jobs:
         run: |
           ./scripts/diagnose_windows_gui_ci.ps1 -Phase before
 
+      - name: Stage SHA-pinned Windows Mesa llvmpipe WGL runtime
+        if: ${{ steps.changes.outputs.docs_only != 'true' && runner.os == 'Windows' }}
+        shell: pwsh
+        run: |
+          ./scripts/install_ci_windows_mesa.ps1 -Action install
+
       - name: Probe hosted Windows native GUI acceptance
         if: ${{ steps.changes.outputs.docs_only != 'true' && runner.os == 'Windows' }}
         continue-on-error: true
@@ -461,6 +467,8 @@ jobs:
         env:
           QT_QPA_PLATFORM: windows
           QT_DEBUG_PLUGINS: "1"
+          GALLIUM_DRIVER: llvmpipe
+          LIBGL_ALWAYS_SOFTWARE: "1"
         run: |
           set -euo pipefail
           cmake -S source -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DTONATIUHPP_ENABLE_NATIVE_GUI_ACCEPTANCE=ON
@@ -474,6 +482,12 @@ jobs:
         shell: pwsh
         run: |
           ./scripts/diagnose_windows_gui_ci.ps1 -Phase after
+
+      - name: Remove CI-only Windows Mesa DLLs before artifact upload
+        if: ${{ always() && steps.changes.outputs.docs_only != 'true' && runner.os == 'Windows' }}
+        shell: pwsh
+        run: |
+          ./scripts/install_ci_windows_mesa.ps1 -Action remove
 
       - name: Upload build artifacts
         if: ${{ always() && steps.changes.outputs.docs_only != 'true' }}
