@@ -2,7 +2,8 @@
 if(NOT DEFINED TEST_EXECUTABLE OR NOT DEFINED OUTPUT_DIR)
   message(FATAL_ERROR "TEST_EXECUTABLE and OUTPUT_DIR are required")
 endif()
-file(REMOVE_RECURSE "${OUTPUT_DIR}")
+include("${CMAKE_CURRENT_LIST_DIR}/PrepareTestOutput.cmake")
+tonatiuhpp_prepare_test_output("${OUTPUT_DIR}" "${TEST_BUILD_ROOT}" "m3_script_relative_io")
 file(MAKE_DIRECTORY "${OUTPUT_DIR}/scripts" "${OUTPUT_DIR}/elsewhere")
 set(script_file "${OUTPUT_DIR}/scripts/relative_io.tnhpps")
 file(WRITE "${script_file}" [=[

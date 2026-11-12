@@ -15,6 +15,20 @@ endif()
 
 include(GoogleTest)
 
+# All standard test families require these fixtures and the Python comparator.
+# Missing prerequisites must fail configuration rather than silently drop CTests.
+find_package(Python3 COMPONENTS Interpreter REQUIRED)
+foreach(_tonatiuhpp_required_fixture IN ITEMS
+    "${CMAKE_CURRENT_LIST_DIR}/../examples/benchmarks/cylinder.tnhpp"
+    "${CMAKE_CURRENT_LIST_DIR}/scientific/fixtures/one-axis-tracker.tnhpp"
+    "${CMAKE_CURRENT_LIST_DIR}/scientific/fixtures/specular-two-reflections.tnhpp"
+    "${CMAKE_CURRENT_LIST_DIR}/../examples/benchmarks/benchmark_heliostat_field_v1.tnhpp"
+    "${CMAKE_CURRENT_LIST_DIR}/../examples/benchmarks/benchmark_config_v2.example.json")
+  if(NOT EXISTS "${_tonatiuhpp_required_fixture}")
+    message(FATAL_ERROR "Required CTest fixture is missing: ${_tonatiuhpp_required_fixture}")
+  endif()
+endforeach()
+
 add_subdirectory(unit/libraries/math)
 add_subdirectory(unit/kernel/random)
 add_subdirectory(scientific)
@@ -48,6 +62,7 @@ endif()
 function(tonatiuhpp_set_headless_test_properties test_name)
   set_tests_properties("${test_name}" PROPERTIES
     LABELS "headless;smoke"
+    TIMEOUT 120
     WORKING_DIRECTORY "${TONATIUHPP_TEST_WORKING_DIR}"
   )
 endfunction()
@@ -59,6 +74,10 @@ set(TONATIUHPP_TESTS_ROOT "${CMAKE_CURRENT_LIST_DIR}")
 if(TONATIUHPP_ENABLE_HEADLESS_SMOKE_TESTS)
   include("${TONATIUHPP_TESTS_ROOT}/integration/cli/CTest.cmake")
   include("${TONATIUHPP_TESTS_ROOT}/integration/scientific/CTest.cmake")
+  # A deliberately small, measured quick-check tier; the existing "smoke"
+  # label includes extended scientific regressions and is not equivalent.
+  set_tests_properties(headless.help headless.invalid_arguments PROPERTIES
+    LABELS "headless;smoke;fast")
 endif()
 
 include("${TONATIUHPP_TESTS_ROOT}/integration/cli/ProcessRepeatability.cmake")

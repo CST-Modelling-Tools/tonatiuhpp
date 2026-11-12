@@ -23,7 +23,7 @@ endif()
 gtest_discover_tests(tonatiuhpp_standard_random_tests
   TEST_PREFIX unit.random.
   DISCOVERY_MODE ${_tonatiuhpp_gtest_discovery_mode}
-  PROPERTIES LABELS "unit;random"
+  PROPERTIES LABELS "unit\\;random\\;fast"
 )
 
 # TONATIUHPP_P1_CENTRAL_WIN_RUNTIME: test EXEs inherit the one build/bin/<config> output.

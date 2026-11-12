@@ -21,7 +21,8 @@ if(NOT "${actual_output}" STREQUAL "${expected_output}")
   message(FATAL_ERROR "Phase 3B2B1 refuses non-fixture output path: ${OUTPUT_DIR}")
 endif()
 find_program(PHASE3B2B1_PYTHON NAMES python3 python REQUIRED)
-file(REMOVE_RECURSE "${OUTPUT_DIR}/headless_a" "${OUTPUT_DIR}/headless_b" "${OUTPUT_DIR}/gui")
+include("${CMAKE_CURRENT_LIST_DIR}/PrepareTestOutput.cmake")
+tonatiuhpp_prepare_test_output("${OUTPUT_DIR}" "${TEST_BUILD_ROOT}" "m3_exit_phase3b2b1_run_file")
 file(MAKE_DIRECTORY "${OUTPUT_DIR}/headless_a" "${OUTPUT_DIR}/headless_b"
                     "${OUTPUT_DIR}/gui" "${OUTPUT_DIR}/script")
 file(TO_CMAKE_PATH "${TEST_SCENE}" scene_path)
@@ -57,7 +58,9 @@ endforeach()
 execute_process(
   COMMAND "${PHASE3B2B1_PYTHON}" "${COMPARATOR}"
     "${OUTPUT_DIR}/headless_a" "${OUTPUT_DIR}/headless_b"
-  RESULT_VARIABLE parity_code OUTPUT_VARIABLE parity_out ERROR_VARIABLE parity_err)
+  RESULT_VARIABLE parity_code OUTPUT_VARIABLE parity_out ERROR_VARIABLE parity_err
+    TIMEOUT 30
+)
 if(NOT "${parity_code}" STREQUAL "0")
   message(FATAL_ERROR "Phase 3B2B1 real File record repeatability mismatch:\n${parity_out}\n${parity_err}")
 endif()

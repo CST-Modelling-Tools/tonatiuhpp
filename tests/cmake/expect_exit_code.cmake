@@ -22,6 +22,8 @@ execute_process(
   RESULT_VARIABLE _exit_code
   OUTPUT_VARIABLE _stdout
   ERROR_VARIABLE _stderr
+
+    TIMEOUT 30
 )
 
 if(NOT "${_exit_code}" STREQUAL "${EXPECTED_EXIT_CODE}")

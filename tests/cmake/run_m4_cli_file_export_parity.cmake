@@ -24,7 +24,8 @@ file(TO_CMAKE_PATH "${actual}" actual)
 if(NOT actual STREQUAL expected)
   message(FATAL_ERROR "Refusing to clean non-fixture M4 output directory: ${OUTPUT_DIR}")
 endif()
-file(REMOVE_RECURSE "${OUTPUT_DIR}")
+include("${CMAKE_CURRENT_LIST_DIR}/PrepareTestOutput.cmake")
+tonatiuhpp_prepare_test_output("${OUTPUT_DIR}" "${TEST_BUILD_ROOT}" "m4_cli_file_export_parity")
 file(MAKE_DIRECTORY "${OUTPUT_DIR}/cli_first" "${OUTPUT_DIR}/cli_second"
                     "${OUTPUT_DIR}/script_export" "${OUTPUT_DIR}/scripts"
                     "${OUTPUT_DIR}/occupied")
@@ -70,7 +71,9 @@ foreach(other cli_second script_export)
   execute_process(
     COMMAND "${PYTHON_EXECUTABLE}" "${COMPARATOR}"
       "${OUTPUT_DIR}/cli_first" "${OUTPUT_DIR}/${other}"
-    RESULT_VARIABLE code OUTPUT_VARIABLE stdout ERROR_VARIABLE stderr)
+    RESULT_VARIABLE code OUTPUT_VARIABLE stdout ERROR_VARIABLE stderr
+    TIMEOUT 30
+)
   if(NOT "${code}" STREQUAL "0")
     message(FATAL_ERROR "M4 physical photon parity failed (${other}):\n${stdout}\n${stderr}")
   endif()

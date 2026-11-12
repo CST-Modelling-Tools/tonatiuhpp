@@ -19,9 +19,8 @@ if(NOT "${expected_output}" STREQUAL "${actual_output}")
 endif()
 find_program(PHASE3B2B2A_PYTHON NAMES python3 python REQUIRED)
 
-foreach(side single append drift tamper gui)
-  file(REMOVE_RECURSE "${OUTPUT_DIR}/${side}")
-endforeach()
+include("${CMAKE_CURRENT_LIST_DIR}/PrepareTestOutput.cmake")
+tonatiuhpp_prepare_test_output("${OUTPUT_DIR}" "${TEST_BUILD_ROOT}" "m3_exit_phase3b2b2a_append")
 file(MAKE_DIRECTORY "${OUTPUT_DIR}/script")
 file(TO_CMAKE_PATH "${TEST_SCENE}" scene_path)
 file(READ "${TEST_SCRIPT}" template)
@@ -63,7 +62,9 @@ endforeach()
 execute_process(
   COMMAND "${PHASE3B2B2A_PYTHON}" "${APPEND_VERIFIER}"
     "${OUTPUT_DIR}/single" "${OUTPUT_DIR}/append"
-  RESULT_VARIABLE compare_code OUTPUT_VARIABLE compare_out ERROR_VARIABLE compare_err)
+  RESULT_VARIABLE compare_code OUTPUT_VARIABLE compare_out ERROR_VARIABLE compare_err
+    TIMEOUT 30
+)
 if(NOT "${compare_code}" STREQUAL "0")
   message(FATAL_ERROR "Phase 3B2B2A real append mismatch:\n${compare_out}\n${compare_err}")
 endif()
@@ -82,7 +83,9 @@ endif()
 execute_process(
   COMMAND "${PHASE3B2B2A_PYTHON}" "${COMPARATOR}"
     "${OUTPUT_DIR}/single" "${OUTPUT_DIR}/drift"
-  RESULT_VARIABLE drift_compare OUTPUT_VARIABLE drift_compare_out ERROR_VARIABLE drift_compare_err)
+  RESULT_VARIABLE drift_compare OUTPUT_VARIABLE drift_compare_out ERROR_VARIABLE drift_compare_err
+    TIMEOUT 30
+)
 if(NOT "${drift_compare}" STREQUAL "0")
   message(FATAL_ERROR "Phase 3B2B2A rejected settings mutation changed photons:\n${drift_compare_out}\n${drift_compare_err}")
 endif()

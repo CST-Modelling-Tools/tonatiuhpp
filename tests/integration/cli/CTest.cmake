@@ -64,6 +64,7 @@
       "-DTEST_EXECUTABLE=${TONATIUHPP_TEST_EXE}"
       "-DTEST_WORKING_DIRECTORY=${TONATIUHPP_TEST_WORKING_DIR}"
       "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/headless_run_script_errors"
+      "-DTEST_BUILD_ROOT=${CMAKE_CURRENT_BINARY_DIR}"
       -P "${TONATIUHPP_TESTS_ROOT}/cmake/run_headless_script_error_smoke.cmake"
   )
   tonatiuhpp_set_headless_test_properties(headless.run_script_rejects_gui_api)
@@ -74,6 +75,7 @@
       "-DTEST_EXECUTABLE=${TONATIUHPP_TEST_EXE}"
       "-DTEST_WORKING_DIRECTORY=${TONATIUHPP_TEST_WORKING_DIR}"
       "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/headless_scene_document"
+      "-DTEST_BUILD_ROOT=${CMAKE_CURRENT_BINARY_DIR}"
       -P "${TONATIUHPP_TESTS_ROOT}/cmake/run_headless_scene_document_smoke.cmake"
   )
   tonatiuhpp_set_headless_test_properties(headless.run_script_scene_document)
@@ -85,6 +87,7 @@
     COMMAND "${CMAKE_COMMAND}"
       "-DTEST_EXECUTABLE=${TONATIUHPP_TEST_EXE}"
       "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/m3_script_relative_io"
+      "-DTEST_BUILD_ROOT=${CMAKE_CURRENT_BINARY_DIR}"
       -P "${TONATIUHPP_TESTS_ROOT}/cmake/run_m3_script_relative_io.cmake"
   )
   tonatiuhpp_set_headless_test_properties(headless.m3_script_relative_io)
@@ -126,6 +129,7 @@
       "-DTEST_EXECUTABLE=${TONATIUHPP_TEST_EXE}"
       "-DTEST_SCRIPT=${TONATIUHPP_TESTS_ROOT}/scripts/m3_exit_phase3a_field_grid_smoke.tnhpps"
       "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/m3_exit_phase3a_field_grid"
+      "-DTEST_BUILD_ROOT=${CMAKE_CURRENT_BINARY_DIR}"
       -P "${TONATIUHPP_TESTS_ROOT}/cmake/run_m3_exit_phase3a_field_grid.cmake"
   )
   tonatiuhpp_set_headless_test_properties(headless.m3_exit_phase3a_field_grid)
@@ -192,6 +196,7 @@
         "-DSCENE_FILE=${_tonatiuhpp_cylinder_scene}"
         "-DSOURCE_DIR=${TONATIUHPP_TESTS_ROOT}"
         "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/headless_m3_cancel_recover"
+      "-DTEST_BUILD_ROOT=${CMAKE_CURRENT_BINARY_DIR}"
         -P "${TONATIUHPP_TESTS_ROOT}/cmake/run_m3_script_cancel_smoke.cmake"
     )
     tonatiuhpp_set_headless_test_properties(headless.m3_script_cancel_recover)
@@ -223,6 +228,7 @@
         "-DTEST_WORKING_DIRECTORY=${TONATIUHPP_TEST_WORKING_DIR}"
         "-DSCENE_FILE=${_tonatiuhpp_cylinder_scene}"
         "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/headless_benchmark_cylinder"
+      "-DTEST_BUILD_ROOT=${CMAKE_CURRENT_BINARY_DIR}"
         -P "${TONATIUHPP_TESTS_ROOT}/cmake/run_headless_benchmark_smoke.cmake"
     )
     tonatiuhpp_set_headless_test_properties(headless.benchmark_cylinder_scene)
@@ -239,6 +245,7 @@
         "-DTEST_WORKING_DIRECTORY=${TONATIUHPP_TEST_WORKING_DIR}"
         "-DSCENE_FILE=${_tonatiuhpp_cylinder_scene}"
         "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/headless_benchmark_repeatability"
+      "-DTEST_BUILD_ROOT=${CMAKE_CURRENT_BINARY_DIR}"
         -P "${TONATIUHPP_TESTS_ROOT}/cmake/run_headless_benchmark_repeatability.cmake"
     )
     tonatiuhpp_set_headless_test_properties(headless.benchmark_repeatability)
@@ -251,6 +258,7 @@
         "-DTEST_WORKING_DIRECTORY=${TONATIUHPP_TEST_WORKING_DIR}"
         "-DSCENE_FILE=${_tonatiuhpp_cylinder_scene}"
         "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/headless_run_script_cylinder"
+      "-DTEST_BUILD_ROOT=${CMAKE_CURRENT_BINARY_DIR}"
         -P "${TONATIUHPP_TESTS_ROOT}/cmake/run_headless_script_smoke.cmake"
     )
     tonatiuhpp_set_headless_test_properties(headless.run_script_cylinder_scene)

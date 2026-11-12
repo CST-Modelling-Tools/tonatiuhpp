@@ -6,7 +6,8 @@ foreach(_name IN ITEMS TEST_EXECUTABLE SCENE_FILE OUTPUT_DIR)
   endif()
 endforeach()
 
-file(MAKE_DIRECTORY "${OUTPUT_DIR}")
+include("${CMAKE_CURRENT_LIST_DIR}/PrepareTestOutput.cmake")
+tonatiuhpp_prepare_test_output("${OUTPUT_DIR}" "${TEST_BUILD_ROOT}" "headless_benchmark_repeatability")
 string(RANDOM LENGTH 8 ALPHABET "0123456789abcdef" _run_id)
 file(TO_CMAKE_PATH "${SCENE_FILE}" _scene_file)
 
