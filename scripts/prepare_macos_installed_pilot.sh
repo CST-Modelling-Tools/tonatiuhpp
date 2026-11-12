@@ -141,6 +141,34 @@ done
 # are independent of the developer's Qt/SoQt/Coin SDK. Reject absolute
 # non-system runtime references in every bundled executable, dylib, and
 # framework Mach-O object, including Qt plugins.
+# Remove stale developer Qt/third-party absolute LC_RPATH entries from the
+# copied CMake executables and private runtime libraries *after* inserting
+# their bundle-relative replacements. Without this, macOS may quietly borrow
+# libraries from the CI's still-installed Qt SDK despite passing runtime tests.
+normalize_development_rpaths() {
+  local candidate="$1" rpath
+  if ! file "$candidate" | grep -q 'Mach-O'; then
+    return 0
+  fi
+  while IFS= read -r rpath; do
+    case "$rpath" in
+      /System/Library/*|/usr/lib/*|@loader_path|@loader_path/*|@executable_path|@executable_path/*|@rpath|@rpath/*) ;;
+      /*)
+        chmod u+w "$candidate"
+        install_name_tool -delete_rpath "$rpath" "$candidate"
+        echo "MACOS_BUNDLE_REMOVED_EXTERNAL_RPATH=$candidate : $rpath" ;;
+    esac
+  done < <(otool -l "$candidate" | awk '
+      $1 == "cmd" && $2 == "LC_RPATH" { in_rpath=1; next }
+      in_rpath && $1 == "path" { print $2; in_rpath=0 }
+    ' | sort -u)
+}
+normalize_development_rpaths "$APP_EXEC"
+normalize_development_rpaths "$MACOS_DIR/tonatiuhpp-cli"
+while IFS= read -r -d '' binary; do
+  normalize_development_rpaths "$binary"
+done < <(find "$APP_BUNDLE/Contents/Frameworks" "$APP_BUNDLE/Contents/MacOS/plugins" -type f -print0)
+
 audit_macho() {
   local candidate="$1" dependency rpath
   if ! file "$candidate" | grep -q 'Mach-O'; then
