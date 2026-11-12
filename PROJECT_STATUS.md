@@ -2,7 +2,7 @@
 
 Last updated: 2026-11-12
 
-**Active work:** Phase E — the relocated test-enabled scientific GUI, BUILD_TESTING=OFF production runtime and copied Qt IFW package-data pilots have each passed all three OSes; final promotion to required CI and scoped acceptance review are pending. Phase D is ACCEPTED and merged as PR #45 (merge commit `4c4121f5e52ac354dbe4d67bcb5472946d74be05`), with required Windows WGL, Ubuntu X11/GLX and macOS Cocoa native GUI CTests all passing. A+B+C are also accepted. This remains maintenance work, NOT an authorized product release.
+**Active work:** Phase E — all three relocated test-enabled scientific GUI, `BUILD_TESTING=OFF` production runtime, and copied Qt IFW package-data acceptance paths now pass as **required** checks on Windows, Ubuntu and macOS in CI run `43310255444`. Final scoped review and user-authorized merge remain pending; actual IFW installer/update/uninstall transactions, signing and notarization are outside this evidence. Phase D is ACCEPTED and merged as PR #45 (merge commit `4c4121f5e52ac354dbe4d67bcb5472946d74be05`), with required Windows WGL, Ubuntu X11/GLX and macOS Cocoa native GUI CTests all passing. A+B+C are also accepted. This remains maintenance work, NOT an authorized product release.
 
 **This document is the current handoff.** Older 2026-11-10 P0/P1/P2 candidate/pending diaries and runtime-refactor plans have been superseded by merged code and remain in Git history. Do not resume those plans. Read `AGENT.md` and `docs/testing.md` before changing code.
 
@@ -312,3 +312,11 @@ Define a consistent label taxonomy: level (`unit`/`integration`/`system`), domai
   production Release tag, signed distribution, Qt IFW binarycreator
   installation and updater transactions are **not claimed as tested**.
   PR remains draft pending final required three-OS CI audit results.
+
+### Phase E final required three-platform validation checkpoint (2026-11-12)
+
+- [Required CI run 43310255444](https://github.com/CST-Modelling-Tools/tonatiuhpp/actions/runs/43310255444), PR #46 head `785ffb2989f2afa0e976c85164498c04d2b5c9b6`: **all three platform build jobs succeeded** with mandatory (not `continue-on-error`) Phase E steps. Ordinary CTest: Windows **180/180**, Ubuntu **179/179**, macOS **179/179**. Separately required native Qt GUI scientific CTests: **3/3 on each OS**.
+- Relocated `BUILD_TESTING=ON` CMake-installed CLI scientific process checks and all three real GUI native acceptance modes (`interactive-file`, `seeded-interception`, `interactive-flux`) explicitly emitted `INSTALLED_ACCEPTANCE_RESULT=PASS` for Windows, Ubuntu and macOS. The accepted comparison oracles are the existing Phase D test scripts, not a new reference or frozen 500M execution.
+- Relocated production `BUILD_TESTING=OFF` CLI scientific checks and bounded native GUI startup also each explicitly emitted **PASS** on all three OSes. Production GUI liveness is intentionally **not** dialog-level numerical acceptance because production binaries omit test-only hooks.
+- A copied, relocated Qt IFW **package-data payload** passed the same production CLI scientific and GUI startup checks on all three OSes. Manifest sizes: **Windows 221**, **Ubuntu 467**, **macOS 254** files (platform-dependent counts, not an assertion of parity).
+- The CI jobs contain real installed-runtime checks with hard failure semantics; this checkpoint is supported by individual job logs, not inferred solely from green aggregate jobs. The PR remains **draft and unmerged**. Actual IFW binarycreator installation/upgrades/uninstallation, signatures/notarization, user-machine deployment and hardware-specific OpenGL behavior are **not** proven by this run. No release or merge authorization is implied; preserve production science and immutable 500-million-ray reference.
