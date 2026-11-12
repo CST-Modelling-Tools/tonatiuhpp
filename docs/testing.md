@@ -336,3 +336,45 @@ three-platform installed runtime results**. The separate second CI
 run must prove each relocated app exercises the actual GUI science.
 These tests do not execute the frozen benchmark and do not validate
 `BUILD_TESTING=OFF` IFW installers or updater lifecycle.
+
+### Phase E second-pilot results and consolidated validation (2026-11-12)
+
+The latest completed Phase E exploratory run
+[43272756323](https://github.com/CST-Modelling-Tools/tonatiuhpp/actions/runs/43272756323)
+retained the ordinary three-OS CI regression and required Phase D native
+GUI gates. Its *non-gating* relocated-install pilot actually **passed
+on Linux and macOS**: installed CLI scientific repeatability, real installed
+GUI photon export, seeded interception, and interactive flux analysis all
+completed after installation and prefix relocation.
+
+**Windows remained blocked:** the relocated CLI passed, the pinned Mesa
+WGL deployment completed, and the installed GUI returned
+`0xC0000135` before numerical acceptance. Independent inspection of the
+actual Windows build artifact's PE import table found that
+`TonatiuhppGuiPresentation.dll` imports `Qt6PrintSupport.dll` and
+`SoQt1.dll` imports `Qt6OpenGL.dll`. The captured build runtime
+contained `Qt6OpenGL.dll` but **did not contain
+`Qt6PrintSupport.dll`**; copying Qt6OpenGL alone was therefore not
+sufficient. The candidate installer fix now explicitly requires and
+deploys Release `Qt6PrintSupport.dll`, `Qt6OpenGL.dll` and
+`Qt6OpenGLWidgets.dll` and refuses missing DLLs during installed-GUI
+preflight. Actual Windows installed-GUI success remains contingent on
+the next run; a PE import audit identifies missing dependencies but
+is not itself a successful runtime test.
+
+**Additional release-like pilot:** CI now also reconfigures to
+`BUILD_TESTING=OFF`, rebuilds and installs into a fresh disposable
+prefix, and runs independent installed CLI scientific acceptance plus
+a bounded actual native GUI process-start/liveness check. It does
+**not** use Phase D's test-only GUI automation hooks and must not be
+reported as equivalent dialog/flux-map acceptance.
+The pilot is non-gating until its numeric and launch evidence is
+inspected. Successful CMake install, app-bundle staging and production
+smoke do **not** by themselves prove Qt IFW installer execution,
+maintenance/update behavior, notarization, signing or operation with
+a different operating-system dependency baseline.
+
+The GUI-only DLL checks have negative/positive Python self-tests,
+which must fail closed when PrintSupport is omitted. Both preliminary
+and production runs keep the frozen 500-million-ray benchmark and
+scientific kernel unchanged.

@@ -518,6 +518,45 @@ jobs:
             "${args[@]}"
           fi
 
+      # Separate production BUILD_TESTING=OFF acceptance from the test-enabled
+      # relocated install. The real GUI cannot use Phase D test-only widget
+      # instrumentation; run a bounded native GUI startup and the existing
+      # independent production CLI scientific checks instead.
+      - name: Pilot production BUILD_TESTING=OFF relocated GUI and CLI
+        if: ${{ steps.changes.outputs.docs_only != 'true' }}
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          scratch="${RUNNER_TEMP//\\//}/tonatiuhpp-production-${GITHUB_RUN_ID}-${RUNNER_OS}"
+          mkdir -p "$scratch"
+          cmake -S source -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF -DTONATIUHPP_ENABLE_NATIVE_GUI_ACCEPTANCE=OFF
+          if [[ "$RUNNER_OS" == "macOS" ]]; then
+            python scripts/scrub_macos_agl_generated_links.py --build-dir build
+          fi
+          cmake --build build --config Release --parallel
+          cmake --install build --config Release --prefix "$scratch/cmake-install"
+          if [[ "$RUNNER_OS" == "macOS" ]]; then
+            bash scripts/prepare_macos_installed_pilot.sh "$scratch/cmake-install"
+          fi
+          args=(python tests/integration/installation/run_installed_acceptance.py
+            --production-smoke
+            --source-root "${GITHUB_WORKSPACE}"
+            --install-origin "$scratch/cmake-install"
+            --scratch-root "$scratch"
+            --output-root build/tests/production_installed_acceptance)
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            args+=(--windows-ci-mesa)
+            export QT_QPA_PLATFORM=windows GALLIUM_DRIVER=llvmpipe LIBGL_ALWAYS_SOFTWARE=1
+            "${args[@]}"
+          elif [[ "$RUNNER_OS" == "Linux" ]]; then
+            export QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1
+            xvfb-run -a -s "-screen 0 1280x1024x24 +extension GLX" "${args[@]}"
+          else
+            export QT_QPA_PLATFORM=cocoa
+            "${args[@]}"
+          fi
+
       - name: Upload build artifacts
         if: ${{ always() && steps.changes.outputs.docs_only != 'true' }}
         uses: actions/upload-artifact@v6

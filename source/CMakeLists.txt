@@ -804,21 +804,25 @@ if(WIN32)
     )
   endif()
 
-  # SoQt's native OpenGL widget introduces Qt6OpenGL as an indirect DLL.
-  # windeployqt can miss this dependency when scanning only the executables,
-  # although the GUI uses it at runtime via SoQt. Explicitly bundle the
-  # matching Qt SDK module from the Qt prefix instead of relying on the SDK
-  # in a developer's PATH during installed GUI startup.
+  # The Windows GUI depends indirectly on Qt6OpenGL (via SoQt) and
+  # Qt6PrintSupport (via TonatiuhppGuiPresentation). windeployqt's direct
+  # executable scan may omit indirect DLL imports; the relocated CLI can
+  # pass even when the GUI fails at loader startup (0xC0000135).
+  # Copy only the required *Release* Qt DLLs, never Debug variants.
   if(TONATIUHPP_BUNDLE_RUNTIME)
     install(CODE
-      "file(GLOB _opengl_dlls \"${_qt_bin}/Qt6OpenGL*.dll\")
-       if(NOT _opengl_dlls)
-         message(FATAL_ERROR \"Missing Qt6OpenGL runtime DLLs from Qt SDK: ${_qt_bin}\")
-       endif()
+      "set(_gui_qt_deps)
+       foreach(_module IN ITEMS Qt6OpenGL Qt6OpenGLWidgets Qt6PrintSupport)
+         set(_dll \"${_qt_bin}/\${_module}.dll\")
+         if(NOT EXISTS \"\${_dll}\")
+           message(FATAL_ERROR \"Missing required installed GUI Qt DLL: \${_dll}\")
+         endif()
+         list(APPEND _gui_qt_deps \"\${_dll}\")
+       endforeach()
        file(INSTALL
          DESTINATION \"\${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR}\"
          TYPE FILE
-         FILES \${_opengl_dlls}
+         FILES \${_gui_qt_deps}
        )"
     )
   endif()

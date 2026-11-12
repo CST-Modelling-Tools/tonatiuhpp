@@ -9,7 +9,7 @@ import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "integration" / "installation"))
 from run_installed_acceptance import (  # noqa: E402
-    inside, locate_executables, stage_relocated_install,
+    check_windows_installed_gui_dlls, inside, locate_executables, stage_relocated_install,
 )
 
 
@@ -64,6 +64,22 @@ class InstalledAcceptanceToolTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "symlink"):
             stage_relocated_install(self.origin, self.scratch, self.source)
         self.assertTrue(real_dir.exists())
+
+    def test_windows_gui_preflight_detects_missing_printsupport(self):
+        gui = self.origin / "bin" / "tonatiuhpp-gui.exe"
+        gui.parent.mkdir(parents=True)
+        gui.write_bytes(b"executable fixture")
+        (gui.parent / "Qt6OpenGL.dll").write_bytes(b"qt opengl")
+        (gui.parent / "Qt6Widgets.dll").write_bytes(b"qt widgets")
+        with self.assertRaisesRegex(RuntimeError, "Qt6PrintSupport.dll"):
+            check_windows_installed_gui_dlls(gui, is_windows=True)
+
+    def test_windows_gui_preflight_accepts_required_release_dlls(self):
+        gui = self.origin / "bin" / "tonatiuhpp-gui.exe"
+        gui.parent.mkdir(parents=True)
+        for dll in ("Qt6OpenGL.dll", "Qt6PrintSupport.dll", "Qt6Widgets.dll"):
+            (gui.parent / dll).write_bytes(b"release qt fixture")
+        check_windows_installed_gui_dlls(gui, is_windows=True)
 
     def test_installed_gui_cli_identity_required(self):
         with self.assertRaisesRegex(RuntimeError, "executable missing"):

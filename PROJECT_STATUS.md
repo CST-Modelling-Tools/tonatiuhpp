@@ -227,3 +227,32 @@ Define a consistent label taxonomy: level (`unit`/`integration`/`system`), domai
   inspect second pilot outcomes and harden remaining installed dependencies;
   explicit new production `BUILD_TESTING=OFF` payload validation remains
   required for final Phase E acceptance.
+
+### Phase E consolidated fix and production-smoke pilot (2026-11-12)
+
+- [Second CI run 43272756323](https://github.com/CST-Modelling-Tools/tonatiuhpp/actions/runs/43272756323)
+  completed with default CI and Phase D native GUI gates green.
+  **Linux/macOS relocated CMake installs passed** installed CLI plus
+  all three actual GUI scientific modes. Windows installed CLI passed
+  but installed GUI still exited `0xC0000135` before scientific output.
+  The non-gating pilot step was marked as failed despite parent CI success.
+- Windows PE import audit of the hosted CI artifact:
+  `TonatiuhppGuiPresentation.dll` requires `Qt6PrintSupport.dll`,
+  absent from the captured build runtime; `SoQt1.dll` requires
+  `Qt6OpenGL.dll`, present after the earlier targeted fix. Candidate
+  install correction explicitly bundles Release Qt6PrintSupport,
+  Qt6OpenGL and Qt6OpenGLWidgets. A new fail-closed installed-GUI
+  dependency preflight and positive/negative tool tests expose the
+  exact missing DLL, independently of opaque process exit status.
+- Start a **separate BUILD_TESTING=OFF** exploratory pilot after the
+  test-enabled installed acceptance: reconfigure and rebuild the real
+  production GUI/CLI, relocate its install, run actual production CLI
+  scientific acceptance and real native GUI liveness from a foreign CWD.
+  The production GUI does NOT have test-only Qt dialog hooks, and a
+  seven-second startup smoke cannot establish full GUI numerical
+  acceptance. No IFW installer/updater test is implied.
+- Three-platform CI for these candidate changes remains to be
+  executed and reviewed. Only then consider promoting completed
+  installed-runtime acceptance to a required gate; IFW packaging,
+  release environment independence and maintenance updates remain
+  separate evidence requirements. **PR #46 remains draft/unmerged.**

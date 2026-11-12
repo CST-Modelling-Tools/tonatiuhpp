@@ -96,6 +96,68 @@ def run_checked(name: str, command: list[str], cwd: Path,
     print("INSTALLED_ACCEPTANCE_PASS " + name, flush=True)
 
 
+def check_windows_installed_gui_dlls(executable: Path, *, is_windows: bool) -> None:
+    """Validate the exact Release GUI-only Qt runtime dependency set."""
+    if not is_windows:
+        return
+    for dll in ("Qt6OpenGL.dll", "Qt6PrintSupport.dll", "Qt6Widgets.dll"):
+        check((executable.parent / dll).is_file(),
+              f"Relocated native GUI is missing required DLL: {dll}")
+
+
+def smoke_native_production_gui(gui: Path, scene_root: Path,
+                                working: Path, output: Path) -> None:
+    """Verify actual production GUI stays alive on a real native desktop.
+
+    This is deliberately NOT a substitute for Phase D's widget/numeric
+    acceptance, which requires test-only GUI hooks. No offscreen platform.
+    """
+    platform = {"win32": "windows", "darwin": "cocoa"}.get(sys.platform, "xcb")
+    env = os.environ.copy()
+    check(env.get("QT_QPA_PLATFORM") == platform,
+          f"Production GUI needs real native Qt platform {platform!r}")
+    for key in ("LD_LIBRARY_PATH", "LD_PRELOAD", "DYLD_LIBRARY_PATH",
+                "DYLD_FALLBACK_LIBRARY_PATH", "DYLD_FRAMEWORK_PATH",
+                "DYLD_FALLBACK_FRAMEWORK_PATH", "QT_PLUGIN_PATH",
+                "QT_QPA_PLATFORM_PLUGIN_PATH", "QML2_IMPORT_PATH"):
+        env.pop(key, None)
+    if os.name == "nt":
+        windows = Path(os.environ.get("SystemRoot", "C:/Windows"))
+        env["PATH"] = os.pathsep.join(map(str, (
+            gui.parent, windows / "System32", windows,
+            windows / "System32" / "Wbem")))
+    scene = scene_root / "examples" / "benchmarks" / "cylinder.tnhpp"
+    check(scene.is_file(), "Production GUI must use an installed cylinder scene")
+    stdout = output / "production-gui.stdout.txt"
+    stderr = output / "production-gui.stderr.txt"
+    print("INSTALLED_ACCEPTANCE_START production-native-gui-startup", flush=True)
+    flags = ({"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP}
+             if os.name == "nt" else {"start_new_session": True})
+    with stdout.open("w", encoding="utf-8") as out, stderr.open("w", encoding="utf-8") as err:
+        p = subprocess.Popen([str(gui), str(scene)], cwd=working, env=env,
+                             stdin=subprocess.DEVNULL, stdout=out, stderr=err,
+                             **flags)
+        try:
+            deadline = time.monotonic() + 7.0
+            while time.monotonic() < deadline:
+                code = p.poll()
+                if code is not None:
+                    raise RuntimeError(f"Production GUI exited prematurely: {code}; "
+                                       f"stderr={stderr.read_text(errors='replace')[-2000:]}")
+                time.sleep(0.2)
+        finally:
+            if p.poll() is None:
+                p.terminate()
+                try:
+                    p.wait(timeout=12)
+                except subprocess.TimeoutExpired:
+                    p.kill()
+                    p.wait(timeout=10)
+    print("INSTALLED_ACCEPTANCE_PASS production-native-gui-startup "
+          "(native window-process liveness only, not GUI dialog/numeric acceptance)",
+          flush=True)
+
+
 def run_suite(args: argparse.Namespace) -> None:
     source = args.source_root.resolve(strict=True)
     # Preserve the original path spelling so the relocation guard can reject
@@ -129,12 +191,19 @@ def run_suite(args: argparse.Namespace) -> None:
         gui, cli = locate_executables(prefix)
         report["gui"] = str(gui)
         report["cli"] = str(cli)
+        if args.production_smoke:
+            report["scope"] = ("Relocated BUILD_TESTING=OFF CMake production runtime: "
+                               "real CLI scientific tests plus bounded native GUI startup; "
+                               "not IFW installer execution")
         scene_root = prefix
         if sys.platform == "darwin" and not (prefix / "examples").is_dir():
             scene_root = prefix / "tonatiuhpp-gui.app" / "Contents" / "Resources"
         for scene in ("cylinder.tnhpp", "sphere.tnhpp"):
             example = scene_root / "examples" / "benchmarks" / scene
             check(example.is_file(), f"Installed scientific example missing: {example}")
+        # Preflight the GUI-only dependency set; CLI loading by itself
+        # cannot establish that the installed GUI can start.
+        check_windows_installed_gui_dlls(gui, is_windows=(os.name == "nt"))
         save()
         mesa_staged = False
         if args.windows_ci_mesa:
@@ -163,17 +232,27 @@ def run_suite(args: argparse.Namespace) -> None:
         run_checked("installed-cli", cli_cmd, working, output, 780)
         report["checks"].append("installed-cli")
         save()
-        for mode in MODES:
-            cmd = [
-                sys.executable, str(scripts / "integration/gui/run_native_gui_acceptance.py"),
-                "--mode", mode, "--gui", str(gui), "--cli", str(cli),
-                "--source-root", str(source), "--scene-root", str(scene_root),
-                "--installed-prefix", str(prefix),
-                "--output-root", str(output / "gui"),
-            ]
-            run_checked("installed-gui-" + mode, cmd, working, output, 195)
-            report["checks"].append("installed-gui-" + mode)
+        if args.production_smoke:
+            # Production BUILD_TESTING=OFF does not contain Phase D test-only
+            # Qt automation hooks. A genuine native GUI startup/liveness smoke
+            # is possible; claiming dialog-level scientific acceptance here
+            # would be false. Scientific numerics come from the actual
+            # production CLI above, not a test-enabled binary.
+            smoke_native_production_gui(gui, scene_root, working, output)
+            report["checks"].append("production-native-gui-startup")
             save()
+        else:
+            for mode in MODES:
+                cmd = [
+                    sys.executable, str(scripts / "integration/gui/run_native_gui_acceptance.py"),
+                    "--mode", mode, "--gui", str(gui), "--cli", str(cli),
+                    "--source-root", str(source), "--scene-root", str(scene_root),
+                    "--installed-prefix", str(prefix),
+                    "--output-root", str(output / "gui"),
+                ]
+                run_checked("installed-gui-" + mode, cmd, working, output, 195)
+                report["checks"].append("installed-gui-" + mode)
+                save()
         report["status"] = "PASS"
         print("INSTALLED_ACCEPTANCE_RESULT=PASS " + str(report_path), flush=True)
     except BaseException as exc:
@@ -204,6 +283,9 @@ def main() -> int:
     parser.add_argument("--install-origin", type=Path, required=True)
     parser.add_argument("--scratch-root", type=Path, required=True)
     parser.add_argument("--output-root", type=Path, required=True)
+    parser.add_argument("--production-smoke", action="store_true",
+                        help="BUILD_TESTING=OFF: production CLI scientific checks "
+                             "and bounded real-GUI startup only (no test-only hooks)")
     parser.add_argument("--windows-ci-mesa", action="store_true",
                         help="Stage SHA256-pinned software WGL only for Windows CI GUI tests")
     args = parser.parse_args()
