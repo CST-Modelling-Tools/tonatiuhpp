@@ -283,6 +283,10 @@ def run_acceptance(args: argparse.Namespace) -> Path:
             summary["numerical"] = validate_interception(script_dir / "m3_3_parity_result.csv")
         else:
             summary["numerical"] = validate_interactive_flux(report, script_dir, root)
+        # Make scientific numbers visible in CTest -V and hosted CI logs, not
+        # only in the retained build-tree acceptance.json evidence.
+        print("GUI_ACCEPTANCE_NUMERICAL=" +
+              json.dumps(summary["numerical"], sort_keys=True), flush=True)
         summary["status"] = "PASS"
         return root
     except (OSError, ValueError, KeyError, ImportError, AcceptanceError) as exc:

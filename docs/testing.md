@@ -174,3 +174,22 @@ Windows, Ubuntu and macOS results independently, review the scientific
 numerical reports and runner graphics setup, and compare CTest identities with
 the accepted default 180/179 inventory. Keep Phase E installed-runtime
 acceptance separate.
+
+### Phase D draft-PR display pilots
+
+While Phase D is under review on branch
+`maintenance/native-gui-scientific-acceptance`, the PR CI workflow performs
+**exploratory** native GUI runs in addition to the ordinary full 179/180
+build-tree regression. The Linux job starts an actual X11/GLX session using
+`xvfb-run` and records `glxinfo -B`; the macOS job attempts Cocoa.
+Both pilot steps are explicitly `continue-on-error` until real runner evidence
+has been checked. Thus a green overall CI result does **not** imply successful
+native GUI tests: inspect each pilot step, its JUnit
+`build/gui-native-results.xml`, and retained evidence under the build tree.
+
+The pilot prints a `GUI_ACCEPTANCE_NUMERICAL=...` JSON line for each real
+GUI mode and retains the same values in `acceptance.json`. Do not mark a
+platform accepted merely because CMake configured or a window manager was
+present; verify that all three CTests ran to completion and the physical
+numerical assertions passed. If a hosted display is unavailable, record
+the limitation rather than substituting Qt offscreen/minimal.

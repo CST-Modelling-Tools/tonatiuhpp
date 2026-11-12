@@ -121,3 +121,20 @@ Define a consistent label taxonomy: level (`unit`/`integration`/`system`), domai
   visible SoQt/OpenGL session, review retained per-mode scientific evidence,
   then establish reliable Ubuntu/macOS display-backed CI separately; record
   exact results before enabling required platform GUI gates.
+
+### Phase D cross-platform graphical pilot enablement (2026-11-12)
+
+- Phase D draft PR #45 now exercises exploratory Linux X11/GLX and macOS
+  Cocoa native GUI tests on its own PR branch after the ordinary three-OS
+  full CTest regression. These pilots are `continue-on-error` until their
+  actual CTest logs and numerical evidence have been reviewed; a green CI
+  build status alone is not proof of cross-platform native GUI acceptance.
+- The Python runner now prints the checked per-mode numerical results into
+  verbose CTest and hosted logs. Windows maintainer full Release regression:
+  **183/183 passed**, 0 failed, 77.15 seconds, with all three native GUI
+  scenarios included. Ordinary PR #45 CI at commit `b7327937` passed on
+  Windows, Ubuntu and macOS with the default unextended suite; the 13 Python
+  numerical-validator tests executed successfully in the CI logs.
+- **Final Phase D acceptance remains pending** until real Linux/macOS pilot
+  outcomes and numeric evidence are inspected and any genuine bugs corrected.
+  Do not merge or label accepted solely on hosted build-tree CI success.

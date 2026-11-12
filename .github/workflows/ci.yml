@@ -409,28 +409,46 @@ jobs:
         run: |
           ctest --test-dir build -C Release --output-on-failure --output-junit "${GITHUB_WORKSPACE}/build/ctest-results.xml"
 
-      # This pilot does NOT run in ordinary PR or push CI. Exercise a real
-      # X11/GLX display and capture the numerical evidence before deciding
-      # whether native GUI acceptance can become a required OS gate.
+      # This exploratory pilot runs ONLY on the Phase D draft PR branch or
+      # by explicit dispatch after the input is available on the default branch.
+      # It is NOT a required cross-platform GUI gate before evidence review.
       - name: Install Linux GUI pilot display dependencies
-        if: ${{ runner.os == 'Linux' && github.event_name == 'workflow_dispatch' && inputs.gui_linux_pilot == true }}
+        if: ${{ steps.changes.outputs.docs_only != 'true' && runner.os == 'Linux' && ((github.event_name == 'pull_request' && github.head_ref == 'maintenance/native-gui-scientific-acceptance') || (github.event_name == 'workflow_dispatch' && inputs.gui_linux_pilot == true)) }}
+        continue-on-error: true
         shell: bash
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends xvfb xauth libgl1-mesa-dri libglx-mesa0
+          sudo apt-get install -y --no-install-recommends xvfb xauth mesa-utils libgl1-mesa-dri libglx-mesa0
 
-      - name: Pilot real Linux native GUI scientific acceptance
-        if: ${{ runner.os == 'Linux' && github.event_name == 'workflow_dispatch' && inputs.gui_linux_pilot == true }}
+      - name: Pilot real Linux X11/GLX native GUI scientific acceptance
+        if: ${{ steps.changes.outputs.docs_only != 'true' && runner.os == 'Linux' && ((github.event_name == 'pull_request' && github.head_ref == 'maintenance/native-gui-scientific-acceptance') || (github.event_name == 'workflow_dispatch' && inputs.gui_linux_pilot == true)) }}
+        continue-on-error: true
         shell: bash
         env:
           QT_QPA_PLATFORM: xcb
           LIBGL_ALWAYS_SOFTWARE: "1"
         run: |
           set -euo pipefail
+          xvfb-run -a -s "-screen 0 1280x1024x24 +extension GLX" glxinfo -B | tee build/gui-glxinfo.txt
           cmake -S source -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DTONATIUHPP_ENABLE_NATIVE_GUI_ACCEPTANCE=ON -DTONATIUHPP_GUI_ACCEPTANCE_USE_XVFB=ON
           cmake --build build --config Release --parallel
           ctest --test-dir build -C Release -N -R '^gui[.]native_'
-          ctest --test-dir build -C Release --output-on-failure -R '^gui[.]native_'
+          ctest --test-dir build -C Release --verbose -R '^gui[.]native_' --output-junit "${GITHUB_WORKSPACE}/build/gui-native-results.xml" 2>&1 | tee build/gui-native-pilot.log
+
+      # Cocoa pilot explores feasibility, not guaranteed macOS availability.
+      # A successful native GUI process is required before claiming coverage.
+      - name: Pilot real macOS Cocoa native GUI scientific acceptance
+        if: ${{ steps.changes.outputs.docs_only != 'true' && runner.os == 'macOS' && github.event_name == 'pull_request' && github.head_ref == 'maintenance/native-gui-scientific-acceptance' }}
+        continue-on-error: true
+        shell: bash
+        env:
+          QT_QPA_PLATFORM: cocoa
+        run: |
+          set -euo pipefail
+          cmake -S source -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DTONATIUHPP_ENABLE_NATIVE_GUI_ACCEPTANCE=ON
+          cmake --build build --config Release --parallel
+          ctest --test-dir build -C Release -N -R '^gui[.]native_'
+          ctest --test-dir build -C Release --verbose -R '^gui[.]native_' --output-junit "${GITHUB_WORKSPACE}/build/gui-native-results.xml" 2>&1 | tee build/gui-native-pilot.log
 
       - name: Upload build artifacts
         if: ${{ always() && steps.changes.outputs.docs_only != 'true' }}
