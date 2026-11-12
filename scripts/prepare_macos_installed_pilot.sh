@@ -180,6 +180,13 @@ audit_macho() {
     return 0
   fi
   while IFS= read -r dependency; do
+    # otool -L lists a dylib/framework's own install ID as its first
+    # entry. The framework produced by macdeployqt may use its staged
+    # relative filename as that self ID; it is not a foreign dependency.
+    # Keep rejecting non-bundled paths for all *other* entries.
+    if [[ "$dependency" == "$candidate" ]]; then
+      continue
+    fi
     case "$dependency" in
       @rpath|@rpath/*|@loader_path|@loader_path/*|@executable_path|@executable_path/*|/System/Library/*|/usr/lib/*) ;;
       *)
