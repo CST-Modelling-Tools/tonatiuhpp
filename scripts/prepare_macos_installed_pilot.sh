@@ -148,15 +148,15 @@ audit_macho() {
   fi
   while IFS= read -r dependency; do
     case "$dependency" in
-      @rpath/*|@loader_path/*|@executable_path/*|/System/Library/*|/usr/lib/*) ;;
-      /*)
-        echo "Mac installed bundle borrows external absolute dependency: $candidate -> $dependency" >&2
+      @rpath|@rpath/*|@loader_path|@loader_path/*|@executable_path|@executable_path/*|/System/Library/*|/usr/lib/*) ;;
+      *)
+        echo "Mac installed bundle has unresolved non-bundled dependency: $candidate -> $dependency" >&2
         return 1 ;;
     esac
   done < <(otool -L "$candidate" | tail -n +2 | awk '{print $1}')
   while IFS= read -r rpath; do
     case "$rpath" in
-      @loader_path/*|@executable_path/*|@rpath/*|/System/Library/*|/usr/lib/*) ;;
+      @loader_path|@loader_path/*|@executable_path|@executable_path/*|@rpath|@rpath/*|/System/Library/*|/usr/lib/*) ;;
       *)
         echo "Mac installed bundle has external or unrecognized LC_RPATH: $candidate -> $rpath" >&2
         return 1 ;;
