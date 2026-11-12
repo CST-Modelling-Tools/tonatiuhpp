@@ -723,6 +723,24 @@ if(UNIX AND NOT APPLE AND TONATIUHPP_BUNDLE_RUNTIME)
        if(NOT _patch_exit EQUAL 0)
          message(FATAL_ERROR \"Failed to set bundled plugin RUNPATH for \${_plugin}: \${_patch_error}\")
        endif()
+     endforeach()
+
+     # ELF RUNPATH is not inherited across indirect DT_NEEDED dependencies.
+     # Bundled Qt/SoQt/Coin libraries must independently locate other
+     # bundled .so files (e.g. libSoQt -> libQt6OpenGL).
+     file(GLOB _bundled_libs \"\${_installed_libdir}/*.so*\")
+     foreach(_lib IN LISTS _bundled_libs)
+       if(IS_SYMLINK \"\${_lib}\")
+         continue()
+       endif()
+       execute_process(
+         COMMAND \"${TONATIUHPP_PATCHELF_EXECUTABLE}\" --set-rpath
+                 \"$ORIGIN\" \"\${_lib}\"
+         RESULT_VARIABLE _lib_patch_exit ERROR_VARIABLE _lib_patch_error)
+       if(NOT _lib_patch_exit EQUAL 0)
+         message(FATAL_ERROR
+           \"Failed to set bundled library RUNPATH for \${_lib}: \${_lib_patch_error}\")
+       endif()
      endforeach()"
   )
 endif()

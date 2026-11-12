@@ -234,7 +234,8 @@ def run_acceptance(args: argparse.Namespace) -> Path:
             prefix = args.installed_prefix.resolve(strict=True)
             require(prefix != source and source not in prefix.parents,
                     "Installed prefix must be outside source tree")
-            require(prefix == scene_root, "Installed GUI acceptance must use installed scenes")
+            require(scene_root == prefix or prefix in scene_root.parents,
+                    "Installed GUI acceptance must use scene files from inside the installed prefix")
             for executable in (gui, cli):
                 require(prefix in executable.parents,
                         "GUI and CLI must be physically located in the installed prefix")

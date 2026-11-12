@@ -499,7 +499,7 @@ jobs:
           mkdir -p "$scratch"
           cmake --install build --config Release --prefix "$scratch/cmake-install"
           if [[ "$RUNNER_OS" == "macOS" ]]; then
-            macdeployqt "$scratch/cmake-install/tonatiuhpp-gui.app" -verbose=1
+            bash scripts/prepare_macos_installed_pilot.sh "$scratch/cmake-install"
           fi
           args=(python tests/integration/installation/run_installed_acceptance.py
             --source-root "${GITHUB_WORKSPACE}"

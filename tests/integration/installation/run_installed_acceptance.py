@@ -98,7 +98,9 @@ def run_checked(name: str, command: list[str], cwd: Path,
 
 def run_suite(args: argparse.Namespace) -> None:
     source = args.source_root.resolve(strict=True)
-    origin = args.install_origin.resolve(strict=True)
+    # Preserve the original path spelling so the relocation guard can reject
+    # symlinked install roots instead of silently resolving them.
+    origin = args.install_origin.absolute()
     scratch = args.scratch_root.resolve(strict=True)
     output = args.output_root.resolve()
     output.mkdir(parents=True, exist_ok=True)
@@ -127,8 +129,11 @@ def run_suite(args: argparse.Namespace) -> None:
         gui, cli = locate_executables(prefix)
         report["gui"] = str(gui)
         report["cli"] = str(cli)
+        scene_root = prefix
+        if sys.platform == "darwin" and not (prefix / "examples").is_dir():
+            scene_root = prefix / "tonatiuhpp-gui.app" / "Contents" / "Resources"
         for scene in ("cylinder.tnhpp", "sphere.tnhpp"):
-            example = prefix / "examples" / "benchmarks" / scene
+            example = scene_root / "examples" / "benchmarks" / scene
             check(example.is_file(), f"Installed scientific example missing: {example}")
         save()
         mesa_staged = False
@@ -152,7 +157,7 @@ def run_suite(args: argparse.Namespace) -> None:
         cli_cmd = [
             sys.executable, str(scripts / "integration/cli/cli_process_repeatability.py"),
             "--gui", str(gui), "--cli", str(cli), "--source-root", str(source),
-            "--scene-root", str(prefix),
+            "--scene-root", str(scene_root),
             "--output-root", str(output / "cli"), "--mode", "installed",
         ]
         run_checked("installed-cli", cli_cmd, working, output, 780)
@@ -162,7 +167,7 @@ def run_suite(args: argparse.Namespace) -> None:
             cmd = [
                 sys.executable, str(scripts / "integration/gui/run_native_gui_acceptance.py"),
                 "--mode", mode, "--gui", str(gui), "--cli", str(cli),
-                "--source-root", str(source), "--scene-root", str(prefix),
+                "--source-root", str(source), "--scene-root", str(scene_root),
                 "--installed-prefix", str(prefix),
                 "--output-root", str(output / "gui"),
             ]
