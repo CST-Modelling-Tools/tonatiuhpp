@@ -1,9 +1,14 @@
 #!/usr/bin/env bash
-# Exploratory Phase E macOS CMake-install packaging, derived from the
-# existing release app-bundle consolidation. Never run on user installs.
+# Shared macOS app-bundle consolidation for release packaging and Phase E CI.
+# Explicitly restricted to ephemeral CI prefixes or the release checkout dist.
 set -euo pipefail
 prefix="${1:?Disposable install prefix required}"
-case "$prefix" in "${RUNNER_TEMP:?}"/*) ;; *) echo "Not a runner temp install: $prefix" >&2; exit 1 ;; esac
+# Only disposable CI installs and the release workflow's own dist/ tree
+# can be modified by this shared consolidation script.
+case "$prefix" in
+  "${RUNNER_TEMP:?}"/*|"${GITHUB_WORKSPACE:?}/dist") ;;
+  *) echo "Refusing to consolidate outside CI temp or release dist: $prefix" >&2; exit 1 ;;
+esac
 [[ -d "$prefix/tonatiuhpp-gui.app" ]] || { echo "Missing installed app" >&2; exit 1; }
 work="$(mktemp -d "${RUNNER_TEMP}/tonatiuhpp-macos-stage-XXXXXXXX")"
 ln -s "$prefix" "$work/dist"

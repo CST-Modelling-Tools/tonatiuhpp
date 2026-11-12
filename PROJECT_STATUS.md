@@ -300,3 +300,15 @@ Define a consistent label taxonomy: level (`unit`/`integration`/`system`), domai
   new audit** before Phase E may be considered accepted. PR #46
   remains draft and unmerged; frozen 500M benchmark and production
   scientific logic remain unchanged.
+
+### Phase E release-workflow parity checkpoint
+
+- The macOS Release workflow now calls the same bundled library
+  consolidation/RPATH audit helper exercised by Phase E instead of
+  duplicating a divergent inline implementation. The shared helper
+  is limited to CI's disposable temporary paths and the release
+  job's exact `GITHUB_WORKSPACE/dist` output directory.
+- This aligns release *implementation* with the tested CI pilot;
+  production Release tag, signed distribution, Qt IFW binarycreator
+  installation and updater transactions are **not claimed as tested**.
+  PR remains draft pending final required three-OS CI audit results.

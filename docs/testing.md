@@ -438,3 +438,21 @@ SDK references in its Mach-O binaries and framework/plugin contents.
 This additional audit must itself pass the final required CI run.
 Frozen 500-million-ray scientific benchmarks and the production
 scientific kernel remain unmodified.
+
+### Shared macOS release packaging implementation
+
+The Release workflow now invokes the **same** bundle-consolidation
+script used in Phase E's relocated installed-runtime acceptance,
+`scripts/prepare_macos_installed_pilot.sh`, instead of maintaining
+a separate inline dylib/Frameworks rewrite. The script accepts only
+disposable GitHub Actions runner temporary install prefixes or the
+release job's exact `${GITHUB_WORKSPACE}/dist` directory; it rejects
+unrelated paths. The existing release `.app` architecture/payload
+checks remain in the workflow.
+
+This ensures the release packaging *procedure* shares its tested
+implementation. It does **not** imply that a release-tag workflow,
+installer GUI/update lifecycle, signing, notarization or published
+distribution has actually passed. Those require separate execution
+and evidence; Phase E's production CMake and IFW-payload runtime
+checks establish only the scopes described above.
