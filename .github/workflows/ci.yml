@@ -446,6 +446,10 @@ jobs:
         run: |
           set -euo pipefail
           cmake -S source -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DTONATIUHPP_ENABLE_NATIVE_GUI_ACCEPTANCE=ON
+          # Reconfiguring regenerates macOS link manifests with obsolete AGL
+          # flags. Scrub AGAIN immediately after enabling GUI CTests.
+          # The earlier ordinary build scrub cannot cover regenerated files.
+          python scripts/scrub_macos_agl_generated_links.py --build-dir build
           cmake --build build --config Release --parallel
           ctest --test-dir build -C Release -N -R '^gui[.]native_'
           ctest --test-dir build -C Release --verbose -R '^gui[.]native_' --output-junit "${GITHUB_WORKSPACE}/build/gui-native-results.xml" 2>&1 | tee build/gui-native-pilot.log
