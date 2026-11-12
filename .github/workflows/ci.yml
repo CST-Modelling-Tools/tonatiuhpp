@@ -478,6 +478,46 @@ jobs:
         run: |
           ./scripts/install_ci_windows_mesa.ps1 -Action remove
 
+      # Phase E exploratory: CMake-install into runner temp, relocate the
+      # entire install prefix, then launch installed GUI+CLI with SDK loader
+      # variables removed. The scientific comparators are unchanged.
+      # No IFW installer/update success is inferred from this pilot.
+      - name: Install Linux patchelf for external runtime bundling
+        if: ${{ steps.changes.outputs.docs_only != 'true' && runner.os == 'Linux' }}
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends patchelf
+
+      - name: Pilot relocated installed-runtime scientific acceptance
+        if: ${{ steps.changes.outputs.docs_only != 'true' }}
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          scratch="${RUNNER_TEMP//\\//}/tonatiuhpp-phase-e-${GITHUB_RUN_ID}-${RUNNER_OS}"
+          mkdir -p "$scratch"
+          cmake --install build --config Release --prefix "$scratch/cmake-install"
+          if [[ "$RUNNER_OS" == "macOS" ]]; then
+            macdeployqt "$scratch/cmake-install/tonatiuhpp-gui.app" -verbose=1
+          fi
+          args=(python tests/integration/installation/run_installed_acceptance.py
+            --source-root "${GITHUB_WORKSPACE}"
+            --install-origin "$scratch/cmake-install"
+            --scratch-root "$scratch"
+            --output-root build/tests/installed_acceptance)
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            args+=(--windows-ci-mesa)
+            export QT_QPA_PLATFORM=windows GALLIUM_DRIVER=llvmpipe LIBGL_ALWAYS_SOFTWARE=1
+            "${args[@]}"
+          elif [[ "$RUNNER_OS" == "Linux" ]]; then
+            export QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1
+            xvfb-run -a -s "-screen 0 1280x1024x24 +extension GLX" "${args[@]}"
+          else
+            export QT_QPA_PLATFORM=cocoa
+            "${args[@]}"
+          fi
+
       - name: Upload build artifacts
         if: ${{ always() && steps.changes.outputs.docs_only != 'true' }}
         uses: actions/upload-artifact@v6

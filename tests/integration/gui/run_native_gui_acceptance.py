@@ -227,8 +227,17 @@ def run_acceptance(args: argparse.Namespace) -> Path:
                 "GUI acceptance requires a real display; Qt offscreen/minimal is not valid")
         if sys.platform.startswith("linux"):
             require(bool(os.environ.get("DISPLAY")), "Linux GUI acceptance needs X11/GLX (DISPLAY)")
-        scene = source / "examples/benchmarks/cylinder.tnhpp"
-        require(scene.is_file(), "Controlled cylinder startup scene is missing")
+        scene_root = args.scene_root.resolve(strict=True) if args.scene_root else source
+        scene = scene_root / "examples/benchmarks/cylinder.tnhpp"
+        require(scene.is_file(), "Controlled installed/cylinder startup scene is missing")
+        if args.installed_prefix:
+            prefix = args.installed_prefix.resolve(strict=True)
+            require(prefix != source and source not in prefix.parents,
+                    "Installed prefix must be outside source tree")
+            require(prefix == scene_root, "Installed GUI acceptance must use installed scenes")
+            for executable in (gui, cli):
+                require(prefix in executable.parents,
+                        "GUI and CLI must be physically located in the installed prefix")
         export_dir = root / "gui_export"
         export_dir.mkdir()
         script_dir = root / "script"
@@ -243,6 +252,21 @@ def run_acceptance(args: argparse.Namespace) -> Path:
         settings_dir = root / "settings"
         settings_dir.mkdir()
         env = os.environ.copy()
+        if args.installed_prefix:
+            # The test harness lives in the source tree, but subprocesses must
+            # not borrow uninstalled Qt/Coin/SoQt libraries or Qt plugins.
+            for key in ("LD_LIBRARY_PATH", "LD_PRELOAD", "DYLD_LIBRARY_PATH",
+                        "DYLD_FALLBACK_LIBRARY_PATH", "DYLD_FRAMEWORK_PATH",
+                        "DYLD_FALLBACK_FRAMEWORK_PATH", "QT_PLUGIN_PATH",
+                        "QT_QPA_PLATFORM_PLUGIN_PATH", "QML2_IMPORT_PATH",
+                        "QT_QPA_FONTDIR"):
+                env.pop(key, None)
+            if os.name == "nt":
+                system_root = Path(os.environ.get("SystemRoot", "C:/Windows"))
+                env["PATH"] = os.pathsep.join((
+                    str(cli.parent), str(gui.parent),
+                    str(system_root / "System32"), str(system_root),
+                    str(system_root / "System32" / "Wbem")))
         for name in ("TONATIUHPP_A0_TRACE_SIGNATURE_FILE", "TONATIUHPP_A0_RAY_HISTORY_FILE",
                      "TONATIUHPP_M3_TEST_FILE_DATA_FAULT"):
             env.pop(name, None)
@@ -305,6 +329,10 @@ def main(argv=None) -> int:
     parser.add_argument("--gui", type=Path, required=True)
     parser.add_argument("--cli", type=Path, required=True)
     parser.add_argument("--source-root", type=Path, required=True)
+    parser.add_argument("--scene-root", type=Path,
+                        help="Installed example root; defaults to source tree for build acceptance")
+    parser.add_argument("--installed-prefix", type=Path,
+                        help="Sanitize child library/plugin lookup and require relocated installed executables")
     parser.add_argument("--output-root", type=Path, required=True)
     args = parser.parse_args(argv)
     try:

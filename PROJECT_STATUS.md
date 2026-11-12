@@ -2,7 +2,7 @@
 
 Last updated: 2026-11-12
 
-**Active work:** Phase D — three-platform native GUI scientific acceptance evidence verified on PR #45; final required CI gate hardening and user-authorized merge pending. The testing architecture's Phases A, B and C are **accepted and merged**; Phase E (installed-runtime and packaging acceptance) follows D. This work is maintenance, not a public release or a new scientific model.
+**Active work:** Phase E — installed-runtime and packaging acceptance on a dedicated development branch; initial relocated CMake-install pilot underway. Phase D is ACCEPTED and merged as PR #45 (merge commit `4c4121f5e52ac354dbe4d67bcb5472946d74be05`), with required Windows WGL, Ubuntu X11/GLX and macOS Cocoa native GUI CTests all passing. A+B+C are also accepted. This remains maintenance work, NOT an authorized product release.
 
 **This document is the current handoff.** Older 2026-11-10 P0/P1/P2 candidate/pending diaries and runtime-refactor plans have been superseded by merged code and remain in Git history. Do not resume those plans. Read `AGENT.md` and `docs/testing.md` before changing code.
 
@@ -175,3 +175,32 @@ Define a consistent label taxonomy: level (`unit`/`integration`/`system`), domai
   until all three mandatory OS graphical checks pass and the maintainer
   explicitly approves merging. Immutable 500-million-ray benchmark
   and production scientific kernel remain unchanged.
+
+## Phase E initial implementation checkpoint (2026-11-12)
+
+- **Base:** accepted master `4c4121f5e52ac354dbe4d67bcb5472946d74be05`
+  (Phase D PR #45 merged). Branch:
+  `maintenance/installed-runtime-packaging-acceptance`. No direct
+  master changes or merge are authorized.
+- **Initial Phase E scope:** new disposable relocated CMake-install pilot
+  on the three-OS CI matrix. Reuse the preexisting scientific installed
+  CLI repeatability and actual Qt GUI acceptance scripts; require
+  installed GUI/CLI executables and installed cylinder/sphere example
+  scenes. Launch scientific subprocesses from unrelated working
+  directories with SDK/library-loader environment overrides removed.
+  On Windows, continue to use the verified SHA256-pinned Mesa software
+  WGL only as temporary hosted CI infrastructure.
+- **New evidence:** installer relocation guard self-tests explicitly
+  reject unexpected paths, source-tree installs and symlinked install
+  roots. The GUI reports remain actual Qt/SoQt real-dialog and scientific
+  analytical comparisons, not offscreen simulations.
+- **Pilot status:** exploratory and `continue-on-error` until each
+  platform's relocation, native dependency loading, plugin lookup and
+  numerical results are examined. A green overall CI build does not
+  mean this pilot succeeded.
+- **Remaining acceptance:** repair any actual installed-runtime
+  failures, audit macOS Frameworks/plugin RPATH, verify production
+  `BUILD_TESTING=OFF` release-like payloads, and distinguish CMake
+  installs from Qt IFW installer/update behavior. Frozen 500M artifact
+  remains immutable; no production physics change. PR stays draft
+  until scientific evidence supports a final acceptance decision.

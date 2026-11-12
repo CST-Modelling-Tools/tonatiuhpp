@@ -261,3 +261,46 @@ becomes a **required** CI gate alongside Linux X11/GLX and macOS Cocoa.
 The first new required-gate run must itself pass before marking Phase D
 ready for final maintainer acceptance. The frozen 500-million-ray benchmark
 remains unchanged.
+
+## Phase E — exploratory relocated CMake-install acceptance (2026-11-12)
+
+Phase E starts **after merged Phase D PR #45** (master merge
+`4c4121f5e52ac354dbe4d67bcb5472946d74be05`).
+Unlike build-tree GUI testing, installed acceptance must launch actual
+**installed** GUI/CLI executables and their scientific plugins from a
+relocated prefix outside the source and build directories. The independent
+test scripts and comparators still originate in the checkout; the
+installed `examples/benchmarks/cylinder.tnhpp` and
+`sphere.tnhpp` scenes are intentionally loaded from the relocated
+payload, not source fixtures.
+
+The initial cross-platform pilot runs
+`cmake --install build --config Release --prefix <runner-temp>/cmake-install`,
+moves that disposable install to another directory, and invokes
+`tests/integration/installation/run_installed_acceptance.py`.
+It reuses `cli_process_repeatability.py --mode installed` for independent
+native CLI processes, installed material/scene loading, bounded small
+scientific traces, scripts, export files and fail-closed behavior. It then
+reuses all three real GUI workflows via the same independent
+GUI/CLI and analytical 64 kW assertions as Phase D, launched from
+the relocated installed executables. The spawned CLI/GUI processes
+do not inherit `LD_LIBRARY_PATH`, `DYLD_LIBRARY_PATH`,
+`QT_PLUGIN_PATH`, `QT_QPA_PLATFORM_PLUGIN_PATH` and related SDK
+loader overrides; Windows child `PATH` contains only relocated runtime
+directories and normal Windows system DLL directories. Test evidence
+and process logs are retained under `build/tests/installed_acceptance`.
+All three platform pilots are deliberately **non-gating until verified**.
+Inspect individual results, not just a green parent CI job.
+
+This first gate uses the existing **BUILD_TESTING=ON** CMake installation
+so the test-only GUI helper can exercise real dialogs. Such an installed
+runtime is useful for packaging diagnosis, but does **not** establish that
+a `BUILD_TESTING=OFF` production app, Qt IFW installer, MaintenanceTool
+updates, signing, or notarization have passed. Those remain separate
+Phase E release-payload gates. macOS requires `macdeployqt` for this
+pilot; full app-bundle isolation (Frameworks/private libs/plugin RPATH)
+must be assessed rather than inferred from CLI process success.
+
+No frozen 500-million-ray benchmark is run or regenerated. All installed
+work is confined to new external CI temporary directories, not a
+developer/user installation.
