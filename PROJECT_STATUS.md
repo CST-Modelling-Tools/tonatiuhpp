@@ -2,7 +2,7 @@
 
 Last updated: 2026-11-12
 
-**Active work:** Phase E — installed-runtime and packaging acceptance on a dedicated development branch; initial relocated CMake-install pilot underway. Phase D is ACCEPTED and merged as PR #45 (merge commit `4c4121f5e52ac354dbe4d67bcb5472946d74be05`), with required Windows WGL, Ubuntu X11/GLX and macOS Cocoa native GUI CTests all passing. A+B+C are also accepted. This remains maintenance work, NOT an authorized product release.
+**Active work:** Phase E — the relocated test-enabled scientific GUI, BUILD_TESTING=OFF production runtime and copied Qt IFW package-data pilots have each passed all three OSes; final promotion to required CI and scoped acceptance review are pending. Phase D is ACCEPTED and merged as PR #45 (merge commit `4c4121f5e52ac354dbe4d67bcb5472946d74be05`), with required Windows WGL, Ubuntu X11/GLX and macOS Cocoa native GUI CTests all passing. A+B+C are also accepted. This remains maintenance work, NOT an authorized product release.
 
 **This document is the current handoff.** Older 2026-11-10 P0/P1/P2 candidate/pending diaries and runtime-refactor plans have been superseded by merged code and remain in Git history. Do not resume those plans. Read `AGENT.md` and `docs/testing.md` before changing code.
 
@@ -271,3 +271,32 @@ Define a consistent label taxonomy: level (`unit`/`integration`/`system`), domai
 - Pilot remains `continue-on-error` until individual Linux, macOS and
   Windows results, loader paths and numerical evidence are reviewed.
   All prior required Phase D tests remain unchanged; PR #46 stays draft.
+
+### Phase E three-platform installed and package-data pilot success (2026-11-12)
+
+- [CI 43304366649](https://github.com/CST-Modelling-Tools/tonatiuhpp/actions/runs/43304366649):
+  all three ordinary CI platform jobs passed. Individual **relocated
+  BUILD_TESTING=ON** installed CLI and real GUI file/interception/flux
+  scientific acceptance: PASS on Windows, Ubuntu and macOS.
+  Actual numerical JSON records were inspected: 3184/3184 matching
+  GUI/CLI photons on Windows/Linux; 3197/3197 on macOS; intercepted
+  power around 63.86 kW; Qt grid power around 63.86–64.23 kW versus
+  independently defined 64 kW planar reference.
+- **BUILD_TESTING=OFF** production CMake-installed CLI scientific
+  acceptance and real native GUI startup: PASS on all three OSes.
+  **Copied Qt IFW package-data** CLI scientific acceptance and real
+  GUI startup: PASS on all three OSes. IFW payload manifests report
+  467 Linux, 254 macOS and 221 Windows files in their respective
+  tested payloads. These are structural counts, not a claim of exact
+  matching package contents across platforms.
+- The Linux indirect `RUNPATH`, macOS private dylib bundle and Windows
+  GUI `Qt6PrintSupport.dll` dependency problems are corrected and
+  verified under relocated installed workloads. Qt IFW **installer,
+  updater and uninstaller transactions, signing and notarization**
+  have not been exercised; the test contract explicitly excludes them.
+- Promote the three passing Phase E pilots to required checks and add
+  a stricter Mach-O external-development-path audit to macOS bundle
+  consolidation. A final CI run must pass **all required checks and
+  new audit** before Phase E may be considered accepted. PR #46
+  remains draft and unmerged; frozen 500M benchmark and production
+  scientific logic remain unchanged.

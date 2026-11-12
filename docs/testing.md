@@ -398,3 +398,43 @@ Using source test scripts as comparators is permitted; the launched
 binaries, plugins and scene files must originate from the copied IFW
 payload, not the source/SDK/build tree. The 500-million-ray frozen
 benchmark remains unchanged.
+
+### Phase E three-platform pilot evidence and promotion to required CI
+
+The completed [run 43304366649](https://github.com/CST-Modelling-Tools/tonatiuhpp/actions/runs/43304366649)
+has independently verified all **three** non-gating Phase E checkpoints
+on **Windows, Ubuntu 24.04 and macOS**. In every case, the individual
+steps returned successful process exit status and generated their own
+`INSTALLED_ACCEPTANCE_RESULT=PASS` structured evidence:
+
+| Test contract | Windows | Ubuntu | macOS |
+| --- | --- | --- | --- |
+| Relocated `BUILD_TESTING=ON` installed CLI plus all three real GUI scientific modes | PASS | PASS | PASS |
+| Relocated `BUILD_TESTING=OFF` production CLI scientific acceptance and real native GUI process startup | PASS | PASS | PASS |
+| Relocated production Qt IFW `package data` CLI scientific acceptance and real native GUI process startup | PASS | PASS | PASS |
+
+The test-enabled installed GUI photon export remains an **independent
+GUI/CLI canonical multiset equality** check: 3184/3184 records on
+Windows and Linux, 3197/3197 on macOS. GUI script interception is
+63857.145538085264 W on Windows/Linux and 63889.13809597008 W on
+macOS; Qt flux-map integrals are 63857.145538085264 W on
+Windows/Linux and 64225.0599537606 W on macOS. These are evaluated
+against a bounded analytically derived 64000 W reference; no claim of
+exact cross-platform RNG identity is implied.
+
+On the production binaries and packaged payload, GUI evidence is
+**native GUI startup/liveness only** (seven seconds with actual
+Windows/X11/Cocoa platform), not production GUI dialog automation
+or full interactive flux comparison. Numerical scientific acceptance
+there comes from independently launched *production CLI* processes.
+Qt IFW package-data tests do **not** execute an installer/updater/
+uninstaller, binary signing, notarization, or GPU-hardware qualification.
+
+All three validated Phase E contracts are now candidates for
+**required CI checks**, not `continue-on-error`, with a final CI run
+necessary before Phase E approval. The macOS application consolidation
+adds a loader-path audit to reject absolute external development/Qt
+SDK references in its Mach-O binaries and framework/plugin contents.
+This additional audit must itself pass the final required CI run.
+Frozen 500-million-ray scientific benchmarks and the production
+scientific kernel remain unmodified.

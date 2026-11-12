@@ -135,3 +135,40 @@ for dev_dir in include lib; do
     rm -rf "dist/${dev_dir}"
   fi
 done
+
+
+# Native startup alone does not prove that Mach-O install names and RPATHs
+# are independent of the developer's Qt/SoQt/Coin SDK. Reject absolute
+# non-system runtime references in every bundled executable, dylib, and
+# framework Mach-O object, including Qt plugins.
+audit_macho() {
+  local candidate="$1" dependency rpath
+  if ! file "$candidate" | grep -q 'Mach-O'; then
+    return 0
+  fi
+  while IFS= read -r dependency; do
+    case "$dependency" in
+      @rpath/*|@loader_path/*|@executable_path/*|/System/Library/*|/usr/lib/*) ;;
+      /*)
+        echo "Mac installed bundle borrows external absolute dependency: $candidate -> $dependency" >&2
+        return 1 ;;
+    esac
+  done < <(otool -L "$candidate" | tail -n +2 | awk '{print $1}')
+  while IFS= read -r rpath; do
+    case "$rpath" in
+      @loader_path/*|@executable_path/*|@rpath/*|/System/Library/*|/usr/lib/*) ;;
+      *)
+        echo "Mac installed bundle has external or unrecognized LC_RPATH: $candidate -> $rpath" >&2
+        return 1 ;;
+    esac
+  done < <(otool -l "$candidate" | awk '
+      $1 == "cmd" && $2 == "LC_RPATH" { in_rpath=1; next }
+      in_rpath && $1 == "path" { print $2; in_rpath=0 }
+    ')
+}
+audit_macho "$APP_EXEC"
+audit_macho "$MACOS_DIR/tonatiuhpp-cli"
+while IFS= read -r -d '' binary; do
+  audit_macho "$binary"
+done < <(find "$APP_BUNDLE/Contents/Frameworks" "$APP_BUNDLE/Contents/MacOS/plugins" -type f -print0)
+echo "MACOS_BUNDLE_RUNTIME_PATH_AUDIT=PASS"
