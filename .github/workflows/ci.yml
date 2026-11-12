@@ -6,6 +6,12 @@ on:
   pull_request:
     branches: [ master ]
   workflow_dispatch:
+    inputs:
+      gui_linux_pilot:
+        description: "Run opt-in real Linux X11/GLX GUI scientific acceptance"
+        type: boolean
+        required: false
+        default: false
 
 jobs:
   build:
@@ -402,6 +408,29 @@ jobs:
         shell: bash
         run: |
           ctest --test-dir build -C Release --output-on-failure --output-junit "${GITHUB_WORKSPACE}/build/ctest-results.xml"
+
+      # This pilot does NOT run in ordinary PR or push CI. Exercise a real
+      # X11/GLX display and capture the numerical evidence before deciding
+      # whether native GUI acceptance can become a required OS gate.
+      - name: Install Linux GUI pilot display dependencies
+        if: ${{ runner.os == 'Linux' && github.event_name == 'workflow_dispatch' && inputs.gui_linux_pilot == true }}
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends xvfb xauth libgl1-mesa-dri libglx-mesa0
+
+      - name: Pilot real Linux native GUI scientific acceptance
+        if: ${{ runner.os == 'Linux' && github.event_name == 'workflow_dispatch' && inputs.gui_linux_pilot == true }}
+        shell: bash
+        env:
+          QT_QPA_PLATFORM: xcb
+          LIBGL_ALWAYS_SOFTWARE: "1"
+        run: |
+          set -euo pipefail
+          cmake -S source -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DTONATIUHPP_ENABLE_NATIVE_GUI_ACCEPTANCE=ON -DTONATIUHPP_GUI_ACCEPTANCE_USE_XVFB=ON
+          cmake --build build --config Release --parallel
+          ctest --test-dir build -C Release -N -R '^gui[.]native_'
+          ctest --test-dir build -C Release --output-on-failure -R '^gui[.]native_'
 
       - name: Upload build artifacts
         if: ${{ always() && steps.changes.outputs.docs_only != 'true' }}

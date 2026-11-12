@@ -2,7 +2,7 @@
 
 Last updated: 2026-11-12
 
-**Active work:** Phase D — genuine automated native GUI scientific acceptance. The testing architecture's Phases A, B and C are **accepted and merged**; Phase E (installed-runtime and packaging acceptance) follows D. This work is maintenance, not a public release or a new scientific model.
+**Active work:** Phase D — genuine automated native GUI scientific acceptance (implementation candidate on a dedicated branch; native display-backed validation pending). The testing architecture's Phases A, B and C are **accepted and merged**; Phase E (installed-runtime and packaging acceptance) follows D. This work is maintenance, not a public release or a new scientific model.
 
 **This document is the current handoff.** Older 2026-11-10 P0/P1/P2 candidate/pending diaries and runtime-refactor plans have been superseded by merged code and remain in Git history. Do not resume those plans. Read `AGENT.md` and `docs/testing.md` before changing code.
 
@@ -98,3 +98,26 @@ Define a consistent label taxonomy: level (`unit`/`integration`/`system`), domai
 - **D — NEXT / NOT STARTED:** Register and scientifically validate actual `tonatiuhpp-gui` interactions in bounded CTest drivers; establish reliable display-backed CI evidence per OS before making requirements mandatory. Do not change scientific references or trigger the frozen benchmark.
 - **E — NOT STARTED:** Independently validate installed GUI/CLI runtime paths, dependencies, scientific plugins and selected small numerical outputs from disposable external install/payload roots.
 - **Current scope:** All A–C acceptance evidence precedes this status-only update. Updating this Markdown document does **not** rerun any tests, authorize a release, or imply acceptance of D or E.
+
+## Phase D implementation candidate checkpoint (2026-11-12)
+
+- **Status:** Implementation candidate, **not accepted or merged**. Development branch:
+  `maintenance/native-gui-scientific-acceptance`, based on Phase D baseline
+  `a7473a2d805529c3efb1cfb00c043978255d15be` (PR #44 merged).
+- Proposed optional registration: `TONATIUHPP_ENABLE_NATIVE_GUI_ACCEPTANCE=ON`
+  adds three real GUI CTests, with optional Linux `xvfb-run` launch through
+  `TONATIUHPP_GUI_ACCEPTANCE_USE_XVFB=ON`. Default existing Windows 180 /
+  Linux and macOS 179 CTest inventory stays unchanged.
+- The test-only Python runner executes actual GUI Qt workflows with bounded
+  process lifetimes, isolated logs and reports, an independent cylinder GUI/CLI
+  photon-export comparator, and 8x8 m planar 1,000 W/m² interception/flux
+  analytical checks using the preexisting small scientific scripts.
+- Python synthetic numerical-oracle positive/negative tests passed locally
+  (13 tests). **Real Qt native acceptance has not yet been run or demonstrated
+  on any supported OS in this checkpoint; CI acceptance is pending.** This
+  statement is not an authorization to merge Phase D, modify physics or
+  rerun the 500-million-ray frozen benchmark.
+- Next: run on the maintainer's native Windows Release build in a genuine
+  visible SoQt/OpenGL session, review retained per-mode scientific evidence,
+  then establish reliable Ubuntu/macOS display-backed CI separately; record
+  exact results before enabling required platform GUI gates.

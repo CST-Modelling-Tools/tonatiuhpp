@@ -115,6 +115,16 @@ int main(int argc, char** argv)
 
     // application
     QApplication app(argc, argv);
+#ifdef TONATIUHPP_M5_NATIVE_GUI_TEST
+    // The automated native-GUI harness must not write to a maintainer's
+    // real registry/preferences. This setting is inert in production builds.
+    const QString acceptanceSettings = qEnvironmentVariable("TONATIUHPP_M5_GUI_NATIVE_SETTINGS_DIR");
+    if (!acceptanceSettings.isEmpty()) {
+        QSettings::setDefaultFormat(QSettings::IniFormat);
+        QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, acceptanceSettings);
+        QSettings::setPath(QSettings::IniFormat, QSettings::SystemScope, acceptanceSettings);
+    }
+#endif
     TonatiuhCore::setHeadlessPluginMode(false);
     initializePresentationBridges();
     app.setApplicationName("Tonatiuh");
