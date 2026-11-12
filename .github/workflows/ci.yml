@@ -448,25 +448,20 @@ jobs:
       # Windows hosted Actions may lack an interactive WGL desktop even though
       # manual Windows Release native GUI CTests passed 3/3. Probe it without
       # substituting Qt offscreen or misreporting a non-gating success.
-      - name: Prepare Windows native GUI fault diagnostics
-        if: ${{ steps.changes.outputs.docs_only != 'true' && runner.os == 'Windows' }}
-        shell: pwsh
-        run: |
-          ./scripts/diagnose_windows_gui_ci.ps1 -Phase before
-
-      - name: Stage SHA-pinned Windows Mesa llvmpipe WGL runtime
+      # Hosted Windows exposes a real desktop, but Hyper-V Video lacks
+      # a suitable Qt OpenGL/WGL function dispatch. Pin a verified Mesa
+      # software WGL only for native GUI scientific acceptance.
+      - name: Stage pinned Windows Mesa software WGL
         if: ${{ steps.changes.outputs.docs_only != 'true' && runner.os == 'Windows' }}
         shell: pwsh
         run: |
           ./scripts/install_ci_windows_mesa.ps1 -Action install
 
-      - name: Probe hosted Windows native GUI acceptance
+      - name: Native Windows WGL GUI scientific acceptance
         if: ${{ steps.changes.outputs.docs_only != 'true' && runner.os == 'Windows' }}
-        continue-on-error: true
         shell: bash
         env:
           QT_QPA_PLATFORM: windows
-          QT_DEBUG_PLUGINS: "1"
           GALLIUM_DRIVER: llvmpipe
           LIBGL_ALWAYS_SOFTWARE: "1"
         run: |
@@ -477,13 +472,7 @@ jobs:
           grep -Fq 'Total Tests: 3' build/gui-native-inventory.txt
           ctest --test-dir build -C Release --verbose -R '^gui[.]native_' --output-junit "${GITHUB_WORKSPACE}/build/gui-native-results.xml" 2>&1 | tee build/gui-native-pilot.log
 
-      - name: Inspect hosted Windows native GUI fault
-        if: ${{ always() && steps.changes.outputs.docs_only != 'true' && runner.os == 'Windows' }}
-        shell: pwsh
-        run: |
-          ./scripts/diagnose_windows_gui_ci.ps1 -Phase after
-
-      - name: Remove CI-only Windows Mesa DLLs before artifact upload
+      - name: Remove CI-only Windows Mesa before artifact upload
         if: ${{ always() && steps.changes.outputs.docs_only != 'true' && runner.os == 'Windows' }}
         shell: pwsh
         run: |

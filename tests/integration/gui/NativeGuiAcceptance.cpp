@@ -51,13 +51,11 @@ public:
         m_data.insert("mode", m_mode);
         m_data.insert("status", "RUNNING");
         m_data.insert("gui_backend", "QApplication/MainWindow/actual Qt dialogs");
-        m_data.insert("stage", "installed-after-mainwindow-show");
         writeReport();
     }
 
     void start()
     {
-        checkpoint("acceptance-timer-fired");
         // Deliberately bounded; fail rather than leaving a modal test running
         // indefinitely. The caller can inspect the preserved report.
         QTimer::singleShot(120000, [this] {
@@ -89,14 +87,6 @@ private:
         T* child = parent ? parent->findChild<T*>(objectName) : nullptr;
         if (!child) fail(QString("Missing real Qt widget: %1").arg(objectName));
         return child;
-    }
-
-    // Persistent test-only breadcrumbs survive a native Windows callback
-    // crash, when stderr and Qt fatal handlers may never flush.
-    void checkpoint(const QString& stage)
-    {
-        m_data.insert("stage", stage);
-        writeReport();
     }
 
     void writeReport()
@@ -150,11 +140,8 @@ private:
         m_rayDialogConfigured = false;
         QAction* action = m_main->findChild<QAction*>("actionRun");
         if (!action) { fail("Real GUI Ray Tracing QAction unavailable"); return; }
-        checkpoint("ray-action-found");
         QTimer::singleShot(100, [this] { configureRayDialog(0); });
-        checkpoint("ray-action-triggering");
         action->trigger(); // Enters actual RayTracingDialog::exec and GUI Run().
-        checkpoint("ray-action-returned");
         if (m_finished) return;
         if (!m_rayDialogConfigured) {
             fail("Ray Tracing dialog did not accept the test inputs");
@@ -171,7 +158,6 @@ private:
             if (!m_finished) QTimer::singleShot(100, [this, tries] { configureRayDialog(tries + 1); });
             return;
         }
-        checkpoint("ray-dialog-visible");
         auto* rays = required<QSpinBox>(dialog, "raysNumberSpin");
         auto* gridW = required<QSpinBox>(dialog, "raysPlaneWidthSpin");
         auto* gridH = required<QSpinBox>(dialog, "raysPlaneHeightSpin");
@@ -226,15 +212,13 @@ private:
         m_rayDialogConfigured = true;
         m_data.insert("ray_dialog_accepted", true);
         m_data.insert("fixed_seed", static_cast<qint64>(m_seed));
-        checkpoint("ray-dialog-accepting");
+        writeReport();
         ok->click(); // Full GUI Run follows after this dialog exits.
-        checkpoint("ray-dialog-ok-click-returned");
     }
 
     void verifyInteractiveFile()
     {
         if (m_finished) return;
-        checkpoint("file-export-verifying");
         const QFileInfo data(m_outputDir + "/PhotonMap.dat");
         const QFileInfo parameters(m_outputDir + "/PhotonMap_parameters.txt");
         if (!data.isFile() || !parameters.isFile() || data.size() < 48 || parameters.size() <= 0) {
@@ -254,9 +238,7 @@ private:
             fail("Original bounded script fixture missing from disposable folder");
             return;
         }
-        checkpoint("script-editor-opening");
         m_main->openFileScript(m_scriptFile); // Actual native GUI Script Editor.
-        checkpoint("script-editor-opened");
         QWidget* editor = nullptr;
         for (QWidget* candidate : QApplication::topLevelWidgets()) {
             if (candidate && candidate->isVisible() &&
@@ -269,9 +251,7 @@ private:
         if (!editor) { fail("Actual GUI Script Editor window not visible"); return; }
         QAction* run = editor->findChild<QAction*>("actionRunScript");
         if (!run) { fail("Actual GUI Script Editor Run action missing"); return; }
-        checkpoint("script-editor-running");
         run->trigger(); // ScriptWindow::runScript(), not headless evaluation.
-        checkpoint("script-editor-run-returned");
         if (m_finished) return;
         const QString scriptDir = QFileInfo(m_scriptFile).absolutePath();
         if (m_mode == "seeded-interception") {
@@ -298,7 +278,6 @@ private:
         QAction* action = m_main->findChild<QAction*>("actionRunFlux");
         if (!action) { fail("Real GUI Flux Analysis QAction unavailable"); return; }
         QTimer::singleShot(100, [this] { configureFluxDialog(0); });
-        checkpoint("flux-action-triggering");
         action->trigger(); // Actual FluxAnalysisDialog::exec() and run().
         if (!m_finished) fail("Flux Analysis dialog returned without scientific acceptance");
     }
@@ -311,7 +290,6 @@ private:
             if (!m_finished) QTimer::singleShot(100, [this, tries] { configureFluxDialog(tries + 1); });
             return;
         }
-        checkpoint("flux-dialog-visible");
         auto* target = required<QLineEdit>(dialog, "surfaceEdit");
         auto* side = required<QComboBox>(dialog, "surfaceSideCombo");
         auto* rays = required<QSpinBox>(dialog, "raysSpin");
@@ -331,9 +309,7 @@ private:
         cellsX->setValue(8);
         cellsY->setValue(8);
         if (!run->isEnabled()) { fail("Flux Analysis GUI Run button disabled"); return; }
-        checkpoint("flux-dialog-running");
         run->click(); // Actual interactive FluxAnalysis::run + plot rendering.
-        checkpoint("flux-dialog-run-returned");
         if (m_finished) return;
         auto* power = required<QLabel>(dialog, "powerTotal");
         auto* maximum = required<QLabel>(dialog, "fluxMax");

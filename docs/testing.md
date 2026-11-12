@@ -219,7 +219,45 @@ solar optical models. Independent GUI Script Editor and Qt Flux Dialog results
 are compared at their respective precisions. The 500-million-ray frozen
 heliostat benchmark has not been rerun or modified.
 
-The Phase D *tested scope* is evidence-complete on all three OSes as of
-run 43185720709. Making graphical gates required is an additional CI-hardening
-change that must pass CI before the final Phase D merge decision. Installed
-package/runtime acceptance remains **Phase E**.
+The initial Phase D graphical pilot evidence was accepted for its tested scope.
+Final hosted-Windows remediation and the required three-OS graphical CI status
+are documented below. Installed package/runtime acceptance remains **Phase E**.
+
+### Windows hosted CI — OpenGL crash diagnosis and verified remediation
+
+The hosted Windows GUI originally crashed before opening its first test dialog.
+WER and CDB in [diagnostic run 43212203419](https://github.com/CST-Modelling-Tools/tonatiuhpp/actions/runs/43212203419)
+identified an access violation `0xC0000005` at
+`Qt6Gui!QOpenGLFunctions::glViewport`: the current OpenGL dispatch pointer
+was null during a native Qt `QOpenGLWindow` expose/flush callback, yielding
+the outer process exit `0xC000041D`. The hosted machine *did* have a
+1024×768 `WinSta0\\Default` desktop and used `Microsoft Hyper-V Video`.
+This was a Qt/OpenGL runtime problem before scientific calculations, not
+evidence of an incorrect photon export or flux implementation.
+
+[Remediation run 43220096714](https://github.com/CST-Modelling-Tools/tonatiuhpp/actions/runs/43220096714)
+passed **180/180 ordinary Windows CTests and 3/3 native Windows GUI CTests**
+using Mesa3D **25.1.9 MSVC** software WGL. Actual results:
+GUI/CLI photon records **3184/3184** with canonical record equality,
+interception **63857.145538085264 W**, Qt map integral
+**63857.145538085264 W**, script flux **63857.114 W**,
+against the independently defined **64000 W** planar reference.
+These match the real Windows desktop results.
+
+On CI only, `scripts/install_ci_windows_mesa.ps1` downloads
+`mesa3d-25.1.9-release-msvc.7z` from
+`pal1000/mesa-dist-win`, checks SHA-256
+`dd83c3c4cc4d7706c9e21b277388447a2fc5367b0912f9ee45621e36aeb3b7d2`,
+verifies AMD64 PE architectures for its required WGL libraries,
+stages x64 software-OpenGL DLLs beside the disposable build GUI, and removes
+them before artifact upload. It does not install global drivers or alter
+the production physics, RNG, kernel, packaging, or installed GUI.
+The real `QT_QPA_PLATFORM=windows` and native SoQt/GUI workflow are retained,
+not replaced by `offscreen` or `minimal`. This establishes software-OpenGL
+acceptance, not hardware GPU qualification.
+
+Following this verified exploratory success, the Windows native GUI step
+becomes a **required** CI gate alongside Linux X11/GLX and macOS Cocoa.
+The first new required-gate run must itself pass before marking Phase D
+ready for final maintainer acceptance. The frozen 500-million-ray benchmark
+remains unchanged.

@@ -25,74 +25,50 @@ if ($Action -eq 'remove') {
     return
 }
 
-# Try the previously established MSVC release first. The inspected
-# 26.2.6 MSVC archive lacks the OpenGL WGL DLLs altogether, so do not use
-# it. Use the current MinGW build as a SHA-pinned fallback if necessary.
-$packages = @(
-    @{ version = '25.1.9'; toolchain = 'msvc';
-       sha256 = 'dd83c3c4cc4d7706c9e21b277388447a2fc5367b0912f9ee45621e36aeb3b7d2' },
-    @{ version = '26.2.6'; toolchain = 'mingw';
-       sha256 = 'da0f71d9181b672c1918f3c342f11118c687f6059a46b16502845160733cc388' }
-)
-if (-not (Test-Path $target -PathType Container)) {
+# The exact Mesa MSVC release below is proven to contain a functional
+# 64-bit WGL opengl32.dll; newer Mesa 26.2.6 MSVC packaging omits it.
+# Pin version, archive name and digest together; do not silently fall back
+# to a different toolchain or software renderer.
+$version = '25.1.9'
+$name = "mesa3d-$version-release-msvc.7z"
+$url = "https://github.com/pal1000/mesa-dist-win/releases/download/$version/$name"
+$expectedSha256 = 'dd83c3c4cc4d7706c9e21b277388447a2fc5367b0912f9ee45621e36aeb3b7d2'
+$archive = Join-Path $env:RUNNER_TEMP $name
+$extract = Join-Path $env:RUNNER_TEMP 'tonatiuhpp-ci-mesa-25.1.9-msvc'
+
+if (-not (Test-Path -LiteralPath $target -PathType Container)) {
     throw "Release GUI output directory absent: $target"
 }
-if (Test-Path $marker) {
-    throw 'Mesa staging marker already exists; refusing to replace previous staged files.'
+if (Test-Path -LiteralPath $marker) {
+    throw 'Mesa staging marker already exists; refusing to replace staged files.'
 }
-$sevenZip = (Get-Command 7z.exe -ErrorAction SilentlyContinue)
+$sevenZip = Get-Command 7z.exe -ErrorAction SilentlyContinue
 if ($sevenZip) { $exe = $sevenZip.Source }
-elseif (Test-Path 'C:\Program Files\7-Zip\7z.exe') { $exe = 'C:\Program Files\7-Zip\7z.exe' }
-else { throw '7-Zip required on hosted Windows to unpack pinned Mesa.' }
-# Some upstream release archives wrap the architecture payload in a
-# second archive. List and unpack only one nested level, preserving evidence
-# when the distribution layout changes. Never assume a folder called "x64".
-function DriverFiles([string]$directory) {
-    return @(Get-ChildItem -LiteralPath $directory -Recurse -File -ErrorAction Stop |
-        Where-Object { $_.Name -ieq 'opengl32.dll' })
+elseif (Test-Path 'C:\Program Files\7-Zip\7z.exe') {
+    $exe = 'C:\Program Files\7-Zip\7z.exe'
+} else {
+    throw '7-Zip is required to unpack pinned Mesa on hosted Windows.'
 }
-$ogl = @()
-$chosen = ''
-foreach ($package in $packages) {
-    $fileName = 'mesa3d-' + $package.version + '-release-' + $package.toolchain + '.7z'
-    $uri = "https://github.com/pal1000/mesa-dist-win/releases/download/$($package.version)/$fileName"
-    $archive = Join-Path $env:RUNNER_TEMP $fileName
-    $extract = Join-Path $env:RUNNER_TEMP ('tonatiuhpp-ci-mesa-' + $package.version + '-' + $package.toolchain)
-    Write-Host "Downloading pinned Mesa package $uri"
-    Invoke-WebRequest -Uri $uri -OutFile $archive -MaximumRedirection 5
-    $actual = (Get-FileHash -Algorithm SHA256 -LiteralPath $archive).Hash.ToLowerInvariant()
-    if ($actual -ne $package.sha256) {
-        throw "Mesa3D SHA256 mismatch ($fileName): $actual"
-    }
-    Write-Host "Verified SHA256 ($fileName): $actual"
-    New-Item -ItemType Directory -Force -Path $extract | Out-Null
-    & $exe x $archive "-o$extract" -y | Out-Null
-    if ($LASTEXITCODE -ne 0) { throw "Extraction failed for verified $fileName" }
-    $ogl = @(DriverFiles $extract)
-    if ($ogl.Count -eq 0) {
-        $nested = @(Get-ChildItem -LiteralPath $extract -Recurse -File |
-            Where-Object { $_.Extension -in @('.7z','.zip') })
-        foreach ($item in $nested) {
-            $targetNested = Join-Path $extract ('nested-' + $item.BaseName)
-            New-Item -ItemType Directory -Force -Path $targetNested | Out-Null
-            & $exe x $item.FullName "-o$targetNested" -y | Out-Null
-            if ($LASTEXITCODE -ne 0) { throw "Extraction failed for nested $($item.Name)" }
-        }
-        $ogl = @(DriverFiles $extract)
-    }
-    if ($ogl.Count -eq 0) {
-        Write-Host "No WGL opengl32.dll in $fileName (package inventory):"
-        Get-ChildItem -LiteralPath $extract -Recurse -File | Select-Object -First 40 |
-            ForEach-Object { Write-Host $_.FullName }
-        continue
-    }
-    $chosen = $fileName
-    break
+
+Write-Host "Downloading pinned Mesa $name"
+Invoke-WebRequest -Uri $url -OutFile $archive -MaximumRedirection 5
+$actual = (Get-FileHash -Algorithm SHA256 -LiteralPath $archive).Hash.ToLowerInvariant()
+if ($actual -ne $expectedSha256) {
+    throw "SHA256 mismatch for Mesa ($name): $actual"
 }
-if ($ogl.Count -eq 0) {
-    throw 'No OpenGL WGL runtime in either SHA-verified Mesa package.'
+Write-Host "Verified Mesa $name SHA256: $actual"
+New-Item -ItemType Directory -Path $extract -Force | Out-Null
+& $exe x $archive "-o$extract" -y | Out-Null
+if ($LASTEXITCODE -ne 0) { throw 'Verified Mesa archive extraction failed' }
+$dir = Join-Path $extract 'x64'
+$opengl = Join-Path $dir 'opengl32.dll'
+$gallium = Join-Path $dir 'libgallium_wgl.dll'
+$software = Join-Path $dir 'pipe_swrast.dll'
+foreach ($dll in @($opengl, $gallium, $software)) {
+    if (-not (Test-Path -LiteralPath $dll -PathType Leaf)) {
+        throw "Required Mesa software WGL file missing: $dll"
+    }
 }
-Write-Host "Selected Mesa package: $chosen"
 # Verify the actual DLL's PE Machine field: IMAGE_FILE_MACHINE_AMD64=0x8664.
 # This avoids accidentally choosing an x86 OpenGL library when archive
 # directory names change.
@@ -108,18 +84,10 @@ function IsAmd64Dll([string]$path) {
         return $reader.ReadUInt16() -eq 0x8664
     } finally { $stream.Dispose() }
 }
-$amd64 = @($ogl | Where-Object { IsAmd64Dll $_.FullName })
-Write-Host ("Mesa OpenGL candidates: " + (($ogl | ForEach-Object { $_.FullName }) -join '; '))
-if ($amd64.Count -ne 1) {
-    throw "Expected exactly one AMD64 Mesa opengl32.dll, found $($amd64.Count)."
-}
-$dir = $amd64[0].DirectoryName
-$gallium = Join-Path $dir 'libgallium_wgl.dll'
-if (-not (Test-Path -LiteralPath $gallium -PathType Leaf)) {
-    throw "Mesa WGL megadriver not found next to $($amd64[0].FullName)"
-}
-if (-not (IsAmd64Dll $gallium)) {
-    throw 'Mesa libgallium_wgl.dll is not an AMD64 Windows DLL.'
+foreach ($filePath in @($opengl, $gallium, $software)) {
+    if (-not (IsAmd64Dll $filePath)) {
+        throw "Mesa runtime is not AMD64: $filePath"
+    }
 }
 $copyFiles = @(Get-ChildItem -LiteralPath $dir -Filter '*.dll' -File)
 foreach ($item in $copyFiles) {
@@ -141,4 +109,4 @@ try {
     foreach ($path in $staged) { Remove-Item -LiteralPath $path -Force -ErrorAction SilentlyContinue }
     throw
 }
-Write-Host ('Mesa llvmpipe WGL is staged only for native GUI CI: ' + $chosen)
+Write-Host "Mesa $name software WGL is staged only for native GUI CI."

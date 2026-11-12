@@ -150,3 +150,28 @@ Define a consistent label taxonomy: level (`unit`/`integration`/`system`), domai
   and documented 20% Monte Carlo/analytic criterion. No change to scientific
   kernel, sampling, photon serialization or immutable 500-million-ray
   heliostat benchmark. Phase E installed-runtime acceptance is separate.
+
+### Phase D Windows hosted crash remediation (2026-11-12)
+
+- Windows WER/CDB [43212203419](https://github.com/CST-Modelling-Tools/tonatiuhpp/actions/runs/43212203419):
+  null OpenGL dispatch in `Qt6Gui!QOpenGLFunctions::glViewport` during
+  native expose/flush; `0xC0000005` underlying exception, outer
+  `0xC000041D` callback termination. A 1024x768 `WinSta0\\Default`
+  desktop existed; graphics adapter was `Microsoft Hyper-V Video`.
+  No scientific GUI test action or numerical assertion had begun.
+- Pinned Mesa3D 25.1.9 MSVC software WGL remediation:
+  [43220096714](https://github.com/CST-Modelling-Tools/tonatiuhpp/actions/runs/43220096714)
+  achieved **3/3 actual hosted Windows native GUI tests** and
+  **180/180 ordinary Windows CTests**. Canonical GUI/CLI photons
+  3184/3184, interception and Qt flux 63857.145538085264 W,
+  and script flux 63857.114 W. Native Windows desktop evidence
+  183/183 remains independently valid.
+- This milestone removes temporary WER diagnostic code/checkpoint
+  instrumentation and makes hosted Windows graphical acceptance **required**
+  just as Linux/macOS graphical gates already are. Mesa dependency is
+  SHA256 pinned and staged only inside CI's disposable build/bin/Release
+  directory, then removed before upload; not a production dependency.
+- **Final required-gate CI run pending** at this checkpoint. Do not merge
+  until all three mandatory OS graphical checks pass and the maintainer
+  explicitly approves merging. Immutable 500-million-ray benchmark
+  and production scientific kernel remain unchanged.
