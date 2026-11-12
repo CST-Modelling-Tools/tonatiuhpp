@@ -261,3 +261,198 @@ becomes a **required** CI gate alongside Linux X11/GLX and macOS Cocoa.
 The first new required-gate run must itself pass before marking Phase D
 ready for final maintainer acceptance. The frozen 500-million-ray benchmark
 remains unchanged.
+
+## Phase E — exploratory relocated CMake-install acceptance (2026-11-12)
+
+Phase E starts **after merged Phase D PR #45** (master merge
+`4c4121f5e52ac354dbe4d67bcb5472946d74be05`).
+Unlike build-tree GUI testing, installed acceptance must launch actual
+**installed** GUI/CLI executables and their scientific plugins from a
+relocated prefix outside the source and build directories. The independent
+test scripts and comparators still originate in the checkout; the
+installed `examples/benchmarks/cylinder.tnhpp` and
+`sphere.tnhpp` scenes are intentionally loaded from the relocated
+payload, not source fixtures.
+
+The initial cross-platform pilot runs
+`cmake --install build --config Release --prefix <runner-temp>/cmake-install`,
+moves that disposable install to another directory, and invokes
+`tests/integration/installation/run_installed_acceptance.py`.
+It reuses `cli_process_repeatability.py --mode installed` for independent
+native CLI processes, installed material/scene loading, bounded small
+scientific traces, scripts, export files and fail-closed behavior. It then
+reuses all three real GUI workflows via the same independent
+GUI/CLI and analytical 64 kW assertions as Phase D, launched from
+the relocated installed executables. The spawned CLI/GUI processes
+do not inherit `LD_LIBRARY_PATH`, `DYLD_LIBRARY_PATH`,
+`QT_PLUGIN_PATH`, `QT_QPA_PLATFORM_PLUGIN_PATH` and related SDK
+loader overrides; Windows child `PATH` contains only relocated runtime
+directories and normal Windows system DLL directories. Test evidence
+and process logs are retained under `build/tests/installed_acceptance`.
+All three platform pilots are deliberately **non-gating until verified**.
+Inspect individual results, not just a green parent CI job.
+
+This first gate uses the existing **BUILD_TESTING=ON** CMake installation
+so the test-only GUI helper can exercise real dialogs. Such an installed
+runtime is useful for packaging diagnosis, but does **not** establish that
+a `BUILD_TESTING=OFF` production app, Qt IFW installer, MaintenanceTool
+updates, signing, or notarization have passed. Those remain separate
+Phase E release-payload gates. macOS requires `macdeployqt` for this
+pilot; full app-bundle isolation (Frameworks/private libs/plugin RPATH)
+must be assessed rather than inferred from CLI process success.
+
+No frozen 500-million-ray benchmark is run or regenerated. All installed
+work is confined to new external CI temporary directories, not a
+developer/user installation.
+
+### First relocated-install pilot evidence (run 43269447246)
+
+All three ordinary platform CI jobs passed their existing build-tree
+regressions and native GUI acceptance. Their **new Phase E pilots did not
+pass**, despite green parent jobs because those pilots were non-gating:
+
+- **Linux:** installed CLI scientific acceptance passed, including real
+  installed scene and material-plugin loading. Relocated GUI exited 127
+  before any scientific test: `libQt6OpenGL.so.6` was not found. The
+  CMake install log shows that library present in installed `lib/`;
+  this is consistent with ELF `RUNPATH` nontransitivity. The follow-up
+  change gives each installed shared library a local `$ORIGIN` RUNPATH.
+- **macOS:** the raw CMake-installed CLI aborted with
+  `Library not loaded: @rpath/libTonatiuhppKernel.dylib`.
+  `macdeployqt` alone does not consolidate Tonatiuh++ private
+  libraries. The follow-up pilot reuses the release workflow's macOS
+  app bundle consolidation, stages private Coin/SoQt and QtOpenGL
+  dependencies, and loads installed examples from inside the bundle.
+- **Windows:** the relocated CLI scientific tests passed, and the
+  pinned CI Mesa software WGL runtime was staged. The installed GUI
+  then exited `3221225781` (`0xC0000135`), indicating a missing
+  DLL before scientific tests. In addition to `windeployqt`, the
+  follow-up install includes the indirect Qt6OpenGL runtime DLLs needed
+  by SoQt. Which DLL the loader lacked in the initial run is not
+  proven by the exit code alone.
+
+These are **first-pilot diagnoses and proposed remedies, not accepted
+three-platform installed runtime results**. The separate second CI
+run must prove each relocated app exercises the actual GUI science.
+These tests do not execute the frozen benchmark and do not validate
+`BUILD_TESTING=OFF` IFW installers or updater lifecycle.
+
+### Phase E second-pilot results and consolidated validation (2026-11-12)
+
+The latest completed Phase E exploratory run
+[43272756323](https://github.com/CST-Modelling-Tools/tonatiuhpp/actions/runs/43272756323)
+retained the ordinary three-OS CI regression and required Phase D native
+GUI gates. Its *non-gating* relocated-install pilot actually **passed
+on Linux and macOS**: installed CLI scientific repeatability, real installed
+GUI photon export, seeded interception, and interactive flux analysis all
+completed after installation and prefix relocation.
+
+**Windows remained blocked:** the relocated CLI passed, the pinned Mesa
+WGL deployment completed, and the installed GUI returned
+`0xC0000135` before numerical acceptance. Independent inspection of the
+actual Windows build artifact's PE import table found that
+`TonatiuhppGuiPresentation.dll` imports `Qt6PrintSupport.dll` and
+`SoQt1.dll` imports `Qt6OpenGL.dll`. The captured build runtime
+contained `Qt6OpenGL.dll` but **did not contain
+`Qt6PrintSupport.dll`**; copying Qt6OpenGL alone was therefore not
+sufficient. The candidate installer fix now explicitly requires and
+deploys Release `Qt6PrintSupport.dll`, `Qt6OpenGL.dll` and
+`Qt6OpenGLWidgets.dll` and refuses missing DLLs during installed-GUI
+preflight. Actual Windows installed-GUI success remains contingent on
+the next run; a PE import audit identifies missing dependencies but
+is not itself a successful runtime test.
+
+**Additional release-like pilot:** CI now also reconfigures to
+`BUILD_TESTING=OFF`, rebuilds and installs into a fresh disposable
+prefix, and runs independent installed CLI scientific acceptance plus
+a bounded actual native GUI process-start/liveness check. It does
+**not** use Phase D's test-only GUI automation hooks and must not be
+reported as equivalent dialog/flux-map acceptance.
+The pilot is non-gating until its numeric and launch evidence is
+inspected. Successful CMake install, app-bundle staging and production
+smoke do **not** by themselves prove Qt IFW installer execution,
+maintenance/update behavior, notarization, signing or operation with
+a different operating-system dependency baseline.
+
+The GUI-only DLL checks have negative/positive Python self-tests,
+which must fail closed when PrintSupport is omitted. Both preliminary
+and production runs keep the frozen 500-million-ray benchmark and
+scientific kernel unchanged.
+
+### Phase E production Qt IFW *payload* acceptance pilot
+
+In addition to the relocated CMake install, the Phase E CI now
+uses the existing `installer/prepare_ifw_payload.py` from a disposable
+`BUILD_TESTING=OFF` CMake staging tree. Its generated Qt IFW
+`installer/packages/com.tonatiuhpp.app/data` is copied to a separate
+external runtime prefix, relocated again, and exercised with the
+same production CLI scientific checks and real native GUI startup
+smoke. The resulting manifest and per-process evidence are retained
+under `build/tests/ifw_payload_acceptance`.
+
+This is a **payload-content/runtime** check, not installation of a
+`binarycreator`-generated Qt IFW executable, an unattended installer
+transaction, an updater or uninstaller test, signing or notarization.
+It remains **non-gating until all three OS pilots actually pass**.
+Using source test scripts as comparators is permitted; the launched
+binaries, plugins and scene files must originate from the copied IFW
+payload, not the source/SDK/build tree. The 500-million-ray frozen
+benchmark remains unchanged.
+
+### Phase E three-platform pilot evidence and promotion to required CI
+
+The completed [run 43304366649](https://github.com/CST-Modelling-Tools/tonatiuhpp/actions/runs/43304366649)
+has independently verified all **three** non-gating Phase E checkpoints
+on **Windows, Ubuntu 24.04 and macOS**. In every case, the individual
+steps returned successful process exit status and generated their own
+`INSTALLED_ACCEPTANCE_RESULT=PASS` structured evidence:
+
+| Test contract | Windows | Ubuntu | macOS |
+| --- | --- | --- | --- |
+| Relocated `BUILD_TESTING=ON` installed CLI plus all three real GUI scientific modes | PASS | PASS | PASS |
+| Relocated `BUILD_TESTING=OFF` production CLI scientific acceptance and real native GUI process startup | PASS | PASS | PASS |
+| Relocated production Qt IFW `package data` CLI scientific acceptance and real native GUI process startup | PASS | PASS | PASS |
+
+The test-enabled installed GUI photon export remains an **independent
+GUI/CLI canonical multiset equality** check: 3184/3184 records on
+Windows and Linux, 3197/3197 on macOS. GUI script interception is
+63857.145538085264 W on Windows/Linux and 63889.13809597008 W on
+macOS; Qt flux-map integrals are 63857.145538085264 W on
+Windows/Linux and 64225.0599537606 W on macOS. These are evaluated
+against a bounded analytically derived 64000 W reference; no claim of
+exact cross-platform RNG identity is implied.
+
+On the production binaries and packaged payload, GUI evidence is
+**native GUI startup/liveness only** (seven seconds with actual
+Windows/X11/Cocoa platform), not production GUI dialog automation
+or full interactive flux comparison. Numerical scientific acceptance
+there comes from independently launched *production CLI* processes.
+Qt IFW package-data tests do **not** execute an installer/updater/
+uninstaller, binary signing, notarization, or GPU-hardware qualification.
+
+All three validated Phase E contracts are now candidates for
+**required CI checks**, not `continue-on-error`, with a final CI run
+necessary before Phase E approval. The macOS application consolidation
+adds a loader-path audit to reject absolute external development/Qt
+SDK references in its Mach-O binaries and framework/plugin contents.
+This additional audit must itself pass the final required CI run.
+Frozen 500-million-ray scientific benchmarks and the production
+scientific kernel remain unmodified.
+
+### Shared macOS release packaging implementation
+
+The Release workflow now invokes the **same** bundle-consolidation
+script used in Phase E's relocated installed-runtime acceptance,
+`scripts/prepare_macos_installed_pilot.sh`, instead of maintaining
+a separate inline dylib/Frameworks rewrite. The script accepts only
+disposable GitHub Actions runner temporary install prefixes or the
+release job's exact `${GITHUB_WORKSPACE}/dist` directory; it rejects
+unrelated paths. The existing release `.app` architecture/payload
+checks remain in the workflow.
+
+This ensures the release packaging *procedure* shares its tested
+implementation. It does **not** imply that a release-tag workflow,
+installer GUI/update lifecycle, signing, notarization or published
+distribution has actually passed. Those require separate execution
+and evidence; Phase E's production CMake and IFW-payload runtime
+checks establish only the scopes described above.

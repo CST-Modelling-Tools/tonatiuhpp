@@ -1,12 +1,25 @@
 # Windows CI-only Mesa llvmpipe WGL software renderer, pinned by SHA256.
 # Never install globally or copy into production source/install directories.
-param([Parameter(Mandatory=$true)][ValidateSet('install','remove')][string]$Action)
+param(
+    [Parameter(Mandatory=$true)]
+    [ValidateSet('install','remove')]
+    [string]$Action,
+    [string]$TargetBin = ''
+)
 
 $ErrorActionPreference = 'Stop'
 if ($env:GITHUB_ACTIONS -ne 'true' -or $env:RUNNER_OS -ne 'Windows') {
     throw 'Mesa staging is restricted to ephemeral Windows GitHub Actions.'
 }
-$target = Join-Path $env:GITHUB_WORKSPACE 'build\bin\Release'
+# During Phase D, stage beside the build GUI; during Phase E, beside an
+# explicitly supplied *disposable* relocated install under RUNNER_TEMP.
+$defaultBin = [IO.Path]::GetFullPath((Join-Path $env:GITHUB_WORKSPACE 'build\bin\Release'))
+$target = if ($TargetBin) { [IO.Path]::GetFullPath($TargetBin) } else { $defaultBin }
+$allowedTemp = [IO.Path]::GetFullPath($env:RUNNER_TEMP).TrimEnd('\', '/') + [IO.Path]::DirectorySeparatorChar
+if (-not [string]::Equals($target, $defaultBin, [StringComparison]::OrdinalIgnoreCase) -and
+    -not $target.StartsWith($allowedTemp, [StringComparison]::OrdinalIgnoreCase)) {
+    throw "Refusing Mesa staging outside build output or runner temp: $target"
+}
 $marker = Join-Path $env:RUNNER_TEMP 'tonatiuhpp_ci_mesa_staged_files.txt'
 if ($Action -eq 'remove') {
     if (Test-Path $marker) {

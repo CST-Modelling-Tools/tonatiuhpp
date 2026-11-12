@@ -72,9 +72,14 @@ class Suite:
                               "started_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
                               "checks": [], "result": "IN_PROGRESS"}
         self.comparator = self.load_comparator()
+        # The installed-mode scientific examples MUST be loaded from the
+        # relocated install, never silently from source-tree examples.
+        scene_root = Path(args.scene_root).resolve() if args.scene_root else self.root
+        if args.mode == "installed":
+            require(args.scene_root is not None, "Installed mode requires --scene-root")
         self.scenes = {
-            "cylinder": self.root / "examples/benchmarks/cylinder.tnhpp",
-            "sphere_material_plugin": self.root / "examples/benchmarks/sphere.tnhpp",
+            "cylinder": scene_root / "examples/benchmarks/cylinder.tnhpp",
+            "sphere_material_plugin": scene_root / "examples/benchmarks/sphere.tnhpp",
             "specular_two_reflections": self.root / "tests/scientific/fixtures/specular-two-reflections.tnhpp",
             "one_axis_tracker": self.root / "tests/scientific/fixtures/one-axis-tracker.tnhpp",
         }
@@ -90,7 +95,11 @@ class Suite:
             return
         # Installed-runtime acceptance must not pass by borrowing uninstalled
         # Tonatiuh++ / third_party / Qt SDK DLLs from the developer's PATH.
-        for var in ("LD_LIBRARY_PATH", "DYLD_LIBRARY_PATH", "DYLD_FALLBACK_LIBRARY_PATH", "QT_PLUGIN_PATH"):
+        for var in ("LD_LIBRARY_PATH", "LD_PRELOAD", "DYLD_LIBRARY_PATH",
+                    "DYLD_FALLBACK_LIBRARY_PATH", "DYLD_FRAMEWORK_PATH",
+                    "DYLD_FALLBACK_FRAMEWORK_PATH", "QT_PLUGIN_PATH",
+                    "QT_QPA_PLATFORM_PLUGIN_PATH", "QML2_IMPORT_PATH",
+                    "QT_QPA_FONTDIR"):
             self.env.pop(var, None)
         if os.name == "nt":
             windir = Path(os.environ.get("SystemRoot", "C:/Windows"))
@@ -376,7 +385,8 @@ def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--gui", required=True, help="GUI executable validated for existence but never run as CLI")
     p.add_argument("--cli", required=True, help="Standalone QCoreApplication executable")
-    p.add_argument("--source-root", required=True, help="Tonatiuh++ source repository root")
+    p.add_argument("--source-root", required=True, help="Repository root for Python comparators and test script fixtures")
+    p.add_argument("--scene-root", default=None, help="Root of installed example scenes (required for --mode installed)")
     p.add_argument("--output-root", required=True, help="Fresh acceptance evidence parent outside source fixtures")
     p.add_argument("--mode", choices=("build", "installed"), default="build")
     args = p.parse_args()

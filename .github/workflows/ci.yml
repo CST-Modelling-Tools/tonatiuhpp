@@ -478,6 +478,136 @@ jobs:
         run: |
           ./scripts/install_ci_windows_mesa.ps1 -Action remove
 
+      # Phase E exploratory: CMake-install into runner temp, relocate the
+      # entire install prefix, then launch installed GUI+CLI with SDK loader
+      # variables removed. The scientific comparators are unchanged.
+      # Payload checks do not execute an IFW installer/updater transaction.
+      - name: Install Linux patchelf for external runtime bundling
+        if: ${{ steps.changes.outputs.docs_only != 'true' && runner.os == 'Linux' }}
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends patchelf
+
+      - name: Require relocated installed-runtime scientific acceptance
+        if: ${{ steps.changes.outputs.docs_only != 'true' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          scratch="${RUNNER_TEMP//\\//}/tonatiuhpp-phase-e-${GITHUB_RUN_ID}-${RUNNER_OS}"
+          mkdir -p "$scratch"
+          cmake --install build --config Release --prefix "$scratch/cmake-install"
+          if [[ "$RUNNER_OS" == "macOS" ]]; then
+            bash scripts/prepare_macos_installed_pilot.sh "$scratch/cmake-install"
+          fi
+          args=(python tests/integration/installation/run_installed_acceptance.py
+            --source-root "${GITHUB_WORKSPACE}"
+            --install-origin "$scratch/cmake-install"
+            --scratch-root "$scratch"
+            --output-root build/tests/installed_acceptance)
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            args+=(--windows-ci-mesa)
+            export QT_QPA_PLATFORM=windows GALLIUM_DRIVER=llvmpipe LIBGL_ALWAYS_SOFTWARE=1
+            "${args[@]}"
+          elif [[ "$RUNNER_OS" == "Linux" ]]; then
+            export QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1
+            xvfb-run -a -s "-screen 0 1280x1024x24 +extension GLX" "${args[@]}"
+          else
+            export QT_QPA_PLATFORM=cocoa
+            "${args[@]}"
+          fi
+
+      # Separate production BUILD_TESTING=OFF acceptance from the test-enabled
+      # relocated install. The real GUI cannot use Phase D test-only widget
+      # instrumentation; run a bounded native GUI startup and the existing
+      # independent production CLI scientific checks instead.
+      - name: Require production BUILD_TESTING=OFF installed GUI and CLI
+        if: ${{ steps.changes.outputs.docs_only != 'true' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          scratch="${RUNNER_TEMP//\\//}/tonatiuhpp-production-${GITHUB_RUN_ID}-${RUNNER_OS}"
+          mkdir -p "$scratch"
+          cmake -S source -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF -DTONATIUHPP_ENABLE_NATIVE_GUI_ACCEPTANCE=OFF
+          if [[ "$RUNNER_OS" == "macOS" ]]; then
+            python scripts/scrub_macos_agl_generated_links.py --build-dir build
+          fi
+          cmake --build build --config Release --parallel
+          cmake --install build --config Release --prefix "$scratch/cmake-install"
+          if [[ "$RUNNER_OS" == "macOS" ]]; then
+            bash scripts/prepare_macos_installed_pilot.sh "$scratch/cmake-install"
+          fi
+          args=(python tests/integration/installation/run_installed_acceptance.py
+            --production-smoke
+            --source-root "${GITHUB_WORKSPACE}"
+            --install-origin "$scratch/cmake-install"
+            --scratch-root "$scratch"
+            --output-root build/tests/production_installed_acceptance)
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            args+=(--windows-ci-mesa)
+            export QT_QPA_PLATFORM=windows GALLIUM_DRIVER=llvmpipe LIBGL_ALWAYS_SOFTWARE=1
+            "${args[@]}"
+          elif [[ "$RUNNER_OS" == "Linux" ]]; then
+            export QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1
+            xvfb-run -a -s "-screen 0 1280x1024x24 +extension GLX" "${args[@]}"
+          else
+            export QT_QPA_PLATFORM=cocoa
+            "${args[@]}"
+          fi
+
+      # Phase E Qt IFW *payload* contract: stage production binaries using
+      # the existing release package-data preparation, copy the resulting
+      # payload outside the checkout, and validate that the actual packaged
+      # GUI/CLI remain runnable after prefix relocation. This does NOT run
+      # binarycreator or validate updater/install transactions.
+      - name: Require Qt IFW production payload scientific runtime
+        if: ${{ steps.changes.outputs.docs_only != 'true' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          scratch="${RUNNER_TEMP//\\//}/tonatiuhpp-ifw-payload-${GITHUB_RUN_ID}-${RUNNER_OS}"
+          mkdir -p "$scratch"
+          cmake --install build --config Release --prefix "$scratch/ifw-staging"
+          if [[ "$RUNNER_OS" == "macOS" ]]; then
+            bash scripts/prepare_macos_installed_pilot.sh "$scratch/ifw-staging"
+          fi
+          python installer/prepare_ifw_payload.py --build-dir build --config Release \
+            --skip-build --skip-install --staging-dir "$scratch/ifw-staging"
+          python - "$scratch/cmake-install" build/tests/ifw_payload_manifest.json <<'PY'
+          import json
+          from pathlib import Path
+          import shutil
+          import sys
+          payload = Path("installer/packages/com.tonatiuhpp.app/data").resolve(strict=True)
+          dest = Path(sys.argv[1])
+          assert not dest.exists(), "Refusing to overwrite existing IFW payload test root"
+          shutil.copytree(payload, dest, symlinks=True)
+          manifest = {"schema": "tonatiuhpp.phase-e.ifw-payload.v1",
+                      "scope": "IFW package data only; installer execution not verified",
+                      "files": sum(p.is_file() for p in dest.rglob("*")),
+                      "platform": sys.platform,
+                      "payload": str(dest)}
+          Path(sys.argv[2]).write_text(json.dumps(manifest, indent=2) + "\n")
+          print("IFW_PAYLOAD_MANIFEST=" + json.dumps(manifest, sort_keys=True))
+          PY
+          args=(python tests/integration/installation/run_installed_acceptance.py
+            --production-smoke
+            --source-root "${GITHUB_WORKSPACE}"
+            --install-origin "$scratch/cmake-install"
+            --scratch-root "$scratch"
+            --output-root build/tests/ifw_payload_acceptance)
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            args+=(--windows-ci-mesa)
+            export QT_QPA_PLATFORM=windows GALLIUM_DRIVER=llvmpipe LIBGL_ALWAYS_SOFTWARE=1
+            "${args[@]}"
+          elif [[ "$RUNNER_OS" == "Linux" ]]; then
+            export QT_QPA_PLATFORM=xcb LIBGL_ALWAYS_SOFTWARE=1
+            xvfb-run -a -s "-screen 0 1280x1024x24 +extension GLX" "${args[@]}"
+          else
+            export QT_QPA_PLATFORM=cocoa
+            "${args[@]}"
+          fi
+
       - name: Upload build artifacts
         if: ${{ always() && steps.changes.outputs.docs_only != 'true' }}
         uses: actions/upload-artifact@v6

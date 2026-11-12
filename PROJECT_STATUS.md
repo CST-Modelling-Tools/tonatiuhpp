@@ -2,7 +2,7 @@
 
 Last updated: 2026-11-12
 
-**Active work:** Phase D — three-platform native GUI scientific acceptance evidence verified on PR #45; final required CI gate hardening and user-authorized merge pending. The testing architecture's Phases A, B and C are **accepted and merged**; Phase E (installed-runtime and packaging acceptance) follows D. This work is maintenance, not a public release or a new scientific model.
+**Active work:** Phase E — all three relocated test-enabled scientific GUI, `BUILD_TESTING=OFF` production runtime, and copied Qt IFW package-data acceptance paths now pass as **required** checks on Windows, Ubuntu and macOS in CI run `43310255444`. Final scoped review and user-authorized merge remain pending; actual IFW installer/update/uninstall transactions, signing and notarization are outside this evidence. Phase D is ACCEPTED and merged as PR #45 (merge commit `4c4121f5e52ac354dbe4d67bcb5472946d74be05`), with required Windows WGL, Ubuntu X11/GLX and macOS Cocoa native GUI CTests all passing. A+B+C are also accepted. This remains maintenance work, NOT an authorized product release.
 
 **This document is the current handoff.** Older 2026-11-10 P0/P1/P2 candidate/pending diaries and runtime-refactor plans have been superseded by merged code and remain in Git history. Do not resume those plans. Read `AGENT.md` and `docs/testing.md` before changing code.
 
@@ -175,3 +175,148 @@ Define a consistent label taxonomy: level (`unit`/`integration`/`system`), domai
   until all three mandatory OS graphical checks pass and the maintainer
   explicitly approves merging. Immutable 500-million-ray benchmark
   and production scientific kernel remain unchanged.
+
+## Phase E initial implementation checkpoint (2026-11-12)
+
+- **Base:** accepted master `4c4121f5e52ac354dbe4d67bcb5472946d74be05`
+  (Phase D PR #45 merged). Branch:
+  `maintenance/installed-runtime-packaging-acceptance`. No direct
+  master changes or merge are authorized.
+- **Initial Phase E scope:** new disposable relocated CMake-install pilot
+  on the three-OS CI matrix. Reuse the preexisting scientific installed
+  CLI repeatability and actual Qt GUI acceptance scripts; require
+  installed GUI/CLI executables and installed cylinder/sphere example
+  scenes. Launch scientific subprocesses from unrelated working
+  directories with SDK/library-loader environment overrides removed.
+  On Windows, continue to use the verified SHA256-pinned Mesa software
+  WGL only as temporary hosted CI infrastructure.
+- **New evidence:** installer relocation guard self-tests explicitly
+  reject unexpected paths, source-tree installs and symlinked install
+  roots. The GUI reports remain actual Qt/SoQt real-dialog and scientific
+  analytical comparisons, not offscreen simulations.
+- **Pilot status:** exploratory and `continue-on-error` until each
+  platform's relocation, native dependency loading, plugin lookup and
+  numerical results are examined. A green overall CI build does not
+  mean this pilot succeeded.
+- **Remaining acceptance:** repair any actual installed-runtime
+  failures, audit macOS Frameworks/plugin RPATH, verify production
+  `BUILD_TESTING=OFF` release-like payloads, and distinguish CMake
+  installs from Qt IFW installer/update behavior. Frozen 500M artifact
+  remains immutable; no production physics change. PR stays draft
+  until scientific evidence supports a final acceptance decision.
+
+### Phase E first CI evidence — genuine installed-runtime failures
+
+- First pilot [43269447246](https://github.com/CST-Modelling-Tools/tonatiuhpp/actions/runs/43269447246)
+  ran Linux/macOS/Windows CMake installation into disposable runner temporary
+  roots. The installed CLI passed on Linux and Windows; all three relocated
+  GUI/runtime paths were **not yet accepted**. The step was
+  `continue-on-error`, hence green overall jobs must not be conflated
+  with pilot success.
+- Linux: missing `libQt6OpenGL.so.6` at GUI launch (exit 127) despite the
+  library being present in installed `lib`. Patch installed bundled shared
+  library `RUNPATH` for transitive dependencies.
+- macOS: missing private `@rpath/libTonatiuhppKernel.dylib` from raw
+  CMake-installed CLI; macdeployqt does not bundle all private runtime
+  modules. Reuse release app consolidation in the pilot.
+- Windows: missing runtime DLL at installed GUI startup
+  (`0xC0000135`), while installed CLI passed. Add explicit Qt6OpenGL
+  DLL deployment for SoQt's indirect dependency, then require actual
+  rerun evidence before concluding this was the missing DLL.
+- No benchmark regeneration or production scientific changes. Next:
+  inspect second pilot outcomes and harden remaining installed dependencies;
+  explicit new production `BUILD_TESTING=OFF` payload validation remains
+  required for final Phase E acceptance.
+
+### Phase E consolidated fix and production-smoke pilot (2026-11-12)
+
+- [Second CI run 43272756323](https://github.com/CST-Modelling-Tools/tonatiuhpp/actions/runs/43272756323)
+  completed with default CI and Phase D native GUI gates green.
+  **Linux/macOS relocated CMake installs passed** installed CLI plus
+  all three actual GUI scientific modes. Windows installed CLI passed
+  but installed GUI still exited `0xC0000135` before scientific output.
+  The non-gating pilot step was marked as failed despite parent CI success.
+- Windows PE import audit of the hosted CI artifact:
+  `TonatiuhppGuiPresentation.dll` requires `Qt6PrintSupport.dll`,
+  absent from the captured build runtime; `SoQt1.dll` requires
+  `Qt6OpenGL.dll`, present after the earlier targeted fix. Candidate
+  install correction explicitly bundles Release Qt6PrintSupport,
+  Qt6OpenGL and Qt6OpenGLWidgets. A new fail-closed installed-GUI
+  dependency preflight and positive/negative tool tests expose the
+  exact missing DLL, independently of opaque process exit status.
+- Start a **separate BUILD_TESTING=OFF** exploratory pilot after the
+  test-enabled installed acceptance: reconfigure and rebuild the real
+  production GUI/CLI, relocate its install, run actual production CLI
+  scientific acceptance and real native GUI liveness from a foreign CWD.
+  The production GUI does NOT have test-only Qt dialog hooks, and a
+  seven-second startup smoke cannot establish full GUI numerical
+  acceptance. No IFW installer/updater test is implied.
+- Three-platform CI for these candidate changes remains to be
+  executed and reviewed. Only then consider promoting completed
+  installed-runtime acceptance to a required gate; IFW packaging,
+  release environment independence and maintenance updates remain
+  separate evidence requirements. **PR #46 remains draft/unmerged.**
+
+### Phase E preliminary Qt IFW production-payload pilot
+
+- The next exploratory CI checkpoint will stage the existing
+  `BUILD_TESTING=OFF` CMake install through
+  `installer/prepare_ifw_payload.py`, make a separate copy of the
+  `com.tonatiuhpp.app/data` payload in runner temporary storage,
+  relocate it, and execute production CLI scientific acceptance plus
+  actual native GUI startup. This is separate from the already-tested
+  `BUILD_TESTING=ON` dialog acceptance and plain production CMake
+  install smoke. Do not infer full GUI numerical acceptance or actual
+  IFW installer/update/uninstall execution from these checks.
+- Pilot remains `continue-on-error` until individual Linux, macOS and
+  Windows results, loader paths and numerical evidence are reviewed.
+  All prior required Phase D tests remain unchanged; PR #46 stays draft.
+
+### Phase E three-platform installed and package-data pilot success (2026-11-12)
+
+- [CI 43304366649](https://github.com/CST-Modelling-Tools/tonatiuhpp/actions/runs/43304366649):
+  all three ordinary CI platform jobs passed. Individual **relocated
+  BUILD_TESTING=ON** installed CLI and real GUI file/interception/flux
+  scientific acceptance: PASS on Windows, Ubuntu and macOS.
+  Actual numerical JSON records were inspected: 3184/3184 matching
+  GUI/CLI photons on Windows/Linux; 3197/3197 on macOS; intercepted
+  power around 63.86 kW; Qt grid power around 63.86–64.23 kW versus
+  independently defined 64 kW planar reference.
+- **BUILD_TESTING=OFF** production CMake-installed CLI scientific
+  acceptance and real native GUI startup: PASS on all three OSes.
+  **Copied Qt IFW package-data** CLI scientific acceptance and real
+  GUI startup: PASS on all three OSes. IFW payload manifests report
+  467 Linux, 254 macOS and 221 Windows files in their respective
+  tested payloads. These are structural counts, not a claim of exact
+  matching package contents across platforms.
+- The Linux indirect `RUNPATH`, macOS private dylib bundle and Windows
+  GUI `Qt6PrintSupport.dll` dependency problems are corrected and
+  verified under relocated installed workloads. Qt IFW **installer,
+  updater and uninstaller transactions, signing and notarization**
+  have not been exercised; the test contract explicitly excludes them.
+- Promote the three passing Phase E pilots to required checks and add
+  a stricter Mach-O external-development-path audit to macOS bundle
+  consolidation. A final CI run must pass **all required checks and
+  new audit** before Phase E may be considered accepted. PR #46
+  remains draft and unmerged; frozen 500M benchmark and production
+  scientific logic remain unchanged.
+
+### Phase E release-workflow parity checkpoint
+
+- The macOS Release workflow now calls the same bundled library
+  consolidation/RPATH audit helper exercised by Phase E instead of
+  duplicating a divergent inline implementation. The shared helper
+  is limited to CI's disposable temporary paths and the release
+  job's exact `GITHUB_WORKSPACE/dist` output directory.
+- This aligns release *implementation* with the tested CI pilot;
+  production Release tag, signed distribution, Qt IFW binarycreator
+  installation and updater transactions are **not claimed as tested**.
+  PR remains draft pending final required three-OS CI audit results.
+
+### Phase E final required three-platform validation checkpoint (2026-11-12)
+
+- [Required CI run 43310255444](https://github.com/CST-Modelling-Tools/tonatiuhpp/actions/runs/43310255444), PR #46 head `785ffb2989f2afa0e976c85164498c04d2b5c9b6`: **all three platform build jobs succeeded** with mandatory (not `continue-on-error`) Phase E steps. Ordinary CTest: Windows **180/180**, Ubuntu **179/179**, macOS **179/179**. Separately required native Qt GUI scientific CTests: **3/3 on each OS**.
+- Relocated `BUILD_TESTING=ON` CMake-installed CLI scientific process checks and all three real GUI native acceptance modes (`interactive-file`, `seeded-interception`, `interactive-flux`) explicitly emitted `INSTALLED_ACCEPTANCE_RESULT=PASS` for Windows, Ubuntu and macOS. The accepted comparison oracles are the existing Phase D test scripts, not a new reference or frozen 500M execution.
+- Relocated production `BUILD_TESTING=OFF` CLI scientific checks and bounded native GUI startup also each explicitly emitted **PASS** on all three OSes. Production GUI liveness is intentionally **not** dialog-level numerical acceptance because production binaries omit test-only hooks.
+- A copied, relocated Qt IFW **package-data payload** passed the same production CLI scientific and GUI startup checks on all three OSes. Manifest sizes: **Windows 221**, **Ubuntu 467**, **macOS 254** files (platform-dependent counts, not an assertion of parity).
+- The CI jobs contain real installed-runtime checks with hard failure semantics; this checkpoint is supported by individual job logs, not inferred solely from green aggregate jobs. The PR remains **draft and unmerged**. Actual IFW binarycreator installation/upgrades/uninstallation, signatures/notarization, user-machine deployment and hardware-specific OpenGL behavior are **not** proven by this run. No release or merge authorization is implied; preserve production science and immutable 500-million-ray reference.

@@ -723,6 +723,24 @@ if(UNIX AND NOT APPLE AND TONATIUHPP_BUNDLE_RUNTIME)
        if(NOT _patch_exit EQUAL 0)
          message(FATAL_ERROR \"Failed to set bundled plugin RUNPATH for \${_plugin}: \${_patch_error}\")
        endif()
+     endforeach()
+
+     # ELF RUNPATH is not inherited across indirect DT_NEEDED dependencies.
+     # Bundled Qt/SoQt/Coin libraries must independently locate other
+     # bundled .so files (e.g. libSoQt -> libQt6OpenGL).
+     file(GLOB _bundled_libs \"\${_installed_libdir}/*.so*\")
+     foreach(_lib IN LISTS _bundled_libs)
+       if(IS_SYMLINK \"\${_lib}\")
+         continue()
+       endif()
+       execute_process(
+         COMMAND \"${TONATIUHPP_PATCHELF_EXECUTABLE}\" --set-rpath
+                 \"$ORIGIN\" \"\${_lib}\"
+         RESULT_VARIABLE _lib_patch_exit ERROR_VARIABLE _lib_patch_error)
+       if(NOT _lib_patch_exit EQUAL 0)
+         message(FATAL_ERROR
+           \"Failed to set bundled library RUNPATH for \${_lib}: \${_lib_patch_error}\")
+       endif()
      endforeach()"
   )
 endif()
@@ -783,6 +801,29 @@ if(WIN32)
            message(FATAL_ERROR \"windeployqt failed for \${_exe}: \${_wdq_err}\\n\${_wdq_out}\")
          endif()
        endforeach()"
+    )
+  endif()
+
+  # The Windows GUI depends indirectly on Qt6OpenGL (via SoQt) and
+  # Qt6PrintSupport (via TonatiuhppGuiPresentation). windeployqt's direct
+  # executable scan may omit indirect DLL imports; the relocated CLI can
+  # pass even when the GUI fails at loader startup (0xC0000135).
+  # Copy only the required *Release* Qt DLLs, never Debug variants.
+  if(TONATIUHPP_BUNDLE_RUNTIME)
+    install(CODE
+      "set(_gui_qt_deps)
+       foreach(_module IN ITEMS Qt6OpenGL Qt6OpenGLWidgets Qt6PrintSupport)
+         set(_dll \"${_qt_bin}/\${_module}.dll\")
+         if(NOT EXISTS \"\${_dll}\")
+           message(FATAL_ERROR \"Missing required installed GUI Qt DLL: \${_dll}\")
+         endif()
+         list(APPEND _gui_qt_deps \"\${_dll}\")
+       endforeach()
+       file(INSTALL
+         DESTINATION \"\${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR}\"
+         TYPE FILE
+         FILES \${_gui_qt_deps}
+       )"
     )
   endif()
 
