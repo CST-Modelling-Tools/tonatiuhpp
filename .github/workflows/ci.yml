@@ -6,12 +6,6 @@ on:
   pull_request:
     branches: [ master ]
   workflow_dispatch:
-    inputs:
-      gui_linux_pilot:
-        description: "Run opt-in real Linux X11/GLX GUI scientific acceptance"
-        type: boolean
-        required: false
-        default: false
 
 jobs:
   build:
@@ -409,20 +403,19 @@ jobs:
         run: |
           ctest --test-dir build -C Release --output-on-failure --output-junit "${GITHUB_WORKSPACE}/build/ctest-results.xml"
 
-      # This exploratory pilot runs ONLY on the Phase D draft PR branch or
-      # by explicit dispatch after the input is available on the default branch.
-      # It is NOT a required cross-platform GUI gate before evidence review.
-      - name: Install Linux GUI pilot display dependencies
-        if: ${{ steps.changes.outputs.docs_only != 'true' && runner.os == 'Linux' && ((github.event_name == 'pull_request' && github.head_ref == 'maintenance/native-gui-scientific-acceptance') || (github.event_name == 'workflow_dispatch' && inputs.gui_linux_pilot == true)) }}
-        continue-on-error: true
+      # Phase D native GUI acceptance: standard CTest inventory stays at
+      # 179/180 for the ordinary build-tree regression above. Separately enable
+      # 3 actual GUI CTests on display-capable Linux/macOS CI runners. These
+      # checks are now required after their verified 2026-11-12 pilot runs.
+      - name: Install native Linux GUI display dependencies
+        if: ${{ steps.changes.outputs.docs_only != 'true' && runner.os == 'Linux' }}
         shell: bash
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends xvfb xauth mesa-utils libgl1-mesa-dri libglx-mesa0
 
-      - name: Pilot real Linux X11/GLX native GUI scientific acceptance
-        if: ${{ steps.changes.outputs.docs_only != 'true' && runner.os == 'Linux' && ((github.event_name == 'pull_request' && github.head_ref == 'maintenance/native-gui-scientific-acceptance') || (github.event_name == 'workflow_dispatch' && inputs.gui_linux_pilot == true)) }}
-        continue-on-error: true
+      - name: Native Linux X11/GLX GUI scientific acceptance
+        if: ${{ steps.changes.outputs.docs_only != 'true' && runner.os == 'Linux' }}
         shell: bash
         env:
           QT_QPA_PLATFORM: xcb
@@ -432,26 +425,41 @@ jobs:
           xvfb-run -a -s "-screen 0 1280x1024x24 +extension GLX" glxinfo -B | tee build/gui-glxinfo.txt
           cmake -S source -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DTONATIUHPP_ENABLE_NATIVE_GUI_ACCEPTANCE=ON -DTONATIUHPP_GUI_ACCEPTANCE_USE_XVFB=ON
           cmake --build build --config Release --parallel
-          ctest --test-dir build -C Release -N -R '^gui[.]native_'
+          ctest --test-dir build -C Release -N -R '^gui[.]native_' | tee build/gui-native-inventory.txt
+          grep -Fq 'Total Tests: 3' build/gui-native-inventory.txt
           ctest --test-dir build -C Release --verbose -R '^gui[.]native_' --output-junit "${GITHUB_WORKSPACE}/build/gui-native-results.xml" 2>&1 | tee build/gui-native-pilot.log
 
-      # Cocoa pilot explores feasibility, not guaranteed macOS availability.
-      # A successful native GUI process is required before claiming coverage.
-      - name: Pilot real macOS Cocoa native GUI scientific acceptance
-        if: ${{ steps.changes.outputs.docs_only != 'true' && runner.os == 'macOS' && github.event_name == 'pull_request' && github.head_ref == 'maintenance/native-gui-scientific-acceptance' }}
-        continue-on-error: true
+      - name: Native macOS Cocoa GUI scientific acceptance
+        if: ${{ steps.changes.outputs.docs_only != 'true' && runner.os == 'macOS' }}
         shell: bash
         env:
           QT_QPA_PLATFORM: cocoa
         run: |
           set -euo pipefail
           cmake -S source -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DTONATIUHPP_ENABLE_NATIVE_GUI_ACCEPTANCE=ON
-          # Reconfiguring regenerates macOS link manifests with obsolete AGL
-          # flags. Scrub AGAIN immediately after enabling GUI CTests.
-          # The earlier ordinary build scrub cannot cover regenerated files.
+          # Enabling GUI CTests regenerates obsolete AGL framework links on
+          # macOS; scrub the freshly generated manifests before the relink.
           python scripts/scrub_macos_agl_generated_links.py --build-dir build
           cmake --build build --config Release --parallel
-          ctest --test-dir build -C Release -N -R '^gui[.]native_'
+          ctest --test-dir build -C Release -N -R '^gui[.]native_' | tee build/gui-native-inventory.txt
+          grep -Fq 'Total Tests: 3' build/gui-native-inventory.txt
+          ctest --test-dir build -C Release --verbose -R '^gui[.]native_' --output-junit "${GITHUB_WORKSPACE}/build/gui-native-results.xml" 2>&1 | tee build/gui-native-pilot.log
+
+      # Windows hosted Actions may lack an interactive WGL desktop even though
+      # manual Windows Release native GUI CTests passed 3/3. Probe it without
+      # substituting Qt offscreen or misreporting a non-gating success.
+      - name: Probe hosted Windows native GUI acceptance
+        if: ${{ steps.changes.outputs.docs_only != 'true' && runner.os == 'Windows' }}
+        continue-on-error: true
+        shell: bash
+        env:
+          QT_QPA_PLATFORM: windows
+        run: |
+          set -euo pipefail
+          cmake -S source -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DTONATIUHPP_ENABLE_NATIVE_GUI_ACCEPTANCE=ON
+          cmake --build build --config Release --parallel
+          ctest --test-dir build -C Release -N -R '^gui[.]native_' | tee build/gui-native-inventory.txt
+          grep -Fq 'Total Tests: 3' build/gui-native-inventory.txt
           ctest --test-dir build -C Release --verbose -R '^gui[.]native_' --output-junit "${GITHUB_WORKSPACE}/build/gui-native-results.xml" 2>&1 | tee build/gui-native-pilot.log
 
       - name: Upload build artifacts

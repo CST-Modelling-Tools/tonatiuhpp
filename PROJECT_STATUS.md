@@ -2,7 +2,7 @@
 
 Last updated: 2026-11-12
 
-**Active work:** Phase D — genuine automated native GUI scientific acceptance (implementation candidate on a dedicated branch; native display-backed validation pending). The testing architecture's Phases A, B and C are **accepted and merged**; Phase E (installed-runtime and packaging acceptance) follows D. This work is maintenance, not a public release or a new scientific model.
+**Active work:** Phase D — three-platform native GUI scientific acceptance evidence verified on PR #45; final required CI gate hardening and user-authorized merge pending. The testing architecture's Phases A, B and C are **accepted and merged**; Phase E (installed-runtime and packaging acceptance) follows D. This work is maintenance, not a public release or a new scientific model.
 
 **This document is the current handoff.** Older 2026-11-10 P0/P1/P2 candidate/pending diaries and runtime-refactor plans have been superseded by merged code and remain in Git history. Do not resume those plans. Read `AGENT.md` and `docs/testing.md` before changing code.
 
@@ -122,19 +122,31 @@ Define a consistent label taxonomy: level (`unit`/`integration`/`system`), domai
   then establish reliable Ubuntu/macOS display-backed CI separately; record
   exact results before enabling required platform GUI gates.
 
-### Phase D cross-platform graphical pilot enablement (2026-11-12)
+### Phase D native GUI acceptance — three-platform evidence (2026-11-12)
 
-- Phase D draft PR #45 now exercises exploratory Linux X11/GLX and macOS
-  Cocoa native GUI tests on its own PR branch after the ordinary three-OS
-  full CTest regression. These pilots are `continue-on-error` until their
-  actual CTest logs and numerical evidence have been reviewed; a green CI
-  build status alone is not proof of cross-platform native GUI acceptance.
-- The Python runner now prints the checked per-mode numerical results into
-  verbose CTest and hosted logs. Windows maintainer full Release regression:
-  **183/183 passed**, 0 failed, 77.15 seconds, with all three native GUI
-  scenarios included. Ordinary PR #45 CI at commit `b7327937` passed on
-  Windows, Ubuntu and macOS with the default unextended suite; the 13 Python
-  numerical-validator tests executed successfully in the CI logs.
-- **Final Phase D acceptance remains pending** until real Linux/macOS pilot
-  outcomes and numeric evidence are inspected and any genuine bugs corrected.
-  Do not merge or label accepted solely on hosted build-tree CI success.
+- Native Windows Release maintainer evidence: **183/183** CTests, including
+  the three real graphical workflows, plus independently reviewed numerical
+  `acceptance.json` output. Earlier isolated native GUI run: 3/3.
+- Ubuntu 24.04 hosted X11/GLX (Mesa llvmpipe) in CI run
+  [43185720709](https://github.com/CST-Modelling-Tools/tonatiuhpp/actions/runs/43185720709):
+  **3/3** native GUI CTests, true widget/SoQt session and numerical reports,
+  alongside successful ordinary 179/179 build-tree CTests.
+- macOS Cocoa in that same CI run, after correcting regenerated obsolete
+  AGL linker flags: **3/3** native GUI CTests, real Cocoa widget session and
+  numerical reports, alongside successful ordinary 179/179 build-tree CTests.
+- The real File-export GUI and CLI produce identical canonical photon
+  multisets **within each platform**: 3184 records on Windows/Linux and 3197
+  on macOS (per-photon power 0.0719665 W). This is not a claim of exact
+  cross-platform RNG equality. Script interception is 63857.145538085264 W
+  Windows/Linux and 63889.13809597008 W macOS; native Qt flux integrals are
+  63857.145538085264 W Windows/Linux and 64225.0599537606 W macOS, against
+  the independently expected 64000 W ideal planar absorber reference.
+- **Phase D tested-scope cross-platform evidence is now verified.** The
+  three graphical tests are being promoted to required Ubuntu/macOS CI
+  checks; hosted Windows graphical feasibility is being probed independently
+  while the real Windows desktop evidence remains accepted. Final PR review,
+  the new required-gate CI run and user-authorized merge are still pending.
+- Acceptance scope remains limited to the three small reference fixtures
+  and documented 20% Monte Carlo/analytic criterion. No change to scientific
+  kernel, sampling, photon serialization or immutable 500-million-ray
+  heliostat benchmark. Phase E installed-runtime acceptance is separate.

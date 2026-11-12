@@ -175,21 +175,51 @@ numerical reports and runner graphics setup, and compare CTest identities with
 the accepted default 180/179 inventory. Keep Phase E installed-runtime
 acceptance separate.
 
-### Phase D draft-PR display pilots
+### Phase D acceptance evidence and required graphical CI
 
-While Phase D is under review on branch
-`maintenance/native-gui-scientific-acceptance`, the PR CI workflow performs
-**exploratory** native GUI runs in addition to the ordinary full 179/180
-build-tree regression. The Linux job starts an actual X11/GLX session using
-`xvfb-run` and records `glxinfo -B`; the macOS job attempts Cocoa.
-Both pilot steps are explicitly `continue-on-error` until real runner evidence
-has been checked. Thus a green overall CI result does **not** imply successful
-native GUI tests: inspect each pilot step, its JUnit
-`build/gui-native-results.xml`, and retained evidence under the build tree.
+Native GUI acceptance was verified on three genuine GUI backends on
+2026-11-12: a maintainer Windows Release full CTest run (**183/183**, three
+GUI workflows), hosted Ubuntu 24.04 X11/GLX Mesa `llvmpipe` (**3/3 native
+GUI workflows**) and hosted macOS Cocoa (**3/3 native GUI workflows**).
+The ordinary three-platform build-tree CI checks passed on the same PR.
+Linux and macOS outcomes were checked in the graphical step logs rather
+than inferred from their green parent jobs; early pilots were
+`continue-on-error` and therefore could not prove acceptance from their
+overall job status alone.
 
-The pilot prints a `GUI_ACCEPTANCE_NUMERICAL=...` JSON line for each real
-GUI mode and retains the same values in `acceptance.json`. Do not mark a
-platform accepted merely because CMake configured or a window manager was
-present; verify that all three CTests ran to completion and the physical
-numerical assertions passed. If a hosted display is unavailable, record
-the limitation rather than substituting Qt offscreen/minimal.
+With Phase D enabled only for the separate graphical CI steps, the regular
+`ctest` inventory remains **180 Windows / 179 Linux and macOS**. The
+Linux and macOS graphical steps now become **required CI gates**:
+they configure `TONATIUHPP_ENABLE_NATIVE_GUI_ACCEPTANCE=ON`, explicitly
+verify discovery of three GUI CTests and run all three with verbose numerical
+output/JUnit evidence. Linux uses genuine X11/GLX through `xvfb-run`,
+and macOS uses Cocoa with the generated-link AGL scrub after CMake
+reconfiguration. An initial hosted Windows graphical probe is exploratory
+(`continue-on-error`), because a local physical Windows desktop and a
+hosted Windows session are different environments.
+
+Numerical evidence from run
+[43185720709](https://github.com/CST-Modelling-Tools/tonatiuhpp/actions/runs/43185720709):
+  
+| Metric | Windows local | Linux CI | macOS CI |
+| --- | ---: | ---: | ---: |
+| GUI/CLI canonical photon records (each) | 3184 | 3184 | 3197 |
+| Photon power (W/photon) | 0.0719665 | 0.0719665 | 0.0719665 |
+| Script interception power (W) | 63857.145538085264 | 63857.145538085264 | 63889.13809597008 |
+| Qt 8×8 flux integral (W) | 63857.145538085264 | 63857.145538085264 | 64225.0599537606 |
+| GUI script TSV flux integral (W) | 63857.114 | 63857.114 | 64225.057 |
+| Independent analytical reference (W) | 64000 | 64000 | 64000 |
+
+**Interpretation:** GUI/CLI photon equality is **within each platform**;
+differences in seeded ray sampling and photon count across platforms are not
+silently treated as exact cross-platform equivalence. The bounded analytical
+planar-reference power assertion uses a conservative 20% threshold for these
+small fixtures, not a universal uncertainty estimate or validation of all
+solar optical models. Independent GUI Script Editor and Qt Flux Dialog results
+are compared at their respective precisions. The 500-million-ray frozen
+heliostat benchmark has not been rerun or modified.
+
+The Phase D *tested scope* is evidence-complete on all three OSes as of
+run 43185720709. Making graphical gates required is an additional CI-hardening
+change that must pass CI before the final Phase D merge decision. Installed
+package/runtime acceptance remains **Phase E**.
