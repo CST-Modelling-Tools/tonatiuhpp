@@ -53,17 +53,60 @@ New-Item -ItemType Directory -Force -Path $extract | Out-Null
 & $exe x $archive "-o$extract" -y | Out-Null
 if ($LASTEXITCODE -ne 0) { throw 'Failed to extract verified Mesa3D archive' }
 
-$ogl = @(Get-ChildItem -LiteralPath $extract -File -Recurse -Filter opengl32.dll |
-    Where-Object { $_.FullName -match '(?i)(\\|/)x64(\\|/)' })
-if ($ogl.Count -ne 1) {
-    throw "Expected exactly one Mesa x64 opengl32.dll, found $($ogl.Count): $($ogl.FullName)"
+# Some upstream release archives wrap the architecture payload in a
+# second archive. List and unpack only one nested level, preserving evidence
+# when the distribution layout changes. Never assume a folder called "x64".
+function DriverFiles {
+    return @(Get-ChildItem -LiteralPath $extract -Recurse -File -ErrorAction Stop |
+        Where-Object { $_.Name -ieq 'opengl32.dll' })
 }
-$dir = $ogl[0].DirectoryName
+$ogl = @(DriverFiles)
+if ($ogl.Count -eq 0) {
+    $nested = @(Get-ChildItem -LiteralPath $extract -Recurse -File |
+        Where-Object { $_.Extension -in @('.7z', '.zip') })
+    foreach ($item in $nested) {
+        $targetNested = Join-Path $extract ('nested-' + $item.BaseName)
+        New-Item -ItemType Directory -Force -Path $targetNested | Out-Null
+        & $exe x $item.FullName "-o$targetNested" -y | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw "Unable to expand nested Mesa archive $($item.Name)" }
+    }
+    $ogl = @(DriverFiles)
+}
+if ($ogl.Count -eq 0) {
+    Write-Host "Mesa driver archive inventory (first 100 files):"
+    Get-ChildItem -LiteralPath $extract -File -Recurse | Select-Object -First 100 |
+        ForEach-Object { Write-Host $_.FullName }
+    throw 'No OpenGL32.dll found in SHA-verified Mesa release archive.'
+}
+# Verify the actual DLL's PE Machine field: IMAGE_FILE_MACHINE_AMD64=0x8664.
+# This avoids accidentally choosing an x86 OpenGL library when archive
+# directory names change.
+function IsAmd64Dll([string]$path) {
+    $stream = [IO.File]::OpenRead($path)
+    try {
+        $reader = [IO.BinaryReader]::new($stream)
+        $stream.Position = 0x3c
+        $peOffset = $reader.ReadInt32()
+        if ($peOffset -lt 0x40 -or $peOffset -gt ($stream.Length - 6)) { return $false }
+        $stream.Position = $peOffset
+        if ($reader.ReadUInt32() -ne 0x00004550) { return $false }
+        return $reader.ReadUInt16() -eq 0x8664
+    } finally { $stream.Dispose() }
+}
+$amd64 = @($ogl | Where-Object { IsAmd64Dll $_.FullName })
+Write-Host ("Mesa OpenGL candidates: " + (($ogl | ForEach-Object { $_.FullName }) -join '; '))
+if ($amd64.Count -ne 1) {
+    throw "Expected exactly one AMD64 Mesa opengl32.dll, found $($amd64.Count)."
+}
+$dir = $amd64[0].DirectoryName
 $gallium = Join-Path $dir 'libgallium_wgl.dll'
 if (-not (Test-Path -LiteralPath $gallium -PathType Leaf)) {
-    throw "Mesa WGL megadriver not found next to $($ogl[0].FullName)"
+    throw "Mesa WGL megadriver not found next to $($amd64[0].FullName)"
 }
-$copyFiles = @($ogl[0], (Get-Item -LiteralPath $gallium))
+if (-not (IsAmd64Dll $gallium)) {
+    throw 'Mesa libgallium_wgl.dll is not an AMD64 Windows DLL.'
+}
+$copyFiles = @($amd64[0], (Get-Item -LiteralPath $gallium))
 foreach ($item in $copyFiles) {
     $dest = Join-Path $target $item.Name
     if (Test-Path -LiteralPath $dest) {
