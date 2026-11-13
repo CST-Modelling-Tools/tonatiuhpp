@@ -495,9 +495,8 @@ jobs:
           cache: true
 
       - name: Set up MSVC dev environment
-        uses: ilammy/msvc-dev-cmd@v1
-        with:
-          arch: x64
+        shell: pwsh
+        run: ./scripts/setup_msvc_dev_environment.ps1
 
       - name: Resolve Qt tool paths
         shell: pwsh

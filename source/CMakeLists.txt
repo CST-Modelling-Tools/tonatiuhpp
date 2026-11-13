@@ -491,12 +491,6 @@ add_compile_definitions(QT_NO_DEPRECATED_WARNINGS)
 # ----------------------------
 add_subdirectory(libraries)
 add_subdirectory(kernel)
-add_subdirectory(SunPath)
-if(APPLE AND COMMAND tonatiuh_scrub_macos_agl_from_known_targets)
-  tonatiuh_scrub_macos_agl_from_known_targets("SunPath post-link")
-  tonatiuh_scrub_macos_agl_from_variables("SunPath post-link")
-  tonatiuh_fail_if_macos_agl_in_target_link_properties(SunPath "SunPath post-link")
-endif()
 add_subdirectory(application)
 add_subdirectory(plugins)
 

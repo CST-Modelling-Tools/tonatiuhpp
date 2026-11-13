@@ -117,7 +117,7 @@ target_link_libraries(${ProjectName}
 )
 
 # Add compile definitions if necessary
-target_compile_definitions(${PROJECT_NAME} PRIVATE TONATIUH_LIBRARIES_EXPORT SunPath_EXPORT)
+target_compile_definitions(${PROJECT_NAME} PRIVATE TONATIUH_LIBRARIES_EXPORT)
 
 # Add install rules for all targets
 install(TARGETS ${ProjectName}

@@ -129,12 +129,11 @@ jobs:
             echo "LD_LIBRARY_PATH=${QT_PREFIX}/lib:${LD_LIBRARY_PATH:-}" >> "$GITHUB_ENV"
           fi
 
-      # IMPORTANT on Windows: without a dev cmd, cl.exe may run but miss standard headers (crtdbg.h, etc.)
+      # MSVC INCLUDE/LIB/PATH must persist into Ninja and dependency-builder steps.
       - name: Set up MSVC dev environment (Windows)
         if: ${{ steps.changes.outputs.docs_only != 'true' && (runner.os == 'Windows') }}
-        uses: ilammy/msvc-dev-cmd@v1
-        with:
-          arch: x64
+        shell: pwsh
+        run: ./scripts/setup_msvc_dev_environment.ps1
 
       - name: Install Python deps (+ Ninja)
         if: ${{ steps.changes.outputs.docs_only != 'true' }}

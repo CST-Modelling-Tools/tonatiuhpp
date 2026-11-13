@@ -26,6 +26,10 @@ Build entry point: `source/CMakeLists.txt`; individual target declarations live 
 
 The nonvisual library and official plugin dependency boundaries prohibit `Qt6::Widgets`, `SoQt`, and `Qt6::PrintSupport` in the guarded core linkage. `Qt6::Gui` remains an intentional dependency for a few shared data types; *GUI-independent* does not mean *free of every Qt GUI module*.
 
+## Scope boundary: optical simulation versus solar-resource analysis
+
+Tonatiuh++ keeps optical scene construction, ray tracing, sunshape modeling, the existing solar-position calculator, scripting and optical-result export in its active application. The calculator and scene services use `source/libraries/sun`, which is preserved. The historical `source/SunPath` library (solar-resource sampling and weighted sun directions) and disconnected `source/application/WeatherView` interface were removed from the active repository as out-of-scope for the focused optical simulator. Their implementations remain available through Git history; meteorological-year processing and annual energy-weighted performance workflows belong in specialized tools that drive the existing GUI/CLI/script simulation interfaces rather than in Tonatiuh++ itself.
+
 ## Simulation and scripting
 
 GUI Run/Flux Analysis, headless scene tracing, benchmark execution, and scripts use shared preparation, ray propagation, and simulation services. `RayTraceExecutor` handles the tracing work. The architecture retains one scientific kernel and shared photon handling rather than duplicating calculation algorithms across interfaces.

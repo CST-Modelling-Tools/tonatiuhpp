@@ -62,7 +62,6 @@ def _generated_main_build_link_files(build_dir: Path) -> list[Path]:
             candidates.append(path)
 
     add(build_dir / "build.ninja")
-    add(build_dir / "SunPath" / "CMakeFiles" / "SunPath.dir" / "link.txt")
 
     if build_dir.exists():
         for pattern in ("*.ninja", "link.txt"):
