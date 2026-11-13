@@ -1,6 +1,6 @@
 # Tonatiuh++ v0.1.8.27 — Release candidate notes
 
-This document describes the candidate changes since the published v0.1.8.26 release. Publication is pending platform packaging, installer/updater acceptance, and explicit maintainer approval.
+This release contains the changes since v0.1.8.26. Publication was approved by the maintainer following successful cross-platform CI, successful three-platform installer packaging, and a verified Windows in-place upgrade. End-to-end installation and upgrade transactions on Linux and macOS were deferred and have not been manually verified.
 
 ## Highlights
 
@@ -27,7 +27,7 @@ This document describes the candidate changes since the published v0.1.8.26 rele
 
 Maintainer-reported local Windows validation of the unified updater milestone: **184/184 CTests passed**, including `headless.update_commands`, **19 Python automation unit tests passed** (one POSIX-only test skipped), and **3/3 dedicated updater CLI smoke tests** passed. The fixed CI inventory checks on commit `7db344a7f3870bf2fd6beb0b0dfc1fcbcd591f03` passed on Windows, Ubuntu and macOS (GitHub Actions run `43442481832`). These results establish the development baseline, not validation of the version-bumped release candidate or a real IFW update transaction.
 
-Before publication, confirm cross-platform CI for the exact release-candidate commit; run the tag-free `Release` workflow (`workflow_dispatch` with `fake_tag=v0.1.8.27`); inspect downloadable installers, runtime dependencies and checksum files; test the Windows installer and the update path from v0.1.8.26; and evaluate Linux/macOS installation and updater behavior. Signing/notarization, if required by distribution policy, must be reviewed separately.
+**Release acceptance evidence:** development CI passed on Windows, Ubuntu 24.04, and macOS for commit `030df753b6b380f206208a7177ca25bf93adce48` (run `43460739436`). The nonpublishing release rehearsal passed for Windows, Linux x64, and macOS arm64 (run `43488353429`), producing all three installer assets and matching IFW repository artifacts; publication was skipped. The Windows v0.1.8.26 IFW MaintenanceTool successfully detected the isolated v0.1.8.27 repository and upgraded the installed package in place. Post-upgrade checks confirmed the new GUI and CLI executables, removal of the obsolete GUI binary, required shared libraries and resources, working GUI launch, CLI scene validation, and a fixed-seed 1,000-ray trace. **Linux and macOS end-to-end installer transactions and in-place upgrades were not manually tested and remain deferred.** Packaging success must not be interpreted as verified upgrade compatibility on those platforms. Signing/notarization, if required by distribution policy, must be reviewed separately.
 
 The frozen 500-million-ray benchmark and its approved reference assets are **not** part of routine release-candidate testing and must not be regenerated.
 
