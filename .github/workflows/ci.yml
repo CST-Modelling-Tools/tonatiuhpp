@@ -379,7 +379,7 @@ jobs:
           if [[ "$RUNNER_OS" == "Windows" ]]; then
             cli="build/bin/Release/tonatiuhpp-cli.exe"
           else
-            cli="build/bin/tonatiuhpp-cli"
+            cli="build/application/tonatiuhpp-cli"
           fi
           python tests/python_automation/native_smoke.py --cli "$cli" --scene examples/benchmarks/cylinder.tnhpp
 
