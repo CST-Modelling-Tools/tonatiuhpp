@@ -4,6 +4,8 @@
 
 Tonatiuh++ uses CMake and C++20, Qt 6, Coin3D, SoQt, Eigen, and other dependencies configured by the repository. The source of truth for exact dependencies and versions is `source/CMakeLists.txt`, `scripts/build_deps.py`, and `.github/workflows/ci.yml`.
 
+Doxygen is **not** a prerequisite for building Tonatiuh++, generating `third_party` dependencies, running tests, or building the Sphinx runtime help. The dependency manifest `third_party/deps.yaml` intentionally disables optional documentation generation in simage, Coin, and SoQt; retain those `*_BUILD_DOCUMENTATION=OFF` settings when bootstrapping dependencies. Runtime help is generated separately with `python scripts/build_runtime_help.py` (see `help/README.md`).
+
 Keep personal SDK locations and installation directories outside tracked `.vscode/settings.json`: use a local, untracked `CMakeUserPresets.json` or CMake command-line cache arguments instead. Do not edit third-party dependencies or the scientific reference files just to get a build to pass.
 
 ## Windows (VS Code / PowerShell)
