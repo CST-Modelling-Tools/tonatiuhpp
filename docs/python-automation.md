@@ -15,7 +15,7 @@ Build Tonatiuh++ first or use an installed `tonatiuhpp-cli`. Then:
 
 ```python
 from tonatiuhpp_automation import TonatiuhClient
-client = TonatiuhClient("build/bin/tonatiuhpp-cli", timeout=120)
+client = TonatiuhClient("build/application/tonatiuhpp-cli", timeout=120)
 client.validate_scene("examples/benchmarks/cylinder.tnhpp")
 trace = client.trace_scene("examples/benchmarks/cylinder.tnhpp",
                            rays=2048, seed=123456789)
