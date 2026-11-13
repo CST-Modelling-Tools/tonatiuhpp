@@ -240,7 +240,7 @@ jobs:
           cmake --build build --config Release --parallel
           python scripts/build_runtime_help.py
           test -f help/html/index.html
-          cmake --install build --prefix dist
+          cmake --install build --prefix "$GITHUB_WORKSPACE/dist"
 
       - name: Validate Linux bundled Qt runtime
         if: runner.os == 'Linux'
