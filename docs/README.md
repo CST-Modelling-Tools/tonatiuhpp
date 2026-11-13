@@ -7,6 +7,7 @@ This folder documents **the current codebase**, not the sequence of changes used
 - [Architecture](architecture.md): shared simulation and scripting services, permanent GUI/CLI separation, and official plugins.
 - [Build and test](developer-setup.md): development setup, native testing, and safe local build practices.
 - [Headless commands and benchmark](headless-benchmark.md): CLI usage, script interface, photon File export, and benchmark file formats.
+- [External Python automation](python-automation.md): optional subprocess adapter to the compiled CLI, bounded tests, and scope limits.
 - [Scientific validation](scientific-validation.md): reproducibility checks, immutable benchmark inputs, and optional full-scale verification.
 - [Testing architecture and commands](testing.md)
 - [Continuous integration](change-aware-ci.md): which checks run for documentation-only and code changes.
