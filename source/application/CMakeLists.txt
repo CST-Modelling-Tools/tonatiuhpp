@@ -333,7 +333,7 @@ function(tonatiuhpp_m5_assert_runtime_closure)
             endif()
             foreach(_forbidden IN ITEMS
                 Qt6::Widgets SoQt::SoQt TonatiuhppKernel TonatiuhppLibraries
-                TonatiuhSimulation TonatiuhScripting Coin::Coin SunPath)
+                TonatiuhSimulation TonatiuhScripting Coin::Coin)
                 string(FIND "${_links}" "${_forbidden}" _found)
                 if(NOT _found EQUAL -1)
                     message(FATAL_ERROR
@@ -413,7 +413,7 @@ function(tonatiuhpp_m5_assert_one_kernel_link_closure root)
                 Qt6::Widgets Qt6::PrintSupport SoQt::SoQt
                 TonatiuhppGuiPresentation TonatiuhHeadlessKernel
                 TonatiuhHeadlessLibraries TonatiuhHeadlessSimulation
-                TonatiuhHeadlessScripting SunPath tonatiuhpp-gui)
+                TonatiuhHeadlessScripting tonatiuhpp-gui)
                 string(FIND "${_links}" "${_forbidden}" _found)
                 if(NOT _found EQUAL -1)
                     message(FATAL_ERROR "M5 one-kernel boundary: ${root} -> ${_current} -> ${_forbidden}")
