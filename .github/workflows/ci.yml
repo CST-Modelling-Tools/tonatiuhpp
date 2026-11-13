@@ -408,10 +408,10 @@ jobs:
         if: ${{ steps.changes.outputs.docs_only != 'true' }}
         shell: bash
         run: |
-          expected=179
-          if [[ "$RUNNER_OS" == "Windows" ]]; then expected=180; fi
+          expected=180
+          if [[ "$RUNNER_OS" == "Windows" ]]; then expected=181; fi
           python scripts/ctest_inventory.py --build-dir build --config Release --expect-count "$expected" --require-sentinels --json-out build/ctest-inventory.json
-          python -c "import json; from pathlib import Path; d=json.loads(Path('build/ctest-inventory.json').read_text(encoding='utf-8')); fast=[t for t in d['tests'] if 'fast' in t['labels']]; unit=[t for t in fast if 'unit' in t['labels']]; print('fast/unit:',len(fast),len(unit)); assert (len(fast),len(unit)) == (15,13)"
+          python -c "import json; from pathlib import Path; d=json.loads(Path('build/ctest-inventory.json').read_text(encoding='utf-8')); fast=[t for t in d['tests'] if 'fast' in t['labels']]; unit=[t for t in fast if 'unit' in t['labels']]; print('fast/unit:',len(fast),len(unit)); assert (len(fast),len(unit)) == (16,13)"
 
       - name: Test
         if: ${{ steps.changes.outputs.docs_only != 'true' }}
