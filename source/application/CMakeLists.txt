@@ -366,7 +366,8 @@ list(REMOVE_ITEM HEADERS core/TonatiuhCore.h core/CorePluginRegistry.h)
 # widgets/SoQt and any test-only M5 smoke implementation are excluded.
 add_executable(tonatiuhpp-cli
     headless/CliMain.cpp
-    headless/HeadlessCommandRunner.cpp headless/HeadlessCommandRunner.h)
+    headless/HeadlessCommandRunner.cpp headless/HeadlessCommandRunner.h
+    updater/IfwUpdateService.cpp updater/IfwUpdateService.h)
 target_include_directories(tonatiuhpp-cli PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/..

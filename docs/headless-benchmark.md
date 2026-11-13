@@ -80,3 +80,28 @@ The benchmark output includes `total_power_mw`, minimum/average/maximum flux in 
 The optional binary flux grid consists of row-major, little-endian IEEE-754 64-bit floating-point values (no header), with dimensions from `target_grid.width` and `target_grid.height`. Units are `MW/m2`. Its SHA-256 is stored in `flux_grid_sha256`. The optional CSV grid contains the same values in row-major order. An output file's byte order and all 64-bit values must be preserved when comparing exact grid hashes.
 
 A reference JSON can provide expected scalar values, tolerances, flux-grid files, and an exact grid hash. The canonical 500-million-ray benchmark requires an **exact binary-grid SHA-256 match**, in addition to total-power and peak-flux checks. Across different operating systems, floating-point results are not generally guaranteed to be byte-identical; use the documented scientific tolerances rather than asserting universal cross-platform hash identity.
+
+
+## Updating an installer-based Tonatiuh++ installation
+
+Both `tonatiuhpp-gui` (Help > Updates) and `tonatiuhpp-cli` use the same
+Qt Installer Framework MaintenanceTool and update the **same full installation**:
+GUI, CLI, libraries, plugins, and packaged resources. The CLI commands are:
+
+```text
+tonatiuhpp-cli check-updates
+tonatiuhpp-cli update
+```
+
+`check-updates` exit status: `0` means no update; `10` means an update is
+available; `1` means the check failed or MaintenanceTool is unavailable;
+`2` means invalid CLI arguments. An update check has a 60-second deadline.
+`update` first checks for an available update, then launches the interactive
+MaintenanceTool (exit `0` means launched or no update, **not** that installation
+completed). No updates are applied implicitly during simulation or scripting.
+Close other running Tonatiuh++ processes before completing updates, then
+restart manually. The `update` command requires an interactive desktop.
+
+Build-tree executables and extracted archives have no installer-managed
+MaintenanceTool and therefore cannot self-update. This command never updates a
+Git checkout, source tree, or standalone Python environment.

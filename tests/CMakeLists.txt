@@ -83,6 +83,13 @@ endif()
 include("${TONATIUHPP_TESTS_ROOT}/integration/cli/ProcessRepeatability.cmake")
 include("${TONATIUHPP_TESTS_ROOT}/architecture/CTest.cmake")
 
+add_test(NAME headless.update_commands
+  COMMAND "${Python3_EXECUTABLE}"
+    "${TONATIUHPP_TESTS_ROOT}/integration/cli/cli_update_smoke.py"
+    --cli "${TONATIUHPP_TEST_EXE}")
+set_tests_properties(headless.update_commands PROPERTIES
+  LABELS "headless;fast;smoke" TIMEOUT 45)
+
 # Real Qt/SoQt/OpenGL GUI workflows require an actual display. Keep the
 # accepted 180/179 default build-tree CTest inventory stable until each runner
 # has demonstrated native graphics support.

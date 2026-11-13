@@ -199,27 +199,30 @@ void IfwUpdateService::setStatus(Status status, const QString& message, const QS
 
 void IfwUpdateService::finishCheck(int exitCode)
 {
+    // A process error may already have failed this check.
+    if (m_status != Checking)
+        return;
     QByteArray standardOutput = m_process->readAllStandardOutput();
     QByteArray standardError = m_process->readAllStandardError();
     QString output = normalizedProcessText(standardOutput, standardError);
-    QString updateOutput = QString::fromLocal8Bit(standardOutput).trimmed();
+
+    if (exitCode != 0) {
+        failCheck("Update check failed.", output.isEmpty()
+            ? QString("MaintenanceTool returned exit code %1.").arg(exitCode) : output);
+        return;
+    }
 
     if (outputIndicatesNoUpdates(output)) {
         setStatus(UpToDate, "Tonatiuh++ is up to date.", output);
         return;
     }
 
-    if (outputIndicatesUpdates(output) || !updateOutput.isEmpty()) {
+    if (outputIndicatesUpdates(output)) {
         setStatus(UpdateAvailable, "Tonatiuh++ updates are available.", output);
         return;
     }
 
-    if (exitCode == 0 || output.isEmpty()) {
-        setStatus(UpToDate, "Tonatiuh++ is up to date.", output);
-        return;
-    }
-
-    failCheck("Update check failed.", output);
+    failCheck("Update check returned an unrecognized response.", output);
 }
 
 void IfwUpdateService::failCheck(const QString& message, const QString& details)

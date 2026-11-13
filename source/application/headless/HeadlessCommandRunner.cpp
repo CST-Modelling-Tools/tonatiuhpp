@@ -4,6 +4,8 @@
 #include <memory>
 
 #include <QCoreApplication>
+#include <QEventLoop>
+#include <QTimer>
 #include <QDir>
 #include <QElapsedTimer>
 #include <QFileInfo>
@@ -24,6 +26,7 @@
 #include "core/TracePreparation.h"
 #include "core/TonatiuhCore.h"
 #include "headless/HeadlessScriptHost.h"
+#include "updater/IfwUpdateService.h"
 #include "kernel/photons/PhotonsAbstract.h"
 #include "kernel/photons/PhotonsBuffer.h"
 #include "kernel/photons/PhotonsSettings.h"
@@ -117,6 +120,52 @@ int HeadlessCommandRunner::run(const QStringList& arguments) const
 
     if (command == "run-script")
         return runScript(args.mid(1));
+
+    if (command == "check-updates" || command == "update") {
+        if (args.size() != 1)
+            return printUsageError(QString("%1 takes no arguments.").arg(command));
+        QTextStream out(stdout);
+        QTextStream err(stderr);
+        IfwUpdateService service;
+        QEventLoop waitForCheck;
+        QTimer deadline;
+        deadline.setSingleShot(true);
+        QObject::connect(&deadline, &QTimer::timeout, &waitForCheck, &QEventLoop::quit);
+        QObject::connect(&service, &IfwUpdateService::statusChanged, &waitForCheck,
+                         [&service, &waitForCheck](IfwUpdateService::Status) {
+            if (!service.isChecking())
+                waitForCheck.quit();
+        });
+        service.checkForUpdates();
+        if (service.isChecking()) {
+            deadline.start(60000);
+            waitForCheck.exec();
+        }
+        if (service.isChecking()) {
+            err << "Update check timed out after 60 seconds." << Qt::endl;
+            return 1;
+        }
+        if (service.status() == IfwUpdateService::MaintenanceToolMissing ||
+            service.status() == IfwUpdateService::CheckFailed) {
+            err << service.statusMessage() << Qt::endl;
+            if (!service.updateDetails().isEmpty())
+                err << service.updateDetails() << Qt::endl;
+            return 1;
+        }
+        out << service.statusMessage() << Qt::endl;
+        if (command == "check-updates")
+            return service.updateAvailable() ? 10 : 0;
+        if (!service.updateAvailable())
+            return 0;
+        QString error;
+        if (!service.startUpdater(&error)) {
+            err << "Unable to launch Tonatiuh++ MaintenanceTool: " << error << Qt::endl;
+            return 1;
+        }
+        out << "MaintenanceTool launched for the complete Tonatiuh++ installation. "
+               "Finish the update there; restart Tonatiuh++ manually afterward." << Qt::endl;
+        return 0;
+    }
 
     return printUsageError(QString("Unknown headless command: %1.").arg(command));
 }
@@ -465,6 +514,8 @@ void HeadlessCommandRunner::printUsage() const
     out << "  tonatiuhpp-cli trace-scene <scene.tnhpp> --rays N --seed S --no-export [--update-trackers]\n  tonatiuhpp-cli trace-scene <scene.tnhpp> --rays N --seed S --photon-export-dir DIR [--update-trackers]" << Qt::endl;
     out << "  tonatiuhpp-cli benchmark <benchmark_config.json>" << Qt::endl;
     out << "  tonatiuhpp-cli run-script <script.tnhpps>" << Qt::endl;
+    out << "  tonatiuhpp-cli check-updates" << Qt::endl;
+    out << "  tonatiuhpp-cli update" << Qt::endl;
     out << Qt::endl;
     out << "Commands:" << Qt::endl;
     out << "  validate-scene <scene.tnhpp>                         Validate that a Tonatiuh++ scene can be loaded." << Qt::endl;
@@ -475,6 +526,9 @@ void HeadlessCommandRunner::printUsage() const
     out << "                                                     --update-trackers applies GUI-like tracking (opt-in)." << Qt::endl;
     out << "  benchmark <benchmark_config.json>                  Run a headless benchmark and write JSON results." << Qt::endl;
     out << "  run-script <script.tnhpps>                         Run a script through the limited true-headless API." << Qt::endl;
+    out << "  check-updates                                       Check the complete IFW installation (exit 10 if available)." << Qt::endl;
+    out << "  update                                              Check and open MaintenanceTool if updates are available." << Qt::endl;
+    out << "                                                      Does not silently install or restart running jobs." << Qt::endl;
     out << Qt::endl;
     out << "Headless script API:" << Qt::endl;
     out << "  print(value)" << Qt::endl;
