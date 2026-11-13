@@ -142,6 +142,12 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install pyyaml ninja "sphinx>=7,<9"
 
+      - name: Test external Python automation adapter
+        if: ${{ steps.changes.outputs.docs_only != 'true' }}
+        shell: bash
+        run: |
+          python -m unittest discover -s tests/python_automation -p 'test_*.py' -v
+
       - name: Build runtime help
         if: ${{ steps.changes.outputs.docs_only != 'true' }}
         shell: bash
@@ -365,6 +371,17 @@ jobs:
         shell: bash
         run: |
           cmake --build build --config Release --parallel
+
+      - name: Smoke-test Python automation against production CLI
+        if: ${{ steps.changes.outputs.docs_only != 'true' }}
+        shell: bash
+        run: |
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            cli="build/bin/Release/tonatiuhpp-cli.exe"
+          else
+            cli="build/application/tonatiuhpp-cli"
+          fi
+          python tests/python_automation/native_smoke.py --cli "$cli" --scene examples/benchmarks/cylinder.tnhpp
 
       # TONATIUHPP_P1_CENTRAL_WIN_RUNTIME: Windows CTest uses build/bin/<config>
       # with build-staged runtime DLLs; no PATH workaround.
