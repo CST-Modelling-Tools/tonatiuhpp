@@ -23,10 +23,10 @@
 
 ## C++ lambda policy
 
-- Avoid C++ lambda expressions throughout Tonatiuh++ by default, including application code, the scientific kernel, tests, and development tooling that is written in C++.
+- Eliminate C++ lambda expressions from all Tonatiuh++ production C++ code under `source/`, including the scientific kernel, application, plugins, and libraries. The target is zero production-code lambdas; tests are exempt as long as they pass.
 - Prefer named free functions, named member functions, function pointers, or explicit named function objects when equivalent functionality is needed.
 - Introduce or retain a lambda only when controlled, reproducible benchmarks clearly demonstrate a **substantial performance improvement** over a functionally equivalent lambda-free alternative. Convenience, brevity, stylistic preference, or unverified assumptions about compiler optimization are not sufficient exceptions.
-- Replace existing lambdas incrementally when touching relevant code; do not conduct an indiscriminate repository-wide rewrite. Keep each change focused and validate scientific correctness, deterministic behavior, and performance where relevant.
+- Complete the removal of existing production-code lambdas in small, independently validated milestones rather than a risky single rewrite. Confirm zero remaining lambdas with a repository-wide production-source audit, while preserving scientific correctness, deterministic behavior, and performance where relevant.
 - Do not duplicate scientific algorithms merely to eliminate lambdas. Preserve a single authoritative propagation and physics implementation.
 
 ## Architecture guidelines
