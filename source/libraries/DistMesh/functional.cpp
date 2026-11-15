@@ -20,227 +20,217 @@
 
 #include "DistMesh/distmesh.h"
 
-// assignment operator
-distmesh::Functional& distmesh::Functional::operator=(
-    Functional const& rhs) {
-    this->function() = rhs.function();
-    return *this;
-}
-distmesh::Functional& distmesh::Functional::operator=(
-    Functional&& rhs) {
-    this->function() = std::move(rhs.function());
-    return *this;
-}
+#include <stdexcept>
 
-Eigen::ArrayXd distmesh::Functional::operator()(
-    Eigen::Ref<Eigen::ArrayXXd const> const points) const {
-    return this->function()(points);
-}
+namespace {
+using DistMeshPoints = Eigen::Ref<Eigen::ArrayXXd const>;
+using DistMeshFunction = distmesh::Functional::function_t;
 
-distmesh::Functional distmesh::Functional::operator-() const {
-    auto const func = this->function();;
-    return DISTMESH_FUNCTIONAL({
-        return -func(points);
-    });
-}
+enum class BinaryOperation { Add, Subtract, Multiply, Divide, Minimum, Maximum };
 
-distmesh::Functional& distmesh::Functional::operator+=(
-    Functional const& rhs) {
-    auto const func = this->function();
-    this->function() = DISTMESH_FUNCTIONAL({
-        return func(points) + rhs(points);
-    });
-    return *this;
-}
+struct NegateFunction {
+    DistMeshFunction function;
+    Eigen::ArrayXd operator()(DistMeshPoints const points) const {
+        return -function(points);
+    }
+};
 
-distmesh::Functional& distmesh::Functional::operator+=(
-    double const rhs) {
-    auto const func = this->function();
-    this->function() = DISTMESH_FUNCTIONAL({
-        return func(points) + rhs;
-    });
-    return *this;
-}
+struct BinaryFunction {
+    DistMeshFunction lhs;
+    DistMeshFunction rhs;
+    BinaryOperation operation;
 
-distmesh::Functional& distmesh::Functional::operator-=(
-    Functional const& rhs) {
-    auto const func = this->function();
-    this->function() = DISTMESH_FUNCTIONAL({
-        return func(points) - rhs(points);
-    });
-    return *this;
-}
+    Eigen::ArrayXd operator()(DistMeshPoints const points) const {
+        switch (operation) {
+        case BinaryOperation::Add:      return lhs(points) + rhs(points);
+        case BinaryOperation::Subtract: return lhs(points) - rhs(points);
+        case BinaryOperation::Multiply: return lhs(points) * rhs(points);
+        case BinaryOperation::Divide:   return lhs(points) / rhs(points);
+        case BinaryOperation::Minimum:  return lhs(points).min(rhs(points));
+        case BinaryOperation::Maximum:  return lhs(points).max(rhs(points));
+        }
+        throw std::logic_error("Unknown DistMesh binary operation");
+    }
+};
 
-distmesh::Functional& distmesh::Functional::operator-=(
-    double const rhs) {
-    auto const func = this->function();
-    this->function() = DISTMESH_FUNCTIONAL({
-        return func(points) - rhs;
-    });
-    return *this;
-}
+struct ScalarFunction {
+    DistMeshFunction function;
+    double scalar;
+    BinaryOperation operation;
+    bool scalarOnLeft;
 
-distmesh::Functional& distmesh::Functional::operator*=(
-    Functional const& rhs) {
-    auto const func = this->function();
-    this->function() = DISTMESH_FUNCTIONAL({
-        return func(points) * rhs(points);
-    });
-    return *this;
-}
+    Eigen::ArrayXd operator()(DistMeshPoints const points) const {
+        if (scalarOnLeft) {
+            switch (operation) {
+            case BinaryOperation::Add:      return scalar + function(points);
+            case BinaryOperation::Subtract: return scalar - function(points);
+            case BinaryOperation::Multiply: return scalar * function(points);
+            case BinaryOperation::Divide:   return scalar / function(points);
+            default: break;
+            }
+        } else {
+            switch (operation) {
+            case BinaryOperation::Add:      return function(points) + scalar;
+            case BinaryOperation::Subtract: return function(points) - scalar;
+            case BinaryOperation::Multiply: return function(points) * scalar;
+            case BinaryOperation::Divide:   return function(points) / scalar;
+            default: break;
+            }
+        }
+        throw std::logic_error("Unknown DistMesh scalar operation");
+    }
+};
 
-distmesh::Functional& distmesh::Functional::operator*=(
-    double const rhs) {
-    auto const func = this->function();
-    this->function() = DISTMESH_FUNCTIONAL({
-        return func(points) * rhs;
-    });
-    return *this;
-}
+struct AbsoluteFunction {
+    DistMeshFunction function;
+    Eigen::ArrayXd operator()(DistMeshPoints const points) const {
+        return function(points).abs();
+    }
+};
 
-distmesh::Functional& distmesh::Functional::operator/=(
-    Functional const& rhs) {
-    auto const func = this->function();
-    this->function() = DISTMESH_FUNCTIONAL({
-        return func(points) / rhs(points);
-    });
-    return *this;
-}
+struct ShiftFunction {
+    DistMeshFunction function;
+    Eigen::Ref<Eigen::ArrayXd const> offset;
+    Eigen::ArrayXd operator()(DistMeshPoints const points) const {
+        return function(points.rowwise() - offset.transpose());
+    }
+};
 
-distmesh::Functional& distmesh::Functional::operator/=(
-    double const rhs) {
-    auto const func = this->function();
-    this->function() = DISTMESH_FUNCTIONAL({
-        return func(points) / rhs;
-    });
-    return *this;
-}
-
-namespace distmesh {
-Functional operator+(
-    Functional const& lhs, Functional const& rhs) {
-    return DISTMESH_FUNCTIONAL({
-        return lhs(points) + rhs(points);
-    });
-}
-
-Functional operator+(
-    Functional const& lhs, double const rhs) {
-    return DISTMESH_FUNCTIONAL({
-        return lhs(points) + rhs;
-    });
-}
-
-Functional operator+(
-    double const lhs, Functional const& rhs) {
-    return DISTMESH_FUNCTIONAL({
-        return lhs + rhs(points);
-    });
-}
-
-Functional operator-(
-    Functional const& lhs, Functional const& rhs) {
-    return DISTMESH_FUNCTIONAL({
-        return lhs(points) - rhs(points);
-    });
-}
-
-Functional operator-(
-    Functional const& lhs, double const rhs) {
-    return DISTMESH_FUNCTIONAL({
-        return lhs(points) - rhs;
-    });
-}
-
-Functional operator-(
-    double const lhs, Functional const& rhs) {
-    return DISTMESH_FUNCTIONAL({
-        return lhs - rhs(points);
-    });
-}
-
-Functional operator*(
-    Functional const& lhs, Functional const& rhs) {
-    return DISTMESH_FUNCTIONAL({
-        return lhs(points) * rhs(points);
-    });
-}
-
-Functional operator*(
-    Functional const& lhs, double const rhs) {
-    return DISTMESH_FUNCTIONAL({
-        return lhs(points) * rhs;
-    });
-}
-
-Functional operator*(
-    double const lhs, Functional const& rhs) {
-    return DISTMESH_FUNCTIONAL({
-        return lhs * rhs(points);
-    });
-}
-
-Functional operator/(
-    Functional const& lhs, Functional const& rhs) {
-    return DISTMESH_FUNCTIONAL({
-        return lhs(points) / rhs(points);
-    });
-}
-
-Functional operator/(
-    Functional const& lhs, double const rhs) {
-    return DISTMESH_FUNCTIONAL({
-        return lhs(points) / rhs;
-    });
-}
-
-Functional operator/(
-    double const lhs, Functional const& rhs) {
-    return DISTMESH_FUNCTIONAL({
-        return lhs / rhs(points);
-    });
-}
-}
-
-distmesh::Functional distmesh::Functional::min(
-    Functional const& rhs) const {
-    auto const func = this->function();
-    return DISTMESH_FUNCTIONAL({
-        return func(points).min(rhs(points));
-    });
-}
-
-distmesh::Functional distmesh::Functional::max(
-    Functional const& rhs) const {
-    auto const func = this->function();
-    return DISTMESH_FUNCTIONAL({
-        return func(points).max(rhs(points));
-    });
-}
-
-distmesh::Functional distmesh::Functional::abs() const {
-    auto const func = this->function();
-    return DISTMESH_FUNCTIONAL({
-        return func(points).abs();
-    });
-}
-
-// geometric transform
-distmesh::Functional distmesh::Functional::shift(Eigen::Ref<Eigen::ArrayXd const> const offset) const {
-    auto const func = this->function();
-    return DISTMESH_FUNCTIONAL({
-        return func(points.rowwise() - offset.transpose());
-    });
-}
-
-distmesh::Functional distmesh::Functional::rotate2D(double const angle) const {
-    auto const func = this->function();
-    return DISTMESH_FUNCTIONAL({
+struct Rotate2DFunction {
+    DistMeshFunction function;
+    double angle;
+    Eigen::ArrayXd operator()(DistMeshPoints const points) const {
         Eigen::ArrayXXd transformedPoints(points.rows(), points.cols());
         transformedPoints.col(0) = points.col(0) * std::cos(angle) + points.col(1) * std::sin(angle);
         transformedPoints.col(1) = -points.col(0) * std::sin(angle) + points.col(1) * std::cos(angle);
 
-        return func(transformedPoints);
-    });
+        return function(transformedPoints);
+    }
+};
+} // namespace
+
+// assignment operator
+distmesh::Functional& distmesh::Functional::operator=(Functional const& rhs) {
+    this->function() = rhs.function();
+    return *this;
 }
 
+distmesh::Functional& distmesh::Functional::operator=(Functional&& rhs) {
+    this->function() = std::move(rhs.function());
+    return *this;
+}
+
+Eigen::ArrayXd distmesh::Functional::operator()(DistMeshPoints const points) const {
+    return this->function()(points);
+}
+
+distmesh::Functional distmesh::Functional::operator-() const {
+    return Functional(NegateFunction{this->function()});
+}
+
+distmesh::Functional& distmesh::Functional::operator+=(Functional const& rhs) {
+    auto const func = this->function();
+    this->function() = BinaryFunction{func, rhs.function(), BinaryOperation::Add};
+    return *this;
+}
+
+distmesh::Functional& distmesh::Functional::operator+=(double const rhs) {
+    auto const func = this->function();
+    this->function() = ScalarFunction{func, rhs, BinaryOperation::Add, false};
+    return *this;
+}
+
+distmesh::Functional& distmesh::Functional::operator-=(Functional const& rhs) {
+    auto const func = this->function();
+    this->function() = BinaryFunction{func, rhs.function(), BinaryOperation::Subtract};
+    return *this;
+}
+
+distmesh::Functional& distmesh::Functional::operator-=(double const rhs) {
+    auto const func = this->function();
+    this->function() = ScalarFunction{func, rhs, BinaryOperation::Subtract, false};
+    return *this;
+}
+
+distmesh::Functional& distmesh::Functional::operator*=(Functional const& rhs) {
+    auto const func = this->function();
+    this->function() = BinaryFunction{func, rhs.function(), BinaryOperation::Multiply};
+    return *this;
+}
+
+distmesh::Functional& distmesh::Functional::operator*=(double const rhs) {
+    auto const func = this->function();
+    this->function() = ScalarFunction{func, rhs, BinaryOperation::Multiply, false};
+    return *this;
+}
+
+distmesh::Functional& distmesh::Functional::operator/=(Functional const& rhs) {
+    auto const func = this->function();
+    this->function() = BinaryFunction{func, rhs.function(), BinaryOperation::Divide};
+    return *this;
+}
+
+distmesh::Functional& distmesh::Functional::operator/=(double const rhs) {
+    auto const func = this->function();
+    this->function() = ScalarFunction{func, rhs, BinaryOperation::Divide, false};
+    return *this;
+}
+
+namespace distmesh {
+Functional operator+(Functional const& lhs, Functional const& rhs) {
+    return Functional(BinaryFunction{lhs.function(), rhs.function(), BinaryOperation::Add});
+}
+Functional operator+(Functional const& lhs, double const rhs) {
+    return Functional(ScalarFunction{lhs.function(), rhs, BinaryOperation::Add, false});
+}
+Functional operator+(double const lhs, Functional const& rhs) {
+    return Functional(ScalarFunction{rhs.function(), lhs, BinaryOperation::Add, true});
+}
+Functional operator-(Functional const& lhs, Functional const& rhs) {
+    return Functional(BinaryFunction{lhs.function(), rhs.function(), BinaryOperation::Subtract});
+}
+Functional operator-(Functional const& lhs, double const rhs) {
+    return Functional(ScalarFunction{lhs.function(), rhs, BinaryOperation::Subtract, false});
+}
+Functional operator-(double const lhs, Functional const& rhs) {
+    return Functional(ScalarFunction{rhs.function(), lhs, BinaryOperation::Subtract, true});
+}
+Functional operator*(Functional const& lhs, Functional const& rhs) {
+    return Functional(BinaryFunction{lhs.function(), rhs.function(), BinaryOperation::Multiply});
+}
+Functional operator*(Functional const& lhs, double const rhs) {
+    return Functional(ScalarFunction{lhs.function(), rhs, BinaryOperation::Multiply, false});
+}
+Functional operator*(double const lhs, Functional const& rhs) {
+    return Functional(ScalarFunction{rhs.function(), lhs, BinaryOperation::Multiply, true});
+}
+Functional operator/(Functional const& lhs, Functional const& rhs) {
+    return Functional(BinaryFunction{lhs.function(), rhs.function(), BinaryOperation::Divide});
+}
+Functional operator/(Functional const& lhs, double const rhs) {
+    return Functional(ScalarFunction{lhs.function(), rhs, BinaryOperation::Divide, false});
+}
+Functional operator/(double const lhs, Functional const& rhs) {
+    return Functional(ScalarFunction{rhs.function(), lhs, BinaryOperation::Divide, true});
+}
+} // namespace distmesh
+
+distmesh::Functional distmesh::Functional::min(Functional const& rhs) const {
+    return Functional(BinaryFunction{this->function(), rhs.function(), BinaryOperation::Minimum});
+}
+
+distmesh::Functional distmesh::Functional::max(Functional const& rhs) const {
+    return Functional(BinaryFunction{this->function(), rhs.function(), BinaryOperation::Maximum});
+}
+
+distmesh::Functional distmesh::Functional::abs() const {
+    return Functional(AbsoluteFunction{this->function()});
+}
+
+distmesh::Functional distmesh::Functional::shift(Eigen::Ref<Eigen::ArrayXd const> const offset) const {
+    return Functional(ShiftFunction{this->function(), offset});
+}
+
+distmesh::Functional distmesh::Functional::rotate2D(double const angle) const {
+    return Functional(Rotate2DFunction{this->function(), angle});
+}

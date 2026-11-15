@@ -20,10 +20,12 @@
 
 #include "DistMesh/distmesh.h"
 
-// creates distance function for a nd rectangular domain
-distmesh::Functional distmesh::distanceFunction::rectangular(
-    Eigen::Ref<Eigen::ArrayXXd const> const rectangle) {
-    return DISTMESH_FUNCTIONAL({
+namespace {
+using DistMeshPoints = Eigen::Ref<Eigen::ArrayXXd const>;
+
+struct RectangularDistance {
+    Eigen::Ref<Eigen::ArrayXXd const> rectangle;
+    Eigen::ArrayXd operator()(DistMeshPoints const points) const {
         Eigen::ArrayXXd result = (points.col(0) - rectangle(0, 0))
             .min(rectangle(1, 0) - points.col(0));
 
@@ -34,13 +36,12 @@ distmesh::Functional distmesh::distanceFunction::rectangular(
         }
 
         return -result;
-    });
-}
+    }
+};
 
-// creates the true distance function for a 2d rectangular domain
-distmesh::Functional distmesh::distanceFunction::rectangle(
-    Eigen::Ref<Eigen::ArrayXXd const> const rectangle) {
-    return DISTMESH_FUNCTIONAL({
+struct RectangleDistance {
+    Eigen::Ref<Eigen::ArrayXXd const> rectangle;
+    Eigen::ArrayXd operator()(DistMeshPoints const points) const {
         // distances to all 4 sides of rectangle
         auto d1 = rectangle(0, 1) - points.col(1);
         auto d2 = -rectangle(1, 1) + points.col(1);
@@ -63,14 +64,13 @@ distmesh::Functional distmesh::distanceFunction::rectangle(
         d = (d2 > 0.0 && d4 > 0.0).select(d8, d);
 
         return d;
-    });
-}
+    }
+};
 
-// creates distance function for elliptical domains
-distmesh::Functional distmesh::distanceFunction::elliptical(
-    Eigen::Ref<Eigen::ArrayXd const> const radii,
-    Eigen::Ref<Eigen::ArrayXd const> const midpoint) {
-    return DISTMESH_FUNCTIONAL({
+struct EllipticalDistance {
+    Eigen::Ref<Eigen::ArrayXd const> radii;
+    Eigen::Ref<Eigen::ArrayXd const> midpoint;
+    Eigen::ArrayXd operator()(DistMeshPoints const points) const {
         if (midpoint.rows() == points.cols()) {
             if (radii.rows() == points.cols()) {
                 return ((points.rowwise() - midpoint.transpose()).rowwise() / radii.transpose())
@@ -90,14 +90,13 @@ distmesh::Functional distmesh::distanceFunction::elliptical(
                 return points.square().rowwise().sum().sqrt() - 1.0;
             }
         }
-    });
-}
+    }
+};
 
-// creates the true distance function for circular domains
-distmesh::Functional
-    distmesh::distanceFunction::circular(double const radius,
-    Eigen::Ref<Eigen::ArrayXd const> const midpoint) {
-    return DISTMESH_FUNCTIONAL({
+struct CircularDistance {
+    double radius;
+    Eigen::Ref<Eigen::ArrayXd const> midpoint;
+    Eigen::ArrayXd operator()(DistMeshPoints const points) const {
         if (midpoint.rows() == points.cols()) {
             return (points.rowwise() - midpoint.transpose())
                 .square().rowwise().sum().sqrt() - radius;
@@ -105,14 +104,12 @@ distmesh::Functional
         else {
             return points.square().rowwise().sum().sqrt() - radius;
         }
-    });
-}
+    }
+};
 
-// creates distance function for a 2d domain described by polygon
-// https://stackoverflow.com/questions/10983872/distance-from-a-point-to-a-polygon
-distmesh::Functional distmesh::distanceFunction::polygon(
-    Eigen::Ref<Eigen::ArrayXXd const> const polygon) {
-    return DISTMESH_FUNCTIONAL({
+struct PolygonDistance {
+    Eigen::Ref<Eigen::ArrayXXd const> polygon;
+    Eigen::ArrayXd operator()(DistMeshPoints const points) const {
         Eigen::ArrayXXd v(points.rows(), 2);
         Eigen::ArrayXXd w(points.rows(), 2);
         Eigen::ArrayXXd c1(points.rows(), 1);
@@ -137,7 +134,41 @@ distmesh::Functional distmesh::distanceFunction::polygon(
                 ));
         }
 
-        return (1.0 - 2.0 * utils::pointsInsidePoly(points, polygon)) *
+        return (1.0 - 2.0 * distmesh::utils::pointsInsidePoly(points, polygon)) *
             distance.rowwise().minCoeff();
-    });
+    }
+};
+} // namespace
+
+// creates distance function for a nd rectangular domain
+distmesh::Functional distmesh::distanceFunction::rectangular(
+    Eigen::Ref<Eigen::ArrayXXd const> const rectangle) {
+    return distmesh::Functional(RectangularDistance{rectangle});
+}
+
+// creates the true distance function for a 2d rectangular domain
+distmesh::Functional distmesh::distanceFunction::rectangle(
+    Eigen::Ref<Eigen::ArrayXXd const> const rectangle) {
+    return distmesh::Functional(RectangleDistance{rectangle});
+}
+
+// creates distance function for elliptical domains
+distmesh::Functional distmesh::distanceFunction::elliptical(
+    Eigen::Ref<Eigen::ArrayXd const> const radii,
+    Eigen::Ref<Eigen::ArrayXd const> const midpoint) {
+    return distmesh::Functional(EllipticalDistance{radii, midpoint});
+}
+
+// creates the true distance function for circular domains
+distmesh::Functional distmesh::distanceFunction::circular(
+    double const radius,
+    Eigen::Ref<Eigen::ArrayXd const> const midpoint) {
+    return distmesh::Functional(CircularDistance{radius, midpoint});
+}
+
+// creates distance function for a 2d domain described by polygon
+// https://stackoverflow.com/questions/10983872/distance-from-a-point-to-a-polygon
+distmesh::Functional distmesh::distanceFunction::polygon(
+    Eigen::Ref<Eigen::ArrayXXd const> const polygon) {
+    return distmesh::Functional(PolygonDistance{polygon});
 }

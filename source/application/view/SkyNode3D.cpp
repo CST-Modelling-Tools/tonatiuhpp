@@ -117,6 +117,75 @@ namespace
         }
         sizes << vertexCount;
     }
+
+    void addTickSet(SoSeparator* root,
+                    const QVector<SbVec3f>& points,
+                    const QVector<int>& sizes,
+                    const SbColor& color,
+                    float lineWidth)
+    {
+        SoSeparator* tickRoot = new SoSeparator;
+
+        SoMaterial* tickMaterial = new SoMaterial;
+        tickMaterial->diffuseColor = color;
+        tickRoot->addChild(tickMaterial);
+
+        SoDrawStyle* drawStyle = new SoDrawStyle;
+        drawStyle->lineWidth = lineWidth;
+        tickRoot->addChild(drawStyle);
+
+        SoCoordinate3* tickCoordinates = new SoCoordinate3;
+        tickCoordinates->point.setValues(0, points.size(), points.constData());
+        tickRoot->addChild(tickCoordinates);
+
+        SoLineSet* tickLines = new SoLineSet;
+        tickLines->numVertices.setValues(0, sizes.size(), sizes.constData());
+        tickRoot->addChild(tickLines);
+
+        root->addChild(tickRoot);
+    }
+
+    void addTextLabel(SoSeparator* root,
+                      int azimuthDeg,
+                      const char* text,
+                      float radius,
+                      float height,
+                      float fontSize,
+                      const SbColor& color)
+    {
+        SoSeparator* labelRoot = new SoSeparator;
+
+        SoMaterial* textMaterial = new SoMaterial;
+        textMaterial->diffuseColor = color;
+        labelRoot->addChild(textMaterial);
+
+        SoFont* font = new SoFont;
+        font->name = "Arial:Bold";
+        font->size = fontSize;
+        labelRoot->addChild(font);
+
+        SoTransform* transform = new SoTransform;
+        transform->translation = pointOnHorizon(static_cast<float>(azimuthDeg), radius, height);
+        labelRoot->addChild(transform);
+
+        SoText2* textNode = new SoText2;
+        textNode->string.setValue(text);
+        textNode->justification = SoText2::CENTER;
+        labelRoot->addChild(textNode);
+
+        root->addChild(labelRoot);
+    }
+
+    void addIntercardinalLabel(SoSeparator* root, int azimuthDeg, const char* text)
+    {
+        addTextLabel(root,
+            azimuthDeg,
+            text,
+            kIntercardinalLabelRadius,
+            kIntercardinalLabelHeight,
+            kIntercardinalFontSize,
+            SbColor(0.76f, 0.84f, 0.91f));
+    }
 }
 
 void SkyNode3D::initClass()
@@ -269,83 +338,19 @@ SoSeparator* SkyNode3D::makeLabels()
         tickSizes->append(2);
     }
 
-    auto addTickSet = [&](const QVector<SbVec3f>& points,
-                          const QVector<int>& sizes,
-                          const SbColor& color,
-                          float lineWidth)
-    {
-        SoSeparator* tickRoot = new SoSeparator;
 
-        SoMaterial* tickMaterial = new SoMaterial;
-        tickMaterial->diffuseColor = color;
-        tickRoot->addChild(tickMaterial);
+    addTickSet(root, ringPoints, ringSizes, SbColor(0.72f, 0.80f, 0.88f), kRingLineWidth);
+    addTickSet(root, fineTickPoints, fineTickSizes, SbColor(0.90f, 0.95f, 0.99f), kFineTickLineWidth);
+    addTickSet(root, minorTickPoints, minorTickSizes, SbColor(0.90f, 0.95f, 0.99f), kMinorTickLineWidth);
+    addTickSet(root, majorTickPoints, majorTickSizes, SbColor(0.90f, 0.95f, 0.99f), kMajorTickLineWidth);
+    addTickSet(root, cardinalTickPoints, cardinalTickSizes, SbColor(0.98f, 0.99f, 1.0f), kCardinalTickLineWidth);
 
-        SoDrawStyle* drawStyle = new SoDrawStyle;
-        drawStyle->lineWidth = lineWidth;
-        tickRoot->addChild(drawStyle);
 
-        SoCoordinate3* tickCoordinates = new SoCoordinate3;
-        tickCoordinates->point.setValues(0, points.size(), points.constData());
-        tickRoot->addChild(tickCoordinates);
 
-        SoLineSet* tickLines = new SoLineSet;
-        tickLines->numVertices.setValues(0, sizes.size(), sizes.constData());
-        tickRoot->addChild(tickLines);
-
-        root->addChild(tickRoot);
-    };
-
-    addTickSet(ringPoints, ringSizes, SbColor(0.72f, 0.80f, 0.88f), kRingLineWidth);
-    addTickSet(fineTickPoints, fineTickSizes, SbColor(0.90f, 0.95f, 0.99f), kFineTickLineWidth);
-    addTickSet(minorTickPoints, minorTickSizes, SbColor(0.90f, 0.95f, 0.99f), kMinorTickLineWidth);
-    addTickSet(majorTickPoints, majorTickSizes, SbColor(0.90f, 0.95f, 0.99f), kMajorTickLineWidth);
-    addTickSet(cardinalTickPoints, cardinalTickSizes, SbColor(0.98f, 0.99f, 1.0f), kCardinalTickLineWidth);
-
-    auto addTextLabel = [&](int azimuthDeg,
-                            const char* text,
-                            float radius,
-                            float height,
-                            float fontSize,
-                            const SbColor& color)
-    {
-        SoSeparator* labelRoot = new SoSeparator;
-
-        SoMaterial* textMaterial = new SoMaterial;
-        textMaterial->diffuseColor = color;
-        labelRoot->addChild(textMaterial);
-
-        SoFont* font = new SoFont;
-        font->name = "Arial:Bold";
-        font->size = fontSize;
-        labelRoot->addChild(font);
-
-        SoTransform* transform = new SoTransform;
-        transform->translation = pointOnHorizon(static_cast<float>(azimuthDeg), radius, height);
-        labelRoot->addChild(transform);
-
-        SoText2* textNode = new SoText2;
-        textNode->string.setValue(text);
-        textNode->justification = SoText2::CENTER;
-        labelRoot->addChild(textNode);
-
-        root->addChild(labelRoot);
-    };
-
-    auto addIntercardinalLabel = [&](int azimuthDeg, const char* text)
-    {
-        addTextLabel(
-            azimuthDeg,
-            text,
-            kIntercardinalLabelRadius,
-            kIntercardinalLabelHeight,
-            kIntercardinalFontSize,
-            SbColor(0.76f, 0.84f, 0.91f));
-    };
-
-    addIntercardinalLabel(45, "NE");
-    addIntercardinalLabel(135, "SE");
-    addIntercardinalLabel(225, "SW");
-    addIntercardinalLabel(315, "NW");
+    addIntercardinalLabel(root, 45, "NE");
+    addIntercardinalLabel(root, 135, "SE");
+    addIntercardinalLabel(root, 225, "SW");
+    addIntercardinalLabel(root, 315, "NW");
 
     for (int azimuthDeg = 0; azimuthDeg < 360; azimuthDeg += 5)
     {
@@ -354,16 +359,16 @@ SoSeparator* SkyNode3D::makeLabels()
         switch (normalizedAzimuth)
         {
         case 0:
-            addTextLabel(normalizedAzimuth, "N", kCardinalLabelRadius, kCardinalLabelHeight, kCardinalFontSize, SbColor(1.0f, 0.96f, 0.82f));
+            addTextLabel(root, normalizedAzimuth, "N", kCardinalLabelRadius, kCardinalLabelHeight, kCardinalFontSize, SbColor(1.0f, 0.96f, 0.82f));
             break;
         case 90:
-            addTextLabel(normalizedAzimuth, "E", kCardinalLabelRadius, kCardinalLabelHeight, kCardinalFontSize, SbColor(0.94f, 0.97f, 1.0f));
+            addTextLabel(root, normalizedAzimuth, "E", kCardinalLabelRadius, kCardinalLabelHeight, kCardinalFontSize, SbColor(0.94f, 0.97f, 1.0f));
             break;
         case 270:
-            addTextLabel(normalizedAzimuth, "W", kCardinalLabelRadius, kCardinalLabelHeight, kCardinalFontSize, SbColor(0.94f, 0.97f, 1.0f));
+            addTextLabel(root, normalizedAzimuth, "W", kCardinalLabelRadius, kCardinalLabelHeight, kCardinalFontSize, SbColor(0.94f, 0.97f, 1.0f));
             break;
         case 180:
-            addTextLabel(normalizedAzimuth, "S", kSouthLabelRadius, kSouthLabelHeight, kCardinalFontSize, SbColor(1.0f, 0.93f, 0.90f));
+            addTextLabel(root, normalizedAzimuth, "S", kSouthLabelRadius, kSouthLabelHeight, kCardinalFontSize, SbColor(1.0f, 0.93f, 0.90f));
             break;
         case 45:
         case 135:
@@ -374,7 +379,7 @@ SoSeparator* SkyNode3D::makeLabels()
             {
                 QByteArray angleText = QByteArray::number(normalizedAzimuth);
                 const bool isMajorTick = (normalizedAzimuth % 15) == 0;
-                addTextLabel(
+                addTextLabel(root,
                     normalizedAzimuth,
                     angleText.constData(),
                     isMajorTick ? kNumericLabelRadius : kMinorNumericLabelRadius,

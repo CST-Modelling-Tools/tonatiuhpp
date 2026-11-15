@@ -40,6 +40,34 @@ bool scriptFiniteNumber(const QJSValue& value, double* result)
     *result = number;
     return true;
 }
+void findScriptSceneNode(const InstanceNode* instance, const QString& url,
+                         int& matches, SoNode*& target)
+{
+    if (!instance)
+        return;
+    if (instance->getURL() == url && instance->getNode()) {
+        ++matches;
+        target = instance->getNode();
+    }
+    for (const InstanceNode* child : instance->children)
+        findScriptSceneNode(child, url, matches, target);
+}
+
+bool scriptIntegralInRange(const QJSValue& value, double minimum, double maximum)
+{
+    if (!value.isNumber())
+        return false;
+    const double number = value.toNumber();
+    return std::isfinite(number) && std::floor(number) == number
+        && number >= minimum && number <= maximum;
+}
+
+bool scriptIntegerField(double value)
+{
+    return value == std::floor(value)
+        && value >= static_cast<double>(std::numeric_limits<int>::min())
+        && value <= static_cast<double>(std::numeric_limits<int>::max());
+}
 }
 
 ScriptSceneServices* ScriptSceneServices::forObject(QObject* object)
@@ -147,17 +175,7 @@ QJSValue ScriptSceneServices::SetValue(const QJSValue& nodeUrl,
     SceneInstanceTree tree = SceneInstanceBuilder::build(active);
     int matches = 0;
     SoNode* target = nullptr;
-    const std::function<void(const InstanceNode*)> visit = [&](const InstanceNode* instance) {
-        if (!instance)
-            return;
-        if (instance->getURL() == url && instance->getNode()) {
-            ++matches;
-            target = instance->getNode();
-        }
-        for (const InstanceNode* child : instance->children)
-            visit(child);
-    };
-    visit(tree.sceneRoot.get());
+    findScriptSceneNode(tree.sceneRoot.get(), url, matches, target);
     if (matches == 0)
         return fail(QString("tn.SetValue: no scene node at '%1'.").arg(url));
     if (matches != 1)
@@ -385,23 +403,16 @@ QJSValue ScriptSceneServices::runFluxAnalysis(const QJSValue& surfaceURL,
                                                const QJSValue& saveCoords,
                                                std::optional<std::uint64_t> masterSeed)
 {
-    const auto integralInRange = [](const QJSValue& value, double minimum,
-                                    double maximum) {
-        if (!value.isNumber())
-            return false;
-        const double number = value.toNumber();
-        return std::isfinite(number) && std::floor(number) == number
-            && number >= minimum && number <= maximum;
-    };
+
     // The prior GUI path silently accepted invalid arguments and could reach
     // zero-sized flux bins. Reject them at the user script call site.
     if (!surfaceURL.isString() || surfaceURL.toString().trimmed().isEmpty()
         || !surfaceSide.isString()
         || (surfaceSide.toString() != "front" && surfaceSide.toString() != "back")
-        || !integralInRange(rays, 1., static_cast<double>(std::numeric_limits<uint>::max()))
-        || !integralInRange(heightDivisions, 2.,
+        || !scriptIntegralInRange(rays, 1., static_cast<double>(std::numeric_limits<uint>::max()))
+        || !scriptIntegralInRange(heightDivisions, 2.,
                             static_cast<double>(std::numeric_limits<int>::max()))
-        || !integralInRange(widthDivisions, 2.,
+        || !scriptIntegralInRange(widthDivisions, 2.,
                             static_cast<double>(std::numeric_limits<int>::max()))
         || !fileName.isString() || fileName.toString().trimmed().isEmpty()
         || !saveCoords.isBool())
@@ -568,12 +579,8 @@ QJSValue ScriptSceneServices::ChangeSunPosition(const QJSValue& year,
         if (!scriptFiniteNumber(inputs[i], &values[i]))
             return fail("tn.ChangeSunPosition requires eight finite calendar/location values.");
     }
-    const auto integerField = [](double value) {
-        return value == std::floor(value)
-            && value >= static_cast<double>(std::numeric_limits<int>::min())
-            && value <= static_cast<double>(std::numeric_limits<int>::max());
-    };
-    if (!integerField(values[0]) || !integerField(values[1]) || !integerField(values[2])
+
+    if (!scriptIntegerField(values[0]) || !scriptIntegerField(values[1]) || !scriptIntegerField(values[2])
         || values[1] < 0 || values[1] > 12 || values[2] < 0 || values[2] > 31
         || values[3] < 0 || values[3] > 23 || values[4] < 0 || values[4] > 59
         || values[5] < 0 || values[5] > 59 || values[6] < -90 || values[6] > 90

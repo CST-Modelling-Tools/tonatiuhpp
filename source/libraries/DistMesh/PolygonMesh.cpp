@@ -90,9 +90,7 @@ bool PolygonMesh::makeMesh(double step, MeshDensity& mds)
         if (se < step) step = se;
     }
 
-    distmesh::Functional funcStep(DISTMESH_FUNCTIONAL({
-        return Eigen::ArrayXd::Constant(points.rows(), 1.);
-    }));
+    distmesh::Functional funcStep(1.0);
 
 
     try {

@@ -2,7 +2,6 @@
 
 #include <cmath>
 #include <cstdint>
-#include <functional>
 #include <limits>
 
 #include <QDir>
@@ -78,17 +77,7 @@ public:
             return fail(error, "scene has no ray-traceable layout.");
         InstanceNode* target = nullptr;
         int matches = 0;
-        const std::function<void(InstanceNode*)> findTarget = [&](InstanceNode* node) {
-            if (!node) return;
-            if (node->getURL() == request.surfaceURL
-                && dynamic_cast<TShapeKit*>(node->getNode())) {
-                target = node;
-                ++matches;
-            }
-            for (InstanceNode* child : node->children)
-                findTarget(child);
-        };
-        findTarget(tree.sceneRoot.get());
+        findTargetSurface(tree.sceneRoot.get(), request.surfaceURL, target, matches);
         if (matches != 1)
             return fail(error, QString("selected surface '%1' has %2 shape matches (expected 1).")
                                    .arg(request.surfaceURL).arg(matches));
@@ -157,6 +146,20 @@ public:
     }
 
 private:
+    static void findTargetSurface(InstanceNode* node, const QString& surfaceURL,
+                                  InstanceNode*& target, int& matches)
+    {
+        if (!node)
+            return;
+        if (node->getURL() == surfaceURL
+            && dynamic_cast<TShapeKit*>(node->getNode())) {
+            target = node;
+            ++matches;
+        }
+        for (InstanceNode* child : node->children)
+            findTargetSurface(child, surfaceURL, target, matches);
+    }
+
     static bool fail(QString* error, const QString& message)
     {
         if (error)

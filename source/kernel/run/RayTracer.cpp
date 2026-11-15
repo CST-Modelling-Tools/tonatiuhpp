@@ -1,4 +1,5 @@
 #include <QPoint>
+#include <type_traits>
 #include "shape/DifferentialGeometry.h"
 #include "random/Random.h"
 #include "libraries/math/3D/Ray.h"
@@ -7,6 +8,60 @@
 #include "sun/SunAperture.h"
 #include "sun/SunShape.h"
 #include "air/AirTransmission.h"
+
+namespace
+{
+// The no-history state is empty; only history-enabled tracing stores diagnostics.
+struct NoRayHistoryState {};
+
+struct CapturedRayHistoryState
+{
+    RayTracerHistory history;
+    bool airAbsorbed = false;
+    double airDistance = 0.;
+};
+
+void beginHistory(RayTracerHistory& history, std::uint64_t firstRayIndex,
+                  ulong index, const Ray& ray)
+{
+    history.rayIndex = firstRayIndex + static_cast<std::uint64_t>(index);
+    history.sunOrigin = ray.origin;
+    history.sunDirection = ray.direction();
+}
+
+void reflectedHistory(RayTracerHistory& history, const Ray& ray,
+                      const Ray& outgoing, InstanceNode* surface, bool front)
+{
+    history.steps.push_back(RayTracerHistoryStep{
+        ray.point(ray.tMax), ray.origin, ray.direction(),
+        outgoing.origin, outgoing.direction(), surface, front, true
+    });
+}
+
+void endHistory(RayTracerHistory& history, const Ray& ray,
+                InstanceNode* surface, bool front,
+                bool airAbsorbed, double airDistance,
+                const RayTracer::HistoryCallback& callback)
+{
+    const bool surfaceTerminated =
+        !airAbsorbed && surface && ray.tMax != gcf::infinity;
+    if (surfaceTerminated) {
+        history.steps.push_back(RayTracerHistoryStep{
+            ray.point(ray.tMax), ray.origin, ray.direction(),
+            vec3d(), vec3d(), surface, front, false
+        });
+    }
+    history.termination = airAbsorbed ? RayTracerHistoryTermination::Air
+        : surfaceTerminated ? RayTracerHistoryTermination::Surface
+        : RayTracerHistoryTermination::Escaped;
+    history.terminalOrigin = ray.origin;
+    history.terminalDirection = ray.direction();
+    // In the air-loss branch tMax is reset to the infinity sentinel
+    // after transmission. Preserve the actual sampled segment distance.
+    history.terminalDistance = airAbsorbed ? airDistance : ray.tMax;
+    callback(history);
+}
+} // namespace
 
 RayTracer::RayTracer(InstanceNode* instanceRoot,
     InstanceNode* instanceSun,
@@ -41,7 +96,18 @@ RayTracer::RayTracer(InstanceNode* instanceRoot,
 
 }
 
+// Select history policy once per tracing task, not once per ray.
+// Both specializations share the single propagation implementation below.
 void RayTracer::operator()(ulong nRays)
+{
+    if (m_historyCallback)
+        traceRays<true>(nRays);
+    else
+        traceRays<false>(nRays);
+}
+
+template<bool CaptureHistory>
+void RayTracer::traceRays(ulong nRays)
 {
     if (m_sunCells.empty()) return;
     if (m_exportFailed && m_exportFailed->load())
@@ -49,48 +115,10 @@ void RayTracer::operator()(ulong nRays)
 
     Random& rand = *m_rand;
 
-    // The optional history hook observes complete per-ray propagation without
-    // drawing random numbers, changing rays or depending on worker completion
-    // order. It is never installed during normal tracing or frozen benchmarks.
-    auto beginHistory = [this](RayTracerHistory& history, ulong index, const Ray& ray) {
-        if (!m_historyCallback)
-            return;
-        history.rayIndex = m_firstRayIndex + static_cast<std::uint64_t>(index);
-        history.sunOrigin = ray.origin;
-        history.sunDirection = ray.direction();
-    };
-    auto reflectedHistory = [this](RayTracerHistory& history, const Ray& ray,
-                                   const Ray& outgoing, InstanceNode* surface, bool front) {
-        if (!m_historyCallback)
-            return;
-        history.steps.push_back(RayTracerHistoryStep{
-            ray.point(ray.tMax), ray.origin, ray.direction(),
-            outgoing.origin, outgoing.direction(), surface, front, true
-        });
-    };
-    auto endHistory = [this](RayTracerHistory& history, const Ray& ray,
-                             InstanceNode* surface, bool front,
-                             bool airAbsorbed, double airDistance) {
-        if (!m_historyCallback)
-            return;
-        const bool surfaceTerminated =
-            !airAbsorbed && surface && ray.tMax != gcf::infinity;
-        if (surfaceTerminated) {
-            history.steps.push_back(RayTracerHistoryStep{
-                ray.point(ray.tMax), ray.origin, ray.direction(),
-                vec3d(), vec3d(), surface, front, false
-            });
-        }
-        history.termination = airAbsorbed ? RayTracerHistoryTermination::Air
-            : surfaceTerminated ? RayTracerHistoryTermination::Surface
-            : RayTracerHistoryTermination::Escaped;
-        history.terminalOrigin = ray.origin;
-        history.terminalDirection = ray.direction();
-        // In the air-loss branch tMax is reset to the infinity sentinel
-        // after transmission. Preserve the actual sampled segment distance.
-        history.terminalDistance = airAbsorbed ? airDistance : ray.tMax;
-        m_historyCallback(history);
-    };
+    // The inactive specialization contains no history callback checks or
+    // per-ray geometry-history state; both modes share physical propagation.
+    using HistoryState = std::conditional_t<CaptureHistory,
+        CapturedRayHistoryState, NoRayHistoryState>;
 
     // Both modes now use the same ray launch, intersection, air-transmission,
     // reflection and termination loop. Photon capture is observation only.
@@ -109,13 +137,12 @@ void RayTracer::operator()(ulong nRays)
 
         Ray ray;
         NewPrimitiveRay(&ray, rand);
-        RayTracerHistory history;
-        beginHistory(history, n, ray);
+        HistoryState historyState;
+        if constexpr (CaptureHistory)
+            beginHistory(historyState.history, m_firstRayIndex, n, ray);
         bool isFront = true;
         int rayLength = 0;
         InstanceNode* intersectedSurface = recordPhotons ? m_instanceSun : nullptr;
-        bool airAbsorbed = false;
-        double airDistance = 0.;
 
         if (bExportLight)
             photons.push_back(Photon(rayLength, ray.origin, m_instanceSun, isFront));
@@ -130,9 +157,9 @@ void RayTracer::operator()(ulong nRays)
             // Air absorption is checked after the first reflection in both
             // modes, with exactly one RandomDouble draw per eligible segment.
             if (m_air && rayLength > 0 && m_air->transmission(ray.tMax) < rand.RandomDouble()) {
-                if (m_historyCallback) {
-                    airAbsorbed = true;
-                    airDistance = ray.tMax;
+                if constexpr (CaptureHistory) {
+                    historyState.airAbsorbed = true;
+                    historyState.airDistance = ray.tMax;
                 }
                 // The recording path's terminal photon ID includes this air
                 // interaction; the unrecorded path does not expose that ID.
@@ -146,7 +173,8 @@ void RayTracer::operator()(ulong nRays)
             if (!isReflected)
                 break;
 
-            reflectedHistory(history, ray, rayReflected, intersectedSurface, isFront);
+            if constexpr (CaptureHistory)
+                reflectedHistory(historyState.history, ray, rayReflected, intersectedSurface, isFront);
             if (m_hitCallback && intersectedSurface)
                 m_hitCallback(RayTracerHit{ray.point(ray.tMax), intersectedSurface, isFront});
             ++rayLength;
@@ -161,12 +189,16 @@ void RayTracer::operator()(ulong nRays)
         if (!recordPhotons) {
             if (m_hitCallback && intersectedSurface && ray.tMax != gcf::infinity)
                 m_hitCallback(RayTracerHit{ray.point(ray.tMax), intersectedSurface, isFront});
-            endHistory(history, ray, intersectedSurface, isFront, airAbsorbed, airDistance);
+            if constexpr (CaptureHistory)
+                endHistory(historyState.history, ray, intersectedSurface, isFront,
+                           historyState.airAbsorbed, historyState.airDistance, m_historyCallback);
             continue;
         }
 
         // Observe the physical terminal state before export-only tMax changes.
-        endHistory(history, ray, intersectedSurface, isFront, airAbsorbed, airDistance);
+        if constexpr (CaptureHistory)
+            endHistory(historyState.history, ray, intersectedSurface, isFront,
+                       historyState.airAbsorbed, historyState.airDistance, m_historyCallback);
 
         // Retain the historical photon-selection and local path-ID policy.
         if (rayLength == 0 && ray.tMax == gcf::infinity)

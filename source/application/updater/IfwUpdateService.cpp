@@ -123,21 +123,13 @@ void IfwUpdateService::checkForUpdates()
             m_process,
             QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
             this,
-            [this](int exitCode, QProcess::ExitStatus exitStatus) {
-                if (exitStatus != QProcess::NormalExit) {
-                    failCheck("Update check failed.", "MaintenanceTool stopped unexpectedly.");
-                    return;
-                }
-                finishCheck(exitCode);
-            }
+            &IfwUpdateService::onProcessFinished
         );
         connect(
             m_process,
             &QProcess::errorOccurred,
             this,
-            [this](QProcess::ProcessError) {
-                failCheck("Update check failed.", m_process ? m_process->errorString() : QString());
-            }
+            &IfwUpdateService::onProcessError
         );
     }
 
@@ -150,6 +142,20 @@ void IfwUpdateService::checkForUpdates()
     m_process->setArguments({ "check-updates" });
     m_process->setWorkingDirectory(toolInfo.absolutePath());
     m_process->start();
+}
+
+void IfwUpdateService::onProcessFinished(int exitCode, QProcess::ExitStatus exitStatus)
+{
+    if (exitStatus != QProcess::NormalExit) {
+        failCheck("Update check failed.", "MaintenanceTool stopped unexpectedly.");
+        return;
+    }
+    finishCheck(exitCode);
+}
+
+void IfwUpdateService::onProcessError(QProcess::ProcessError)
+{
+    failCheck("Update check failed.", m_process ? m_process->errorString() : QString());
 }
 
 bool IfwUpdateService::startUpdater(QString* errorMessage)

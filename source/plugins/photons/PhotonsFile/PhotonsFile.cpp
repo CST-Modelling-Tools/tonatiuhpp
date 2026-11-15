@@ -31,6 +31,10 @@ bool m3ScientificFileFault(const QString& filePath, const char* mode)
     const QString actualPath = QDir::cleanPath(QFileInfo(filePath).absoluteFilePath());
     return actualPath.startsWith(tempPrefix, Qt::CaseInsensitive);
 }
+struct IsDecimalDigit {
+    bool operator()(QChar c) const
+    { return c >= QLatin1Char('0') && c <= QLatin1Char('9'); }
+};
 } // namespace
 
 PhotonsFile::PhotonsFile():
@@ -108,7 +112,7 @@ bool PhotonsFile::startExport()
             const QString digits = name.mid(prefix.size(), name.size() - prefix.size() - 4);
             if (digits.isEmpty() || digits.front() == QLatin1Char('0')) continue;
             const bool numbered = std::all_of(digits.cbegin(), digits.cend(),
-                [](QChar c) { return c >= QLatin1Char('0') && c <= QLatin1Char('9'); });
+                IsDecimalDigit{});
             if (numbered) infoList << candidate;
         }
     }

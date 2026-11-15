@@ -190,32 +190,50 @@ RayTraceExecution RayTraceExecutor::start(PreparedTraceContext&& context)
         m_workerState->chunkSize = kRayChunkSize;
         m_workerState->totalRays = prepared.m_configuration.rays;
         m_workerState->remainingWorkers.store(workerCount);
-        const std::shared_ptr<PreparedTraceContext> workerContext = m_activeContext;
-        m_workerState->traceChunk = [this, workerContext](qulonglong chunkIndex, ulong raysThisChunk) {
-            StandardRandom random(StandardRandom::deriveChunkSeed(workerContext->m_configuration.masterSeed, chunkIndex));
-            RayTracer tracer(workerContext->m_layoutRoot,
-                             workerContext->m_sunInstance,
-                             workerContext->m_sunAperture,
-                             workerContext->m_sunShape,
-                             workerContext->m_tracingAir,
-                             &random,
-                             workerContext->m_photonBuffer,
-                             workerContext->m_photonBuffer ? &m_photonBufferMutex : nullptr,
-                             workerContext->m_exportSurfaceList,
-                             &m_exportFailed,
-                             workerContext->m_hitCallback,
-                             workerContext->m_historyCallback,
-                             chunkIndex * static_cast<qulonglong>(kRayChunkSize));
-            tracer(raysThisChunk);
+        struct TraceChunkRunner
+        {
+            RayTraceExecutor* executor;
+            std::shared_ptr<PreparedTraceContext> workerContext;
+
+            void operator()(qulonglong chunkIndex, ulong raysThisChunk) const
+            {
+                StandardRandom random(StandardRandom::deriveChunkSeed(workerContext->m_configuration.masterSeed, chunkIndex));
+                RayTracer tracer(workerContext->m_layoutRoot,
+                                 workerContext->m_sunInstance,
+                                 workerContext->m_sunAperture,
+                                 workerContext->m_sunShape,
+                                 workerContext->m_tracingAir,
+                                 &random,
+                                 workerContext->m_photonBuffer,
+                                 workerContext->m_photonBuffer ? &executor->m_photonBufferMutex : nullptr,
+                                 workerContext->m_exportSurfaceList,
+                                 &executor->m_exportFailed,
+                                 workerContext->m_hitCallback,
+                                 workerContext->m_historyCallback,
+                                 chunkIndex * static_cast<qulonglong>(kRayChunkSize));
+                tracer(raysThisChunk);
+            }
         };
+
+        struct RayTraceWorkerTask
+        {
+            std::shared_ptr<RayTraceWorkerState> workerState;
+
+            void operator()() const
+            {
+                workerState->runWorker();
+            }
+        };
+
+        const std::shared_ptr<PreparedTraceContext> workerContext = m_activeContext;
+        m_workerState->traceChunk = TraceChunkRunner{this, workerContext};
 
         std::vector<std::unique_ptr<QRunnable>> workerTasks;
         workerTasks.reserve(static_cast<size_t>(workerCount));
         for (int worker = 0; worker < workerCount; ++worker) {
             const std::shared_ptr<RayTraceWorkerState> workerState = m_workerState;
-            workerTasks.emplace_back(QRunnable::create([workerState]() {
-                workerState->runWorker();
-            }));
+            workerTasks.emplace_back(
+                QRunnable::create(RayTraceWorkerTask{workerState}));
         }
         for (std::unique_ptr<QRunnable>& workerTask : workerTasks)
             QThreadPool::globalInstance()->start(workerTask.release());

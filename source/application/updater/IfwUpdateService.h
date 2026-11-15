@@ -1,9 +1,8 @@
 #pragma once
 
 #include <QObject>
+#include <QProcess>
 #include <QString>
-
-class QProcess;
 
 class IfwUpdateService : public QObject
 {
@@ -39,6 +38,8 @@ signals:
 private:
     void setStatus(Status status, const QString& message, const QString& details = QString());
     void finishCheck(int exitCode);
+    void onProcessFinished(int exitCode, QProcess::ExitStatus exitStatus);
+    void onProcessError(QProcess::ProcessError error);
     void failCheck(const QString& message, const QString& details = QString());
 
     static QString locateMaintenanceTool();

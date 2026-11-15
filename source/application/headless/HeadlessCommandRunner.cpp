@@ -51,6 +51,32 @@ private:
     QTextStream* m_stream = nullptr;
 };
 
+struct UpdateCheckCompletion
+{
+    IfwUpdateService* service;
+    QEventLoop* eventLoop;
+
+    void operator()(IfwUpdateService::Status) const
+    {
+        if (!service->isChecking())
+            eventLoop->quit();
+    }
+};
+
+struct NativeHitRecorder
+{
+    NativeTraceSignature* signature;
+    void operator()(const RayTracerHit& hit) const
+    { signature->add(hit); }
+};
+
+struct NativeHistoryRecorder
+{
+    NativeRayHistorySignature* signature;
+    void operator()(const RayTracerHistory& ray) const
+    { signature->add(ray); }
+};
+
 // The direct CLI and scripted hosts now share widget-free factory lookup,
 // strict output-directory validation and explicit exporter/plugin ownership.
 using PhotonExporterPlugin = PhotonExportFileService::Plugin;
@@ -132,10 +158,7 @@ int HeadlessCommandRunner::run(const QStringList& arguments) const
         deadline.setSingleShot(true);
         QObject::connect(&deadline, &QTimer::timeout, &waitForCheck, &QEventLoop::quit);
         QObject::connect(&service, &IfwUpdateService::statusChanged, &waitForCheck,
-                         [&service, &waitForCheck](IfwUpdateService::Status) {
-            if (!service.isChecking())
-                waitForCheck.quit();
-        });
+                         UpdateCheckCompletion{&service, &waitForCheck});
         service.checkForUpdates();
         if (service.isChecking()) {
             deadline.start(60000);
@@ -276,14 +299,10 @@ int HeadlessCommandRunner::traceScene(const QStringList& args) const
     preparationInput.updateTrackers = parsed.updateTrackers;
     preparationInput.progress = progress;
     if (a0Signature) {
-        preparationInput.hitCallback = [signature = a0Signature.get()](const RayTracerHit& hit) {
-            signature->add(hit);
-        };
+        preparationInput.hitCallback = NativeHitRecorder{a0Signature.get()};
     }
     if (history) {
-        preparationInput.historyCallback = [capture = history.get()](const RayTracerHistory& ray) {
-            capture->add(ray);
-        };
+        preparationInput.historyCallback = NativeHistoryRecorder{history.get()};
     }
     if (!session.prepareHeadless(preparationInput, &errorMessage)) {
         err << "Trace failed: " << errorMessage << Qt::endl;
