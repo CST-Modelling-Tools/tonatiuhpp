@@ -21,6 +21,14 @@
   - CI stability
   - release readiness
 
+## C++ lambda policy
+
+- Avoid C++ lambda expressions throughout Tonatiuh++ by default, including application code, the scientific kernel, tests, and development tooling that is written in C++.
+- Prefer named free functions, named member functions, function pointers, or explicit named function objects when equivalent functionality is needed.
+- Introduce or retain a lambda only when controlled, reproducible benchmarks clearly demonstrate a **substantial performance improvement** over a functionally equivalent lambda-free alternative. Convenience, brevity, stylistic preference, or unverified assumptions about compiler optimization are not sufficient exceptions.
+- Replace existing lambdas incrementally when touching relevant code; do not conduct an indiscriminate repository-wide rewrite. Keep each change focused and validate scientific correctness, deterministic behavior, and performance where relevant.
+- Do not duplicate scientific algorithms merely to eliminate lambdas. Preserve a single authoritative propagation and physics implementation.
+
 ## Architecture guidelines
 
 - Keep clear separation between core logic and interface layers.
