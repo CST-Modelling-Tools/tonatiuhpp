@@ -1,6 +1,18 @@
 # Project status
 
-Last updated: 2026-11-12
+Last updated: 2026-11-16
+
+## Current checkpoint — M9 lambda-elimination post-merge validation (2026-11-16)
+
+- **Merged source baseline:** production C++ lambda cleanup M1–M8 is merged in [PR #50](https://github.com/CST-Modelling-Tools/tonatiuhpp/pull/50), `master` commit `0e5bde8614b6b547990b8561b53b5f81872606b0`. Pre-cleanup comparison parent: `d4889f7083d1f5d4c134c2dce2d11a60a57fc759`.
+- **M9 scientific check: PASS** for exact reduced-ray output equality across the executed Windows Release baseline/candidate comparisons (5 million rays, fixed seed, identical scene bytes). The frozen 500-million-ray reference was not rerun or regenerated.
+- **M9 performance acceptance: INCONCLUSIVE / UNSTABLE ENVIRONMENT.** Two independent full comparisons returned paired candidate time changes of +0.418% and +1.129%, but both failed ABBA timing-stability criteria. Neither a reproducible regression over 2% nor equivalence within ±2% has been established.
+- **Monitoring diagnostic:** Windows counter collection was sparse under full CPU load (34/34 windows in the monitored experiment; 4/4 in a reduced-counter probe), but regular at idle. Cause of timing drift remains unproven. Further benchmarks are deferred pending better-controlled measurement conditions; no source or performance-harness changes are warranted.
+- **M9 closeout and provenance:** see [docs/performance-m9-acceptance.md](docs/performance-m9-acceptance.md). Local uncommitted evidence remains on the maintainer's Windows workstation. This is not release authorization.
+
+## Historical project handoff — recorded 2026-11-12 (superseded)
+
+The Phase E and testing-status narrative below is preserved as a dated historical snapshot. Its former "active work", "current handoff", and pending-merge statements do not describe the post-PR-#50 `master` checkpoint above. Do not resume superseded work based solely on that older snapshot.
 
 **Active work:** Phase E — all three relocated test-enabled scientific GUI, `BUILD_TESTING=OFF` production runtime, and copied Qt IFW package-data acceptance paths now pass as **required** checks on Windows, Ubuntu and macOS in CI run `43310255444`. Final scoped review and user-authorized merge remain pending; actual IFW installer/update/uninstall transactions, signing and notarization are outside this evidence. Phase D is ACCEPTED and merged as PR #45 (merge commit `4c4121f5e52ac354dbe4d67bcb5472946d74be05`), with required Windows WGL, Ubuntu X11/GLX and macOS Cocoa native GUI CTests all passing. A+B+C are also accepted. This remains maintenance work, NOT an authorized product release.
 
