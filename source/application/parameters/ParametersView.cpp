@@ -1,6 +1,7 @@
 #include "ParametersView.h"
 
 #include "ParametersDelegate.h"
+#include <functional>
 #include <QApplication>
 #include <QHeaderView>
 #include <QStandardItem>
@@ -78,9 +79,8 @@ void ParametersView::setNode(SoNode* node)
     }
 
     const QPersistentModelIndex newRoot(rootIndex());
-    QTimer::singleShot(0, this, [this, newRoot, generation]() {
-        restoreExpansionAndColumnWidth(newRoot, generation);
-    });
+    QTimer::singleShot(0, this,
+        std::bind(&ParametersView::restoreExpansionAndColumnWidth, this, newRoot, generation));
 }
 
 void ParametersView::reset()

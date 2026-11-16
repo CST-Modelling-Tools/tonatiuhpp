@@ -66,14 +66,16 @@ PhotonsWidget* guiPhotonsWidget(const QString& name)
     if (name == QStringLiteral("File")) return new PhotonsFileWidget;
     return nullptr;
 }
+void guiWarningPresenter(const QString& title, const QString& message)
+{
+    QMessageBox::warning(nullptr, title, message);
+}
 void initializePresentationBridges()
 {
     tonatiuhSetCameraViewerBridge(guiCameraForViewer, guiViewportForViewer);
     tonatiuhSetMFVec2EditorCreator(guiMFVec2Editor);
     tonatiuhSetPhotonsWidgetCreator(guiPhotonsWidget);
-    tonatiuhSetWarningPresenter([](const QString& title, const QString& message) {
-        QMessageBox::warning(nullptr, title, message);
-    });
+    tonatiuhSetWarningPresenter(guiWarningPresenter);
 }
 
 QString startupFileFromPositionalArguments(const QStringList& arguments, QString* warningMessage)

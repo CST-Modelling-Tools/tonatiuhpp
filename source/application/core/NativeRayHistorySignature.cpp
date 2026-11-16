@@ -57,6 +57,10 @@ void appendSurface(QCryptographicHash& hash, const InstanceNode* surface)
     hash.addData(url);
     hash.addData("|");
 }
+struct RayHistoryIndexLess {
+    bool operator()(const RayTracerHistory& a, const RayTracerHistory& b) const
+    { return a.rayIndex < b.rayIndex; }
+};
 } // namespace
 
 QString NativeRayHistorySignature::outputPathFromEnvironment()
@@ -100,9 +104,7 @@ bool NativeRayHistorySignature::write(const QString& fileName, const QString& mo
             .arg(static_cast<qulonglong>(inputs.rays)));
 
     std::sort(histories.begin(), histories.end(),
-              [](const RayTracerHistory& a, const RayTracerHistory& b) {
-                  return a.rayIndex < b.rayIndex;
-              });
+              RayHistoryIndexLess{});
 
     QCryptographicHash hash(QCryptographicHash::Sha256);
     std::uint64_t interactionCount = 0;

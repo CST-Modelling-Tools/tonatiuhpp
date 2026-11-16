@@ -88,6 +88,9 @@ public:
     void operator()(ulong nRays);
 
 private:
+    template<bool CaptureHistory>
+    void traceRays(ulong nRays);
+
     bool NewPrimitiveRay(Ray* ray, Random& rand);
 
     InstanceNode* m_instanceLayout;

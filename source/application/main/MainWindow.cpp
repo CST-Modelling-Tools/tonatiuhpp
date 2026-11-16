@@ -128,6 +128,38 @@ std::uint64_t resolvedGuiMasterSeed()
     return static_cast<std::uint64_t>(QTime::currentTime().msec());
 }
 
+struct NativeTraceHitObserver
+{
+    NativeTraceSignature* signature;
+
+    void operator()(const RayTracerHit& hit) const
+    {
+        signature->add(hit);
+    }
+};
+
+struct NativeTraceHistoryObserver
+{
+    NativeRayHistorySignature* signature;
+
+    void operator()(const RayTracerHistory& ray) const
+    {
+        signature->add(ray);
+    }
+};
+
+struct GuiTraceProgressAdapter
+{
+    QFutureWatcher<void>* watcher;
+    QProgressDialog* dialog;
+
+    void operator()(const QFuture<void>& future) const
+    {
+        watcher->setFuture(future);
+        dialog->exec();
+    }
+};
+
 QString appBundleDataPath(const QString& relativePath)
 {
     return TonatiuhppAppDataPaths::findDataDirectory(relativePath);
@@ -324,14 +356,10 @@ MainWindow::MainWindow(QString fileName, CustomSplashScreen* splash, QWidget* pa
     setAcceptDrops(true);
 
     m_updateService = new IfwUpdateService(this);
-    connect(m_updateService, &IfwUpdateService::statusChanged, this, [this](IfwUpdateService::Status) {
-        onUpdateStatusChanged();
-    });
+    connect(m_updateService, &IfwUpdateService::statusChanged,
+            this, &MainWindow::onUpdateStatusChanged);
     updateUpdatesAction();
-    QTimer::singleShot(1500, this, [this]() {
-        if (m_updateService)
-            m_updateService->checkForUpdates();
-    });
+    QTimer::singleShot(1500, m_updateService, &IfwUpdateService::checkForUpdates);
 }
 
 MainWindow::~MainWindow()
@@ -937,7 +965,7 @@ void MainWindow::RunFluxAnalysisDialog()
     // Honor the existing opt-in GUI fixed seed for Flux Analysis as well as
     // ordinary tracing. The automatic seed policy remains the default.
     const std::uint64_t fluxSeed = GuiTraceSeed::resolve(
-        m_fixedGuiMasterSeed, [] { return resolvedGuiMasterSeed(); });
+        m_fixedGuiMasterSeed, resolvedGuiMasterSeed);
     FluxAnalysisDialog dialog(sceneKit, m_modelScene, m_raysGridWidth, m_raysGridHeight, fluxSeed, this);
     dialog.exec();
 }
@@ -1809,7 +1837,7 @@ QJSValue MainWindow::FindInterception(QJSValue surface, QJSValue rays, QJSValue 
 //    return ans;
 
     const std::uint64_t interceptionSeed = GuiTraceSeed::resolve(
-        m_fixedGuiMasterSeed, [] { return resolvedGuiMasterSeed(); });
+        m_fixedGuiMasterSeed, resolvedGuiMasterSeed);
     FluxAnalysis fa(m_document->getSceneKit(), m_modelScene, m_raysGridWidth, m_raysGridHeight, interceptionSeed);
     fa.run(surface.toString(), "front", rays.toUInt(), false, 5, 5, true);
     double ans = fa.powerTotal();
@@ -2155,7 +2183,7 @@ void MainWindow::Run()
         airTemp = air;
 
     const std::uint64_t traceSeed = GuiTraceSeed::resolve(
-        m_fixedGuiMasterSeed, [] { return resolvedGuiMasterSeed(); });
+        m_fixedGuiMasterSeed, resolvedGuiMasterSeed);
     GuiTracePreparationInput preparationInput = GuiTraceRunInputs::make(
         m_document->getSceneKit(), instanceLayout, &instanceSun,
         m_photonsBuffer, exportSurfaceList, airTemp, traceSeed,
@@ -2165,16 +2193,12 @@ void MainWindow::Run()
     std::unique_ptr<NativeTraceSignature> a0Signature;
     if (!a0OutputFile.isEmpty()) {
         a0Signature = std::make_unique<NativeTraceSignature>();
-        preparationInput.hitCallback = [capture = a0Signature.get()](const RayTracerHit& hit) {
-            capture->add(hit);
-        };
+        preparationInput.hitCallback = NativeTraceHitObserver{a0Signature.get()};
     }
     std::unique_ptr<NativeRayHistorySignature> history;
     if (!historyFile.isEmpty()) {
         history = std::make_unique<NativeRayHistorySignature>();
-        preparationInput.historyCallback = [capture = history.get()](const RayTracerHistory& ray) {
-            capture->add(ray);
-        };
+        preparationInput.historyCallback = NativeTraceHistoryObserver{history.get()};
     }
     SimulationSession session;
     QString preparationError;
@@ -2193,10 +2217,7 @@ void MainWindow::Run()
               << std::endl;
     const GuiTraceSessionExecution::Outcome execution =
         GuiTraceSessionExecution::runPrepared(
-            session, [&watcher, &dialog](const QFuture<void>& future) {
-                watcher.setFuture(future);
-                dialog.exec();
-            });
+            session, GuiTraceProgressAdapter{&watcher, &dialog});
     if (!execution.started) {
         QMessageBox::warning(this, "Tonatiuh", execution.error);
         return;
@@ -3369,7 +3390,7 @@ std::uint64_t MainWindow::scriptRunMasterSeed() const
     // GUI Run uses this same fixed-or-automatic choice. In contrast, the
     // historical seven-argument FluxAnalysis intentionally always auto-seeds.
     return GuiTraceSeed::resolve(
-        m_fixedGuiMasterSeed, [] { return resolvedGuiMasterSeed(); });
+        m_fixedGuiMasterSeed, resolvedGuiMasterSeed);
 }
 
 ScriptPhotonExportState MainWindow::scriptPhotonExportSnapshot() const
@@ -3398,7 +3419,7 @@ SimulationConfig MainWindow::scriptInterceptionConfiguration(ulong rays) const
     SimulationConfig configuration;
     configuration.rays = rays;
     configuration.masterSeed = GuiTraceSeed::resolve(
-        m_fixedGuiMasterSeed, [] { return resolvedGuiMasterSeed(); });
+        m_fixedGuiMasterSeed, resolvedGuiMasterSeed);
     configuration.sunWidthDivisions = m_raysGridWidth;
     configuration.sunHeightDivisions = m_raysGridHeight;
     return configuration;
@@ -3431,7 +3452,7 @@ bool MainWindow::displayScriptInterceptionRays(const QString& surface, uint rays
 double findInterception(QString surface, uint rays, MainWindow* mw)
 {
     const std::uint64_t interceptionSeed = GuiTraceSeed::resolve(
-        mw->m_fixedGuiMasterSeed, [] { return resolvedGuiMasterSeed(); });
+        mw->m_fixedGuiMasterSeed, resolvedGuiMasterSeed);
     FluxAnalysis fa(mw->m_document->getSceneKit(), mw->m_modelScene, mw->m_raysGridWidth, mw->m_raysGridHeight, interceptionSeed);
     fa.run(surface, "front", rays, false, 5, 5, true);
     return fa.powerTotal();

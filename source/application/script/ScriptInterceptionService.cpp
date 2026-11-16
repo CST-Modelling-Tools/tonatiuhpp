@@ -2,7 +2,6 @@
 
 #include <atomic>
 #include <cmath>
-#include <functional>
 
 #include "core/SceneInstanceBuilder.h"
 #include "core/SimulationSession.h"
@@ -19,6 +18,30 @@ bool fail(QString* error, const QString& message)
         *error = message;
     return false;
 }
+
+void countShapeMatches(const InstanceNode* instance, const QString& surfaceUrl,
+                       int& targets)
+{
+    if (!instance)
+        return;
+    if (instance->getURL() == surfaceUrl
+        && dynamic_cast<TShapeKit*>(instance->getNode()))
+        ++targets;
+    for (const InstanceNode* child : instance->children)
+        countShapeMatches(child, surfaceUrl, targets);
+}
+
+struct FrontHitCounter
+{
+    std::atomic<qulonglong>* hits;
+    const QString* surfaceUrl;
+
+    void operator()(const RayTracerHit& hit) const
+    {
+        if (hit.isFront && hit.surface && hit.surface->getURL() == *surfaceUrl)
+            hits->fetch_add(1, std::memory_order_relaxed);
+    }
+};
 }
 
 bool ScriptInterceptionService::findPower(TSceneKit* scene,
@@ -63,17 +86,7 @@ bool ScriptInterceptionService::findPower(TSceneKit* scene,
     if (!inspection.sceneRoot || !inspection.layoutRoot)
         return fail(error, "tn.FindInterception: scene has no layout.");
     int targets = 0;
-    const std::function<void(const InstanceNode*)> visit = [&](const InstanceNode* instance) {
-        if (!instance)
-            return;
-        if (instance->getURL() == surfaceUrl) {
-            if (dynamic_cast<TShapeKit*>(instance->getNode()))
-                ++targets;
-        }
-        for (const InstanceNode* child : instance->children)
-            visit(child);
-    };
-    visit(inspection.sceneRoot.get());
+    countShapeMatches(inspection.sceneRoot.get(), surfaceUrl, targets);
     if (targets == 0)
         return fail(error, QString("tn.FindInterception: no shape at '%1'.").arg(surfaceUrl));
     if (targets != 1)
@@ -87,10 +100,7 @@ bool ScriptInterceptionService::findPower(TSceneKit* scene,
     input.scene = scene;
     input.updateTrackers = true;
     input.configuration = configuration;
-    input.hitCallback = [&frontHits, &surfaceUrl](const RayTracerHit& hit) {
-        if (hit.isFront && hit.surface && hit.surface->getURL() == surfaceUrl)
-            frontHits.fetch_add(1, std::memory_order_relaxed);
-    };
+    input.hitCallback = FrontHitCounter{&frontHits, &surfaceUrl};
 
     SimulationSession session;
     QString sessionError;

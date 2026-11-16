@@ -33,6 +33,19 @@ void reportProgress(const TracePreparationProgress& progress, const QString& mes
         progress(message);
 }
 
+void findPhotonExportSurface(InstanceNode* node, const QString& url,
+                             InstanceNode*& match, int& count)
+{
+    if (!node)
+        return;
+    if (node->getNode() && node->getURL() == url) {
+        match = node;
+        ++count;
+    }
+    for (InstanceNode* child : node->children)
+        findPhotonExportSurface(child, url, match, count);
+}
+
 bool resolveSun(TSceneKit* scene,
                 SunKit** sunKit,
                 SunShape** sunShape,
@@ -220,15 +233,7 @@ bool TracePreparation::prepareHeadlessTrace(const HeadlessTracePreparationInput&
     for (const QString& url : input.exportSurfaceUrls) {
         InstanceNode* match = nullptr;
         int count = 0;
-        const std::function<void(InstanceNode*)> visit = [&](InstanceNode* node) {
-            if (!node) return;
-            if (node->getNode() && node->getURL() == url) {
-                match = node;
-                ++count;
-            }
-            for (InstanceNode* child : node->children) visit(child);
-        };
-        visit(instanceTree->sceneRoot.get());
+        findPhotonExportSurface(instanceTree->sceneRoot.get(), url, match, count);
         if (count != 1)
             return fail(errorMessage,
                 QString("Selected photon export surface '%1' has %2 matches (expected 1).")

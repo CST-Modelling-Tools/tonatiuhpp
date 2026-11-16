@@ -21,12 +21,16 @@
 #pragma once
 #include "libraries/TonatiuhLibraries.h"
 
-// macro for easier creation of distmesh lambda functions
-#define DISTMESH_FUNCTIONAL(function_body) \
-    (distmesh::Functional([=](Eigen::Ref<Eigen::ArrayXXd const> const points) -> Eigen::ArrayXd \
-        function_body))
-
 namespace distmesh {
+    namespace detail {
+        struct ConstantFunction {
+            double value;
+            Eigen::ArrayXd operator()(Eigen::Ref<Eigen::ArrayXXd const> const points) const {
+                return Eigen::ArrayXd::Constant(points.rows(), value);
+            }
+        };
+    }
+
     // base class of all function expression for allowing easy function arithmetic
     class TONATIUH_LIBRARIES Functional {
     public:
@@ -36,9 +40,7 @@ namespace distmesh {
         // create class from function type
         Functional(function_t const& func) : function_(func) {}
         Functional(double const constant) :
-            Functional(DISTMESH_FUNCTIONAL({
-                return Eigen::ArrayXd::Constant(points.rows(),constant);
-            })) {}
+            Functional(function_t(detail::ConstantFunction{constant})) {}
 
         // copy constructor
         Functional(Functional const& rhs) : function_(rhs.function()) {}

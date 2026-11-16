@@ -18,9 +18,8 @@ UpdateDialog::UpdateDialog(IfwUpdateService* updateService, QWidget* parent):
     ui->downloadButton->setEnabled(false);
 
     if (m_updateService) {
-        connect(m_updateService, &IfwUpdateService::statusChanged, this, [this](IfwUpdateService::Status) {
-            refresh();
-        });
+        connect(m_updateService, &IfwUpdateService::statusChanged,
+                this, &UpdateDialog::refresh);
     }
 
     refresh();

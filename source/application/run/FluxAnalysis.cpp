@@ -35,6 +35,15 @@
 #include "kernel/photons/Photon.h"
 #include <QCoreApplication>
 
+namespace {
+struct SynchronizeFluxScene
+{
+    SceneTreeModel* model;
+    void operator()() const
+    { model->UpdateSceneModel(); }
+};
+} // namespace
+
 FluxAnalysis::FluxAnalysis(TSceneKit* sceneKit,
     SceneTreeModel* sceneModel,
     int sunWidthDivisions,
@@ -170,7 +179,7 @@ bool FluxAnalysis::run(QString nodeURL, QString surfaceSide, ulong nRays, bool p
     preparationInput.configuration.rays = nRays;
     preparationInput.configuration.sunWidthDivisions = m_sunDivs.x;
     preparationInput.configuration.sunHeightDivisions = m_sunDivs.y;
-    preparationInput.synchronizeScene = [this]() { m_sceneModel->UpdateSceneModel(); };
+    preparationInput.synchronizeScene = SynchronizeFluxScene{m_sceneModel};
     SimulationSession session;
     QString preparationError;
     if (!session.prepareGui(preparationInput, &preparationError)) {

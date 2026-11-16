@@ -4,6 +4,21 @@
 #include "kernel/shape/DifferentialGeometry.h"
 #include "libraries/math/3D/Ray.h"
 
+namespace {
+struct TriangleCenterXLess {
+    bool operator()(const Triangle* a, const Triangle* b) const
+    { return a->center().x < b->center().x; }
+};
+struct TriangleCenterYLess {
+    bool operator()(const Triangle* a, const Triangle* b) const
+    { return a->center().y < b->center().y; }
+};
+struct TriangleCenterZLess {
+    bool operator()(const Triangle* a, const Triangle* b) const
+    { return a->center().z < b->center().z; }
+};
+} // namespace
+
 
 BVHNode::BVHNode():
     m_isLeaf(false),
@@ -219,11 +234,11 @@ void BVH::sortTrinagles(int indexStart, int indexEnd, int dimension)
 {
     if (dimension == 0)
         std::sort(m_triangles->begin() + indexStart, m_triangles->begin() + indexEnd,
-        [](const Triangle* tA, const Triangle* tB) {return tA->center().x < tB->center().x;});
+        TriangleCenterXLess{});
     else if (dimension == 1)
         std::sort(m_triangles->begin() + indexStart, m_triangles->begin() + indexEnd,
-        [](const Triangle* tA, const Triangle* tB) {return tA->center().y < tB->center().y;});
+        TriangleCenterYLess{});
     else if (dimension == 2)
         std::sort(m_triangles->begin() + indexStart, m_triangles->begin() + indexEnd,
-        [](const Triangle* tA, const Triangle* tB) {return tA->center().z < tB->center().z;});
+        TriangleCenterZLess{});
 }

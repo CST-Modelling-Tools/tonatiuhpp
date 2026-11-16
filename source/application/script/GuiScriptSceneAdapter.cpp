@@ -4,6 +4,7 @@
 #include <QPointer>
 
 #include <memory>
+#include <functional>
 
 #include "headless/HeadlessScriptHost.h"
 #include "headless/HeadlessScriptFluxBackend.h"
@@ -22,18 +23,28 @@
 #include "kernel/sun/SunShape.h"
 #include "kernel/air/AirTransmission.h"
 
-void installGuiScriptSceneAdapter(ScriptHost* host, MainWindow* window)
+namespace
 {
-    if (!host || !window)
-        return;
+struct GuiScriptCallbacks
+{
+    QPointer<MainWindow> gui;
+    ScriptHost* host;
+    std::shared_ptr<ScriptRunExecutionService> scriptedRun;
 
-    auto* services = new ScriptSceneServices(host);
-    const QPointer<MainWindow> gui(window);
-    services->setSceneProvider([gui]() -> TSceneKit* {
+    GuiScriptCallbacks(QPointer<MainWindow> window, ScriptHost* scriptHost)
+        : gui(window), host(scriptHost),
+          scriptedRun(std::make_shared<ScriptRunExecutionService>())
+    {
+    }
+
+    TSceneKit* sceneProvider() const
+    {
         return gui ? gui->getSceneKit() : nullptr;
-    });
-    services->setNodeCreator([gui](ScriptSceneServices::FactoryKind kind,
-                                   const QString& name) -> SoNode* {
+    }
+
+    SoNode* nodeCreator(ScriptSceneServices::FactoryKind kind,
+        const QString& name) const
+    {
         PluginManager* plugins = gui ? gui->getPlugins() : nullptr;
         if (!plugins)
             return nullptr;
@@ -64,34 +75,36 @@ void installGuiScriptSceneAdapter(ScriptHost* host, MainWindow* window)
         }
         }
         return nullptr;
-    });
-    // Capture the GUI's current effective input policy for EACH script call;
-    // intercepted power is computed by the shared, widget-free service.
-    services->setInterceptionConfiguration([gui](ulong rays) {
+    }
+
+    SimulationConfig interceptionConfiguration(ulong rays) const
+    {
         return gui ? gui->scriptInterceptionConfiguration(rays) : SimulationConfig{};
-    });
-    services->setInterceptionDisplay([gui](const QString& surface, uint rays,
-                                           std::uint64_t seed, QString* error) {
+    }
+
+    bool interceptionDisplay(const QString& surface, uint rays,
+        std::uint64_t seed, QString* error) const
+    {
         if (!gui) {
             if (error) *error = "tn.FindInterception: GUI has been closed.";
             return false;
         }
         return gui->displayScriptInterceptionRays(surface, rays, seed, error);
-    });
-    services->setFieldWriter([gui](SoNode* node, const QString& field,
-                                    const QString& value, QString* error) {
+    }
+
+    bool fieldWriter(SoNode* node, const QString& field,
+        const QString& value, QString* error) const
+    {
         if (!gui) {
             if (error) *error = "tn.SetValue: GUI scene has been closed.";
             return false;
         }
         return gui->setScriptFieldValue(node, field, value, error);
-    });
-    // One widget-free, per-ScriptHost Run/export service for GUI and CLI.
-    // The GUI maps only its current dialog state into the immutable request.
-    // Interactive MainWindow::Run() remains a separate presentation adapter.
-    auto scriptedRun = std::make_shared<ScriptRunExecutionService>();
-    services->setRunExecutor([gui, scriptedRun](const ScriptRunRequest& request,
-                                                QString* error) {
+    }
+
+    bool runExecutor(const ScriptRunRequest& request,
+        QString* error) const
+    {
         if (!gui) {
             if (error) *error = "tn.Run: GUI has been closed.";
             return false;
@@ -110,13 +123,11 @@ void installGuiScriptSceneAdapter(ScriptHost* host, MainWindow* window)
         effective.sunHeightDivisions = gui->scriptRunEffectiveGridHeight();
         effective.exportOptions = gui->scriptPhotonExportSnapshot();
         return scriptedRun->run(effective, gui->scriptRunMasterSeed(), error);
-    });
-    // M3 Phase 3B3A: the domain script call uses the same validated request
-    // type in both hosts. Only the GUI adapter may invoke the historical
-    // widget-bound FluxAnalysis path; checked trace/file failures now
-    // propagate to the script call site. Nonvisual parity remains open.
-    services->setFluxAnalysisExecutor([gui, host](const ScriptFluxAnalysisRequest& request,
-                                            QString* error) {
+    }
+
+    bool fluxAnalysisExecutor(const ScriptFluxAnalysisRequest& request,
+        QString* error) const
+    {
         if (!gui) {
             if (error) *error = "tn.RunFluxAnalysis: GUI has been closed.";
             return false;
@@ -130,17 +141,20 @@ void installGuiScriptSceneAdapter(ScriptHost* host, MainWindow* window)
         // Retain the original automatic-millisecond GUI seed for seven args;
         // explicit eight-argument calls continue using their supplied seed.
         return HeadlessScriptFluxBackend::run(gui->getSceneKit(), effective, error);
-    });
-    services->setPhotonExportSettingsPresent(gui->scriptHasPhotonExportSettings());
-    services->setPhotonExportWriter([gui](const ScriptPhotonExportChange& change,
-                                          QString* error) {
+    }
+
+    bool photonExportWriter(const ScriptPhotonExportChange& change,
+        QString* error) const
+    {
         if (!gui) {
             if (error) *error = "tn.SetExport*: GUI has been closed.";
             return false;
         }
         return gui->applyScriptPhotonExportChange(change, error);
-    });
-    services->setRunRayCountWriter([gui](uint rays, QString* error) {
+    }
+
+    bool runRayCountWriter(uint rays, QString* error) const
+    {
         if (!gui) {
             if (error) *error = "tn.SetRaysNumber: GUI has been closed.";
             return false;
@@ -149,16 +163,20 @@ void installGuiScriptSceneAdapter(ScriptHost* host, MainWindow* window)
         gui->SetRaysNumber(rays);
         if (error) error->clear();
         return true;
-    });
-    services->setSunGridWriter([gui](int width, int height, QString* error) {
+    }
+
+    bool sunGridWriter(int width, int height, QString* error) const
+    {
         if (!gui) {
             if (error) *error = "tn.SetRaysGrid: GUI has been closed.";
             return false;
         }
         gui->SetRaysGrid(width, height); // Retains existing UI/session settings.
         return true;
-    });
-    services->setClearDocument([gui](QString* error) {
+    }
+
+    bool clearDocument(QString* error) const
+    {
         if (!gui) {
             if (error) *error = "tn.Clear: GUI scene document has been closed.";
             return false;
@@ -168,8 +186,10 @@ void installGuiScriptSceneAdapter(ScriptHost* host, MainWindow* window)
         if (!success && error)
             *error = "tn.Clear: GUI could not create a new scene.";
         return success;
-    });
-    services->setInsertNode([gui](SoNode* node, QString* error) {
+    }
+
+    bool insertNode(SoNode* node, QString* error) const
+    {
         if (!gui) {
             if (error) *error = "tn.InsertScene: GUI scene document has been closed.";
             return false;
@@ -179,21 +199,61 @@ void installGuiScriptSceneAdapter(ScriptHost* host, MainWindow* window)
         if (error)
             *error = "tn.InsertScene: no valid group is selected for insertion.";
         return false;
-    });
-    services->setSaveDocument([gui](const QString& fileName, QString* error) {
+    }
+
+    bool saveDocument(const QString& fileName, QString* error) const
+    {
         if (!gui) {
             if (error) *error = "tn.saveScene: GUI document is closed.";
             return false;
         }
         return ScriptSceneDocument::writeScene(gui->getSceneKit(), fileName, error);
-    });
-    services->setLoadDocument([gui](const QString& fileName, QString* error) {
+    }
+
+    bool loadDocument(const QString& fileName, QString* error) const
+    {
         if (!gui) {
             if (error) *error = "tn.loadScene: GUI document is closed.";
             return false;
         }
         return gui->loadSceneForScript(fileName, error);
-    });
+    }
+
+};
+} // namespace
+
+void installGuiScriptSceneAdapter(ScriptHost* host, MainWindow* window)
+{
+    if (!host || !window)
+        return;
+
+    auto* services = new ScriptSceneServices(host);
+    const QPointer<MainWindow> gui(window);
+    const auto callbacks = std::make_shared<GuiScriptCallbacks>(gui, host);
+    services->setSceneProvider(std::bind_front(&GuiScriptCallbacks::sceneProvider, callbacks));
+    services->setNodeCreator(std::bind_front(&GuiScriptCallbacks::nodeCreator, callbacks));
+    // Capture the GUI's current effective input policy for EACH script call;
+    // intercepted power is computed by the shared, widget-free service.
+    services->setInterceptionConfiguration(std::bind_front(&GuiScriptCallbacks::interceptionConfiguration, callbacks));
+    services->setInterceptionDisplay(std::bind_front(&GuiScriptCallbacks::interceptionDisplay, callbacks));
+    services->setFieldWriter(std::bind_front(&GuiScriptCallbacks::fieldWriter, callbacks));
+    // One widget-free, per-ScriptHost Run/export service for GUI and CLI.
+    // The GUI maps only its current dialog state into the immutable request.
+    // Interactive MainWindow::Run() remains a separate presentation adapter.
+    services->setRunExecutor(std::bind_front(&GuiScriptCallbacks::runExecutor, callbacks));
+    // M3 Phase 3B3A: the domain script call uses the same validated request
+    // type in both hosts. Only the GUI adapter may invoke the historical
+    // widget-bound FluxAnalysis path; checked trace/file failures now
+    // propagate to the script call site. Nonvisual parity remains open.
+    services->setFluxAnalysisExecutor(std::bind_front(&GuiScriptCallbacks::fluxAnalysisExecutor, callbacks));
+    services->setPhotonExportSettingsPresent(gui->scriptHasPhotonExportSettings());
+    services->setPhotonExportWriter(std::bind_front(&GuiScriptCallbacks::photonExportWriter, callbacks));
+    services->setRunRayCountWriter(std::bind_front(&GuiScriptCallbacks::runRayCountWriter, callbacks));
+    services->setSunGridWriter(std::bind_front(&GuiScriptCallbacks::sunGridWriter, callbacks));
+    services->setClearDocument(std::bind_front(&GuiScriptCallbacks::clearDocument, callbacks));
+    services->setInsertNode(std::bind_front(&GuiScriptCallbacks::insertNode, callbacks));
+    services->setSaveDocument(std::bind_front(&GuiScriptCallbacks::saveDocument, callbacks));
+    services->setLoadDocument(std::bind_front(&GuiScriptCallbacks::loadDocument, callbacks));
     registerScriptSceneServices(host->engine(), services);
 
     // The same file-based, no-export session API as true-headless scripts.
