@@ -2,7 +2,24 @@
 
 Last updated: 2026-11-16
 
-## Current checkpoint — M9 lambda-elimination post-merge validation (2026-11-16)
+## Active handoff — next milestone decision (verified 2026-11-16)
+
+**Repository and Git checkpoint:** `CST-Modelling-Tools/tonatiuhpp`, default branch `master`. The verified remote `master` HEAD after [PR #51](https://github.com/CST-Modelling-Tools/tonatiuhpp/pull/51) is `d7d47280a300a60cf1f8c138f20eafe5f5e22e4d` (merged 2026-11-16). The M9 closeout was authored on `docs/m9-performance-closeout` as local commit `9751c7e12a94b19b41199869b2cf552e8d291dc7` and is now merged; the local Windows checkout may still be on that branch and **has not been independently checked after the merge**. Verify local Git state before further changes, and do not assume `master` is synchronized.
+
+**Completed workstreams:** Installed-runtime and packaging acceptance Phase E was merged as [PR #46](https://github.com/CST-Modelling-Tools/tonatiuhpp/pull/46), `ccf3261a03411eab4decf61d76a8e467a02c1545`; the production C++ lambda-elimination milestones M1–M8 were merged as [PR #50](https://github.com/CST-Modelling-Tools/tonatiuhpp/pull/50), `0e5bde8614b6b547990b8561b53b5f81872606b0`. M9 is **complete as a documented investigation**, not a passing performance-acceptance gate. Older Phase D/E pending-work instructions below are dated history, **not active tasks**.
+
+**M9 decision:** Exact scientific equality **PASS** for the tested Windows Release 5,000,000-ray fixed-seed heliostat workload (identical scene bytes, matched Release toolchain, 16 workers). Paired candidate time changes in two independent 6-block ABBA experiments were **+0.418%** and **+1.129%**, but both failed stability limits; **performance equivalence within +/-2% is NOT established, and no reproducible regression above 2% was demonstrated**. The Windows counter collector missed samples under full CPU load (34/34 monitored runs sparse; reduced-counter probe 4/4 sparse), while idle sampling was regular. The cause of timing drift is unproven. **Do not repeat benchmarks on the same uncontrolled setup, relax limits, discard unstable blocks, edit the scientific kernel, or rerun/regenerate the frozen 500-million-ray reference.** Full results, hashes, provenance, artifact paths and limitations are in [docs/performance-m9-acceptance.md](docs/performance-m9-acceptance.md).
+
+**Current next action:** No new implementation milestone or product release has been approved. First conduct a **scoped project-priority and release-readiness review** based on the latest `master` and current project requirements. In that review, separate accepted relocated GUI/CLI and copied Qt IFW *payload* tests from **unproven actual Qt IFW installer/update/uninstall transactions, signing/notarization, or end-user installation**. Choose a bounded, useful next milestone with maintainer approval before editing production code. Do not reopen M1–M8 or superseded Phase E plans merely because older text remains below.
+
+### Instructions for the next chat / maintainer handoff
+
+1. Read the top of this file and `AGENT.md`; consult `docs/testing.md`, `docs/scientific-validation.md`, `docs/performance-m9-acceptance.md` and relevant CI/release docs for the chosen scope. Treat the subsequent 2026-11-12 handoff as historical context.
+2. On the Windows workstation (`C:\OpenSource\tonatiuhpp`), **before any local Git operation or edit**, inspect `git status -sb`, `git branch --show-current`, `git rev-parse HEAD`, and remote refs. If the worktree is clean and no other changes need preservation, synchronize `master` using `git switch master` then `git pull --ff-only origin master`; otherwise investigate without resetting, cleaning, stashing or overwriting anything. Remote `master` may have advanced since the SHA recorded above.
+3. For any new work, define evidence and acceptance boundaries up front, create a dedicated branch, and keep scientific algorithms, seed policy, frozen reference artifacts and test scope intact. Never treat an inconclusive M9 performance comparison as a pass or a verified regression.
+4. Do not commit, push, merge, tag, release, or modify `master` directly without the maintainer's explicit authorization. Preserve original M9 run data under `%USERPROFILE%\TonatiuhPP-Performance-M9\` outside the repository; no new benchmark is needed for the handoff.
+
+## Closed workstream — M9 lambda-elimination post-merge validation (2026-11-16)
 
 - **Merged source baseline:** production C++ lambda cleanup M1–M8 is merged in [PR #50](https://github.com/CST-Modelling-Tools/tonatiuhpp/pull/50), `master` commit `0e5bde8614b6b547990b8561b53b5f81872606b0`. Pre-cleanup comparison parent: `d4889f7083d1f5d4c134c2dce2d11a60a57fc759`.
 - **M9 scientific check: PASS** for exact reduced-ray output equality across the executed Windows Release baseline/candidate comparisons (5 million rays, fixed seed, identical scene bytes). The frozen 500-million-ray reference was not rerun or regenerated.
