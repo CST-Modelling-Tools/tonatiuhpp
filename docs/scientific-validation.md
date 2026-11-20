@@ -6,6 +6,24 @@ Scientific refactoring must preserve the accepted scene interpretation, sun and 
 
 The frozen heliostat scene, the 500-million-ray v2 reference JSON, and its binary/CSV grids live under `examples/benchmarks/`. **Do not edit or regenerate them during a code or documentation cleanup.** Keep uncommitted benchmark outputs and console transcripts in the ignored local build tree.
 
+## E1 stage 1: mandatory ray-termination accounting
+
+The shared production ray tracer counts actual launches and categorizes one
+terminal outcome for each completed ray: surface termination, air absorption,
+or escape. The executor independently checks exact per-chunk integer coverage
+before accepting each chunk and checks the aggregate before success. The
+session rejects accounting failures through its existing error lifecycle;
+cancellation and export failure retain their distinct outcomes. The counters
+do not consume random numbers or depend on photon-recording mode.
+
+**Scope limitation:** a surface termination is *not* yet certified physical
+absorption. `MaterialRT::OutputRay` returns only a Boolean, which also covers
+failed continuation. This stage therefore guarantees ray-termination coverage,
+not physical absorbed-energy conservation or correct optical probabilities.
+Those require the separately reviewed E1 material-outcome/roulette stage.
+It must not be used to claim that a physically inaccurate but completely
+categorized trace conserves energy.
+
 ## Routine checks
 
 With a configured build and the necessary native dependencies available:

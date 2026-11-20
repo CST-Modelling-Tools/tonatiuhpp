@@ -100,6 +100,7 @@ RayTracer::RayTracer(InstanceNode* instanceRoot,
 // Both specializations share the single propagation implementation below.
 void RayTracer::operator()(ulong nRays)
 {
+    m_energyBudget = {};
     if (m_historyCallback)
         traceRays<true>(nRays);
     else
@@ -137,6 +138,7 @@ void RayTracer::traceRays(ulong nRays)
 
         Ray ray;
         NewPrimitiveRay(&ray, rand);
+        ++m_energyBudget.launched;
         HistoryState historyState;
         if constexpr (CaptureHistory)
             beginHistory(historyState.history, m_firstRayIndex, n, ray);
@@ -148,6 +150,7 @@ void RayTracer::traceRays(ulong nRays)
             photons.push_back(Photon(rayLength, ray.origin, m_instanceSun, isFront));
 
         bool isReflected = true;
+        bool airAbsorbed = false;
         while (isReflected) {
             Ray rayReflected;
             isFront = false;
@@ -157,6 +160,7 @@ void RayTracer::traceRays(ulong nRays)
             // Air absorption is checked after the first reflection in both
             // modes, with exactly one RandomDouble draw per eligible segment.
             if (m_air && rayLength > 0 && m_air->transmission(ray.tMax) < rand.RandomDouble()) {
+                airAbsorbed = true;
                 if constexpr (CaptureHistory) {
                     historyState.airAbsorbed = true;
                     historyState.airDistance = ray.tMax;
@@ -182,6 +186,13 @@ void RayTracer::traceRays(ulong nRays)
                 photons.push_back(Photon(rayLength, ray.point(ray.tMax), intersectedSurface, isFront, true));
             ray = rayReflected;
         }
+
+        // Record one outcome for every physically completed propagation,
+        // regardless of photon export and without extra random draws.
+        m_energyBudget.record(airAbsorbed ? RayTerminalOutcome::Air
+            : (intersectedSurface && ray.tMax != gcf::infinity)
+                ? RayTerminalOutcome::Surface
+                : RayTerminalOutcome::Escaped);
 
         // Preserve the M2.1-observed callback contract. The no-recording
         // terminal hit precedes history; recording emits history first, then

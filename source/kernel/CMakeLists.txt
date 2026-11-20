@@ -43,6 +43,7 @@ set(HEADERS
     random/Random.h
     random/StandardRandom.h
     run/InstanceNode.h
+    run/RayEnergyBudget.h
     run/RayTracer.h
     scene/GridNode.h
     scene/LocationNode.h

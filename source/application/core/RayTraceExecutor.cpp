@@ -27,13 +27,18 @@ struct RayTraceWorkerState
 {
     std::shared_ptr<QPromise<void>> promise;
     std::atomic_bool* exportFailed = nullptr;
-    std::function<void(qulonglong, ulong)> traceChunk;
+    std::function<RayEnergyBudget(qulonglong, ulong)> traceChunk;
     qulonglong chunkCount = 0;
     ulong chunkSize = 0;
     ulong totalRays = 0;
     std::atomic<qulonglong> nextChunk{0};
     std::atomic<qulonglong> completedChunks{0};
     std::atomic<qulonglong> completedRays{0};
+    // Aggregated once per completed chunk, never in the per-ray hot loop.
+    std::atomic<qulonglong> budgetLaunched{0};
+    std::atomic<qulonglong> surfaceTerminated{0};
+    std::atomic<qulonglong> airAbsorbed{0};
+    std::atomic<qulonglong> escaped{0};
     std::atomic<int> remainingWorkers{0};
     std::atomic_bool failed{false};
     QMutex errorMutex;
@@ -83,11 +88,23 @@ struct RayTraceWorkerState
                     chunkSize,
                     static_cast<qulonglong>(totalRays) - chunkStart
                 ));
-                traceChunk(chunkIndex, raysThisChunk);
+                const RayEnergyBudget budget = traceChunk(chunkIndex, raysThisChunk);
 
                 // addPhotons can stop partway through a chunk on export
                 // failure. Never count such a chunk as fully traced.
                 if (!exportFailed->load()) {
+                    if (!budget.matches(raysThisChunk)) {
+                        recordFailure(QString("Scientific integrity failure: chunk %1 requested %2 rays, "
+                                              "but launched %3 and terminated %4 at surfaces, %5 in air, %6 escaped.")
+                                          .arg(chunkIndex).arg(raysThisChunk)
+                                          .arg(budget.launched).arg(budget.surfaceTerminated)
+                                          .arg(budget.airAbsorbed).arg(budget.escaped));
+                        break;
+                    }
+                    budgetLaunched.fetch_add(budget.launched, std::memory_order_relaxed);
+                    surfaceTerminated.fetch_add(budget.surfaceTerminated, std::memory_order_relaxed);
+                    airAbsorbed.fetch_add(budget.airAbsorbed, std::memory_order_relaxed);
+                    escaped.fetch_add(budget.escaped, std::memory_order_relaxed);
                     completedRays.fetch_add(raysThisChunk);
                     const qulonglong completed = completedChunks.fetch_add(1) + 1;
                     QMutexLocker progressLock(&progressMutex);
@@ -195,7 +212,7 @@ RayTraceExecution RayTraceExecutor::start(PreparedTraceContext&& context)
             RayTraceExecutor* executor;
             std::shared_ptr<PreparedTraceContext> workerContext;
 
-            void operator()(qulonglong chunkIndex, ulong raysThisChunk) const
+            RayEnergyBudget operator()(qulonglong chunkIndex, ulong raysThisChunk) const
             {
                 StandardRandom random(StandardRandom::deriveChunkSeed(workerContext->m_configuration.masterSeed, chunkIndex));
                 RayTracer tracer(workerContext->m_layoutRoot,
@@ -212,6 +229,7 @@ RayTraceExecution RayTraceExecutor::start(PreparedTraceContext&& context)
                                  workerContext->m_historyCallback,
                                  chunkIndex * static_cast<qulonglong>(kRayChunkSize));
                 tracer(raysThisChunk);
+                return tracer.energyBudget();
             }
         };
 
@@ -284,6 +302,10 @@ bool RayTraceExecutor::waitForFinished(RayTraceExecution* execution, QString* er
         if (m_workerState) {
             execution->fullyCompletedRays = m_workerState->completedRays.load();
             execution->fullyCompletedChunks = m_workerState->completedChunks.load();
+            execution->energyBudget.launched = m_workerState->budgetLaunched.load(std::memory_order_relaxed);
+            execution->energyBudget.surfaceTerminated = m_workerState->surfaceTerminated.load(std::memory_order_relaxed);
+            execution->energyBudget.airAbsorbed = m_workerState->airAbsorbed.load(std::memory_order_relaxed);
+            execution->energyBudget.escaped = m_workerState->escaped.load(std::memory_order_relaxed);
         }
         const bool workerFailed = m_workerState && m_workerState->failed.load();
         QString workerError;
@@ -296,6 +318,11 @@ bool RayTraceExecutor::waitForFinished(RayTraceExecution* execution, QString* er
         if (workerFailed) {
             if (errorMessage)
                 *errorMessage = workerError.isEmpty() ? "Ray tracing worker failed." : workerError;
+            return false;
+        }
+        if (!execution->energyBudget.matches(execution->fullyCompletedRays)) {
+            if (errorMessage)
+                *errorMessage = "Scientific integrity failure: completed ray chunks have inconsistent terminal accounting.";
             return false;
         }
         return true;

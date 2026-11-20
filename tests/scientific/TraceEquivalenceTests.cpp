@@ -419,6 +419,7 @@ bool traceOnce(PreparationPath path, ulong rays, bool recordPhotons,
         return fail(execution.errorMessage);
     if (!executor.waitForFinished(&execution, &error))
         return fail(error);
+    signature->result.energyBudget = execution.energyBudget;
     if (!TracePreparation::finalizeResult(*execution.context(), executor.exportFailed(),
                                           0., &signature->result, &error))
         return fail(error);
@@ -482,6 +483,10 @@ void expectEqualScience(const ScientificSignature& expected,
     EXPECT_DOUBLE_EQ(expected.result.irradiance, actual.result.irradiance);
     EXPECT_DOUBLE_EQ(expected.result.powerPerRay, actual.result.powerPerRay);
     EXPECT_EQ(expected.result.exportFailed, actual.result.exportFailed);
+    EXPECT_EQ(expected.result.energyBudget.launched, actual.result.energyBudget.launched);
+    EXPECT_EQ(expected.result.energyBudget.surfaceTerminated, actual.result.energyBudget.surfaceTerminated);
+    EXPECT_EQ(expected.result.energyBudget.airAbsorbed, actual.result.energyBudget.airAbsorbed);
+    EXPECT_EQ(expected.result.energyBudget.escaped, actual.result.energyBudget.escaped);
     EXPECT_EQ(expected.hitCount, actual.hitCount);
     EXPECT_EQ(expected.frontHitCount, actual.frontHitCount);
     EXPECT_EQ(expected.invalidHitCount, actual.invalidHitCount);
@@ -528,6 +533,8 @@ void expectValidTrace(const ScientificSignature& signature, ulong rays)
               static_cast<qulonglong>(rays / 10000 + (rays % 10000 != 0)));
     EXPECT_EQ(signature.result.chunkSize, std::min<ulong>(rays, 10000UL));
     EXPECT_FALSE(signature.result.exportFailed);
+    EXPECT_TRUE(signature.result.energyBudget.matches(rays))
+        << "Every ray must have exactly one terminal category.";
     EXPECT_EQ(signature.invalidHitCount, 0U);
 }
 
