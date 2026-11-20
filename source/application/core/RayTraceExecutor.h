@@ -11,6 +11,8 @@
 #include <QString>
 #include <qglobal.h>
 
+#include "kernel/run/RayEnergyBudget.h"
+
 class InstanceNode;
 class PhotonsBuffer;
 class Random;
@@ -34,6 +36,7 @@ struct RayTraceExecutorResult
     ulong chunkSize = 0;
     qulonglong chunkCount = 0;
     bool exportFailed = false;
+    RayEnergyBudget energyBudget;
 };
 
 struct RayTraceExecution
@@ -54,6 +57,7 @@ public:
         errorMessage(std::move(other.errorMessage)),
         fullyCompletedRays(other.fullyCompletedRays),
         fullyCompletedChunks(other.fullyCompletedChunks),
+        energyBudget(other.energyBudget),
         owner(other.owner)
     {
         other.started = false;
@@ -67,6 +71,7 @@ public:
     // Only full chunks count. A failed mid-chunk exporter never inflates these.
     qulonglong fullyCompletedRays = 0;
     qulonglong fullyCompletedChunks = 0;
+    RayEnergyBudget energyBudget;
     const PreparedTraceContext* context() const { return preparedContext.get(); }
 
 private:

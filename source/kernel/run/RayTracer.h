@@ -6,6 +6,8 @@
 #include <functional>
 #include <vector>
 
+#include "kernel/run/RayEnergyBudget.h"
+
 #include <QVector>
 #include <QMutex>
 #include <QPair>
@@ -86,6 +88,7 @@ public:
     typedef void result_type;
 
     void operator()(ulong nRays);
+    RayEnergyBudget energyBudget() const { return m_energyBudget; }
 
 private:
     template<bool CaptureHistory>
@@ -109,4 +112,5 @@ private:
     QVector<InstanceNode*> m_exportSurfaceList;
 
     const std::vector< QPair<int, int> >&  m_sunCells;
+    RayEnergyBudget m_energyBudget;
 };

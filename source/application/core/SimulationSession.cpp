@@ -109,6 +109,7 @@ bool SimulationSession::waitForFinished(QString* error)
     const bool workersSucceeded = m_executor.waitForFinished(m_execution.get(), &workerError);
     m_completedRays = m_execution->fullyCompletedRays;
     m_completedChunks = m_execution->fullyCompletedChunks;
+    m_result.energyBudget = m_execution->energyBudget;
     const bool cancelled = m_execution->future.isCanceled();
     const PreparedTraceContext* context = m_execution->context();
     m_exportFailed = m_executor.exportFailed()
