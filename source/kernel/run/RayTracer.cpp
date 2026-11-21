@@ -1,4 +1,5 @@
 #include <QPoint>
+#include <QMutexLocker>
 #include <type_traits>
 #include <stdexcept>
 #include "shape/DifferentialGeometry.h"
@@ -250,9 +251,9 @@ void RayTracer::traceRays(ulong nRays)
     }
 
     if (recordPhotons) {
-        m_mutexPhotonsBuffer->lock();
+        // Always unlock, even if a photon exporter throws.
+        QMutexLocker lock(m_mutexPhotonsBuffer);
         const bool photonsSaved = m_photonBuffer->addPhotons(photons);
-        m_mutexPhotonsBuffer->unlock();
         if (!photonsSaved && m_exportFailed)
             m_exportFailed->store(true);
     }

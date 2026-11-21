@@ -10,16 +10,19 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#ifdef TONATIUHPP_PHOTONSFILE_TEST_FAULTS
 #include <QCoreApplication>
+#endif
 #include <QTemporaryFile>
 
 #include "kernel/run/InstanceNode.h"
 
 
-// M3 Slice C: an opt-in fault seam restricted to the native scientific test
-// executable and temporary output. It is inert for normal GUI/headless runs.
+// Test-only write/flush failure injection. Production builds do not
+// compile this helper or inspect test-specific environment variables.
 namespace {
-bool m3ScientificFileFault(const QString& filePath, const char* mode)
+#ifdef TONATIUHPP_PHOTONSFILE_TEST_FAULTS
+bool scientificFileFaultForTest(const QString& filePath, const char* mode)
 {
     if (qgetenv("TONATIUHPP_M3_TEST_FILE_DATA_FAULT") != QByteArray(mode))
         return false;
@@ -31,6 +34,7 @@ bool m3ScientificFileFault(const QString& filePath, const char* mode)
     const QString actualPath = QDir::cleanPath(QFileInfo(filePath).absoluteFilePath());
     return actualPath.startsWith(tempPrefix, Qt::CaseInsensitive);
 }
+#endif
 struct IsDecimalDigit {
     bool operator()(QChar c) const
     { return c >= QLatin1Char('0') && c <= QLatin1Char('9'); }
@@ -407,8 +411,12 @@ ulong PhotonsFile::writePhotons(const std::vector<Photon>& photons, ulong nBegin
     qint64 fileStart = m_file->pos();
     // Scientific-test-only deterministic failed write. Exercise the normal
     // rollback and failure-latch path without modifying a production export.
-    qint64 bytesWritten = m3ScientificFileFault(m_filePath, "write")
-        ? qint64(-1) : m_file->write(bytes);
+#ifdef TONATIUHPP_PHOTONSFILE_TEST_FAULTS
+    const bool injectWriteFailure = scientificFileFaultForTest(m_filePath, "write");
+#else
+    constexpr bool injectWriteFailure = false;
+#endif
+    qint64 bytesWritten = injectWriteFailure ? qint64(-1) : m_file->write(bytes);
     if (bytesWritten != bytes.size()) {
         qWarning() << "Could not write photon output file" << m_filePath << m_file->errorString();
         if (fileStart >= 0) {
@@ -420,7 +428,12 @@ ulong PhotonsFile::writePhotons(const std::vector<Photon>& photons, ulong nBegin
     }
 
     // Scientific-test-only deterministic failed flush after a real write.
-    if (m3ScientificFileFault(m_filePath, "flush") || !m_file->flush()) {
+#ifdef TONATIUHPP_PHOTONSFILE_TEST_FAULTS
+    const bool injectFlushFailure = scientificFileFaultForTest(m_filePath, "flush");
+#else
+    constexpr bool injectFlushFailure = false;
+#endif
+    if (injectFlushFailure || !m_file->flush()) {
         qWarning() << "Could not flush photon output file" << m_filePath << m_file->errorString();
         if (fileStart >= 0) {
             if (!m_file->resize(fileStart) || !m_file->seek(fileStart))

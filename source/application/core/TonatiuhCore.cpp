@@ -9,6 +9,8 @@
 #include <atomic>
 #include <QDir>
 #include <QFileInfo>
+#include <QLibrary>
+#include <QSet>
 
 #include "kernel/node/TNode.h"
 #include "kernel/scene/TSceneKit.h"
@@ -27,6 +29,36 @@ void appendExistingPath(QStringList& paths, const QString& path)
     const QString absolutePath = QDir(path).absolutePath();
     if (!paths.contains(absolutePath))
         paths << absolutePath;
+}
+
+// A single deterministic directory walk keeps factory discovery consistent
+// between graphical and nonvisual adapters. Avoid symlink-directory cycles.
+void collectPluginLibraries(const QDir& directory, QStringList& files,
+                            QSet<QString>& seenDirectories, QSet<QString>& seenFiles)
+{
+    const QString canonical = directory.canonicalPath();
+    if (canonical.isEmpty() || seenDirectories.contains(canonical))
+        return;
+    seenDirectories.insert(canonical);
+
+    const QFileInfoList entries = directory.entryInfoList(
+        QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
+    for (const QFileInfo& entry : entries) {
+        if (entry.isDir()) {
+            if (!entry.isSymLink())
+                collectPluginLibraries(QDir(entry.absoluteFilePath()), files,
+                                       seenDirectories, seenFiles);
+            continue;
+        }
+        if (!QLibrary::isLibrary(entry.absoluteFilePath()))
+            continue;
+        const QString key = entry.canonicalFilePath().isEmpty()
+            ? entry.absoluteFilePath() : entry.canonicalFilePath();
+        if (!seenFiles.contains(key)) {
+            seenFiles.insert(key);
+            files.append(entry.absoluteFilePath());
+        }
+    }
 }
 }
 
@@ -104,6 +136,16 @@ QStringList pluginSearchPaths(const QString& applicationDirPath)
     appendExistingPath(paths, applicationDirPath);
 
     return paths;
+}
+
+QStringList pluginLibraryFiles(const QStringList& searchRoots)
+{
+    QStringList files;
+    QSet<QString> seenDirectories;
+    QSet<QString> seenFiles;
+    for (const QString& root : searchRoots)
+        collectPluginLibraries(QDir(root), files, seenDirectories, seenFiles);
+    return files;
 }
 
 void setProjectSearchPaths(const QString& fileName)

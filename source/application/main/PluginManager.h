@@ -2,8 +2,11 @@
 
 #include <QVector>
 #include <QMap>
+#include <QStringList>
+#include <memory>
+#include <vector>
 
-class QDir;
+class QPluginLoader;
 
 class TFactory;
 class SunFactory;
@@ -26,8 +29,11 @@ class PluginManager
 
 public:
     PluginManager();
+    ~PluginManager();
+    PluginManager(const PluginManager&) = delete;
+    PluginManager& operator=(const PluginManager&) = delete;
 
-    void load(QDir dir);
+    void load(const QStringList& pluginRoots);
 
     QVector<SunFactory*> getSunFactories() const {return m_sunFactories;}
     QVector<AirFactory*> getAirFactories() const {return m_airFactories;}
@@ -49,7 +55,11 @@ public:
     QVector<TFactory*> getFactories(SoNode* node);
 
 private:
-    void findFiles(QDir dir, QStringList& files);
+    // Built-ins belong to this manager; loaded plugin factories belong to
+    // their retained QPluginLoader instances. Public maps borrow both.
+    std::vector<std::unique_ptr<TFactory>> m_ownedFactories;
+    std::vector<std::unique_ptr<QPluginLoader>> m_pluginLoaders;
+
     void loadPlugin(TFactory* p);
     void sort();
 

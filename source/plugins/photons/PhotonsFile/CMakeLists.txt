@@ -25,6 +25,13 @@ set(RESOURCES resources.qrc)
 # Add the plugin as a shared library
 add_library(${PROJECT_NAME} SHARED ${HEADERS} ${SOURCES} ${FORMS} ${RESOURCES})
 
+# Fault injection is compiled only for test-enabled builds, not shipped
+# in the BUILD_TESTING=OFF production runtime.
+if(BUILD_TESTING)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE
+        TONATIUHPP_PHOTONSFILE_TEST_FAULTS)
+endif()
+
 # Include directories (explicitly specified)
 target_include_directories(${ProjectName} PRIVATE 
     ${CMAKE_CURRENT_SOURCE_DIR} 

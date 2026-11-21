@@ -3,8 +3,10 @@
 #include <QDir>
 #include <QPluginLoader>
 #include <QStringList>
+#include <utility>
 
 #include "application/core/TonatiuhCore.h"
+#include "core/ScientificFactoryCatalog.h"
 #include "kernel/air/AirExponential.h"
 #include "kernel/air/AirPolynomial.h"
 #include "kernel/air/AirVacuum.h"
@@ -54,57 +56,45 @@ PluginManager::PluginManager()
     SeparatorStyle::initClass();
 }
 
+PluginManager::~PluginManager() = default;
+
 /*!
  * Loads all the valid plugins from "plugins" subdirecotry of the directory in
  * which the running version of Tonatiuh is located.
  */
-void PluginManager::load(QDir dir)
+void PluginManager::load(const QStringList& pluginRoots)
 {
-    loadPlugin(new SunFactoryT<SunShapePillbox>);
+    // GUI and CLI now instantiate the exact same built-in scientific catalog.
+    std::vector<std::unique_ptr<TFactory>> builtIns =
+        ScientificFactoryCatalog::createBuiltInFactories();
+    for (std::unique_ptr<TFactory>& factory : builtIns) {
+        loadPlugin(factory.get());
+        m_ownedFactories.push_back(std::move(factory));
+    }
 
-    loadPlugin(new AirFactoryT<AirVacuum>);
-    loadPlugin(new AirFactoryT<AirExponential>);
-    loadPlugin(new AirFactoryT<AirPolynomial>);
+    // GUI-only exporter presentations remain outside the scientific catalog.
+    auto defaultExporter = std::make_unique<PhotonsFactoryT<PhotonsAbstract, PhotonsWidget>>();
+    loadPlugin(defaultExporter.get());
+    m_ownedFactories.push_back(std::move(defaultExporter));
 
-    loadPlugin(new ShapeFactoryT<ShapePlanar>);
-    loadPlugin(new ShapeFactoryT<ShapeCube>);
-    loadPlugin(new ShapeFactoryT<ShapeCone>);
-    loadPlugin(new ShapeFactoryT<ShapeCylinder>);
-    loadPlugin(new ShapeFactoryT<ShapeSphere>);
-    loadPlugin(new ShapeFactoryT<ShapeParabolic>);
-
-    loadPlugin(new ProfileFactoryT<ProfileBox>);
-    loadPlugin(new ProfileFactoryT<ProfileRectangular>);
-    loadPlugin(new ProfileFactoryT<ProfileCircular>);
-    loadPlugin(new ProfileFactoryT<ProfileRegular>);
-    loadPlugin(new ProfileFactoryT<ProfileTriangle>);
-    loadPlugin(new ProfileFactoryT<ProfilePolygon>);
-
-    loadPlugin(new MaterialFactoryT<MaterialAbsorber>);
-    loadPlugin(new MaterialFactoryT<MaterialVirtual>);
-    loadPlugin(new MaterialFactoryT<MaterialTransparent>);
-    loadPlugin(new MaterialFactoryT<MaterialFresnelUnpolarized>);
-    loadPlugin(new MaterialFactoryT<MaterialRough>);
-
-    loadPlugin(new TrackerFactoryT<TrackerArmature1A>);
-    loadPlugin(new TrackerFactoryT<TrackerArmature2A>);
-    loadPlugin(new TrackerFactoryT<TrackerArmature2AwD>);
-
-    loadPlugin(new PhotonsFactoryT<PhotonsAbstract, PhotonsWidget>);
-
-    QStringList files;
-    findFiles(dir, files);
-
-    for (QString file: files) {
-        QPluginLoader loader(file);
-        QObject* p = loader.instance();
-        TFactory* f = dynamic_cast<TFactory*>(p);
-        loadPlugin(f);
+    for (const QString& file : TonatiuhCore::pluginLibraryFiles(pluginRoots)) {
+        auto loader = std::make_unique<QPluginLoader>(file);
+        const QString iid = loader->metaData().value("IID").toString();
+        if (!iid.startsWith(QStringLiteral("tonatiuh.")) ||
+            !iid.endsWith(QStringLiteral("Factory")) ||
+            !TonatiuhCore::allowsPluginMetadata(loader->metaData()))
+            continue;
+        TFactory* factory = dynamic_cast<TFactory*>(loader->instance());
+        if (!factory)
+            continue;
+        loadPlugin(factory);
+        // Factories and registered Coin types may outlive this load() call.
+        // Keep each plugin's loader alive until the GUI scene is destroyed.
+        m_pluginLoaders.push_back(std::move(loader));
     }
 
     sort();
 }
-
 
 QVector<TFactory*> PluginManager::getFactories(SoNode* node)
 {
@@ -122,21 +112,6 @@ QVector<TFactory*> PluginManager::getFactories(SoNode* node)
     else if (dynamic_cast<TrackerArmature*>(node))
         for (auto q : m_trackerFactories) ans << q;
     return ans;
-}
-
-/*!
- * Creates a list with the files al files in the defined \a directory
- * and its subdirectories.
- */
-void PluginManager::findFiles(QDir dir, QStringList& files)
-{
-    QString path = dir.absolutePath() + "/";
-
-    for (QString f : dir.entryList(QDir::Files | QDir::NoSymLinks))
-        files << path + f;
-
-    for (QString d : dir.entryList(QDir::Dirs | QDir::NoDotAndDotDot))
-        findFiles(path + d, files);
 }
 
 /*!

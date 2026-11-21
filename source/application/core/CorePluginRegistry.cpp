@@ -10,6 +10,7 @@
 #include <QtAlgorithms>
 
 #include "core/TonatiuhCore.h"
+#include "core/ScientificFactoryCatalog.h"
 #include "kernel/air/AirExponential.h"
 #include "kernel/air/AirPolynomial.h"
 #include "kernel/air/AirTransmission.h"
@@ -76,60 +77,19 @@ CorePluginRegistry::~CorePluginRegistry()
 
 void CorePluginRegistry::loadScenePlugins(const QStringList& directories)
 {
-    QStringList files;
-    for (const QString& directory : directories)
-        findPluginFiles(directory, files);
-    files.removeDuplicates();
-
-    for (const QString& fileName : files)
+    for (const QString& fileName : TonatiuhCore::pluginLibraryFiles(directories))
         loadPluginFile(fileName);
 }
 
 void CorePluginRegistry::registerBuiltInSceneTypes()
 {
-    registerSceneFactory(new SunFactoryT<SunShapePillbox>, true);
-
-    registerSceneFactory(new AirFactoryT<AirVacuum>, true);
-    registerSceneFactory(new AirFactoryT<AirExponential>, true);
-    registerSceneFactory(new AirFactoryT<AirPolynomial>, true);
-
-    registerSceneFactory(new ShapeFactoryT<ShapePlanar>, true);
-    registerSceneFactory(new ShapeFactoryT<ShapeCube>, true);
-    registerSceneFactory(new ShapeFactoryT<ShapeCone>, true);
-    registerSceneFactory(new ShapeFactoryT<ShapeCylinder>, true);
-    registerSceneFactory(new ShapeFactoryT<ShapeSphere>, true);
-    registerSceneFactory(new ShapeFactoryT<ShapeParabolic>, true);
-
-    registerSceneFactory(new ProfileFactoryT<ProfileBox>, true);
-    registerSceneFactory(new ProfileFactoryT<ProfileRectangular>, true);
-    registerSceneFactory(new ProfileFactoryT<ProfileCircular>, true);
-    registerSceneFactory(new ProfileFactoryT<ProfileRegular>, true);
-    registerSceneFactory(new ProfileFactoryT<ProfileTriangle>, true);
-    registerSceneFactory(new ProfileFactoryT<ProfilePolygon>, true);
-
-    registerSceneFactory(new MaterialFactoryT<MaterialAbsorber>, true);
-    registerSceneFactory(new MaterialFactoryT<MaterialVirtual>, true);
-    registerSceneFactory(new MaterialFactoryT<MaterialTransparent>, true);
-    registerSceneFactory(new MaterialFactoryT<MaterialFresnelUnpolarized>, true);
-    registerSceneFactory(new MaterialFactoryT<MaterialRough>, true);
-
-    registerSceneFactory(new TrackerFactoryT<TrackerArmature1A>, true);
-    registerSceneFactory(new TrackerFactoryT<TrackerArmature2A>, true);
-    registerSceneFactory(new TrackerFactoryT<TrackerArmature2AwD>, true);
-}
-
-void CorePluginRegistry::findPluginFiles(const QString& directory, QStringList& files) const
-{
-    QDir dir(directory);
-    if (!dir.exists())
-        return;
-
-    const QFileInfoList entries = dir.entryInfoList(QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot);
-    for (const QFileInfo& entry : entries) {
-        if (entry.isDir()) {
-            findPluginFiles(entry.absoluteFilePath(), files);
-        } else if (QLibrary::isLibrary(entry.absoluteFilePath())) {
-            files << entry.absoluteFilePath();
+    // The catalog transfers ownership of these factories to this registry.
+    std::vector<std::unique_ptr<TFactory>> factories =
+        ScientificFactoryCatalog::createBuiltInFactories();
+    for (std::unique_ptr<TFactory>& factory : factories) {
+        if (registerSceneFactory(factory.get(), false)) {
+            m_ownedFactories.append(factory.get());
+            factory.release();
         }
     }
 }

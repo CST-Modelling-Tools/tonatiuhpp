@@ -125,6 +125,33 @@ struct RayTraceWorkerState
     }
 };
 
+RayTraceExecutor::~RayTraceExecutor() noexcept
+{
+    // Future handles alone do not join their workers. Protect the mutex,
+    // callback captures and active scene context if a caller forgets wait.
+    if (!m_active.load() || !m_workerState || !m_workerState->promise)
+        return;
+    QFuture<void> running = m_workerState->promise->future();
+    running.cancel();
+    running.waitForFinished();
+}
+
+void RayTraceExecutor::abortPartialStart(int submittedWorkers, int plannedWorkers) noexcept
+{
+    if (!m_workerState || !m_workerState->promise)
+        return;
+    // Never complete the promise while any submitted worker still uses
+    // this executor. Account for workers that were never submitted.
+    m_workerState->failed.store(true);
+    QFuture<void> pending = m_workerState->promise->future();
+    pending.cancel();
+    const int unsubmitted = plannedWorkers - submittedWorkers;
+    if (unsubmitted > 0
+        && m_workerState->remainingWorkers.fetch_sub(unsubmitted) == unsubmitted)
+        m_workerState->promise->finish();
+    pending.waitForFinished();
+}
+
 QVector<ulong> RayTraceExecutor::guiRaysPerThread(ulong rays)
 {
     QVector<ulong> chunks;
@@ -178,12 +205,15 @@ RayTraceExecution RayTraceExecutor::start(PreparedTraceContext&& context)
 
     m_exportFailed.store(false);
     m_workerState.reset();
+    int plannedWorkers = 0;
+    int submittedWorkers = 0;
     try {
         m_activeContext = std::make_shared<PreparedTraceContext>(std::move(context));
         execution.preparedContext = m_activeContext;
         PreparedTraceContext& prepared = *m_activeContext;
         const qulonglong chunkCount = taskCountForRays(prepared.m_configuration.rays);
         const int workerCount = workerCountForRays(prepared.m_configuration.rays);
+        plannedWorkers = workerCount;
 
         auto promise = std::make_shared<QPromise<void>>();
         promise->start();
@@ -253,21 +283,22 @@ RayTraceExecution RayTraceExecutor::start(PreparedTraceContext&& context)
             workerTasks.emplace_back(
                 QRunnable::create(RayTraceWorkerTask{workerState}));
         }
-        for (std::unique_ptr<QRunnable>& workerTask : workerTasks)
-            QThreadPool::globalInstance()->start(workerTask.release());
+        for (std::unique_ptr<QRunnable>& workerTask : workerTasks) {
+            QThreadPool::globalInstance()->start(workerTask.get());
+            workerTask.release();
+            ++submittedWorkers;
+        }
 
         execution.started = true;
         execution.owner = this;
     } catch (const std::exception& error) {
-        if (m_workerState && m_workerState->promise)
-            m_workerState->promise->finish();
+        abortPartialStart(submittedWorkers, plannedWorkers);
         execution.errorMessage = QString("Could not start ray tracing: %1").arg(error.what());
         m_workerState.reset();
         m_activeContext.reset();
         m_active.store(false);
     } catch (...) {
-        if (m_workerState && m_workerState->promise)
-            m_workerState->promise->finish();
+        abortPartialStart(submittedWorkers, plannedWorkers);
         execution.errorMessage = "Could not start ray tracing because an unknown exception was raised.";
         m_workerState.reset();
         m_activeContext.reset();

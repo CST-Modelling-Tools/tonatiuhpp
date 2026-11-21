@@ -196,6 +196,7 @@ set(TONATIUHPP_M5_SIMULATION_SOURCES
     core/RayTraceExecutor.cpp
     core/SceneInstanceBuilder.cpp
     core/SceneLoader.cpp
+    core/ScientificFactoryCatalog.cpp
     core/SimulationSession.cpp
     core/TracePreparation.cpp
 )
@@ -205,6 +206,7 @@ set(TONATIUHPP_M5_SIMULATION_HEADERS
     core/RayTraceExecutor.h
     core/SceneInstanceBuilder.h
     core/SceneLoader.h
+    core/ScientificFactoryCatalog.h
     core/SimulationSession.h
     core/TracePreparation.h
 )

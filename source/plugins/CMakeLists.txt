@@ -69,18 +69,19 @@ set(TONATIUHPP_PLUGIN_TARGETS
     SunGaussian
 )
 
+# Every official plugin target is mandatory on every supported platform.
+# Do not silently build or install an incomplete release.
 foreach(_tgt IN LISTS TONATIUHPP_PLUGIN_TARGETS)
-    if(TARGET ${_tgt})
-        message(STATUS "Installing Tonatiuh++ plugin target: ${_tgt}")
-        install(
-            TARGETS ${_tgt}
-            RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"  # .dll on Windows
-            LIBRARY DESTINATION "${CMAKE_INSTALL_BINDIR}"  # .so/.dylib on Linux/macOS
-            ARCHIVE DESTINATION "${CMAKE_INSTALL_BINDIR}"  # harmless
-        )
-    else()
-        message(STATUS "Tonatiuh++ plugin target not found (skipping): ${_tgt}")
+    if(NOT TARGET ${_tgt})
+        message(FATAL_ERROR "Required Tonatiuh++ plugin target missing: ${_tgt}")
     endif()
+    message(STATUS "Installing Tonatiuh++ plugin target: ${_tgt}")
+    install(
+        TARGETS ${_tgt}
+        RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"  # .dll on Windows
+        LIBRARY DESTINATION "${CMAKE_INSTALL_BINDIR}"  # .so/.dylib on Linux/macOS
+        ARCHIVE DESTINATION "${CMAKE_INSTALL_BINDIR}"  # harmless
+    )
 endforeach()
 
 # TONATIUHPP_P1_CENTRAL_WIN_RUNTIME: one build-tree scientific plugin tree.
