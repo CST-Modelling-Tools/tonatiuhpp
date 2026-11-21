@@ -1,6 +1,15 @@
 # Project status
 
-Last updated: 2026-11-16
+Last updated: 2026-11-21
+
+## Active handoff — E1 complete; test-suite housekeeping (2026-11-21)
+
+- **Merged baseline:** E1 Stage 1 ([PR #53](https://github.com/CST-Modelling-Tools/tonatiuhpp/pull/53)) and E1 Stage 2 ([PR #54](https://github.com/CST-Modelling-Tools/tonatiuhpp/pull/54)) are on `master` at `b9065855ca856c6cfc7dd75745ff584d6ad3d4a1`. The latter passed Windows, Ubuntu and macOS PR CI; Windows local Release validated 203/203 standard CTests and frozen-reference integrity (the 500M-ray trace was **not** rerun).
+- **Approved maintenance scope:** Prepare one `chore/test-suite-housekeeping` change on a dedicated branch. Rename milestone-encoded CTest and GoogleTest identifiers to behavior-oriented names; distinguish repeatability from equivalence; remove the unused stand-alone SoQt cube probe; eliminate only the obsolete callback-order assertion while preserving all ray-history, energy and export regressions. See `docs/testing.md`.
+- **Validation gate:** The maintenance change is uncommitted and **not accepted** until a local Windows Release build and full standard CTest suite pass (203 expected), followed by a single cross-platform CI cycle if the maintainer authorizes push/PR. No production physics, reference bytes, fixture schemas, installer or release changes. No commit, push, merge or release without the maintainer's explicit approval and validated local results.
+- **Performance caution:** Prior M9 timing results remain inconclusive; no new benchmark or performance conclusion is implied by this housekeeping task. Do not rerun or regenerate the frozen 500M-ray reference.
+
+## Historical handoff — project snapshot of 2026-11-16
 
 ## Active handoff — next milestone decision (verified 2026-11-16)
 

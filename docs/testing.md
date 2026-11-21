@@ -2,6 +2,16 @@
 
 Baseline date: 2026-11-11. This policy applies to the two-executable, single-scientific-kernel architecture introduced before PR #41. It does not authorize release or changes to scientific references.
 
+## Current test inventory and maintenance policy (2026-11-21)
+
+Following merged E1 Stage 2 ([PR #54](https://github.com/CST-Modelling-Tools/tonatiuhpp/pull/54)), the default Windows Release inventory is **203 CTests** (165 discovered C++ GoogleTests plus 38 other CTests); Linux/macOS expect **202**. The three display-backed native GUI CTests remain opt-in and are not part of those counts. The retained standalone Python tooling/auditor tests are also separate from CTest.
+
+Names should describe observable supported behavior, not the milestone or phase that introduced it. The post-E1 housekeeping changes CTest identities and two GoogleTest suite names, without changing scientific algorithms, fixtures, reference artifacts or the total CTest inventory. Historical strings in **fixture paths, output-directory safety guards, serialized schemas, report names and compatibility inputs** are deliberately retained; bulk-renaming these would risk altering tested behavior. Update the `scripts/ctest_inventory.py` required sentinels when a registered name changes.
+
+Cross-process repeatability is not GUI/CLI equivalence or agreement with an independent scientific reference. Label it `repeatability`; use `equivalence` only when the tested modes/results really are compared. A regression test should assert durable output, geometry or failure contracts, not the historical timing/order of internal callbacks. The optional SoQt cube smoke program was a stand-alone dependency probe outside standard CTest; the production GUI and its platform acceptance checks supersede it.
+
+Renaming CTests intentionally changes inventory *identities* even when the count is unchanged. When comparing pre- and post-cleanup inventories, explicitly map the reviewed renames; do not demand an identical name set or silently drop registrations. The historical 180/179 baseline and phase narratives below describe prior accepted milestones, not the current suite size.
+
 ## Purpose and evidence
 
 Tests protect four different contracts: (1) scientific correctness against independent physical or approved reference results, (2) repeatability of a given execution interface and input, (3) application/architecture behavior and interface integration, and (4) portability of compiled and installed artifacts. Passing one contract does not prove the others. In particular, two matching CLI traces establish reproducibility, **not** native GUI-to-CLI equivalence or general physical correctness.

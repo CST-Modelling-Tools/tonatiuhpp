@@ -1818,17 +1818,17 @@ void m4VerifySegmentedAppendFault(const char* faultMode)
 }
 } // namespace
 
-TEST(ScientificM4SegmentedExport, InjectedAppendWriteFailurePreservesPriorFiles)
+TEST(ScientificSegmentedFileExport, InjectedAppendWriteFailurePreservesPriorFiles)
 {
     m4VerifySegmentedAppendFault("write");
 }
 
-TEST(ScientificM4SegmentedExport, InjectedAppendFlushFailurePreservesPriorFiles)
+TEST(ScientificSegmentedFileExport, InjectedAppendFlushFailurePreservesPriorFiles)
 {
     m4VerifySegmentedAppendFault("flush");
 }
 
-TEST(ScientificM4SegmentedExport, InterruptedAppendInvalidatesOutputCheckpoint)
+TEST(ScientificSegmentedFileExport, InterruptedAppendInvalidatesOutputCheckpoint)
 {
     QTemporaryDir temp;
     ASSERT_TRUE(temp.isValid());
@@ -1864,7 +1864,7 @@ TEST(ScientificM4SegmentedExport, InterruptedAppendInvalidatesOutputCheckpoint)
     EXPECT_EQ(m3ReadExportFile(metadata), beforeMetadata);
 }
 
-TEST(ScientificM4SegmentedExport, UnrelatedWildcardFilesAreNeverDeleted)
+TEST(ScientificSegmentedFileExport, UnrelatedWildcardFilesAreNeverDeleted)
 {
     QTemporaryDir temp;
     ASSERT_TRUE(temp.isValid());
@@ -1888,7 +1888,7 @@ TEST(ScientificM4SegmentedExport, UnrelatedWildcardFilesAreNeverDeleted)
     EXPECT_FALSE(QFileInfo::exists(managed));
 }
 
-TEST(ScientificM4SegmentedExport, CheckpointDetectsNewUnrelatedEntry)
+TEST(ScientificSegmentedFileExport, CheckpointDetectsNewUnrelatedEntry)
 {
     QTemporaryDir temp;
     ASSERT_TRUE(temp.isValid());

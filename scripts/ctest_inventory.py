@@ -16,7 +16,7 @@ from typing import Any
 
 REQUIRED_SENTINELS = (
     "architecture.gui_cli_runtime_boundary",
-    "headless.cli_independent_process_equivalence",
+    "headless.cli_process_repeatability",
     "headless.large_file_export_preflight",
 )
 
