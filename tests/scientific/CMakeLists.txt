@@ -3,6 +3,7 @@ set(_tonatiuhpp_equivalence_core_dir "${CMAKE_SOURCE_DIR}/application/core")
 add_executable(tonatiuhpp_scientific_equivalence_tests
   TraceEquivalenceTests.cpp
   RayEnergyBudgetTests.cpp
+  RussianRouletteTests.cpp
   ScriptHostTests.cpp
   ScriptSceneServicesTests.cpp
   ScriptSceneDocumentTests.cpp

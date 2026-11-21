@@ -41,6 +41,7 @@ set(HEADERS
     profiles/ProfileRegular.h
     profiles/ProfileTriangle.h
     random/Random.h
+    random/RussianRoulette.h
     random/StandardRandom.h
     run/InstanceNode.h
     run/RayEnergyBudget.h

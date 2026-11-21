@@ -11,10 +11,14 @@ public:
     static void initClass();
     MaterialVirtual();
 
-    bool OutputRay(const Ray& rayIn, const DifferentialGeometry& dg, Random& rand, Ray& rayOut) const;
 
     NAME_ICON_FUNCTIONS("Virtual", ":/material/MaterialVirtual.png")
 
 protected:
+    MaterialProbabilities probabilities(const Ray&, const DifferentialGeometry&,
+        Random&, MaterialInteractionState&) const override;
+    void scatter(MaterialInteraction, const Ray&, const DifferentialGeometry&,
+        Random&, const MaterialInteractionState&, Ray&) const override;
+
     ~MaterialVirtual() {}
 };

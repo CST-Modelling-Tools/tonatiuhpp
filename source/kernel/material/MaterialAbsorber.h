@@ -11,10 +11,14 @@ public:
     static void initClass();
     MaterialAbsorber();
 
-    bool OutputRay(const Ray& rayIn, const DifferentialGeometry& dg, Random& rand, Ray& rayOut) const;
 
     NAME_ICON_FUNCTIONS("Absorber", ":/material/MaterialAbsorber.png")
 
 protected:
+    MaterialProbabilities probabilities(const Ray&, const DifferentialGeometry&,
+        Random&, MaterialInteractionState&) const override;
+    void scatter(MaterialInteraction, const Ray&, const DifferentialGeometry&,
+        Random&, const MaterialInteractionState&, Ray&) const override;
+
     ~MaterialAbsorber() {}
 };

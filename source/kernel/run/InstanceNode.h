@@ -12,6 +12,10 @@
 
 #include "libraries/math/3D/Box3D.h"
 #include "libraries/math/3D/Transform.h"
+#include "kernel/material/MaterialRT.h"
+#include "kernel/shape/DifferentialGeometry.h"
+
+#include <limits>
 
 class Random;
 class Ray;
@@ -50,7 +54,19 @@ public:
     QString getURL() const;
     void Print(int level) const;
 
-    bool intersect(const Ray& rayIn, Random& rand, bool& isFront, InstanceNode*& instance, Ray& rayOut);
+    struct Intersection {
+        InstanceNode* instance = nullptr;
+        MaterialRT* material = nullptr;
+        DifferentialGeometry geometry;
+        double distance = std::numeric_limits<double>::infinity();
+    };
+    bool findNearestHit(const Ray& rayIn, Intersection& hit) const;
+    static MaterialInteraction sampleMaterial(const Ray& rayIn, const Intersection& hit,
+                                              Random& random, Ray& outgoing);
+    // Compatibility convenience for callers inside this codebase.
+    MaterialInteraction intersect(const Ray& rayIn, Random& rand, bool& isFront,
+                                 InstanceNode*& instance, Ray& rayOut);
+
 
     void extendBoxForLight(SbBox3f* extendedBox);
 

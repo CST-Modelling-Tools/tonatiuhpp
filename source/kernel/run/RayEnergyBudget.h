@@ -2,11 +2,11 @@
 
 #include <cstdint>
 
-// Exact accounting of completed analog ray histories, not a proof of physical
-// energy absorption. MaterialRT::OutputRay() currently conflates legitimate
-// surface absorption with failed continuation; keep the classification honest.
+// Exact counts of physical terminal outcomes in the supported material
+// model. Invalid optical interactions throw and fail the run instead of
+// masquerading as absorbed energy.
 enum class RayTerminalOutcome : std::uint8_t {
-    Surface,
+    SurfaceAbsorbed,
     Air,
     Escaped
 };
@@ -14,14 +14,14 @@ enum class RayTerminalOutcome : std::uint8_t {
 struct RayEnergyBudget
 {
     std::uint64_t launched = 0;
-    std::uint64_t surfaceTerminated = 0;
+    std::uint64_t surfaceAbsorbed = 0;
     std::uint64_t airAbsorbed = 0;
     std::uint64_t escaped = 0;
 
     void record(RayTerminalOutcome outcome) noexcept
     {
         switch (outcome) {
-        case RayTerminalOutcome::Surface: ++surfaceTerminated; break;
+        case RayTerminalOutcome::SurfaceAbsorbed: ++surfaceAbsorbed; break;
         case RayTerminalOutcome::Air: ++airAbsorbed; break;
         case RayTerminalOutcome::Escaped: ++escaped; break;
         }
@@ -31,9 +31,9 @@ struct RayEnergyBudget
     // duplicated terminal counts, including in adversarial unit tests.
     bool matches(std::uint64_t requestedRays) const noexcept
     {
-        if (launched != requestedRays || surfaceTerminated > launched)
+        if (launched != requestedRays || surfaceAbsorbed > launched)
             return false;
-        const std::uint64_t afterSurface = launched - surfaceTerminated;
+        const std::uint64_t afterSurface = launched - surfaceAbsorbed;
         return airAbsorbed <= afterSurface
             && escaped == afterSurface - airAbsorbed;
     }

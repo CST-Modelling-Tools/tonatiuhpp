@@ -1,6 +1,8 @@
 #include "InstanceNode.h"
 
 #include <iostream>
+#include <cmath>
+#include <stdexcept>
 
 #include <QDataStream>
 #include <QtAlgorithms>
@@ -13,6 +15,7 @@
 #include "kernel/material/MaterialTransparent.h"
 #include "kernel/scene/TSeparatorKit.h"
 #include "kernel/shape/ShapeRT.h"
+#include "kernel/profiles/ProfileRT.h"
 #include "libraries/math/3D/Box3D.h"
 #include "libraries/math/3D/Ray.h"
 #include "libraries/math/3D/Transform.h"
@@ -90,69 +93,71 @@ void InstanceNode::Print(int level) const
         child->Print(level + 1); // was level++
 }
 
-bool InstanceNode::intersect(const Ray& rayIn, Random& rand, bool& isFront, InstanceNode*& instance, Ray& rayOut)
+// The nearest hit is resolved geometrically BEFORE calling material physics.
+// Previously, occluded farther surfaces could consume RNG draws and even
+// report invalid physical samples before the actual closest hit was known.
+bool InstanceNode::findNearestHit(const Ray& rayIn, Intersection& best) const
 {
-    if (!m_box.intersect(rayIn)) return false;
+    Ray boundedRay = rayIn;
+    boundedRay.tMax = best.distance;
+    if (!m_box.intersect(boundedRay))
+        return false;
 
-    InstanceNode* instance1 = this;
+    const InstanceNode* instance1 = this;
     while (instance1->children.size() == 1)
         instance1 = instance1->children[0];
     if (instance1 != this)
-        return instance1->intersect(rayIn, rand, isFront, instance, rayOut);
+        return instance1->findNearestHit(rayIn, best);
 
-    // if (TShapeKit* kit = dynamic_cast<TShapeKit*>(m_node)) // slower
-    if (m_node->getTypeId() == TShapeKit::getClassTypeId()) // faster
+    if (m_node->getTypeId() == TShapeKit::getClassTypeId())
     {
-        TShapeKit* kit = (TShapeKit*) m_node;
+        auto* kit = static_cast<TShapeKit*>(m_node);
+        auto* material = static_cast<MaterialRT*>(kit->materialRT.getValue());
+        if (!material || material->getTypeId() == MaterialTransparent::getClassTypeId())
+            return false;
+        auto* shape = static_cast<ShapeRT*>(kit->shapeRT.getValue());
+        if (!shape)
+            return false;
+        auto* profile = static_cast<ProfileRT*>(kit->profileRT.getValue());
 
-        MaterialRT* material = (MaterialRT*) kit->materialRT.getValue();
-        if (!material) return false;
-        if (material->getTypeId() == MaterialTransparent::getClassTypeId()) return false;
+        Ray rayLocal = m_transform.transformInverse(boundedRay);
+        double distance = 0.;
+        DifferentialGeometry geometry;
+        if (!shape->intersect(rayLocal, &distance, &geometry, profile))
+            return false;
+        if (!std::isfinite(distance) || distance < rayIn.tMin)
+            throw std::domain_error("Scientific integrity failure: invalid surface-intersection distance.");
+        if (distance >= best.distance)
+            return false;
 
-        ShapeRT* shape = (ShapeRT*) kit->shapeRT.getValue();
-        if (!shape) return false;
-        ProfileRT* profile = (ProfileRT*) kit->profileRT.getValue();
+        geometry.point = m_transform.transformPoint(geometry.point);
+        geometry.dpdu = m_transform.transformVector(geometry.dpdu);
+        geometry.dpdv = m_transform.transformVector(geometry.dpdv);
+        geometry.normal = m_transform.transformNormal(geometry.normal);
 
-        Ray rayLocal = m_transform.transformInverse(rayIn);
-        double tHit = 0.;
-        DifferentialGeometry dg;
-        if (!shape->intersect(rayLocal, &tHit, &dg, profile)) return false;
-
-        rayIn.tMax = tHit;
-        isFront = dg.isFront;
-        instance = this;
-
-        dg.point = m_transform.transformPoint(dg.point);
-        dg.dpdu = m_transform.transformVector(dg.dpdu);
-        dg.dpdv = m_transform.transformVector(dg.dpdv);
-        dg.normal = m_transform.transformNormal(dg.normal);
-
-        return material->OutputRay(rayIn, dg, rand, rayOut);
-    }
-    else if (m_node->getTypeId() == TSeparatorKit::getClassTypeId())
-    {
-        bool hasRayOut = false;
-        double t = rayIn.tMax;
-
-        for (InstanceNode* instanceChild : children)
-        {
-            Ray rayOutChild;
-            bool isFrontChild = true;
-            bool hasRayOutChild = instanceChild->intersect(rayIn, rand, isFrontChild, instanceChild, rayOutChild);
-
-            if (rayIn.tMax < t) // tMax mutable
-            {
-                t = rayIn.tMax;
-                isFront = isFrontChild;
-                instance = instanceChild;
-                hasRayOut = hasRayOutChild;
-                rayOut = rayOutChild;
-            }
-        }
-        return hasRayOut;
+        best.instance = const_cast<InstanceNode*>(this);
+        best.material = material;
+        best.geometry = geometry;
+        best.distance = distance;
+        return true;
     }
 
+    if (m_node->getTypeId() == TSeparatorKit::getClassTypeId())
+    {
+        bool found = false;
+        for (InstanceNode* child : children)
+            if (child->findNearestHit(rayIn, best))
+                found = true;
+        return found;
+    }
     return false;
+}
+
+MaterialInteraction InstanceNode::sampleMaterial(
+    const Ray& rayIn, const Intersection& nearest, Random& random, Ray& outgoing)
+{
+    // Nonvirtual contract enforces one validated shared surface-roulette draw.
+    return nearest.material->interact(rayIn, nearest.geometry, random, outgoing);
 }
 
 void InstanceNode::extendBoxForLight(SbBox3f* extendedBox)

@@ -1,6 +1,7 @@
 #include "MaterialSpecular.h"
 
-#include <Inventor/sensors/SoNodeSensor.h>
+#include <cmath>
+#include <stdexcept>
 
 #include "libraries/math/gcf.h"
 #include "libraries/math/3D/Ray.h"
@@ -31,67 +32,60 @@ MaterialSpecular::MaterialSpecular()
 
     SO_NODE_ADD_FIELD(slope, (0.002) ); // in radians
 
-    m_sensor = new SoNodeSensor(onSensor, this);
-    m_sensor->attach(this);
+    // Invalid coefficients are rejected, never silently clamped.
 }
 
-MaterialSpecular::~MaterialSpecular()
+MaterialSpecular::~MaterialSpecular() = default;
+
+MaterialProbabilities MaterialSpecular::probabilities(
+    const Ray&, const DifferentialGeometry&, Random&, MaterialInteractionState&) const
 {
-    delete m_sensor;
+    const double sigma = slope.getValue();
+    if (!std::isfinite(sigma) || sigma < 0.)
+        throw std::domain_error("Scientific integrity failure: invalid specular slope.");
+    return {reflectivity.getValue(), 0., 0.};
 }
 
-bool MaterialSpecular::OutputRay(const Ray& rayIn, const DifferentialGeometry& dg, Random& rand, Ray& rayOut) const
+void MaterialSpecular::scatter(MaterialInteraction event, const Ray& incoming,
+    const DifferentialGeometry& dg, Random& rand,
+    const MaterialInteractionState&, Ray& outgoing) const
 {
-    // reflectivity
-    if (rand.RandomDouble() >= reflectivity.getValue()) return false;
-
-    rayOut.origin = dg.point;
-
+    if (event != MaterialInteraction::SpecularReflection)
+        throw std::domain_error("Scientific integrity failure: invalid specular event.");
     vec3d normal;
-    double sigma = slope.getValue();
+    const double sigma = slope.getValue();
     if (sigma > 0.) {
-        if (distribution.getValue() == Distribution::pillbox)
-        {
-            double phi = gcf::TwoPi*rand.RandomDouble();
-            double sinTheta = sin(sigma)*sqrt(rand.RandomDouble());
-            double cosTheta = sqrt(1. - sinTheta*sinTheta);
-            normal.x = sinTheta*cos(phi);
-            normal.y = sinTheta*sin(phi);
-            normal.z = cosTheta;
-        }
-        else //if (distribution.getValue() == Distribution::Gaussian)
-        {
-            // https://en.wikipedia.org/wiki/Marsaglia_polar_method
+        if (distribution.getValue() == Distribution::pillbox) {
+            const double phi = gcf::TwoPi*rand.RandomDouble();
+            const double sinTheta = std::sin(sigma)*std::sqrt(rand.RandomDouble());
+            const double cosTheta = std::sqrt(1. - sinTheta*sinTheta);
+            normal = vec3d(sinTheta*std::cos(phi), sinTheta*std::sin(phi), cosTheta);
+        } else if (distribution.getValue() == Distribution::Gaussian) {
             double u, v, s;
             do {
                 u = 2.*rand.RandomDouble() - 1.;
                 v = 2.*rand.RandomDouble() - 1.;
                 s = u*u + v*v;
             } while (s > 1. || s == 0.);
-            s = sigma*sqrt(-2.*log(s)/s);
-
-            normal.x = s*u;
-            normal.y = s*v;
-            normal.z = 1.;
+            const double scale = sigma*std::sqrt(-2.*std::log(s)/s);
+            normal = vec3d(scale*u, scale*v, 1.);
+        } else {
+            throw std::domain_error(
+                "Scientific integrity failure: unsupported specular distribution.");
         }
-        vec3d vx = dg.dpdu.normalized();
-        vec3d vy = dg.dpdv.normalized();
-        vec3d vz = dg.normal.normalized(); // always normalized?
+        const vec3d vx = dg.dpdu.normalized();
+        const vec3d vy = dg.dpdv.normalized();
+        const vec3d vz = dg.normal.normalized();
         normal = vx*normal.x + vy*normal.y + vz*normal.z;
         normal.normalize();
-    } else
-        normal = dg.normal;
-
-    vec3d d = rayIn.direction().reflected(normal);
-    rayOut.setDirection(d); // double sided
-    return true;
-}
-
-void MaterialSpecular::onSensor(void* data, SoSensor*)
-{
-    MaterialSpecular* material = (MaterialSpecular*) data;
-    if (material->reflectivity.getValue() < 0.)
-        material->reflectivity = 0.;
-    if (material->reflectivity.getValue() > 1.)
-        material->reflectivity = 1.;
+    } else {
+        normal = dg.normal.normalized();
+    }
+    const vec3d reflected = incoming.direction().reflected(normal);
+    const bool incomingBelow = dot(incoming.direction(), dg.normal) < 0.;
+    const bool outgoingBelow = dot(reflected, dg.normal) < 0.;
+    if (incomingBelow == outgoingBelow)
+        throw std::domain_error(
+            "Scientific integrity failure: specular reflection exits wrong hemisphere.");
+    outgoing.setDirection(reflected);
 }

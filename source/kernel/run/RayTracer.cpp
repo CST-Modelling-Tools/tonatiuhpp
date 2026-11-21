@@ -1,9 +1,12 @@
 #include <QPoint>
 #include <type_traits>
+#include <stdexcept>
 #include "shape/DifferentialGeometry.h"
 #include "random/Random.h"
+#include "random/RussianRoulette.h"
 #include "libraries/math/3D/Ray.h"
 #include "RayTracer.h"
+#include "kernel/run/InstanceNode.h"
 #include "kernel/photons/PhotonsBuffer.h"
 #include "sun/SunAperture.h"
 #include "sun/SunShape.h"
@@ -152,14 +155,30 @@ void RayTracer::traceRays(ulong nRays)
         bool isReflected = true;
         bool airAbsorbed = false;
         while (isReflected) {
+            if (rayLength >= 1'000'000)
+                throw std::runtime_error(
+                    "Scientific integrity failure: ray exceeded one million interactions.");
             Ray rayReflected;
             isFront = false;
             intersectedSurface = nullptr;
-            isReflected = m_instanceLayout->intersect(ray, rand, isFront, intersectedSurface, rayReflected);
+            InstanceNode::Intersection hit;
+            const bool hasHit = m_instanceLayout->findNearestHit(ray, hit);
+            if (hasHit) {
+                ray.tMax = hit.distance;
+                isFront = hit.geometry.isFront;
+                intersectedSurface = hit.instance;
+            }
 
-            // Air absorption is checked after the first reflection in both
-            // modes, with exactly one RandomDouble draw per eligible segment.
-            if (m_air && rayLength > 0 && m_air->transmission(ray.tMax) < rand.RandomDouble()) {
+            // One validated atmospheric survival decision per eligible segment.
+            // The direct solar leg is intentionally outside this contract.
+            // Ground-level input DNI is assigned at the first optical surface;
+            // do not apply atmosphere to the initial sun-to-surface leg.
+            // Only finite post-first-hit paths between optical surfaces are
+            // attenuated. A missed surface has no finite segment length: do
+            // not evaluate a distance polynomial at infinity.
+            if (m_air && rayLength > 0 && hasHit &&
+                RussianRoulette::sample(rand, m_air->transmission(ray.tMax))
+                    == RussianRoulette::Outcome::Absorbed) {
                 airAbsorbed = true;
                 if constexpr (CaptureHistory) {
                     historyState.airAbsorbed = true;
@@ -174,6 +193,11 @@ void RayTracer::traceRays(ulong nRays)
                 break;
             }
 
+            if (!hasHit)
+                break;
+            const MaterialInteraction event =
+                InstanceNode::sampleMaterial(ray, hit, rand, rayReflected);
+            isReflected = event != MaterialInteraction::Absorbed;
             if (!isReflected)
                 break;
 
@@ -191,7 +215,7 @@ void RayTracer::traceRays(ulong nRays)
         // regardless of photon export and without extra random draws.
         m_energyBudget.record(airAbsorbed ? RayTerminalOutcome::Air
             : (intersectedSurface && ray.tMax != gcf::infinity)
-                ? RayTerminalOutcome::Surface
+                ? RayTerminalOutcome::SurfaceAbsorbed
                 : RayTerminalOutcome::Escaped);
 
         // Preserve the M2.1-observed callback contract. The no-recording

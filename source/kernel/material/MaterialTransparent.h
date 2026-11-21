@@ -11,10 +11,14 @@ public:
     static void initClass();
     MaterialTransparent();
 
-    bool OutputRay(const Ray& rayIn, const DifferentialGeometry& dg, Random& rand, Ray& rayOut) const;
 
     NAME_ICON_FUNCTIONS("Transparent", ":/material/MaterialTransparent.png")
 
 protected:
+    MaterialProbabilities probabilities(const Ray&, const DifferentialGeometry&,
+        Random&, MaterialInteractionState&) const override;
+    void scatter(MaterialInteraction, const Ray&, const DifferentialGeometry&,
+        Random&, const MaterialInteractionState&, Ray&) const override;
+
     ~MaterialTransparent() {}
 };
