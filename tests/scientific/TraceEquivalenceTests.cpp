@@ -163,12 +163,6 @@ struct PropagationObservation
         bool isAbsorbed = false;
     };
 
-    void hit()
-    {
-        std::lock_guard<std::mutex> lock(mutex);
-        callbacks.push_back('H');
-    }
-
     void history(const RayTracerHistory& value)
     {
         CapturedHistory captured;
@@ -176,12 +170,10 @@ struct PropagationObservation
         for (const RayTracerHistoryStep& step : value.steps)
             captured.surfaceUrls.push_back(step.surface ? step.surface->getURL() : QString());
         std::lock_guard<std::mutex> lock(mutex);
-        callbacks.push_back('R');
         histories.push_back(std::move(captured));
     }
 
     std::mutex mutex;
-    std::vector<char> callbacks;
     std::vector<CapturedHistory> histories;
     std::vector<PhotonPoint> photons;
 };
@@ -379,10 +371,8 @@ bool traceOnce(PreparationPath path, ulong rays, bool recordPhotons,
         }
         // Use the real production policy, not a duplicated test-only condition.
         input.tracingAir = TracePreparation::effectiveTracingAir(air);
-        input.hitCallback = [&hits, observation](const RayTracerHit& hit) {
+        input.hitCallback = [&hits](const RayTracerHit& hit) {
             hits.add(hit);
-            if (observation)
-                observation->hit();
         };
         if (observation) {
             input.historyCallback = [observation](const RayTracerHistory& history) {
@@ -399,10 +389,8 @@ bool traceOnce(PreparationPath path, ulong rays, bool recordPhotons,
         input.scene = loaded.get();
         input.updateTrackers =
             trackerPreparation == TrackerScenePreparation::HeadlessOptIn;
-        input.hitCallback = [&hits, observation](const RayTracerHit& hit) {
+        input.hitCallback = [&hits](const RayTracerHit& hit) {
             hits.add(hit);
-            if (observation)
-                observation->hit();
         };
         if (observation) {
             input.historyCallback = [observation](const RayTracerHistory& history) {
@@ -582,29 +570,6 @@ void expectSamePropagation(const PropagationObservation& expected,
             EXPECT_EQ(vectorBits(a.outgoingDirection), vectorBits(b.outgoingDirection));
         }
     }
-}
-
-// One chunk, hence one worker: hit and per-ray history callbacks cannot
-// interleave with callbacks from another ray. This is the CURRENT ordering,
-// not an architectural requirement to retain the ordering after M2.2.
-void expectLegacyCallbackOrder(const PropagationObservation& observation, bool recording)
-{
-    std::vector<char> expected;
-    for (std::size_t i = 0; i < observation.histories.size(); ++i) {
-        const RayTracerHistory& history = observation.histories[i].history;
-        ASSERT_EQ(history.rayIndex, i);
-        for (const RayTracerHistoryStep& step : history.steps) {
-            if (step.continued)
-                expected.push_back('H');
-        }
-        const bool terminalHit = history.termination == RayTracerHistoryTermination::Surface;
-        if (!recording && terminalHit)
-            expected.push_back('H');
-        expected.push_back('R');
-        if (recording && terminalHit)
-            expected.push_back('H');
-    }
-    EXPECT_EQ(observation.callbacks, expected);
 }
 
 } // namespace
@@ -877,7 +842,7 @@ TEST(ScientificTraceBaseline, GuiStylePreparationIsRepeatableWithoutWidgets)
 
 // Regression: GUI borrowed and headless owned preparation must independently
 // compute identical analytical ray-tracing sun geometry.
-TEST(ScientificTraceDiagnostic, GuiStyleMatchesHeadless)
+TEST(ScientificTraceRegression, GuiStyleMatchesHeadless)
 {
     for (const ulong rays : {1024UL, 20001UL}) {
         SCOPED_TRACE(rays);
@@ -894,7 +859,7 @@ TEST(ScientificTraceDiagnostic, GuiStyleMatchesHeadless)
 
 // Regression: photon buffering exercises the other RayTracer propagation loop,
 // without starting a file exporter. Keep checking equivalence during refactoring.
-TEST(ScientificTraceDiagnostic, PhotonRecordingPreservesScientificHits)
+TEST(ScientificTraceRegression, PhotonRecordingPreservesScientificHits)
 {
     ScientificSignature withoutRecording;
     ScientificSignature withRecording;
@@ -907,9 +872,9 @@ TEST(ScientificTraceDiagnostic, PhotonRecordingPreservesScientificHits)
     expectEqualScience(withoutRecording, withRecording);
 }
 
-// M2.1: A0 already checks identical exact hits; characterize the observable
-// callback ordering difference on terminal surface interactions as well.
-TEST(ScientificPropagationSemantics, TerminalCallbackOrderDiffersByRecordingMode)
+// Recording must not change terminal propagation histories or physical hits.
+// Callback scheduling/order is intentionally not part of this contract.
+TEST(ScientificPropagationSemantics, TerminalInteractionsPreserveHistoriesAcrossRecordingModes)
 {
     constexpr ulong rays = 1024UL;  // exactly one worker chunk
     ScientificSignature noRecord, recorded;
@@ -925,8 +890,6 @@ TEST(ScientificPropagationSemantics, TerminalCallbackOrderDiffersByRecordingMode
     ASSERT_EQ(noRecordEvents.histories.size(), rays);
     ASSERT_EQ(recordedEvents.histories.size(), rays);
     expectSamePropagation(noRecordEvents, recordedEvents);
-    expectLegacyCallbackOrder(noRecordEvents, false);
-    expectLegacyCallbackOrder(recordedEvents, true);
     EXPECT_GT(std::count_if(noRecordEvents.histories.begin(), noRecordEvents.histories.end(),
                              [](const auto& event) {
                                  return event.history.termination == RayTracerHistoryTermination::Surface;
@@ -938,9 +901,9 @@ TEST(ScientificPropagationSemantics, TerminalCallbackOrderDiffersByRecordingMode
                             }));
 }
 
-// M2.1: Export-surface filtering currently affects recording-mode terminal
-// hit callbacks but NOT non-recording terminal hits or intermediate hits.
-// This is a measured legacy divergence; M2.2 must decide its explicit policy.
+// Characterize current export-surface filtering: recording-mode terminal
+// hits can be filtered while intermediate and unrecorded hits remain.
+// This regression does not imply a preferred future callback API policy.
 TEST(ScientificPropagationSemantics, FilteredExportSuppressesRecordedTerminalHits)
 {
     constexpr ulong rays = 4096UL;
@@ -971,8 +934,8 @@ TEST(ScientificPropagationSemantics, FilteredExportSuppressesRecordedTerminalHit
     }
 }
 
-// M2.1: Atmospheric loss must carry the same sampled segment distance and
-// terminal geometry with or without photon recording, including escape paths.
+// Atmospheric termination must preserve sampled segment distance and
+// terminal geometry with or without recording, including escape paths.
 TEST(ScientificPropagationSemantics, AirLossTerminalRecordsMatchWithRecording)
 {
     constexpr ulong rays = 4096UL;
@@ -989,8 +952,6 @@ TEST(ScientificPropagationSemantics, AirLossTerminalRecordsMatchWithRecording)
     ASSERT_EQ(noRecordEvents.histories.size(), rays);
     ASSERT_EQ(recordedEvents.histories.size(), rays);
     expectSamePropagation(noRecordEvents, recordedEvents);
-    expectLegacyCallbackOrder(noRecordEvents, false);
-    expectLegacyCallbackOrder(recordedEvents, true);
     EXPECT_GT(noRecord.airTransmissionCalls, 0U);
     EXPECT_GT(std::count_if(noRecordEvents.histories.begin(), noRecordEvents.histories.end(),
                              [](const auto& event) {

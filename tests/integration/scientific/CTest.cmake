@@ -12,12 +12,12 @@
     )
 
     add_test(
-      NAME headless.trace_tracker_legacy
+      NAME headless.trace_tracker_as_loaded
       COMMAND "${TONATIUHPP_TEST_EXE}"  trace-scene "${_tracker_scene}"
               --rays 4096 --seed 123456789 --no-export
     )
-    tonatiuhpp_set_headless_test_properties(headless.trace_tracker_legacy)
-    set_tests_properties(headless.trace_tracker_legacy PROPERTIES
+    tonatiuhpp_set_headless_test_properties(headless.trace_tracker_as_loaded)
+    set_tests_properties(headless.trace_tracker_as_loaded PROPERTIES
       PASS_REGULAR_EXPRESSION "Trace completed\\."
       TIMEOUT 120
     )
@@ -36,7 +36,7 @@
     )
     tonatiuhpp_set_headless_test_properties(headless.trace_tracker_exact_signatures)
     set_tests_properties(headless.trace_tracker_exact_signatures PROPERTIES
-      LABELS "headless;smoke;scientific;equivalence"
+      LABELS "headless;smoke;scientific;repeatability"
       TIMEOUT 480
     )
   endif()
@@ -67,7 +67,7 @@
     # M4.1: direct CLI File export (no A0 environment variable) must match
     # the identical true-headless script's real physical photon output.
     add_test(
-      NAME headless.m4_cli_script_file_export_parity
+      NAME headless.file_export_cli_script_equivalence
       COMMAND "${CMAKE_COMMAND}"
         "-DTEST_EXECUTABLE=${TONATIUHPP_TEST_EXE}"
         "-DTEST_WORKING_DIRECTORY=${TONATIUHPP_TEST_WORKING_DIR}"
@@ -79,14 +79,14 @@
         "-DTEST_BUILD_ROOT=${CMAKE_CURRENT_BINARY_DIR}"
         -P "${TONATIUHPP_TESTS_ROOT}/cmake/run_m4_cli_file_export_parity.cmake"
     )
-    tonatiuhpp_set_headless_test_properties(headless.m4_cli_script_file_export_parity)
-    set_tests_properties(headless.m4_cli_script_file_export_parity PROPERTIES
+    tonatiuhpp_set_headless_test_properties(headless.file_export_cli_script_equivalence)
+    set_tests_properties(headless.file_export_cli_script_equivalence PROPERTIES
       LABELS "headless;smoke;scientific;equivalence" TIMEOUT 300)
 
     # M4 completion candidate: File segments, CLI/script parity, safe append,
     # and >200k requested rays without touching frozen A0 evidence.
     add_test(
-      NAME headless.m4_extended_file_export_parity
+      NAME headless.segmented_file_export_equivalence
       COMMAND "${CMAKE_COMMAND}"
         "-DTEST_EXECUTABLE=${TONATIUHPP_TEST_EXE}"
         "-DTEST_SCRIPT=${TONATIUHPP_TESTS_ROOT}/scripts/m4_extended_file_export.tnhpps.in"
@@ -98,8 +98,8 @@
         "-DTEST_WORKING_DIRECTORY=${TONATIUHPP_TEST_WORKING_DIR}"
         -P "${TONATIUHPP_TESTS_ROOT}/cmake/run_m4_extended_file_export.cmake"
     )
-    tonatiuhpp_set_headless_test_properties(headless.m4_extended_file_export_parity)
-    set_tests_properties(headless.m4_extended_file_export_parity PROPERTIES
+    tonatiuhpp_set_headless_test_properties(headless.segmented_file_export_equivalence)
+    set_tests_properties(headless.segmented_file_export_equivalence PROPERTIES
       LABELS "headless;smoke;scientific;equivalence" TIMEOUT 300)
   endif()
 

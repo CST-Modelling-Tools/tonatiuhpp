@@ -2,7 +2,7 @@
   # Unified M3 domain Run: two independent headless processes use one
   # widget-free executor. Generate a native GUI comparison fixture too.
   add_test(
-    NAME headless.m3_shared_run_parity
+    NAME headless.scripted_run_process_repeatability
     COMMAND "${CMAKE_COMMAND}"
       "-DTEST_EXECUTABLE=${TONATIUHPP_TEST_EXE}"
       "-DTEST_SCRIPT=${TONATIUHPP_TESTS_ROOT}/scripts/m3_shared_run_parity.tnhpps.in"
@@ -12,9 +12,9 @@
       "-DTEST_BUILD_ROOT=${CMAKE_CURRENT_BINARY_DIR}"
       -P "${TONATIUHPP_TESTS_ROOT}/cmake/run_m3_shared_run_parity.cmake"
   )
-  tonatiuhpp_set_headless_test_properties(headless.m3_shared_run_parity)
-  set_tests_properties(headless.m3_shared_run_parity PROPERTIES
-    LABELS "headless;smoke;scientific;equivalence" TIMEOUT 280)
+  tonatiuhpp_set_headless_test_properties(headless.scripted_run_process_repeatability)
+  set_tests_properties(headless.scripted_run_process_repeatability PROPERTIES
+    LABELS "headless;smoke;scientific;repeatability" TIMEOUT 280)
 
   add_test(
     NAME headless.help
@@ -83,15 +83,15 @@
   # M3.3: verify that headless script JSON and DataObject paths are relative
   # to the script, even if the process starts from a different directory.
   add_test(
-    NAME headless.m3_script_relative_io
+    NAME headless.script_relative_file_io
     COMMAND "${CMAKE_COMMAND}"
       "-DTEST_EXECUTABLE=${TONATIUHPP_TEST_EXE}"
       "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/m3_script_relative_io"
       "-DTEST_BUILD_ROOT=${CMAKE_CURRENT_BINARY_DIR}"
       -P "${TONATIUHPP_TESTS_ROOT}/cmake/run_m3_script_relative_io.cmake"
   )
-  tonatiuhpp_set_headless_test_properties(headless.m3_script_relative_io)
-  set_tests_properties(headless.m3_script_relative_io PROPERTIES TIMEOUT 45)
+  tonatiuhpp_set_headless_test_properties(headless.script_relative_file_io)
+  set_tests_properties(headless.script_relative_file_io PROPERTIES TIMEOUT 45)
 
   # Run two small, unmodified tracked examples. They construct scenes but do
   # not trace rays or access sidecar CSVs. ShapeFunctionXYZ must be built.
@@ -113,18 +113,18 @@
 
   # M3 exit Phase 2: same non-destructive sun-position script as the native GUI.
   add_test(
-    NAME headless.m3_exit_phase2_sun_position
+    NAME headless.script_sun_position
     COMMAND "${TONATIUHPP_TEST_EXE}"  run-script
       "${TONATIUHPP_TESTS_ROOT}/scripts/m3_exit_phase2_sun_smoke.tnhpps"
   )
-  tonatiuhpp_set_headless_test_properties(headless.m3_exit_phase2_sun_position)
-  set_tests_properties(headless.m3_exit_phase2_sun_position PROPERTIES TIMEOUT 30)
+  tonatiuhpp_set_headless_test_properties(headless.script_sun_position)
+  set_tests_properties(headless.script_sun_position PROPERTIES TIMEOUT 30)
 
   # Phase 3A: bounded shared scene-field edit and 64x48 grid parity.
   # The runner copies the fixture to build/ and writes a headless baseline;
   # GUI acceptance reuses the copied, unchanged script, not source-tree CSVs.
   add_test(
-    NAME headless.m3_exit_phase3a_field_grid
+    NAME headless.script_field_grid_csv
     COMMAND "${CMAKE_COMMAND}"
       "-DTEST_EXECUTABLE=${TONATIUHPP_TEST_EXE}"
       "-DTEST_SCRIPT=${TONATIUHPP_TESTS_ROOT}/scripts/m3_exit_phase3a_field_grid_smoke.tnhpps"
@@ -132,14 +132,14 @@
       "-DTEST_BUILD_ROOT=${CMAKE_CURRENT_BINARY_DIR}"
       -P "${TONATIUHPP_TESTS_ROOT}/cmake/run_m3_exit_phase3a_field_grid.cmake"
   )
-  tonatiuhpp_set_headless_test_properties(headless.m3_exit_phase3a_field_grid)
-  set_tests_properties(headless.m3_exit_phase3a_field_grid PROPERTIES
-    LABELS "headless;smoke;scientific;equivalence" TIMEOUT 90)
+  tonatiuhpp_set_headless_test_properties(headless.script_field_grid_csv)
+  set_tests_properties(headless.script_field_grid_csv PROPERTIES
+    LABELS "headless;smoke;scientific;regression" TIMEOUT 90)
 
   # Phase 3B2B2A: real production File append and cumulative power parity.
   # Uses a disposable build/tests directory and the existing A0 comparator.
   add_test(
-    NAME headless.m3_exit_phase3b2b2a_append
+    NAME headless.script_file_export_append_integrity
     COMMAND "${CMAKE_COMMAND}"
       "-DTEST_EXECUTABLE=${TONATIUHPP_TEST_EXE}"
       "-DTEST_SCRIPT=${TONATIUHPP_TESTS_ROOT}/scripts/m3_exit_phase3b2b2_append.tnhpps.in"
@@ -150,14 +150,14 @@
       "-DCOMPARATOR=${TONATIUHPP_TESTS_ROOT}/scientific/compare_photon_exports.py"
       -P "${TONATIUHPP_TESTS_ROOT}/cmake/run_m3_exit_phase3b2b2a_append.cmake"
   )
-  tonatiuhpp_set_headless_test_properties(headless.m3_exit_phase3b2b2a_append)
-  set_tests_properties(headless.m3_exit_phase3b2b2a_append PROPERTIES
+  tonatiuhpp_set_headless_test_properties(headless.script_file_export_append_integrity)
+  set_tests_properties(headless.script_file_export_append_integrity PROPERTIES
     LABELS "headless;smoke;scientific;equivalence" TIMEOUT 180)
 
   # Phase 3B2B1: real, bounded one-shot scripted File photon exporter.
   # Tests repeatability, selected-surface filtering and no-overwrite failure.
   add_test(
-    NAME headless.m3_exit_phase3b2b1_run_file
+    NAME headless.script_file_export_safety
     COMMAND "${CMAKE_COMMAND}"
       "-DTEST_EXECUTABLE=${TONATIUHPP_TEST_EXE}"
       "-DTEST_SCRIPT=${TONATIUHPP_TESTS_ROOT}/scripts/m3_exit_phase3b2b1_run_file.tnhpps.in"
@@ -167,9 +167,9 @@
       "-DCOMPARATOR=${TONATIUHPP_TESTS_ROOT}/scientific/compare_photon_exports.py"
       -P "${TONATIUHPP_TESTS_ROOT}/cmake/run_m3_exit_phase3b2b1_file.cmake"
   )
-  tonatiuhpp_set_headless_test_properties(headless.m3_exit_phase3b2b1_run_file)
-  set_tests_properties(headless.m3_exit_phase3b2b1_run_file PROPERTIES
-    LABELS "headless;smoke;scientific;equivalence" TIMEOUT 120)
+  tonatiuhpp_set_headless_test_properties(headless.script_file_export_safety)
+  set_tests_properties(headless.script_file_export_safety PROPERTIES
+    LABELS "headless;smoke;scientific;repeatability" TIMEOUT 120)
 
   # Actual no-export ray-tracing operation with a strictly small ray budget.
   add_test(
@@ -189,7 +189,7 @@
     # M3.3: one real script-controlled session must be cancellable, never
     # report accepted partial science, and permit a fresh completed trace.
     add_test(
-      NAME headless.m3_script_cancel_recover
+      NAME headless.script_cancellation_recovery
       COMMAND "${CMAKE_COMMAND}"
         "-DTEST_EXECUTABLE=${TONATIUHPP_TEST_EXE}"
         "-DTEST_WORKING_DIRECTORY=${TONATIUHPP_TEST_WORKING_DIR}"
@@ -199,8 +199,8 @@
       "-DTEST_BUILD_ROOT=${CMAKE_CURRENT_BINARY_DIR}"
         -P "${TONATIUHPP_TESTS_ROOT}/cmake/run_m3_script_cancel_smoke.cmake"
     )
-    tonatiuhpp_set_headless_test_properties(headless.m3_script_cancel_recover)
-    set_tests_properties(headless.m3_script_cancel_recover PROPERTIES TIMEOUT 120)
+    tonatiuhpp_set_headless_test_properties(headless.script_cancellation_recovery)
+    set_tests_properties(headless.script_cancellation_recovery PROPERTIES TIMEOUT 120)
 
     add_test(
       NAME headless.validate_cylinder_scene
