@@ -4,6 +4,8 @@
 #include "kernel/shape/DifferentialGeometry.h"
 #include "kernel/random/Random.h"
 
+#include <stdexcept>
+
 
 SO_NODE_SOURCE(MaterialAbsorber)
 
@@ -18,12 +20,15 @@ MaterialAbsorber::MaterialAbsorber()
     isBuiltIn = TRUE;
 }
 
-bool MaterialAbsorber::OutputRay(const Ray& rayIn, const DifferentialGeometry& dg, Random& rand, Ray& rayOut) const
+MaterialProbabilities MaterialAbsorber::probabilities(
+    const Ray&, const DifferentialGeometry&, Random&, MaterialInteractionState&) const
 {
-    Q_UNUSED(rayIn)
-    Q_UNUSED(dg)
-    Q_UNUSED(rand)
-    Q_UNUSED(rayOut)
+    return {};
+}
 
-    return false;
+void MaterialAbsorber::scatter(MaterialInteraction, const Ray&,
+    const DifferentialGeometry&, Random&, const MaterialInteractionState&, Ray&) const
+{
+    // Shared selection can never reach scattering for an ideal absorber.
+    throw std::logic_error("Scientific integrity failure: absorber cannot scatter.");
 }

@@ -6,23 +6,68 @@ Scientific refactoring must preserve the accepted scene interpretation, sun and 
 
 The frozen heliostat scene, the 500-million-ray v2 reference JSON, and its binary/CSV grids live under `examples/benchmarks/`. **Do not edit or regenerate them during a code or documentation cleanup.** Keep uncommitted benchmark outputs and console transcripts in the ignored local build tree.
 
-## E1 stage 1: mandatory ray-termination accounting
+## E1 stage 1: exact ray-termination accounting (merged)
 
-The shared production ray tracer counts actual launches and categorizes one
-terminal outcome for each completed ray: surface termination, air absorption,
-or escape. The executor independently checks exact per-chunk integer coverage
-before accepting each chunk and checks the aggregate before success. The
-session rejects accounting failures through its existing error lifecycle;
-cancellation and export failure retain their distinct outcomes. The counters
-do not consume random numbers or depend on photon-recording mode.
+The shared production tracer checks exact per-chunk and aggregate launched-ray
+coverage. The final event counts can never exceed or omit launched rays in an
+accepted run. Cancellation and exporter failure are separate failure modes.
 
-**Scope limitation:** a surface termination is *not* yet certified physical
-absorption. `MaterialRT::OutputRay` returns only a Boolean, which also covers
-failed continuation. This stage therefore guarantees ray-termination coverage,
-not physical absorbed-energy conservation or correct optical probabilities.
-Those require the separately reviewed E1 material-outcome/roulette stage.
-It must not be used to claim that a physically inaccurate but completely
-categorized trace conserves energy.
+## E1 stage 2: mandatory optical outcomes and scientifically validated roulette
+
+`MaterialRT::interact()` is a **nonvirtual kernel-owned entry point**. Every
+supported material overrides the pure virtual `probabilities()` and `scatter()`
+contracts, but none can replace the material-event selector. It validates
+finite, nonnegative `specular`, `diffuse`, and `transmission` probabilities whose
+sum is at most 1, consumes one categorical random draw, and treats the
+remaining probability as true physical absorption. On continuation, the kernel
+forces the outgoing origin to the physical hit and validates the ray direction.
+The old ambiguous Boolean `OutputRay` interface is removed. All officially
+built-in materials and the official dynamically loaded `MaterialSpecular`
+plugin use this contract, including deterministic absorber/transparent/virtual
+materials. They must be rebuilt together before running any trace.
+
+Nearest-hit geometry is selected before consuming material random numbers, and
+atmospheric survival is sampled on finite surface-to-surface segments (after
+first incidence) before the receiving material. Escaping rays are not treated
+as infinitely long air paths. This eliminates sampling of occluded surfaces
+and air-absorbed photons. A one-million
+interaction limit rejects trapped/unstable ray paths rather than looping
+indefinitely. Invalid optical parameters, degenerate microfacet geometry and nonfinite
+rays are scientific failures, **never** counted as absorption. For a rough
+phenomenological surface, sampled normals that would reflect into the wrong
+macroscopic hemisphere are rejected and resampled conditional on a valid
+outgoing direction; the reflect/absorb roulette event is not reselected.
+
+`RayEnergyBudget::surfaceAbsorbed` is the explicit physical surface-absorption
+count for an accepted run under the supported material contract. Each
+simulated ray carries equal input power; multiplication of absorbed-ray counts
+by power per ray gives the corresponding analog Monte Carlo power estimator.
+This accounting proves internal conservation of the **modeled** fates for
+successful simulations; it does not prove that the optical model represents
+all physical phenomena in an experiment.
+
+**Atmosphere convention:** Tonatiuh++ interprets the user-specified ground-level
+DNI as irradiance available at the first optical surface. Therefore, it does
+not attenuate the sun-to-first-surface path a second time. Air transmission
+is applied only after the first interaction. This is an explicit model
+assumption, not a claim that arbitrary first surfaces receive identical DNI.
+
+**Scientific acceptance:** A fixed-seed path may change because the old rough
+material's independent draws and material-sampling-before-nearest-hit
+are corrected. Do not force new physical
+results to reproduce those mistakes. Independent deterministic and statistical
+tests (including 90% reflectivity and Fresnel normal incidence) take priority.
+Measure runtime and numerical consistency with bounded fixtures, never by
+rerunning or modifying the frozen 500-million-ray benchmark.
+
+## Historical material plugins removed from the current tree
+
+Four unused implementations of the obsolete Tonatiuh `TMaterial` API have
+been deleted, not shipped or silently updated. Their original behavior,
+equations, parameters and known limitations are recorded in
+[`docs/legacy-material-models.md`](legacy-material-models.md). The source
+remains recoverable in Git history. Only supported, built material plugins
+are allowed in the program's release package.
 
 ## Routine checks
 

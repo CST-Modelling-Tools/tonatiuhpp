@@ -10,6 +10,7 @@
 
 #include <Inventor/actions/SoGetBoundingBoxAction.h>
 #include <Inventor/nodes/SoGroup.h>
+#include <Inventor/fields/SoSFDouble.h>
 
 #include <algorithm>
 #include <array>
@@ -38,6 +39,10 @@
 #include "kernel/air/AirExponential.h"
 #include "kernel/air/AirTransmission.h"
 #include "kernel/air/AirVacuum.h"
+#include "kernel/material/MaterialRT.h"
+#include "kernel/shape/DifferentialGeometry.h"
+#include "kernel/random/StandardRandom.h"
+#include "libraries/math/3D/Ray.h"
 #include "kernel/photons/PhotonsAbstract.h"
 #include "kernel/photons/PhotonsBuffer.h"
 #include "kernel/run/InstanceNode.h"
@@ -484,7 +489,7 @@ void expectEqualScience(const ScientificSignature& expected,
     EXPECT_DOUBLE_EQ(expected.result.powerPerRay, actual.result.powerPerRay);
     EXPECT_EQ(expected.result.exportFailed, actual.result.exportFailed);
     EXPECT_EQ(expected.result.energyBudget.launched, actual.result.energyBudget.launched);
-    EXPECT_EQ(expected.result.energyBudget.surfaceTerminated, actual.result.energyBudget.surfaceTerminated);
+    EXPECT_EQ(expected.result.energyBudget.surfaceAbsorbed, actual.result.energyBudget.surfaceAbsorbed);
     EXPECT_EQ(expected.result.energyBudget.airAbsorbed, actual.result.energyBudget.airAbsorbed);
     EXPECT_EQ(expected.result.energyBudget.escaped, actual.result.energyBudget.escaped);
     EXPECT_EQ(expected.hitCount, actual.hitCount);
@@ -1700,6 +1705,61 @@ TEST(ScientificTracePreparation, VacuumExcludedAndExponentialRetained)
     ASSERT_EQ(selected, atmosphere);
     EXPECT_EQ(TracePreparation::effectiveTracingAir(selected), selected);
     EXPECT_LT(selected->transmission(2.), 1.);
+}
+
+// This exercises the REAL dynamically loaded MaterialSpecular plugin, not
+// merely the standalone random-selection helper.
+TEST(ScientificRouletteIntegration, RealSpecularPluginReflectsNinetyPercent)
+{
+    LoadedScene loaded;
+    QString error;
+    ASSERT_TRUE(SceneLoader::readFile(
+        fixturePath(ScientificScene::SpecularTwoReflections), &loaded, &error))
+        << error.toStdString();
+    SceneInstanceTree tree = SceneInstanceBuilder::build(loaded.get());
+    InstanceNode* first = findInstanceByUrl(
+        tree.layoutRoot, QStringLiteral("//Node/First/Shape"));
+    ASSERT_NE(first, nullptr);
+    auto* kit = static_cast<TShapeKit*>(first->getNode());
+    auto* material = static_cast<MaterialRT*>(kit->materialRT.getValue());
+    ASSERT_NE(material, nullptr);
+    auto* reflectivity = static_cast<SoSFDouble*>(material->getField("reflectivity"));
+    auto* slope = static_cast<SoSFDouble*>(material->getField("slope"));
+    ASSERT_NE(reflectivity, nullptr);
+    ASSERT_NE(slope, nullptr);
+    reflectivity->setValue(0.9);
+    slope->setValue(0.);
+
+    DifferentialGeometry dg;
+    dg.point = vec3d(1., 2., 0.);
+    dg.dpdu = vec3d(1., 0., 0.);
+    dg.dpdv = vec3d(0., 1., 0.);
+    dg.normal = vec3d(0., 0., 1.);
+    dg.isFront = true;
+    const Ray incoming(vec3d(1., 2., 1.), vec3d(0., 0., -1.));
+    StandardRandom rng(123456789ULL);
+    constexpr int samples = 200000;
+    int reflections = 0;
+    int badRays = 0;
+    int badEvents = 0;
+    for (int n = 0; n < samples; ++n) {
+        Ray outgoing;
+        const MaterialInteraction event = material->interact(incoming, dg, rng, outgoing);
+        if (event == MaterialInteraction::SpecularReflection) {
+            ++reflections;
+            if (outgoing.origin != dg.point
+                || outgoing.direction() != vec3d(0., 0., 1.))
+                ++badRays;
+        } else if (event != MaterialInteraction::Absorbed) {
+            ++badEvents;
+        }
+    }
+    EXPECT_EQ(badRays, 0);
+    EXPECT_EQ(badEvents, 0);
+    EXPECT_NEAR(static_cast<double>(reflections)/samples, 0.9, 0.004);
+    reflectivity->setValue(1.1);
+    Ray outgoing;
+    EXPECT_THROW(material->interact(incoming, dg, rng, outgoing), std::domain_error);
 }
 
 int main(int argc, char** argv)

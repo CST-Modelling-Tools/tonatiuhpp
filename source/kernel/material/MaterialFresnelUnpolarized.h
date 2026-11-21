@@ -22,11 +22,15 @@ public:
     SoSFEnum distribution;
     SoSFDouble slope;
 
-    bool OutputRay(const Ray& rayIn, const DifferentialGeometry& dg, Random& rand, Ray& rayOut) const;
 
     NAME_ICON_FUNCTIONS("Fresnel (unpolarized)", ":/material/MaterialFresnel.png")
 
 protected:
+    MaterialProbabilities probabilities(const Ray&, const DifferentialGeometry&,
+        Random&, MaterialInteractionState&) const override;
+    void scatter(MaterialInteraction, const Ray&, const DifferentialGeometry&,
+        Random&, const MaterialInteractionState&, Ray&) const override;
+
     ~MaterialFresnelUnpolarized() {}
 };
 

@@ -4,6 +4,11 @@
 #include "kernel/shape/DifferentialGeometry.h"
 #include "kernel/random/Random.h"
 
+#include <algorithm>
+#include <cmath>
+#include <stdexcept>
+#include <utility>
+
 
 SO_NODE_SOURCE(MaterialFresnelUnpolarized)
 
@@ -27,77 +32,97 @@ MaterialFresnelUnpolarized::MaterialFresnelUnpolarized()
     SO_NODE_ADD_FIELD(slope, (0.002) ); // in radians
 }
 
-bool MaterialFresnelUnpolarized::OutputRay(const Ray& rayIn, const DifferentialGeometry& dg, Random& rand, Ray& rayOut) const
+MaterialProbabilities MaterialFresnelUnpolarized::probabilities(
+    const Ray& incoming, const DifferentialGeometry& dg, Random& rand,
+    MaterialInteractionState& state) const
 {
-    Q_UNUSED(rand)
+    const double frontIndex = nFront.getValue();
+    const double backIndex = nBack.getValue();
+    const double sigma = slope.getValue();
+    if (!std::isfinite(frontIndex) || !std::isfinite(backIndex)
+        || frontIndex <= 0. || backIndex <= 0.
+        || !std::isfinite(sigma) || sigma < 0.)
+        throw std::domain_error(
+            "Scientific integrity failure: invalid Fresnel refractive index or slope.");
 
-    // surface roughness
     vec3d normal;
-    double sigma = slope.getValue();
     if (sigma > 0.) {
-        if (distribution.getValue() == Distribution::pillbox)
-        {
-            double phi = gcf::TwoPi*rand.RandomDouble();
-            double sinTheta = sin(sigma)*sqrt(rand.RandomDouble());
-            double cosTheta = sqrt(1. - sinTheta*sinTheta);
-            normal.x = sinTheta*cos(phi);
-            normal.y = sinTheta*sin(phi);
-            normal.z = cosTheta;
-        }
-        else //if (distribution.getValue() == Distribution::Gaussian)
-        {
-            // https://en.wikipedia.org/wiki/Marsaglia_polar_method
+        if (distribution.getValue() == Distribution::pillbox) {
+            const double phi = gcf::TwoPi*rand.RandomDouble();
+            const double sinTheta = std::sin(sigma)*std::sqrt(rand.RandomDouble());
+            const double cosTheta = std::sqrt(1. - sinTheta*sinTheta);
+            normal = vec3d(sinTheta*std::cos(phi), sinTheta*std::sin(phi), cosTheta);
+        } else if (distribution.getValue() == Distribution::Gaussian) {
             double u, v, s;
             do {
                 u = 2.*rand.RandomDouble() - 1.;
                 v = 2.*rand.RandomDouble() - 1.;
                 s = u*u + v*v;
             } while (s > 1. || s == 0.);
-            s = sigma*sqrt(-2.*log(s)/s);
-
-            normal.x = s*u;
-            normal.y = s*v;
-            normal.z = 1.;
+            const double scale = sigma*std::sqrt(-2.*std::log(s)/s);
+            normal = vec3d(scale*u, scale*v, 1.);
+        } else {
+            throw std::domain_error(
+                "Scientific integrity failure: unsupported Fresnel distribution.");
         }
-        vec3d vx = dg.dpdu.normalized();
-        vec3d vy = dg.dpdv.normalized();
-        vec3d vz = dg.normal.normalized();
+        const vec3d vx = dg.dpdu.normalized();
+        const vec3d vy = dg.dpdv.normalized();
+        const vec3d vz = dg.normal.normalized();
         normal = vx*normal.x + vy*normal.y + vz*normal.z;
         normal.normalize();
-    } else
+    } else {
         normal = dg.normal.normalized();
-
-    // select sides according to incident ray
-    const vec3d& dI = rayIn.direction();
-    double dIn = dot(dI, normal);
-    double nI = nFront.getValue();
-    double nT = nBack.getValue();
-    if (dIn > 0.) {
-        std::swap(nI, nT);
+    }
+    const vec3d& direction = incoming.direction();
+    double cosine = dot(direction, normal);
+    double incidentIndex = frontIndex;
+    double transmittedIndex = backIndex;
+    if (cosine > 0.) {
+        std::swap(incidentIndex, transmittedIndex);
         normal = -normal;
     }
-    dIn = std::abs(dIn);
+    cosine = std::fabs(cosine);
+    if (!std::isfinite(cosine) || cosine > 1. + 1e-10)
+        throw std::domain_error(
+            "Scientific integrity failure: invalid Fresnel incident cosine.");
+    cosine = std::min(1., cosine);
+    const double ratio = incidentIndex/transmittedIndex;
+    const double sinTransmittedSquared = ratio*ratio*(1. - cosine*cosine);
+    double reflectedFraction = 1.;
+    double cosineTransmitted = 0.;
 
-    // reflection law
-    double dIt = std::sqrt(1. - dIn*dIn);
-    double temp = 1. - gcf::pow2(nI/nT*dIt);
-    double dTn = 0.;
-    double R = 1.;
-    if (temp > 0.) { // no total reflection
-        dTn = std::sqrt(temp);
-        // averaged Fresnel coefficients
-        double Rs = (nI*dIn - nT*dTn)/(nI*dIn + nT*dTn);
-        double Rp = (nT*dIn - nI*dTn)/(nT*dIn + nI*dTn);
-        R = (Rs*Rs + Rp*Rp)/2.;
+    if (incidentIndex == transmittedIndex) {
+        // Index-matched media do not reflect even at exact grazing incidence.
+        reflectedFraction = 0.;
+        cosineTransmitted = cosine;
+    } else if (sinTransmittedSquared < 1.) {
+        cosineTransmitted = std::sqrt(1. - sinTransmittedSquared);
+        const double rs =
+            (incidentIndex*cosine - transmittedIndex*cosineTransmitted)
+            /(incidentIndex*cosine + transmittedIndex*cosineTransmitted);
+        const double rp =
+            (transmittedIndex*cosine - incidentIndex*cosineTransmitted)
+            /(transmittedIndex*cosine + incidentIndex*cosineTransmitted);
+        reflectedFraction = (rs*rs + rp*rp)*0.5;
     }
+    state.microfacetNormal = normal;
+    state.incidentIndex = incidentIndex;
+    state.transmittedIndex = transmittedIndex;
+    state.cosineTransmitted = cosineTransmitted;
+    return {reflectedFraction, 0., 1. - reflectedFraction};
+}
 
-    vec3d dO;
-    if (rand.RandomDouble() <= R) { // reflection
-        dO = dI.reflected(normal);
-    } else { // transmission
-        dO = (nI/nT)*dI.projected(normal) - dTn*normal;
+void MaterialFresnelUnpolarized::scatter(MaterialInteraction event,
+    const Ray& incoming, const DifferentialGeometry&, Random&,
+    const MaterialInteractionState& state, Ray& outgoing) const
+{
+    if (event == MaterialInteraction::SpecularReflection) {
+        outgoing.setDirection(incoming.direction().reflected(state.microfacetNormal));
+    } else if (event == MaterialInteraction::Transmission) {
+        const double ratio = state.incidentIndex/state.transmittedIndex;
+        outgoing.setDirection(ratio*incoming.direction().projected(state.microfacetNormal)
+            - state.cosineTransmitted*state.microfacetNormal);
+    } else {
+        throw std::domain_error("Scientific integrity failure: invalid Fresnel event.");
     }
-    rayOut.origin = dg.point;
-    rayOut.setDirection(dO);
-    return true;
 }

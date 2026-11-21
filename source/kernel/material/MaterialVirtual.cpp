@@ -4,6 +4,8 @@
 #include "kernel/shape/DifferentialGeometry.h"
 #include "kernel/random/Random.h"
 
+#include <stdexcept>
+
 
 SO_NODE_SOURCE(MaterialVirtual)
 
@@ -18,11 +20,16 @@ MaterialVirtual::MaterialVirtual()
     isBuiltIn = TRUE;
 }
 
-bool MaterialVirtual::OutputRay(const Ray& rayIn, const DifferentialGeometry& dg, Random& rand, Ray& rayOut) const
+MaterialProbabilities MaterialVirtual::probabilities(
+    const Ray&, const DifferentialGeometry&, Random&, MaterialInteractionState&) const
 {
-    Q_UNUSED(rand)
+    return {0., 0., 1.};
+}
 
-    rayOut.origin = dg.point;
-    rayOut.setDirection(rayIn.direction());
-	return true;
+void MaterialVirtual::scatter(MaterialInteraction event, const Ray& incoming,
+    const DifferentialGeometry&, Random&, const MaterialInteractionState&, Ray& outgoing) const
+{
+    if (event != MaterialInteraction::Transmission)
+        throw std::logic_error("Scientific integrity failure: invalid virtual material event.");
+    outgoing.setDirection(incoming.direction());
 }

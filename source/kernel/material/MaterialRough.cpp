@@ -4,6 +4,9 @@
 #include "kernel/shape/DifferentialGeometry.h"
 #include "kernel/random/Random.h"
 
+#include <cmath>
+#include <stdexcept>
+
 
 SO_NODE_SOURCE(MaterialRough)
 
@@ -28,73 +31,86 @@ MaterialRough::MaterialRough()
 }
 
 
-// http://www.pbr-book.org/3ed-2018/Light_Transport_I_Surface_Reflection/Sampling_Reflection_Functions.html
-bool MaterialRough::OutputRay(const Ray& rayIn, const DifferentialGeometry& dg, Random& rand, Ray& rayOut) const
+// Beckmann and Trowbridge-Reitz are sampled only after the centralized
+// categorical event has selected a specular reflection.
+MaterialProbabilities MaterialRough::probabilities(
+    const Ray&, const DifferentialGeometry&, Random&, MaterialInteractionState&) const
 {
-    if (rand.RandomDouble() <= diffuse.getValue())
-    {
-        rayOut.origin = dg.point;
+    const double alpha = roughness.getValue();
+    if (!std::isfinite(alpha) || alpha < 0.)
+        throw std::domain_error(
+            "Scientific integrity failure: invalid rough-material roughness.");
+    // The kernel validates diffuse + specular <= 1. The remainder absorbs.
+    return {specular.getValue(), diffuse.getValue(), 0.};
+}
 
-        double phi = gcf::TwoPi*rand.RandomDouble();
-        double sinTheta = sin(gcf::pi/2.)*sqrt(rand.RandomDouble());
-        double cosTheta = sqrt(1. - sinTheta*sinTheta);
-        vec3d dDiff(
-            sinTheta*cos(phi),
-            sinTheta*sin(phi),
-            cosTheta
-        );
-
-        vec3d vx = dg.dpdu.normalized();
-        vec3d vy = dg.dpdv.normalized();
-        vec3d vz = dg.normal.normalized();
-        dDiff = vx*dDiff.x + vy*dDiff.y + vz*dDiff.z;
-        dDiff.normalize();
-
+void MaterialRough::scatter(MaterialInteraction event, const Ray& rayIn,
+    const DifferentialGeometry& dg, Random& rand,
+    const MaterialInteractionState&, Ray& rayOut) const
+{
+    if (event == MaterialInteraction::DiffuseReflection) {
+        const double phi = gcf::TwoPi * rand.RandomDouble();
+        const double sinTheta = std::sqrt(rand.RandomDouble());
+        const double cosTheta = std::sqrt(1. - sinTheta*sinTheta);
+        vec3d diffuseDirection(
+            sinTheta*std::cos(phi), sinTheta*std::sin(phi), cosTheta);
+        const vec3d vx = dg.dpdu.normalized();
+        const vec3d vy = dg.dpdv.normalized();
+        const vec3d vz = dg.normal.normalized();
+        diffuseDirection = vx*diffuseDirection.x
+            + vy*diffuseDirection.y + vz*diffuseDirection.z;
+        diffuseDirection.normalize();
         if (dot(rayIn.direction(), vz) > 0.)
-            dDiff = -dDiff;
-        rayOut.setDirection(dDiff);
-        return true;
+            diffuseDirection = -diffuseDirection;
+        rayOut.setDirection(diffuseDirection);
+        return;
     }
-    else if (rand.RandomDouble() <= diffuse.getValue() + specular.getValue())
-    {
-        rayOut.origin = dg.point;
+    if (event != MaterialInteraction::SpecularReflection)
+        throw std::domain_error("Scientific integrity failure: invalid rough material event.");
 
+    const double alpha = roughness.getValue();
+    const bool incomingBelow = dot(rayIn.direction(), dg.normal) < 0.;
+    // A rough-surface angular sample can point into the solid. Rejection
+    // sampling conditions the scattering distribution on geometrically
+    // admissible directions without changing the roulette event or R.
+    // This is a phenomenological rough-scatter model, not a microfacet BRDF.
+    for (int attempt = 0; attempt < 256; ++attempt) {
         vec3d normal;
-        double alpha = roughness.getValue();
         if (alpha > 0.) {
-            double phi = gcf::TwoPi*rand.RandomDouble();
+            const double phi = gcf::TwoPi * rand.RandomDouble();
             double tan2Theta = 0.;
-            if (distribution.getValue() == Distribution::Beckmann)
-            {
-                tan2Theta = -gcf::pow2(alpha)*std::log(rand.RandomDouble());
-            }
-            else if (distribution.getValue() == Distribution::Trowbridge)
-            {
-                double u = rand.RandomDouble();
+            if (distribution.getValue() == Distribution::Beckmann) {
+                tan2Theta = -gcf::pow2(alpha) * std::log(rand.RandomDouble());
+            } else if (distribution.getValue() == Distribution::Trowbridge) {
+                const double u = rand.RandomDouble();
                 tan2Theta = gcf::pow2(alpha)*u/(1. - u);
+            } else {
+                throw std::domain_error(
+                    "Scientific integrity failure: unsupported rough distribution.");
             }
-            double cosTheta = 1./std::sqrt(1. + tan2Theta);
-            double sinTheta = sqrt(1. - cosTheta*cosTheta);
-            normal.x = sinTheta*cos(phi);
-            normal.y = sinTheta*sin(phi);
-            normal.z = cosTheta;
-
-            vec3d vx = dg.dpdu.normalized();
-            vec3d vy = dg.dpdv.normalized();
-            vec3d vz = dg.normal.normalized(); // always normalized?
+            if (!std::isfinite(tan2Theta) || tan2Theta < 0.)
+                throw std::domain_error(
+                    "Scientific integrity failure: invalid rough microfacet normal.");
+            const double cosTheta = 1./std::sqrt(1. + tan2Theta);
+            const double sinTheta = std::sqrt(1. - cosTheta*cosTheta);
+            normal = vec3d(sinTheta*std::cos(phi), sinTheta*std::sin(phi), cosTheta);
+            const vec3d vx = dg.dpdu.normalized();
+            const vec3d vy = dg.dpdv.normalized();
+            const vec3d vz = dg.normal.normalized();
             normal = vx*normal.x + vy*normal.y + vz*normal.z;
             normal.normalize();
-        } else
-            normal = dg.normal;
-
-        vec3d d = rayIn.direction().reflected(normal); // double sided
-        bool qIn = dot(rayIn.direction(), dg.normal) < 0.;
-        bool qOut = dot(d, dg.normal) < 0.;
-        if (qIn == qOut) // fix for large roughness
-            return false;
-        rayOut.setDirection(d);
-        return true;
+        } else {
+            normal = dg.normal.normalized();
+        }
+        const vec3d reflected = rayIn.direction().reflected(normal);
+        const bool outgoingBelow = dot(reflected, dg.normal) < 0.;
+        if (incomingBelow != outgoingBelow) {
+            rayOut.setDirection(reflected);
+            return;
+        }
+        if (alpha == 0.)
+            break;
     }
-
-    return false;
+    throw std::domain_error(
+        "Scientific integrity failure: no admissible rough reflection direction.");
 }

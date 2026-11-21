@@ -16,7 +16,6 @@ public:
     static void initClass();
     MaterialSpecular();
 
-    bool OutputRay(const Ray& rayIn, const DifferentialGeometry& dg, Random& rand, Ray& rayOut) const;
 
     SoSFDouble reflectivity;
     SoSFEnum distribution;
@@ -25,10 +24,13 @@ public:
     NAME_ICON_FUNCTIONS("Specular", ":/MaterialSpecular.png")
 
 protected:
+    MaterialProbabilities probabilities(const Ray&, const DifferentialGeometry&,
+        Random&, MaterialInteractionState&) const override;
+    void scatter(MaterialInteraction, const Ray&, const DifferentialGeometry&,
+        Random&, const MaterialInteractionState&, Ray&) const override;
+
     ~MaterialSpecular();
 
-    SoNodeSensor* m_sensor;
-    static void onSensor(void* data, SoSensor*);
 };
 
 

@@ -4,6 +4,8 @@
 #include "kernel/shape/DifferentialGeometry.h"
 #include "kernel/random/Random.h"
 
+#include <stdexcept>
+
 
 SO_NODE_SOURCE(MaterialTransparent)
 
@@ -18,12 +20,16 @@ MaterialTransparent::MaterialTransparent()
     isBuiltIn = TRUE;
 }
 
-bool MaterialTransparent::OutputRay(const Ray& rayIn, const DifferentialGeometry& dg, Random& rand, Ray& rayOut) const
+MaterialProbabilities MaterialTransparent::probabilities(
+    const Ray&, const DifferentialGeometry&, Random&, MaterialInteractionState&) const
 {
-    Q_UNUSED(rayIn)
-    Q_UNUSED(dg)
-    Q_UNUSED(rand)
-    Q_UNUSED(rayOut)
+    return {0., 0., 1.};
+}
 
-    return false;
+void MaterialTransparent::scatter(MaterialInteraction event, const Ray& incoming,
+    const DifferentialGeometry&, Random&, const MaterialInteractionState&, Ray& outgoing) const
+{
+    if (event != MaterialInteraction::Transmission)
+        throw std::logic_error("Scientific integrity failure: invalid transparent material event.");
+    outgoing.setDirection(incoming.direction());
 }
