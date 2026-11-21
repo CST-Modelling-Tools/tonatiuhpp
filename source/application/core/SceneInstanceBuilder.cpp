@@ -18,8 +18,9 @@ SceneInstanceTree SceneInstanceBuilder::build(TSceneKit* scene)
     if (!layout)
         return tree;
 
-    tree.layoutRoot = new InstanceNode(layout);
-    tree.sceneRoot->addChild(tree.layoutRoot);
+    auto layoutInstance = std::make_unique<InstanceNode>(layout);
+    tree.sceneRoot->addChild(layoutInstance.get());
+    tree.layoutRoot = layoutInstance.release();
     generateInstanceTree(tree.layoutRoot);
     return tree;
 }
@@ -39,8 +40,9 @@ void SceneInstanceBuilder::generateInstanceTree(InstanceNode* instance)
 
     for (int n = 0; n < group->getNumChildren(); ++n) {
         SoNode* childNode = group->getChild(n);
-        InstanceNode* childInstance = new InstanceNode(childNode);
-        instance->addChild(childInstance);
+        auto childOwner = std::make_unique<InstanceNode>(childNode);
+        instance->addChild(childOwner.get());
+        InstanceNode* childInstance = childOwner.release();
         generateInstanceTree(childInstance);
     }
 }

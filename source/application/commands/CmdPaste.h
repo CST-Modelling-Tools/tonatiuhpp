@@ -26,9 +26,11 @@ public:
 
 private:
     bool m_isShared;
-    InstanceNode* m_instance;
+    // Own the Coin parent reference, not a replaceable model InstanceNode.
+    SoBaseKit* m_parentNode = nullptr;
     int m_row;
     QString m_name;
-    SoNode* m_node;
+    SoNode* m_node; // pinned source for command lifetime
+    SoNode* m_pastedNode = nullptr; // pinned first clone; reused on redo
     SceneTreeModel* m_model;
 };

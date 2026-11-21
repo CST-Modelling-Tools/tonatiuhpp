@@ -35,6 +35,8 @@ CmdRename::CmdRename(
 
     m_node = instance->getNode();
     m_nameOld = m_node->getName().getString();
+    // Undo history can outlive the corresponding GUI tree instance.
+    m_node->ref();
 
     QString text = QString("node.setName(\"%1\");").arg(name);
     setText(text);
@@ -43,6 +45,11 @@ CmdRename::CmdRename(
 /*!
  * Changes the node name to the name that the node takes before the command is applied.
  */
+CmdRename::~CmdRename()
+{
+    m_node->unref();
+}
+
 void CmdRename::undo()
 {
     m_model->setNodeName(m_node, m_nameOld);

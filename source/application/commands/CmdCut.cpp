@@ -19,7 +19,7 @@ CmdCut::CmdCut(const QModelIndex& index, SoNode*& clipboard, SceneTreeModel* mod
 
     InstanceNode* instanceP = instance->getParent();
     m_parent = static_cast<SoBaseKit*>(instanceP->getNode());
-    m_row = instanceP->children.indexOf(instance);
+    m_row = instanceP->indexOfChild(instance);
 }
 
 CmdCut::~CmdCut()

@@ -27,7 +27,7 @@ void countShapeMatches(const InstanceNode* instance, const QString& surfaceUrl,
     if (instance->getURL() == surfaceUrl
         && dynamic_cast<TShapeKit*>(instance->getNode()))
         ++targets;
-    for (const InstanceNode* child : instance->children)
+    for (const InstanceNode* child : instance->children())
         countShapeMatches(child, surfaceUrl, targets);
 }
 

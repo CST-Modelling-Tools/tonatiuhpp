@@ -64,8 +64,8 @@ FluxAnalysis::FluxAnalysis(TSceneKit* sceneKit,
     m_photonsMax(0),
     m_photonsError(0)
 {
-    m_instanceLayout = m_sceneModel->getInstance(QModelIndex());
-    m_instanceLayout = m_instanceLayout->children[0];
+    InstanceNode* root = m_sceneModel ? m_sceneModel->getInstance(QModelIndex()) : nullptr;
+    m_instanceLayout = root ? root->childAt(0) : nullptr;
 }
 
 FluxAnalysis::~FluxAnalysis()

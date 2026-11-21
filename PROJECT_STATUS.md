@@ -2,7 +2,25 @@
 
 Last updated: 2026-11-21
 
-## Active handoff - architecture implementation (validated A+B; C candidate untested)
+## Active handoff — Batch D manual Undo crash; D2 repair candidate NOT validated
+
+**2026-11-21 Windows evidence:** Batch D built successfully and passed all **206/206** CTests (203 standard and 3 opt-in native GUI modes) plus Python tooling **34 passed / 3 skipped** (Windows directory-symlink privileges). However, a real GUI scene-editing check on `examples/facilities/Fresnel/Fresnel.tnhpps` **crashed on Undo after Cut, Insert/Rename, Paste, Copy/Paste, Translate and multiple Undo steps**. **Batch D is NOT accepted, committed or merged.** The existing GUI acceptance tests do not exercise this undo chain.
+
+**D2 local corrective candidate:** `tonatiuhpp_scene_tree_undo_repair_D2_apply.py` applies only on the exact uncommitted D branch. Pin copied Coin3D node identity for stable Undo/Redo, retain parent Coin node instead of a scene-tree `InstanceNode*` that is recreated on parent Undo/Redo, explicitly protect field-edit/rename undo references, prevent wrong-row deletion, and guard stale GUI selections. No physical calculations, photon/RNG logic, scene serialization or plugin ABI are changed. This is a source-level hypothesis for the crash; **the exact crashing stack frame has not been captured**. D2 is uncompiled and requires the full Windows Release + 206 CTests + Python tooling, **and especially the complete manual failing Undo sequence followed by Redo and repetition**, before any commit. Stop and collect a debugger call stack if it still crashes. Do not run the frozen 500M-ray benchmark.
+
+---
+
+## Historical handoff — scene-tree ownership batch (original D candidate; NOT accepted)
+
+**Baseline:** `master` at merge commit `9f65fe736bfcd2fc4aaddcdc8f9651e850a45232`, PR #56. Batches A+B+C are merged. The maintainer reported 203/203 Windows CTests, 34 passed/3 skipped Python tooling tests, 3/3 native GUI acceptance tests and a successful manual GUI progress/cancellation check for that merged batch; the feature PR CI workflow succeeded. This is not a new cross-platform or production-install validation of the ownership changes below.
+
+**New local patch:** `tonatiuhpp_scene_tree_ownership_D_apply.py` runs only on a clean `refactor/scene-tree-ownership` branch at the exact merge commit. It encapsulates `InstanceNode` child ownership, provides read-only child access and explicit detach, uses temporary RAII during recursive deletion and headless tree construction, removes leaked `InstanceNode` objects on Cut, fixes CmdPaste undo's post-Cut invalid child access, and guards failed Cut preconditions before Qt removal notifications. Borrowed Coin3D nodes, external scene pointers, trace scheduling, random seeds, photon data, scene serialization and plugin-factory interfaces are unchanged. **Compatibility gate:** the exported `InstanceNode` class no longer exposes mutable `children` or `setParent` as public source APIs. Existing third-party source users need adaptation; verify external binary ABI before any merge rather than assuming it is stable.
+
+**Status:** prepared but NOT applied, compiled, Windows-validated, cross-platform-validated or merged as written. Before acceptance, run the Windows Release build, full standard 203 CTests (unless test inventory deliberately changes), Python tooling tests, opt-in three real native GUI scientific tests, and manually exercise repeated Cut/Delete/Paste and Undo/Redo on both ordinary and shared scene nodes. Verify model row/index consistency, no dangling pointers or leaked detached nodes, empty-scene Flux Analysis, and scene loading in GUI and CLI. Do not run or regenerate the frozen 500-million-ray benchmark. No commit, push, merge or hosted CI without explicit maintainer approval and local validation. Update this status once evidence is available.
+
+---
+
+## Historical handoff — architecture implementation (A+B validated; C candidate superseded)
 
 **Repository:** `CST-Modelling-Tools/tonatiuhpp`. On 2026-11-21 the reviewed `master`
 HEAD was `7184367d5035546d8fa8972b1415f9d56680516e` (merged

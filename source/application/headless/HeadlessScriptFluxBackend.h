@@ -156,7 +156,7 @@ private:
             target = node;
             ++matches;
         }
-        for (InstanceNode* child : node->children)
+        for (InstanceNode* child : node->children())
             findTargetSurface(child, surfaceURL, target, matches);
     }
 

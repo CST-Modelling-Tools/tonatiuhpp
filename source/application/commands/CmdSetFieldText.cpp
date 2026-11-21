@@ -23,11 +23,19 @@ CmdSetFieldText::CmdSetFieldText(SoNode* node, QString field, QString value, QUn
     SbString valueOld;
     f->get(valueOld);
     m_valueOld = valueOld.getString();
+    // A later Undo may detach the owning scene kit while this command
+    // remains in QUndoStack; keep the field-owner node alive.
+    m_node->ref();
 
 //    QString name = node->getTypeId().getName().getString();
 //    QString text = QString("%1.%2 = %3").arg(name, m_field, m_value);
     QString text = QString("node.setParameter(\"%1\", \"%2\");").arg(m_field, m_value);
     setText(text);
+}
+
+CmdSetFieldText::~CmdSetFieldText()
+{
+    m_node->unref();
 }
 
 void CmdSetFieldText::undo()

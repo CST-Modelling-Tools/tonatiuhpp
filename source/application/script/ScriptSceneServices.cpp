@@ -49,7 +49,7 @@ void findScriptSceneNode(const InstanceNode* instance, const QString& url,
         ++matches;
         target = instance->getNode();
     }
-    for (const InstanceNode* child : instance->children)
+    for (const InstanceNode* child : instance->children())
         findScriptSceneNode(child, url, matches, target);
 }
 

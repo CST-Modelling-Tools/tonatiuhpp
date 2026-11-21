@@ -10,6 +10,7 @@ class CmdSetFieldText: public QUndoCommand
 
 public:
     CmdSetFieldText(SoNode* node, QString field, QString value, QUndoCommand* parent = 0);
+    ~CmdSetFieldText();
 
     void undo();
     void redo();

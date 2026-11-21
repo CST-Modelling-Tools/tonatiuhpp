@@ -1,6 +1,7 @@
 #include "SceneTreeModel.h"
 
 #include <QIcon>
+#include <memory>
 #include <QMessageBox>
 
 #include <Inventor/actions/SoGetBoundingBoxAction.h>
@@ -127,11 +128,12 @@ InstanceNode* SceneTreeModel::addInstanceNode(InstanceNode* parent, SoNode* node
 {
     if (!parent || !node) return 0;
 
-    InstanceNode* instance = new InstanceNode(node);
-    parent->addChild(instance);
-    m_mapCoinQt[node].append(instance);
-    m_instances.insert(instance);
-    return instance;
+    std::unique_ptr<InstanceNode> instance = std::make_unique<InstanceNode>(node);
+    parent->addChild(instance.get());
+    InstanceNode* owned = instance.release();
+    m_mapCoinQt[node].append(owned);
+    m_instances.insert(owned);
+    return owned;
 }
 
 void SceneTreeModel::generateInstanceTree(InstanceNode* instance)
@@ -158,22 +160,14 @@ void SceneTreeModel::deleteInstanceTree(InstanceNode* instance)
 {
     if (!instance) return;
 
-    while (instance->children.count() > 0)
+    // Children are detached before deletion; the owning parent may never
+    // retain a dangling pointer, even while descendant indexes are removed.
+    while (instance->childCount() > 0)
     {
-        InstanceNode* child = instance->children[instance->children.count() - 1];
-        instance->children.remove(instance->children.count() - 1);
-        if (!child) continue;
-
-        child->setParent(0);
-        deleteInstanceTree(child);
-        delete child;
+        std::unique_ptr<InstanceNode> child(instance->takeChildAt(instance->childCount() - 1));
+        if (child)
+            deleteInstanceTree(child.get());
     }
-
-//    for (InstanceNode* child : instance.children)
-//    {
-//        DeleteInstanceTree(*child);
-//        delete child;
-//    }
 
     std::map<SoNode*, QList<InstanceNode*> >::iterator it = m_mapCoinQt.find(instance->getNode());
     if (it != m_mapCoinQt.end())
@@ -184,14 +178,12 @@ void SceneTreeModel::deleteInstanceTree(InstanceNode* instance)
         if (instanceList.isEmpty()) m_mapCoinQt.erase(it);
     }
 
-    InstanceNode* instanceParent = instance->getParent();
-    if (instanceParent)
+    if (InstanceNode* instanceParent = instance->getParent())
     {
-        int row = instanceParent->children.indexOf(instance);
-        if (row >= 0) instanceParent->children.remove(row);
-        instance->setParent(0);
+        const int row = instanceParent->indexOfChild(instance);
+        if (row >= 0)
+            instanceParent->takeChildAt(row);
     }
-
     m_instances.remove(instance);
 }
 
@@ -201,13 +193,13 @@ QModelIndex SceneTreeModel::index(int row, int column, const QModelIndex& parent
 
     InstanceNode* instance = getInstance(parent);
     if (!instance) return QModelIndex();
-    if (row >= instance->children.count()) return QModelIndex();
+    if (row >= instance->childCount()) return QModelIndex();
 
-    InstanceNode* child = instance->children[row];
+    InstanceNode* child = instance->childAt(row);
     if (!containsInstance(child)) return QModelIndex();
     if (child->getParent() != instance) return QModelIndex();
 
-    return createIndex(row, column, instance->children[row]);
+    return createIndex(row, column, child);
 }
 
 int SceneTreeModel::rowCount(const QModelIndex& index) const
@@ -215,7 +207,7 @@ int SceneTreeModel::rowCount(const QModelIndex& index) const
     if (index.isValid() && index.column() != 0) return 0;
 
     InstanceNode* instance = getInstance(index);
-    return instance ? instance->children.count() : 0;
+    return instance ? instance->childCount() : 0;
 }
 
 int SceneTreeModel::columnCount(const QModelIndex& /*index*/) const
@@ -233,13 +225,13 @@ QModelIndex SceneTreeModel::parent(const QModelIndex& index) const
     InstanceNode* instanceParent = instance->getParent();
     if (!instanceParent) return QModelIndex();
     if (!containsInstance(instanceParent)) return QModelIndex();
-    if (!instanceParent->children.contains(instance)) return QModelIndex();
+    if (instanceParent->indexOfChild(instance) < 0) return QModelIndex();
 
     InstanceNode* instanceGrandparent = instanceParent->getParent();
     if (!instanceGrandparent) return QModelIndex();
     if (!containsInstance(instanceGrandparent)) return QModelIndex();
 
-    int row = instanceGrandparent->children.indexOf(instanceParent);
+    int row = instanceGrandparent->indexOfChild(instanceParent);
     if (row < 0) return QModelIndex();
 
     return createIndex(row, 0, instanceParent);
@@ -357,18 +349,29 @@ bool SceneTreeModel::containsInstance(InstanceNode* instance) const
 
 bool SceneTreeModel::setNodeName(SoNode* node, QString name)
 {
+    if (!node)
+        return false;
     SbName sbname(name.toStdString().c_str());
 
-    for (InstanceNode* instance : m_mapCoinQt[node])
-    {
-        for (InstanceNode* sibling : instance->getParent()->children)
-        {
-            if (sibling == instance) continue;
-            if (sibling->getNode()->getName() == sbname)
-                return false;
+    // Undo may refer to a pinned Coin node with no current scene instances.
+    // Never dereference a stale model instance or mutate the map on lookup.
+    const auto it = m_mapCoinQt.find(node);
+    if (it != m_mapCoinQt.end()) {
+        for (InstanceNode* instance : it->second) {
+            if (!containsInstance(instance))
+                continue;
+            InstanceNode* parent = instance->getParent();
+            if (!parent)
+                continue;
+            for (InstanceNode* sibling : parent->children()) {
+                if (sibling == instance || !containsInstance(sibling))
+                    continue;
+                SoNode* siblingNode = sibling->getNode();
+                if (siblingNode && siblingNode->getName() == sbname)
+                    return false;
+            }
         }
     }
-
     node->setName(sbname);
     emit layoutChanged();
     return true;
@@ -405,7 +408,7 @@ QModelIndex SceneTreeModel::indexFromUrl(QString url) const
     if (!instanceParent) return QModelIndex();
 
     int row = 0;
-    for (InstanceNode* child : instanceParent->children)
+    for (InstanceNode* child : instanceParent->children())
     {
         if (containsInstance(child) && child->getNode()
             && child->getNode()->getName() == nodeName.toStdString().c_str())
@@ -450,7 +453,7 @@ QModelIndex SceneTreeModel::indexFromPath(const SoNodeKitPath& path) const
     if (coinParent->getTypeId().isDerivedFrom(SoSceneKit::getClassTypeId()))
     {
         int row = 0;
-        for (InstanceNode* child : m_instanceScene->children)
+        for (InstanceNode* child : m_instanceScene->children())
         {
             if (containsInstance(child) && child->getNode() == coinNode)
                 return index(row, 0);
@@ -587,7 +590,8 @@ void SceneTreeModel::removeCoinNode(int row, SoBaseKit* parent)
 
     for (InstanceNode* instanceParent : m_mapCoinQt[parent])
     {
-        InstanceNode* instance = instanceParent->children[row];
+        InstanceNode* instance = instanceParent->childAt(row);
+        if (!instance) continue;
         deleteInstanceTree(instance);
         delete instance;
     }
@@ -600,69 +604,89 @@ void SceneTreeModel::removeCoinNode(int row, SoBaseKit* parent)
  *
  * Returns whether the cut is successfully done.
 **/
-bool SceneTreeModel::Cut(SoBaseKit* parent, int row)
+bool SceneTreeModel::Cut(SoBaseKit* parent, int row, SoNode* expectedNode)
 {
-    if (row < 0) return false;
+    if (!parent || row < 0)
+        return false;
 
-    QList<InstanceNode*> instancesParent = m_mapCoinQt[parent];
-    InstanceNode* instanceParent = instancesParent[0]; //?
-    QModelIndex indexParent = createIndex(instanceParent->getParent()->children.indexOf(instanceParent), 0, instanceParent);
+    const auto itParent = m_mapCoinQt.find(parent);
+    if (itParent == m_mapCoinQt.end() || itParent->second.isEmpty())
+        return false;
+    const QList<InstanceNode*> parents = itParent->second;
+    InstanceNode* primary = parents.first();
+    if (!primary || !primary->getParent() || row >= primary->childCount())
+        return false;
+
+    InstanceNode* selected = primary->childAt(row);
+    SoNode* node = selected ? selected->getNode() : nullptr;
+    if (!node || (expectedNode && node != expectedNode))
+        return false;
+    // A Coin node may have several InstanceNode occurrences when shared.
+    // Check every occurrence before changing either the Coin or Qt tree.
+    for (InstanceNode* parentInstance : parents)
+        if (!parentInstance || row >= parentInstance->childCount()
+            || !parentInstance->childAt(row)
+            || parentInstance->childAt(row)->getNode() != node)
+            return false;
+
+    const auto itNode = m_mapCoinQt.find(node);
+    if (itNode == m_mapCoinQt.end() || itNode->second.isEmpty())
+        return false;
+    const QList<InstanceNode*> matchingInstances = itNode->second;
+
+    SoGroup* childList = nullptr;
+    if (node->getTypeId().isDerivedFrom(SoBaseKit::getClassTypeId())
+        && parent->getTypeId().isDerivedFrom(TSeparatorKit::getClassTypeId()))
+    {
+        childList = static_cast<SoGroup*>(parent->getPart("group", false));
+        if (!childList || row >= childList->getNumChildren() || childList->getChild(row) != node)
+            return false;
+    }
+
+    const int parentRow = primary->getParent()->indexOfChild(primary);
+    if (parentRow < 0)
+        return false;
+    const QModelIndex indexParent = createIndex(parentRow, 0, primary);
     beginRemoveRows(indexParent, row, row);
+    if (childList)
+        childList->removeChild(row);
 
-    SoNode* node = instanceParent->children[row]->getNode();
-    if (!node->getTypeId().isDerivedFrom(SoBaseKit::getClassTypeId()))
+    if (matchingInstances.size() == 1)
     {
-//        SbString partName = parent->getPartString(node);
-//        if (partName.getLength() == 0) partName = "material"; //?
-//        parent->setPart(partName, 0);
-    }
-    else
-    {
-        if (parent->getTypeId().isDerivedFrom(TSeparatorKit::getClassTypeId()))
-        {
-            SoGroup* childList = (SoGroup*) parent->getPart("group", false);
-            if (!childList) return false;
-
-            int r = row;
-            node = childList->getChild(r);
-            childList->removeChild(r);
-
-            if (!node) gcf::SevereError("SceneModel::Cut Null coinChild pointer");
-        }
-    }
-
-    QList<InstanceNode*> instances = m_mapCoinQt[node];
-
-    // Test if the node is shared
-    if (instances.size() == 1) //?
-    {
-        InstanceNode* instance = instances[0];
+        InstanceNode* instance = matchingInstances.first();
         deleteInstanceTree(instance);
-        //delete instanceNode; //?
+        delete instance;
     }
     else
     {
-        for (InstanceNode* instanceParent : m_mapCoinQt[parent])
+        for (InstanceNode* parentInstance : parents)
         {
-            InstanceNode* instance = instanceParent->children[row];
+            InstanceNode* instance = parentInstance->childAt(row);
+            if (!instance) continue;
             deleteInstanceTree(instance);
-            //delete instanceNode;
+            delete instance;
         }
     }
 
     endRemoveRows();
     emit layoutChanged();
-
     return true;
 }
 
-bool SceneTreeModel::Paste(SoBaseKit* parent, SoNode* node, int row, bool isShared) // bugs
+bool SceneTreeModel::Paste(SoBaseKit* parent, SoNode* node, int row,
+                          bool isShared, SoNode** insertedNode)
 {
+    if (insertedNode) *insertedNode = nullptr;
+    if (!parent || !node) return false;
+    const auto parentIt = m_mapCoinQt.find(parent);
+    if (parentIt == m_mapCoinQt.end() || parentIt->second.isEmpty())
+        return false;
     SoNode* child;
     if (isShared)
         child = node;
     else
         child = node->copy(true);
+    if (!child) return false;
 
     if (child->getTypeId().isDerivedFrom(SoBaseKit::getClassTypeId()))
     { // for TSeparatorKit, TrackerKit, TShapeKit
@@ -679,6 +703,7 @@ bool SceneTreeModel::Paste(SoBaseKit* parent, SoNode* node, int row, bool isShar
         generateInstanceTree(instance);
     }
 
+    if (insertedNode) *insertedNode = child;
     emit layoutChanged();
     return true;
 }

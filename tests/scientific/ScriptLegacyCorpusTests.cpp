@@ -1046,7 +1046,7 @@ TEST(ScientificFluxGridComputation, PlanarSelectedSideCountsAndNormalizes)
     std::function<void(InstanceNode*)> findShape = [&](InstanceNode* node) {
         if (!node) return;
         if (dynamic_cast<TShapeKit*>(node->getNode())) target = node;
-        for (InstanceNode* child : node->children) findShape(child);
+        for (InstanceNode* child : node->children()) findShape(child);
     };
     findShape(tree.layoutRoot);
     ASSERT_NE(target, nullptr);

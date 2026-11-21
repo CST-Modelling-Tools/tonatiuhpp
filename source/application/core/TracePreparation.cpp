@@ -42,7 +42,7 @@ void findPhotonExportSurface(InstanceNode* node, const QString& url,
         match = node;
         ++count;
     }
-    for (InstanceNode* child : node->children)
+    for (InstanceNode* child : node->children())
         findPhotonExportSurface(child, url, match, count);
 }
 

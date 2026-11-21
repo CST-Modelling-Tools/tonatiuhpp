@@ -42,8 +42,8 @@ public:
     SoNode* getNode() const { return m_node; }
     void setNode(SoNode* node) { m_node = node; }
 
+    // Borrowed parent; only the parent owns this instance.
     InstanceNode* getParent() const { return m_parent; }
-    void setParent(InstanceNode* parent) { m_parent = parent; }
 
     const Box3D& getBox() const { return m_box; }
     void setBox(const Box3D& box) { m_box = box; }
@@ -51,9 +51,20 @@ public:
     const Transform& getTransform() const { return m_transform; }
     void setTransform(const Transform& t) { m_transform = t; }
 
+    // These accessors never transfer ownership or permit list mutation.
+    int childCount() const { return m_children.size(); }
+    InstanceNode* childAt(int row) const {
+        return row >= 0 && row < m_children.size() ? m_children.at(row) : nullptr;
+    }
+    int indexOfChild(InstanceNode* child) const { return m_children.indexOf(child); }
+    const QVector<InstanceNode*>& children() const { return m_children; }
+
+    // Adopt an unparented instance. The parent deletes its children.
     void addChild(InstanceNode* child);
     void insertChild(int row, InstanceNode* child);
     void replaceChild(int row, InstanceNode* child);
+    // Relinquish ownership without deleting; caller must adopt or delete.
+    InstanceNode* takeChildAt(int row);
 
     bool operator==(const InstanceNode& other);
     QString getURL() const;
@@ -78,9 +89,9 @@ public:
     void updateTree(const Transform& tParent);
     void collectShapeTransforms(QStringList disabledNodes, QVector<QPair<TShapeKit*, Transform>>& shapes);
 
-    QVector<InstanceNode*> children;
-
 private:
+    bool canAdopt(const InstanceNode* child) const;
+    QVector<InstanceNode*> m_children; // owning raw pointers; retain the existing container type
     SoNode* m_node = nullptr;
     InstanceNode* m_parent = nullptr;
     Box3D m_box;            // in world frame
