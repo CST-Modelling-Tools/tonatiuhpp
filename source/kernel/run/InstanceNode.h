@@ -34,6 +34,11 @@ public:
     explicit InstanceNode(SoNode* node);
     ~InstanceNode();
 
+    // Child nodes are owned and deleted by this instance. Never copy
+    // the owning raw-pointer collection.
+    InstanceNode(const InstanceNode&) = delete;
+    InstanceNode& operator=(const InstanceNode&) = delete;
+
     SoNode* getNode() const { return m_node; }
     void setNode(SoNode* node) { m_node = node; }
 

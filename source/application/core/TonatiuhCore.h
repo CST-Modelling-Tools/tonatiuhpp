@@ -9,6 +9,8 @@ namespace TonatiuhCore
 void initializeCoin();
 void initializeCoreTypes();
 QStringList pluginSearchPaths(const QString& applicationDirPath);
+// Deterministic, deduplicated scan used by both GUI and CLI/plugin hosts.
+QStringList pluginLibraryFiles(const QStringList& searchRoots);
 void setProjectSearchPaths(const QString& fileName);
 }
 

@@ -82,6 +82,11 @@ private:
 class RayTraceExecutor
 {
 public:
+    RayTraceExecutor() = default;
+    ~RayTraceExecutor() noexcept;
+    RayTraceExecutor(const RayTraceExecutor&) = delete;
+    RayTraceExecutor& operator=(const RayTraceExecutor&) = delete;
+
     using ProgressCallback = std::function<void(const QString&)>;
     using HitCallback = std::function<void(const RayTracerHit&)>;
 
@@ -101,6 +106,10 @@ public:
     bool exportFailed() const { return m_exportFailed.load(); }
 
 private:
+    // If task submission fails after some workers start, cancel and join
+    // the submitted subset before dropping callbacks or buffers.
+    void abortPartialStart(int submittedWorkers, int plannedWorkers) noexcept;
+
     QMutex m_photonBufferMutex;
     std::atomic_bool m_active{false};
     std::atomic_bool m_exportFailed{false};

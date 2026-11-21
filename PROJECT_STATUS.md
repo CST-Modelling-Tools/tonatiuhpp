@@ -2,7 +2,164 @@
 
 Last updated: 2026-11-21
 
-## Active handoff — E1 complete; test-suite housekeeping (2026-11-21)
+## Active handoff - architecture implementation (validated A+B; C candidate untested)
+
+**Repository:** `CST-Modelling-Tools/tonatiuhpp`. On 2026-11-21 the reviewed `master`
+HEAD was `7184367d5035546d8fa8972b1415f9d56680516e` (merged
+[PR #55](https://github.com/CST-Modelling-Tools/tonatiuhpp/pull/55), test-suite
+housekeeping). E1 scientific correctness ([PR #53](https://github.com/CST-Modelling-Tools/tonatiuhpp/pull/53)
+and [PR #54](https://github.com/CST-Modelling-Tools/tonatiuhpp/pull/54)) and
+housekeeping are complete, merged and cross-platform CI validated. **Do not
+resume old pending-E1 or pending-test-housekeeping instructions below.**
+
+**Maintainer authorization:** Improve architecture and implementation, quickly
+but safely, with **NO C++ lambda expressions**. Keep scientific correctness,
+throughput and maintainability as first principles. Do not modify `master`,
+commit, push, start hosted CI, merge or release without maintainer signoff and
+successful local Windows Release validation. The frozen 500-million-ray
+scientific reference must **never be rerun or regenerated** as part of this work.
+Past M9 performance comparisons were inconclusive; do not claim speedups or
+regressions without controlled measurements.
+
+### Local work prepared for batch A
+
+A standalone, local-only application script is provided separately in the
+conversation as `tonatiuhpp_architecture_hardening_A_apply.py`. It requires a
+**clean `chore/architecture-hardening` branch at exactly** the master commit
+above. Its `--check` mode validates expected Git blobs (including Windows
+CRLF/LF conversion) and source edit anchors before touching any files; its
+`--apply` mode makes nine uncommitted source/documentation edits. It does not
+build, commit, push, trigger CI, make backups or run scientific references.
+
+Batch A edits (only after the script is applied):
+
+1. `InstanceNode.h`: explicitly delete copy construction and copy assignment
+   because the node deletes its raw-pointer children.
+2. `RayTracer.cpp`: guard photon-buffer mutex with `QMutexLocker` so an exporter
+   exception cannot leave it locked; preserve existing mutual exclusion.
+3. `source/plugins/CMakeLists.txt`: fail configuration on **any platform** if an
+   official plugin target listed in `TONATIUHPP_PLUGIN_TARGETS` is absent.
+4. `FluxAnalysis.cpp`: cap initial vector reservation to `min(rays, 1,000,000)`
+   instead of ~33.55 million photons, without reducing permitted capacity or
+   changing accumulation or RNG semantics.
+5. `PhotonsFile` CMake/source: compile the environment-based write/flush
+   injection seam only with `BUILD_TESTING=ON`; preserve test fault injection.
+6. Root `source/CMakeLists.txt`: declare CMake 3.28, already the effective
+   minimum of component build files.
+7. `MainWindow.cpp`: reuse the existing `TonatiuhCore::setProjectSearchPaths`
+   implementation and remove its duplicate helper without changing path order.
+8. This status/handoff is updated.
+
+**Batch A verified local 2026-11-21:** Maintainer applied all nine edits
+on `chore/architecture-hardening` and reported a successful Windows Release
+run: **203/203 standard CTests passed** (202.38 s) and Python tooling
+**37 tests: 34 passed, 3 skipped** because directory symlinks are unavailable
+on this Windows runner. No test failures. This verifies the tested build
+but is **not** yet a cross-platform CI or installed-production acceptance.
+Additional interactive GUI/flux and BUILD_TESTING=OFF runtime checks remain
+for the relevant changes. No source modifications have been committed, pushed
+or merged as part of these architecture batches. Check live Git status.
+
+
+### Current checkpoint: B locally tested; bounded C candidate not yet validated
+
+The maintainer reported separate Windows Release automated validation
+after Batch B: 203/203 ordinary CTests passed (205.14 seconds) and
+Python tooling ran 37 tests (34 passed, 3 skipped due to unavailable
+directory-symlink privileges). These results do not establish actual
+GUI/CLI plugin inventory parity or installed production acceptance.
+
+A new local-only Batch C script targets the exact uncommitted A+B tree.
+It adds an executor destructor that cancels/joins abandoned workers,
+joins any already-submitted workers before a partial launch failure
+may release executor resources, and restores visible Qt Flux Analysis
+progress and cancellation while preserving silent run behavior. It
+does not alter chunk scheduling, RNG, photon numbers, scientific output
+formats, or the 500-million-ray reference. The patch is NOT built,
+tested, committed, pushed or cross-platform accepted. Before accepting
+it, run Windows Release build, all 203 CTests, Python tooling, visible
+GUI progress/cancel and scripted/silent flux acceptance. Explicitly
+verify clean cancellation, worker failure cleanup, append rollback,
+and no GUI scene-edit use-after-free. Real GUI and installed-runtime
+acceptance and eventually three-platform CI remain separate gates.
+
+InstanceNode child ownership and Coin3D reference conversions are
+deferred to a dedicated audited gate, not bundled into this GUI fix.
+
+### Immediate validation gate for batch A
+
+From the clean, synchronized master commit, make `chore/architecture-hardening`.
+Apply script `--check`, then `--apply` and inspect `git diff --check` and the
+source diff. Build all official plugin targets and the application in Windows
+Release; expect **203** standard CTests, run the complete suite and separately
+run Python tooling tests. Check test-enabled `PhotonsFile` fault injection and
+`BUILD_TESTING=OFF` production installed-runtime behavior, especially the
+required-plugin manifest. Test GUI flux analysis with modest ray counts, verify
+photon/flux outputs and that startup memory no longer reserves ~1.5 GiB.
+Check frozen-reference *integrity* only if desired, never run the 500M scene.
+Record exact outputs, failures and any accepted compromises here before commit.
+Only then consider a single consolidated commit and a single three-platform CI
+PR **with maintainer approval**. Do not run a full performance comparison in an
+uncontrolled environment just to validate this architecture patch.
+
+### Additional approved improvements - NOT implemented in batch A
+
+**Batch B, factory/plugin architecture (WINDOWS AUTOMATED TESTS PASSED):** Unify
+GUI `PluginManager` and headless `CorePluginRegistry` scientific type catalogs
+and plugin search roots. `MainWindow.cpp` currently loads only the first search
+root, while headless examines all roots. Give GUI built-in factories explicit
+ownership; preserve loaded `QPluginLoader` lifetimes and every official
+plugin. Preserve GUI ordering, plugin names/ABI, scene deserialization, UI-only
+`ComponentFactory` and `PhotonsFactory`. Later consider moving icon/presentation
+metadata out of scientific `TFactory`/`QIcon` only with an intentional ABI plan.
+Add GUI/CLI plugin-inventory/scene-loading/installed-artifact comparisons.
+
+**Batch B implementation:** The separate local script
+`tonatiuhpp_architecture_factory_B_apply.py` applies on the verified
+uncommitted Batch A working tree, with strict file, branch and baseline
+checks. It adds `ScientificFactoryCatalog` once to TonatiuhSimulation,
+replaces both GUI and CLI duplicated built-in factory lists with it,
+uses a deterministic shared plugin file scanner for all configured roots,
+retains GUI plugin loaders and owns GUI built-in factory objects, and
+defers plugin-manager destruction until after GUI scene teardown.
+The script makes NO commit, hosted CI run or benchmark. Before accepting
+it, validate Windows Release build, 203 CTests, Python tooling and
+actual GUI+CLI plugin discovery/scene loading; obtain three-platform CI
+after maintainer approval. GUI-only component/exporter registration,
+factory names, scene file format and plugin ABI are deliberately retained.
+
+**Batch C, ownership/execution safety:** Encapsulate `InstanceNode::children`
+and migrate owning pointers toward `std::unique_ptr` only after auditing
+`SceneTreeModel`, `SceneInstanceBuilder`, append/export-surface pointers and
+Coin3D refs. Keep external non-owning scene pointers explicit. Tighten the
+`RayTraceExecutor` start/join API and replace type-erased `shared_ptr<void>`
+resource pins where useful. Verify cancellation, worker failures and cleanup.
+
+**Batch D, GUI and build boundaries:** Repair actual progress/cancellation for
+`FluxAnalysis::run` (it currently builds a `QFutureWatcher` but synchronously
+waits, with display commented out); preserve silent/script behavior, seeds,
+output and append semantics. Narrow `MainWindow` incrementally by responsibility
+and migrate touched old Qt `SIGNAL`/`SLOT` connections to typed connects, with
+no lambdas. Improve explicit per-document/script path context without breaking
+`project:` aliases. Separate GUI presentation metadata from scientific
+factories only after the registry ABI is settled.
+
+**Batch E, post-profile internals:** Separate `BenchmarkRunner` parsing,
+numerical accumulation and serialization without changing binary/reference
+formats. Consider cached `PhotonsFile` surface-ID lookup only after profiling
+and exact serialized-output comparison. Extract oversized CMake staging and
+runtime packaging into named modules selectively; preserve all three platforms.
+Do not claim performance gains or change RNG, roulette, ray scheduling,
+geometry, photon numbering, flux normalization or atmospheric DNI convention.
+
+**Scope strategy:** Coherent implementation/validation batches, not microcommits
+or speculative global rewrites. For each batch preserve scientific and GUI/CLI
+behavior, 203 Windows / 202 Linux/macOS test inventories unless deliberately
+reviewed, and opt-in native GUI plus installed-runtime acceptance as relevant.
+The eventual cross-platform PR is a gate after local validation, not permission
+to merge automatically. Maintain this active handoff as each batch advances.
+
+## Historical handoff - E1 and test-suite housekeeping (superseded)
 
 - **Merged baseline:** E1 Stage 1 ([PR #53](https://github.com/CST-Modelling-Tools/tonatiuhpp/pull/53)) and E1 Stage 2 ([PR #54](https://github.com/CST-Modelling-Tools/tonatiuhpp/pull/54)) are on `master` at `b9065855ca856c6cfc7dd75745ff584d6ad3d4a1`. The latter passed Windows, Ubuntu and macOS PR CI; Windows local Release validated 203/203 standard CTests and frozen-reference integrity (the 500M-ray trace was **not** rerun).
 - **Approved maintenance scope:** Prepare one `chore/test-suite-housekeeping` change on a dedicated branch. Rename milestone-encoded CTest and GoogleTest identifiers to behavior-oriented names; distinguish repeatability from equivalence; remove the unused stand-alone SoQt cube probe; eliminate only the obsolete callback-order assertion while preserving all ray-history, energy and export regressions. See `docs/testing.md`.

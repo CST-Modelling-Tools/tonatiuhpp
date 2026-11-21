@@ -267,20 +267,6 @@ void finishManipulator(void* data, SoDragger* /*dragger*/)
     w->FinishManipulation();
 }
 
-void setSearchPaths(const QString& fileName)
-{
-    QStringList searchPaths;
-
-    QFileInfo info(fileName);
-    if (info.exists())
-        searchPaths << info.absolutePath();
-
-    searchPaths << QDir::currentPath();
-    searchPaths << QCoreApplication::applicationDirPath();
-
-    QDir::setSearchPaths("project", searchPaths);
-}
-
 MainWindow::MainWindow(QString fileName, CustomSplashScreen* splash, QWidget* parent, Qt::WindowFlags flags):
     QMainWindow(parent, flags),
     ui(new Ui::MainWindow),
@@ -318,8 +304,7 @@ MainWindow::MainWindow(QString fileName, CustomSplashScreen* splash, QWidget* pa
     // CMake builds discover the same plugin root as headless execution.
     const QStringList pluginRoots =
         TonatiuhCore::pluginSearchPaths(qApp->applicationDirPath());
-    m_pluginManager->load(QDir(pluginRoots.isEmpty()
-        ? qApp->applicationDirPath() : pluginRoots.first()));
+    m_pluginManager->load(pluginRoots);
 
     const QString resourcesDirectory = appBundleDataPath("resources");
     if (!resourcesDirectory.isEmpty())
@@ -336,7 +321,7 @@ MainWindow::MainWindow(QString fileName, CustomSplashScreen* splash, QWidget* pa
     if (!fileName.isEmpty() && fileInfo.completeSuffix() != "tnhpps") {
         openFileProject(fileName);
     } else {
-        setSearchPaths(""); // refactor
+        TonatiuhCore::setProjectSearchPaths("");
         SetCurrentFile("");
         m_graphicView[0]->onViewHome();
     }
@@ -372,9 +357,10 @@ MainWindow::~MainWindow()
     m_guiPhotonExporter.reset();
     delete m_photonsSettings;
     m_photonsSettings = nullptr;
-    delete m_pluginManager;
     delete m_modelScene;
     delete m_document;
+    // Release scene/plugin consumers before unloading plugin factories.
+    delete m_pluginManager;
 }
 
 TSceneKit* MainWindow::getSceneKit()
@@ -3254,7 +3240,7 @@ bool MainWindow::openFileProject(const QString& fileName)
     Document* loadedDocument = 0;
     QStringList previousProjectSearchPaths = QDir::searchPaths("project");
     if (!fileName.isEmpty()) {
-        setSearchPaths(fileName);
+        TonatiuhCore::setProjectSearchPaths(fileName);
         loadedDocument = new Document;
         connect(
             loadedDocument, SIGNAL(Warning(QString)),

@@ -1,6 +1,7 @@
 #include "FluxAnalysis.h"
 #include "run/FluxAnalysisTsvWriter.h"
 
+#include <algorithm>
 #include <cmath>
 #include <vector>
 #include <utility>
@@ -96,7 +97,7 @@ QString FluxAnalysis::getShapeType(QString nodeURL)
 /*
  * Fun flux analysis
  */
-bool FluxAnalysis::run(QString nodeURL, QString surfaceSide, ulong nRays, bool photonBufferAppend, int uDivs, int vDivs, bool /*silent*/)
+bool FluxAnalysis::run(QString nodeURL, QString surfaceSide, ulong nRays, bool photonBufferAppend, int uDivs, int vDivs, bool silent)
 {
     m_surfaceURL = nodeURL;
     m_surfaceSide = surfaceSide;
@@ -131,7 +132,11 @@ bool FluxAnalysis::run(QString nodeURL, QString surfaceSide, ulong nRays, bool p
         if (m_photons) m_photons->endExport(-1);
         delete m_photons;
 //        long q = std::vector<Photon>::max_size();
-        m_photons = new PhotonsBuffer(std::numeric_limits<int>::max(), std::numeric_limits<int>::max()/64);
+        // Do not reserve ~33.5 million Photon entries before a small trace.
+        // This affects capacity only; the maximum and all photon data
+        // and accumulation semantics remain unchanged.
+        const ulong initialPhotonCapacity = std::min<ulong>(nRays, 1'000'000UL);
+        m_photons = new PhotonsBuffer(std::numeric_limits<int>::max(), initialPhotonCapacity);
         m_tracedRays = 0;
         m_powerPhoton = 0;
         m_powerTotal = 0;
@@ -145,20 +150,31 @@ bool FluxAnalysis::run(QString nodeURL, QString surfaceSide, ulong nRays, bool p
     exportSuraceList << instanceNode;
 
 //    QThreadPool::globalInstance()->setMaxThreadCount(1);
-    // Create a progress dialog.
+    // The worker promise reports completed ray chunks; the modal dialog
+    // blocks scene edits while rendering. Silent scripts retain their
+    // synchronous, noninteractive execution contract.
     QProgressDialog dialog;
     dialog.setWindowFlag(Qt::WindowContextHelpButtonHint, false);
-    dialog.setLabelText(QString("Progressing using %1 thread(s)...").arg(QThread::idealThreadCount() ) );
+    dialog.setWindowModality(Qt::ApplicationModal);
+    dialog.setMinimumDuration(0);
+    dialog.setAutoClose(false);
+    dialog.setAutoReset(false);
+    dialog.setLabelText(QString("Tracing using %1 worker(s)...")
+        .arg(RayTraceExecutor::workerCountForRays(nRays)));
 
-    // Create a QFutureWatcher and connect signals and slots.
     QFutureWatcher<void> watcher;
-//    QObject::connect(&watcher, SIGNAL(finished()), &dialog, SLOT(reset()));
-    QObject::connect(&dialog, SIGNAL(canceled()), &watcher, SLOT(cancel()));
-//    QObject::connect(&watcher, SIGNAL(progressRangeChanged(int,int)), &dialog, SLOT(setRange(int,int)));
-//    QObject::connect(&watcher, SIGNAL(progressValueChanged(int)), &dialog, SLOT(setValue(int)));
-
-    QObject::connect(&watcher, SIGNAL(progressValueChanged(int)), this, SLOT(processEvents()));
-    QObject::connect(this, SIGNAL(stopSignal()), &watcher, SLOT(cancel()));
+    QObject::connect(&watcher, &QFutureWatcher<void>::finished,
+                     &dialog, &QDialog::accept);
+    QObject::connect(&watcher, &QFutureWatcher<void>::progressRangeChanged,
+                     &dialog, &QProgressDialog::setRange);
+    QObject::connect(&watcher, &QFutureWatcher<void>::progressValueChanged,
+                     &dialog, &QProgressDialog::setValue);
+    QObject::connect(&dialog, &QProgressDialog::canceled,
+                     &watcher, &QFutureWatcher<void>::cancel);
+    QObject::connect(&dialog, &QProgressDialog::canceled,
+                     &dialog, &QDialog::reject);
+    QObject::connect(this, &FluxAnalysis::stopSignal,
+                     &watcher, &QFutureWatcher<void>::cancel);
 
     // Do not consume an RNG draw for unity vacuum transmission after reflections.
     // Match the effective air policy used by the headless interception path.
@@ -196,13 +212,12 @@ bool FluxAnalysis::run(QString nodeURL, QString surfaceSide, ulong nRays, bool p
 
     watcher.setFuture(session.future());
 
-    // Display the dialog and start the event loop.
-//    if (!silent) {
-//        dialog.exec();
-//    }
+    // A cancel action exits this nested GUI dialog, then the immediate
+    // wait below keeps the UI thread blocked until all workers have
+    // stopped. Never allow scene edits against an in-flight trace.
+    if (!silent && !watcher.isFinished())
+        dialog.exec();
 
-//    dialog.setModal(false);
-//    dialog.show();
     QString executionError;
     if (!session.waitForFinished(&executionError)) {
         qWarning() << executionError;

@@ -20,7 +20,6 @@ public:
 
 private:
     void registerBuiltInSceneTypes();
-    void findPluginFiles(const QString& directory, QStringList& files) const;
     bool loadPluginFile(const QString& fileName);
     bool registerSceneFactory(TFactory* factory, bool takeOwnership);
 
