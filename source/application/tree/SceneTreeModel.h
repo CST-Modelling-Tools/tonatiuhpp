@@ -52,8 +52,11 @@ public:
     int insertCoinNode(SoNode* coinChild, SoBaseKit* parent);
     void removeCoinNode(int row, SoBaseKit* parent);
 
-    bool Cut(SoBaseKit* parent, int row);
-    bool Paste(SoBaseKit* parent, SoNode* node, int row, bool isShared = false);
+    // Optional identity checks prevent undo from removing the wrong row.
+    bool Cut(SoBaseKit* parent, int row, SoNode* expectedNode = nullptr);
+    // Return the inserted Coin node so undo commands can retain it.
+    bool Paste(SoBaseKit* parent, SoNode* node, int row, bool isShared = false,
+               SoNode** insertedNode = nullptr);
 
     void UpdateSceneModel();
 

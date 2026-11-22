@@ -27,36 +27,62 @@ CmdPaste::CmdPaste(bool isShared,
     if (!index.isValid())
         gcf::SevereError("CmdPaste called with invalid ModelIndex.");
 
-    m_instance = m_model->getInstance(index);
-    if (!m_instance->getNode())
+    InstanceNode* parentInstance = m_model->getInstance(index);
+    if (!parentInstance || !parentInstance->getNode())
         gcf::SevereError("CmdPaste NULL m_coinParent.");
 
-    m_row = m_instance->children.size();
+    m_parentNode = dynamic_cast<SoBaseKit*>(parentInstance->getNode());
+    if (!m_parentNode)
+        gcf::SevereError("CmdPaste requires a Coin node-kit parent.");
+    m_row = parentInstance->childCount();
+    // Undo of an ancestor insert can replace its InstanceNode wrapper.
+    // Pin the Coin parent and source rather than that transient wrapper.
+    m_parentNode->ref();
+    m_node->ref();
 }
 
 CmdPaste::~CmdPaste()
 {
-
+    if (m_pastedNode)
+        m_pastedNode->unref();
+    m_node->unref();
+    m_parentNode->unref();
 }
 
 void CmdPaste::undo()
 {
-    SoBaseKit* nodeParent = static_cast<SoBaseKit*> (m_instance->getNode());
-    m_model->Cut(nodeParent, m_row);
-    m_instance->children[m_row]->getNode()->unref();
+    if (!m_pastedNode || !m_parentNode)
+        return;
+    // The model validates the exact Coin child before removing a row.
+    // Keep the copy alive: later undo commands may still refer to its fields.
+    if (!m_model->Cut(m_parentNode, m_row, m_pastedNode))
+        return;
     m_model->setNodeName(m_node, m_name);
 }
 
 void CmdPaste::redo()
 {
-    SoBaseKit* kit = static_cast<SoBaseKit*> ( m_instance->getNode() );
-    m_model->Paste(kit, m_node, m_row, m_isShared);
+    if (!m_parentNode || !m_node)
+        return;
 
-    SoNode* node = m_instance->children[m_row]->getNode();
-    node->ref();
+    // First execution copies (or links) the clipboard node. Subsequent redos
+    // reuse that SAME Coin node, preserving field pointers in later commands.
+    SoNode* source = m_pastedNode ? m_pastedNode : m_node;
+    const bool share = m_pastedNode || m_isShared;
+    SoNode* insertedNode = nullptr;
+    if (!m_model->Paste(m_parentNode, source, m_row, share, &insertedNode)
+        || !insertedNode)
+        return;
+    if (!m_pastedNode) {
+        m_pastedNode = insertedNode;
+        m_pastedNode->ref();
+    } else if (m_pastedNode != insertedNode) {
+        // Never retarget command history to a different node identity.
+        return;
+    }
 
     QString name = m_name;
     int count = 0;
-    while (!m_model->setNodeName(node, name))
+    while (!m_model->setNodeName(m_pastedNode, name))
         name = m_name + QString("_%1").arg(++count);
 }

@@ -680,6 +680,10 @@ void MainWindow::showInStatusBar(QString message, int time)
 
 void MainWindow::onUndoStack()
 {
+    // Qt indexes can outlive their InstanceNode after a scene edit.
+    const QModelIndex current = m_modelSelection->currentIndex();
+    if (current.isValid() && !m_modelScene->getInstance(current))
+        m_modelSelection->clear();
     ChangeSelection(m_modelSelection->currentIndex());
     //    UpdateLightSize();
 }
@@ -2822,7 +2826,7 @@ void MainWindow::ChangeSelection(const QModelIndex& index)
             node = 0;
         else {
             InstanceNode* instance = m_modelScene->getInstance(index);
-            node = instance->getNode();
+            node = instance ? instance->getNode() : nullptr;
         }
         ui->parametersTabs->setNode(node);
     } else if (ui->tabWidget->currentIndex() == 0) { // World
@@ -3138,7 +3142,7 @@ bool MainWindow::ReadyForRaytracing(InstanceNode*& instanceLayout,
     InstanceNode* instanceScene = m_modelScene->getInstance(QModelIndex());
     if (!instanceScene) return false;
 
-    instanceLayout = instanceScene->children[0];
+    instanceLayout = instanceScene->childAt(0);
     if (!instanceLayout) return false;
 
     SunKit* sunKit = (SunKit*) sceneKit->getPart("world.sun", false);

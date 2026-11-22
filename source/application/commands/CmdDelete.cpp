@@ -16,7 +16,7 @@ CmdDelete::CmdDelete(const QModelIndex& index, SceneTreeModel* model, QUndoComma
 
     InstanceNode* instanceP = instance->getParent();
     m_parent = static_cast<SoBaseKit*>(instanceP->getNode());
-    m_row = instanceP->children.indexOf(instance);
+    m_row = instanceP->indexOfChild(instance);
 }
 
 CmdDelete::~CmdDelete()

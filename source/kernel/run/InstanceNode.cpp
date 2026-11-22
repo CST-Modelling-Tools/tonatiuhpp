@@ -1,6 +1,7 @@
 #include "InstanceNode.h"
 
 #include <iostream>
+#include <memory>
 #include <cmath>
 #include <stdexcept>
 
@@ -32,34 +33,63 @@ InstanceNode::InstanceNode(SoNode* node)
 
 InstanceNode::~InstanceNode()
 {
-    qDeleteAll(children);
+    qDeleteAll(m_children);
 }
 
-/**
- * Appends new \a child node to the end of the child list.
- **/
+bool InstanceNode::canAdopt(const InstanceNode* child) const
+{
+    if (!child || child->m_parent)
+        return false;
+    // Prevent a detached tree root from becoming a child of its descendant.
+    for (const InstanceNode* ancestor = this; ancestor; ancestor = ancestor->m_parent)
+        if (ancestor == child)
+            return false;
+    return true;
+}
+
 void InstanceNode::addChild(InstanceNode* child)
 {
-    children << child;
+    if (!canAdopt(child))
+        throw std::invalid_argument("InstanceNode child must be unparented and acyclic.");
+    m_children << child;
     child->m_parent = this;
 }
 
-/**
- * Inserts the \a instanceChild node as child number \a row.
- **/
 void InstanceNode::insertChild(int row, InstanceNode* child)
 {
-    if (row > children.size())
-        row = children.size();
-    children.insert(row, child);
+    if (!canAdopt(child))
+        throw std::invalid_argument("InstanceNode child must be unparented and acyclic.");
+    if (row < 0)
+        row = 0;
+    if (row > m_children.size())
+        row = m_children.size();
+    m_children.insert(row, child);
     child->m_parent = this;
 }
 
 void InstanceNode::replaceChild(int row, InstanceNode* child)
 {
-    delete children[row];
-    children[row] = child;
+    if (row < 0 || row >= m_children.size())
+        throw std::out_of_range("InstanceNode child replacement index is invalid.");
+    if (m_children[row] == child)
+        return;
+    if (!canAdopt(child))
+        throw std::invalid_argument("InstanceNode child must be unparented and acyclic.");
+    std::unique_ptr<InstanceNode> replaced(m_children[row]);
+    m_children[row] = child;
     child->m_parent = this;
+    if (replaced)
+        replaced->m_parent = nullptr;
+}
+
+InstanceNode* InstanceNode::takeChildAt(int row)
+{
+    if (row < 0 || row >= m_children.size())
+        return nullptr;
+    InstanceNode* child = m_children.takeAt(row);
+    if (child)
+        child->m_parent = nullptr;
+    return child;
 }
 
 bool InstanceNode::operator==(const InstanceNode& other)
@@ -86,10 +116,10 @@ void InstanceNode::Print(int level) const
         std::cout << " ";
 
     std::cout << m_node->getTypeId().getName().getString()
-              << " has " << children.size()
+              << " has " << m_children.size()
               << " children " << std::endl;
 
-    for (InstanceNode* child : children)
+    for (InstanceNode* child : m_children)
         child->Print(level + 1); // was level++
 }
 
@@ -104,8 +134,8 @@ bool InstanceNode::findNearestHit(const Ray& rayIn, Intersection& best) const
         return false;
 
     const InstanceNode* instance1 = this;
-    while (instance1->children.size() == 1)
-        instance1 = instance1->children[0];
+    while (instance1->m_children.size() == 1)
+        instance1 = instance1->m_children[0];
     if (instance1 != this)
         return instance1->findNearestHit(rayIn, best);
 
@@ -145,7 +175,7 @@ bool InstanceNode::findNearestHit(const Ray& rayIn, Intersection& best) const
     if (m_node->getTypeId() == TSeparatorKit::getClassTypeId())
     {
         bool found = false;
-        for (InstanceNode* child : children)
+        for (InstanceNode* child : m_children)
             if (child->findNearestHit(rayIn, best))
                 found = true;
         return found;
@@ -180,7 +210,7 @@ void InstanceNode::updateTree(const Transform& tParent)
         m_transform = tParent * tgf::makeTransform(t);
 
         Box3D box;
-        for (InstanceNode* child : children)
+        for (InstanceNode* child : m_children)
         {
             child->updateTree(m_transform);
             box.expand(child->m_box);
@@ -208,7 +238,7 @@ void InstanceNode::collectShapeTransforms(QStringList disabledNodes, QVector<QPa
 
     if (dynamic_cast<TSeparatorKit*>(m_node))
     {
-        for (InstanceNode* child : children)
+        for (InstanceNode* child : m_children)
             child->collectShapeTransforms(disabledNodes, shapes);
     }
     else if (TShapeKit* shape = dynamic_cast<TShapeKit*>(m_node))

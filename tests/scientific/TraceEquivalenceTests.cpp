@@ -269,7 +269,7 @@ std::uint64_t countShapeInstances(const InstanceNode* node)
     if (!node)
         return 0;
     std::uint64_t count = dynamic_cast<TShapeKit*>(node->getNode()) ? 1 : 0;
-    for (const InstanceNode* child : node->children)
+    for (const InstanceNode* child : node->children())
         count += countShapeInstances(child);
     return count;
 }
@@ -284,7 +284,7 @@ InstanceNode* findInstanceByUrl(InstanceNode* instance, const QString& url)
         return nullptr;
     if (instance->getURL() == url)
         return instance;
-    for (InstanceNode* child : instance->children) {
+    for (InstanceNode* child : instance->children()) {
         if (InstanceNode* found = findInstanceByUrl(child, url))
             return found;
     }
