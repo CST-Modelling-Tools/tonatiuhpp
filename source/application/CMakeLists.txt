@@ -534,7 +534,9 @@ install(TARGETS ${ProjectName}
 if(BUILD_TESTING)
     target_sources(tonatiuhpp-gui PRIVATE
         "${CMAKE_SOURCE_DIR}/../tests/integration/gui/NativeGuiAcceptance.cpp"
-        "${CMAKE_SOURCE_DIR}/../tests/integration/gui/NativeGuiAcceptance.h")
+        "${CMAKE_SOURCE_DIR}/../tests/integration/gui/NativeGuiAcceptance.h"
+        "${CMAKE_SOURCE_DIR}/../tests/integration/gui/NativeSceneUndoRegression.cpp"
+        "${CMAKE_SOURCE_DIR}/../tests/integration/gui/NativeSceneUndoRegression.h")
     target_include_directories(tonatiuhpp-gui PRIVATE "${CMAKE_SOURCE_DIR}/../tests/integration/gui")
     target_compile_definitions(tonatiuhpp-gui PRIVATE TONATIUHPP_M5_NATIVE_GUI_TEST)
 endif()

@@ -2,6 +2,7 @@
 // BUILD_TESTING is true, and inert without an explicit test-mode environment.
 // No changes to the scientific kernel, plugins, ray propagation or RNG.
 #include "NativeGuiAcceptance.h"
+#include "NativeSceneUndoRegression.h"
 
 #include <algorithm>
 #include <cmath>
@@ -69,6 +70,9 @@ public:
             runRayDialog(true, 0, [this] { verifyInteractiveFile(); });
         } else if (m_mode == "seeded-interception") {
             runRayDialog(false, 0, [this] { runEditorScript(); });
+        } else if (m_mode == "scene-undo-redo") {
+            // Execute the full Fresnel scene script in the real Qt editor.
+            runEditorScript();
         } else if (m_mode == "interactive-flux") {
             // A one-ray no-export GUI Run configures the same seed used later
             // by the *actual* interactive Flux Analysis QDialog.
@@ -253,6 +257,18 @@ private:
         if (!run) { fail("Actual GUI Script Editor Run action missing"); return; }
         run->trigger(); // ScriptWindow::runScript(), not headless evaluation.
         if (m_finished) return;
+        if (m_mode == "scene-undo-redo") {
+            editor->close();
+            QJsonObject regression;
+            QString failureReason;
+            if (!runNativeSceneUndoRegression(m_main.data(), &regression, &failureReason)) {
+                fail(QString("Fresnel GUI Undo/Redo failed: %1").arg(failureReason));
+                return;
+            }
+            m_data.insert("scene_undo", regression);
+            pass("Actual Fresnel Script Editor and GUI Undo/Redo passed 3 complete cycles");
+            return;
+        }
         const QString scriptDir = QFileInfo(m_scriptFile).absolutePath();
         if (m_mode == "seeded-interception") {
             if (!QFileInfo::exists(scriptDir + "/m3_3_parity_result.csv")) {

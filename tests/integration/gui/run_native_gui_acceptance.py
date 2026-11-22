@@ -19,7 +19,8 @@ import sys
 import tempfile
 import time
 
-MODES = ("interactive-file", "seeded-interception", "interactive-flux")
+MODES = ("interactive-file", "seeded-interception", "interactive-flux",
+         "scene-undo-redo")
 GUI_TIMEOUT_SECONDS = 145  # Above the native helper's 120-second watchdog.
 CLI_TIMEOUT_SECONDS = 90
 IDEAL_PLANAR_POWER_W = 8.0 * 8.0 * 1000.0
@@ -61,6 +62,22 @@ def validate_native_report(report: dict, mode: str) -> None:
     require(report.get("status") == "PASS", "Native GUI helper did not report PASS")
     require(report.get("gui_backend") == "QApplication/MainWindow/actual Qt dialogs",
             "Report does not identify the real Qt-widget backend")
+    if mode == "scene-undo-redo":
+        regression = report.get("scene_undo")
+        require(isinstance(regression, dict), "Real GUI Undo/Redo evidence missing")
+        expected = {"fixture": "Fresnel.tnhpps", "edit_commands": 7,
+                    "undo_steps_verified": 21, "redo_steps_verified": 21,
+                    "final_root_children": 2, "final_translation_x": 20,
+                    "nested_fresnel_clone": True,
+                    "stable_coin_node_identity": True}
+        for field, value in expected.items():
+            require(type(regression.get(field)) is type(value)
+                    and regression[field] == value,
+                    f"GUI Undo/Redo {field} mismatch: {regression.get(field)!r}")
+        require(type(regression.get("scene_states_verified")) is int
+                and regression["scene_states_verified"] >= 50,
+                "Insufficient GUI edit-state verification")
+        return
     require(report.get("ray_dialog_accepted") is True,
             "Actual GUI Ray Tracing dialog was not accepted")
     expected_seed = 123456789 if mode == "interactive-flux" else 0
@@ -243,11 +260,15 @@ def run_acceptance(args: argparse.Namespace) -> Path:
         export_dir.mkdir()
         script_dir = root / "script"
         script_dir.mkdir()
-        script_path = script_dir / ("m3_3_gui_headless_parity.tnhpps" if
-                                    args.mode == "seeded-interception" else
-                                    "m3_flux_shared_parity.tnhpps")
+        script_name = ("Fresnel.tnhpps" if args.mode == "scene-undo-redo" else
+                       "m3_3_gui_headless_parity.tnhpps" if
+                       args.mode == "seeded-interception" else
+                       "m3_flux_shared_parity.tnhpps")
+        script_path = script_dir / script_name
         if args.mode != "interactive-file":
-            fixture = source / "tests/scripts" / script_path.name
+            fixture = (source / "examples/facilities/Fresnel/Fresnel.tnhpps"
+                       if args.mode == "scene-undo-redo" else
+                       source / "tests/scripts" / script_path.name)
             require(fixture.is_file(), "Controlled GUI Script Editor fixture is missing")
             shutil.copyfile(fixture, script_path)
         settings_dir = root / "settings"
@@ -306,12 +327,15 @@ def run_acceptance(args: argparse.Namespace) -> Path:
                     "Real GUI helper photon count disagrees with canonical 48-byte record decoder")
         elif args.mode == "seeded-interception":
             summary["numerical"] = validate_interception(script_dir / "m3_3_parity_result.csv")
+        elif args.mode == "scene-undo-redo":
+            summary["scene_undo"] = report["scene_undo"]
         else:
             summary["numerical"] = validate_interactive_flux(report, script_dir, root)
-        # Make scientific numbers visible in CTest -V and hosted CI logs, not
-        # only in the retained build-tree acceptance.json evidence.
-        print("GUI_ACCEPTANCE_NUMERICAL=" +
-              json.dumps(summary["numerical"], sort_keys=True), flush=True)
+        # Make acceptance evidence visible in CTest -V and CI logs.
+        key = "scene_undo" if args.mode == "scene-undo-redo" else "numerical"
+        print("GUI_ACCEPTANCE_SCENE_UNDO=" if key == "scene_undo"
+              else "GUI_ACCEPTANCE_NUMERICAL=", end="", flush=True)
+        print(json.dumps(summary[key], sort_keys=True), flush=True)
         summary["status"] = "PASS"
         return root
     except (OSError, ValueError, KeyError, ImportError, AcceptanceError) as exc:

@@ -14,7 +14,7 @@ if(TONATIUHPP_GUI_ACCEPTANCE_USE_XVFB)
     "${TONATIUHPP_XVFB_RUN_EXECUTABLE}" -a -s "-screen 0 1280x1024x24 +extension GLX")
 endif()
 
-foreach(_mode IN ITEMS interactive-file seeded-interception interactive-flux)
+foreach(_mode IN ITEMS interactive-file seeded-interception interactive-flux scene-undo-redo)
   string(REPLACE "-" "_" _short_name "${_mode}")
   add_test(NAME "gui.native_${_short_name}"
     COMMAND ${_tonatiuhpp_gui_display_launcher}
@@ -31,3 +31,7 @@ foreach(_mode IN ITEMS interactive-file seeded-interception interactive-flux)
     RUN_SERIAL TRUE
     TIMEOUT 180)
 endforeach()
+
+# The new UI editing regression is not a scientific-numerical test.
+set_tests_properties(gui.native_scene_undo_redo PROPERTIES
+  LABELS "gui;system;regression")
