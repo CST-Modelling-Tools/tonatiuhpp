@@ -1941,9 +1941,15 @@ void MainWindow::SetValue(QString url, QString parameter, QString value)
     if (!node) return;
     if (node->getTypeId().isDerivedFrom(TSeparatorKit::getClassTypeId() ) )
     {
-        TSeparatorKit* separatorNode = static_cast< TSeparatorKit* >(node);
-        SoTransform* nodeTransform = static_cast<SoTransform*>(separatorNode->getPart("transform", true) );
-        node = nodeTransform;
+        TSeparatorKit* separatorNode = static_cast<TSeparatorKit*>(node);
+        // TSeparatorKit's transform part is normally TTransform, not SoTransform.
+        // Keep the real SoNode pointer (also valid for GUI manipulators).
+        node = separatorNode->getPart("transform", true);
+        if (!node)
+        {
+            emit Abort(tr("SetValue: Node transform is unavailable."));
+            return;
+        }
     }
 
     SoField* parameterField = node->getField(parameter.toStdString().c_str() );

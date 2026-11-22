@@ -2,15 +2,56 @@
 
 Baseline date: 2026-11-11. This policy applies to the two-executable, single-scientific-kernel architecture introduced before PR #41. It does not authorize release or changes to scientific references.
 
-## Current test inventory and maintenance policy (2026-11-21)
+## Current test inventory and maintenance policy (2026-11-22)
 
-Following merged E1 Stage 2 ([PR #54](https://github.com/CST-Modelling-Tools/tonatiuhpp/pull/54)), the default Windows Release inventory is **203 CTests** (165 discovered C++ GoogleTests plus 38 other CTests); Linux/macOS expect **202**. The three display-backed native GUI CTests remain opt-in and are not part of those counts. The retained standalone Python tooling/auditor tests are also separate from CTest.
+Following merged PR #58, the default Windows Release inventory is **203
+CTests**; the Linux/macOS default is **202**. When
+`TONATIUHPP_ENABLE_NATIVE_GUI_ACCEPTANCE=ON`, four genuine display-backed
+GUI CTests are registered. The maintainer validated **207/207** Windows
+Release CTests after Batch E, including **4/4** native GUI modes; **206**
+is the expected opt-in Linux/macOS registration count, not a locally
+observed result. The separately invoked Python tooling inventory contains
+**40 tests**: 37 passed and 3 skipped on the Windows runner because
+unprivileged directory symlinks were unavailable.
 
-Names should describe observable supported behavior, not the milestone or phase that introduced it. The post-E1 housekeeping changes CTest identities and two GoogleTest suite names, without changing scientific algorithms, fixtures, reference artifacts or the total CTest inventory. Historical strings in **fixture paths, output-directory safety guards, serialized schemas, report names and compatibility inputs** are deliberately retained; bulk-renaming these would risk altering tested behavior. Update the `scripts/ctest_inventory.py` required sentinels when a registered name changes.
+**Batch F local Windows Release evidence (2026-11-22):** after the
+`MainWindow::SetValue` transform-part type correction, the maintainer
+reported **207/207 CTests passed** in **209.95 seconds**, including the
+four real GUI native acceptance tests and three full Fresnel Undo/Redo
+cycles; the separate Python tooling run reported **37 passes / 3 skipped**
+out of 40 tests. This is Windows-only evidence; hosted three-platform CI
+and merge are not yet verified.
 
-Cross-process repeatability is not GUI/CLI equivalence or agreement with an independent scientific reference. Label it `repeatability`; use `equivalence` only when the tested modes/results really are compared. A regression test should assert durable output, geometry or failure contracts, not the historical timing/order of internal callbacks. The optional SoQt cube smoke program was a stand-alone dependency probe outside standard CTest; the production GUI and its platform acceptance checks supersede it.
+The fourth native mode `gui.native_scene_undo_redo` executes the original
+`Fresnel.tnhpps` through the Qt Script Editor, then exercises real GUI
+Cut, Insert/Rename, Paste, Copy/Paste and `MainWindow::SetValue` for the
+`TSeparatorKit` transform. Its `TTransform` readback and three complete
+seven-command Undo/Redo cycles protect field-edit persistence, model
+states, selection safety and Coin3D node identity. This is the focused
+regression for the locally Windows-validated Batch F type-safe transform-part adjustment.
+It does not run ray tracing or the frozen 500M reference.
 
-Renaming CTests intentionally changes inventory *identities* even when the count is unchanged. When comparing pre- and post-cleanup inventories, explicitly map the reviewed renames; do not demand an identical name set or silently drop registrations. The historical 180/179 baseline and phase narratives below describe prior accepted milestones, not the current suite size.
+Names should describe observable supported behavior, not the milestone
+that introduced them. Historical fixture paths, output-directory safety
+guards, report schemas and compatibility inputs must not be bulk-renamed.
+Update `scripts/ctest_inventory.py` sentinels if a test identity changes.
+Cross-process repeatability is not GUI/CLI equivalence or an independent
+physical reference. The earlier 180/179 and other dated baselines below
+are historical; do not use them as current expected inventories.
+
+For the focused native GUI field-edit gate on a real display:
+
+```powershell
+cmake -S source -B build -DBUILD_TESTING=ON -DTONATIUHPP_ENABLE_NATIVE_GUI_ACCEPTANCE=ON
+cmake --build build --config Release --parallel
+ctest --test-dir build -C Release -R '^gui[.]native_scene_undo_redo$' --output-on-failure -V
+ctest --test-dir build -C Release --output-on-failure
+python -m unittest discover -s tests/tooling -p "test_*.py" -v
+```
+
+If testing without native GUI acceptance, turn that CMake option OFF and
+expect the standard inventory (203 Windows, 202 Linux/macOS); GUI native
+validation must still occur separately on a display-capable runner.
 
 ## Purpose and evidence
 
@@ -58,7 +99,7 @@ Domain and level are not replacements for assertion semantics. A test tagged `eq
 | CLI behavior and scripts | Real `tonatiuhpp-cli`, expected exit status / bounded process outcomes | `tests/integration/cli/` and `tests/integration/scientific/` |
 | Export/scientific process comparisons | Native CLI processes plus independent Python comparisons where possible | `tests/integration/scientific/`; shared drivers under `tests/cmake/` until audited |
 | Architecture boundaries | Real compiled artifact/link/import checks | `tests/architecture/` |
-| GUI native acceptance | Actual Qt dialog and Script Editor interaction | `tests/integration/gui/` (driver is opt-in, not yet CTest registered) |
+| GUI native acceptance | Actual Qt dialogs, Script Editor and scene Undo/Redo | `tests/integration/gui/` (four opt-in native GUI CTests) |
 | Installed runtime | External install and plugin/runtime discovery | Planned `tests/integration/installation/`; release/installer workflow |
 | Python tooling | Python stdlib `unittest` of auditors, comparators, CI classifier | `tests/ci/`, `tests/scientific/` and future `tests/tooling/` |
 
@@ -69,13 +110,13 @@ For A+B, `tests/cmake/`, `tests/scripts/` and `tests/scientific/fixtures/` remai
 After a configured Release build, use the bundled inventory helper to capture all CTest registrations, labels, commands, configured timeouts and conservative inferred categories:
 
 ```powershell
-python scripts/ctest_inventory.py --build-dir build --config Release --json-out build/test-inventory.json --markdown-out build/test-inventory.md --expect-count 180
+python scripts/ctest_inventory.py --build-dir build --config Release --json-out build/test-inventory.json --markdown-out build/test-inventory.md --expect-count 203
 ```
 
 Save the baseline JSON outside the source tree before changing registrations. To compare after a CMake restructure:
 
 ```powershell
-python scripts/ctest_inventory.py --build-dir build --config Release --baseline build/test-inventory-before.json --json-out build/test-inventory-after.json --markdown-out build/test-inventory-after.md --expect-count 180
+python scripts/ctest_inventory.py --build-dir build --config Release --baseline build/test-inventory-before.json --json-out build/test-inventory-after.json --markdown-out build/test-inventory-after.md --expect-count 203
 ```
 
 The tool compares **individual CTest names**, not only the total count. It deliberately records unclassified properties as unknown and does not claim an existing `smoke` label is fast. For baseline collection without the helper, use `ctest --test-dir build -C Release --show-only=json-v1` (save the stdout to a file). Distinct single-config Linux/macOS builds can use the same invocation; their configured test count must be reviewed rather than assumed identical.

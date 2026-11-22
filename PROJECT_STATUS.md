@@ -1,12 +1,105 @@
 # Project status
 
-## Active milestone - native GUI Fresnel Undo/Redo regression (candidate)
+Last updated: 2026-11-22. Batch F Windows Release accepted locally; commit, CI and merge pending.
 
-2026-11-22: Following the maintainer-reported merge and three-platform CI success of D+D2, add a fourth opt-in GUI acceptance CTest for the actual `examples/facilities/Fresnel/Fresnel.tnhpps` GUI editing sequence. Run the real Script Editor followed by nested Cut, Insert/Rename, Paste, Copy/Paste, translation and three complete Undo/Redo cycles with exact tree/value assertions. This is a TEST-ONLY local candidate and NOT YET Windows built, tested, committed, pushed, merged or CI validated. Preserve the frozen 500-million-ray reference and all scientific code. The previous active handoff sections below are historical.
+## Authoritative continuation checkpoint — Batch F locally validated; CI pending
 
-Last updated: 2026-11-22
+**Repository and instructions:** `CST-Modelling-Tools/tonatiuhpp` at
+<https://github.com/CST-Modelling-Tools/tonatiuhpp>; local Windows checkout
+`C:\OpenSource\tonatiuhpp`. Read `AGENT.md` before changing source;
+`docs/testing.md` defines test inventory and validation. This top section is
+current; all dated handoffs below the historical divider are superseded.
+Source, `git status`, and CI evidence take precedence over chat summaries.
 
-## Active handoff — Batch D manual Undo crash; D2 repair candidate NOT validated
+**Verified upstream baseline:** PR #56 (architecture A+B+C) merged at
+`9f65fe736bfcd2fc4aaddcdc8f9651e850a45232`; PR #57 (scene ownership
+and Undo/Redo stabilization D+D2) merged at
+`987e9e4ebd59c80750ba96e411b0827b8006d81c`; PR #58 (automated real
+Fresnel GUI Cut/Copy/Paste/Translate/Undo/Redo regression E) merged at
+`830fe2c6d4b61daa37022936bf91a2dea2361a33` on 2026-11-22.
+**Do not resume candidate A-E instructions in historical sections.**
+
+**Most recent maintainer-reported Windows Release evidence (Batch E):**
+207/207 CTests passed with `TONATIUHPP_ENABLE_NATIVE_GUI_ACCEPTANCE=ON`,
+including 4/4 real native GUI modes and `gui.native_scene_undo_redo`.
+Separate Python tooling: 40 tests run, 37 passed, 3 skipped because this
+Windows runner cannot create directory symlinks. These are local results
+reported before the PR #58 merge; do not extrapolate to new work or claim
+new three-platform CI without checking actual CI runs.
+
+**Batch F maintainer-reported Windows Release acceptance (2026-11-22):**
+The Batch F change was built in Windows Release with `BUILD_TESTING=ON`
+and `TONATIUHPP_ENABLE_NATIVE_GUI_ACCEPTANCE=ON`. The complete CTest
+suite passed: **207/207**, 0 failures, **209.95 seconds**; this includes
+**4/4** real native GUI CTests and `gui.native_scene_undo_redo`.
+The separate Python tooling run completed **40 tests**, with **37 passes**
+and **3 skips** caused by unavailable Windows directory-symlink privileges.
+The maintainer's validation script reported `Batch F Windows validation PASSED`.
+These results establish local Windows acceptance, **not** Linux/macOS CI,
+installation acceptance, merge or release. The validation commands did not
+execute the frozen 500-million-ray benchmark.
+
+**Batch F change (WINDOWS VALIDATED; COMMIT/PR/MERGE PENDING):**
+`MainWindow::SetValue` in `source/application/main/MainWindow.cpp` casts
+`TSeparatorKit::getPart("transform", true)` to `SoTransform*` even though
+`TSeparatorKit` declares its transform catalog part as `TTransform`
+(derived from `SoTransformation`, not `SoTransform`). It later converts
+back to `SoNode*`. Remove this unrelated type downcast, retain the actual
+`SoNode*` returned by `getPart`, and return with an `Abort` diagnostic if
+no transform part is available. Preserve existing node/field resolution,
+Qt Undo command creation and the ability to edit GUI manipulator parts.
+Do not modify the scientific kernel, physics, RNG, reference data or exports.
+
+**Existing focused automated regression:**
+`tests/integration/gui/NativeSceneUndoRegression.cpp` already calls
+`MainWindow::SetValue("//Node/Node_01_1", "translation", "20 0 0")` on a
+real `TSeparatorKit` created from `examples/facilities/Fresnel/Fresnel.tnhpps`.
+It reads the actual `TTransform`, checks translation/scene-tree/Coin3D
+identity, and runs three complete seven-command Undo/Redo cycles. Leave
+those assertions unchanged. Do not add another test solely for this cast.
+
+**Batch F reproduction and validation commands:** From clean PR #58 `master`, create
+`fix/gui-transform-field-cast`. Download
+`tonatiuhpp_gui_transform_field_F_apply.py`, execute `python <script> --root . --check`
+and then `python <script> --root . --apply`. Review `git diff --check`, the
+source diff and documentation. Then run:
+
+```powershell
+cmake -S source -B build -DBUILD_TESTING=ON -DTONATIUHPP_ENABLE_NATIVE_GUI_ACCEPTANCE=ON
+cmake --build build --config Release --parallel
+ctest --test-dir build -C Release -R '^gui[.]native_scene_undo_redo$' --output-on-failure -V
+ctest --test-dir build -C Release --output-on-failure
+python -m unittest discover -s tests/tooling -p "test_*.py" -v
+```
+
+For that Windows option set, expect 207 CTests; the default non-GUI
+Windows suite is 203. Linux/macOS default 202 and opt-in 206 registrations
+are expected from CMake, but must be confirmed on the actual CI runners.
+Check all native Windows/Linux/macOS CI jobs before any merge. Never run,
+regenerate or substitute the frozen 500-million-ray scientific reference.
+Do not claim speedups without controlled measurements. No production C++
+`lambda` expressions. No commit, push, CI launch, merge or release without
+maintainer signoff and completed validation.
+
+**Known deferred, separately reviewable issue:** Other legacy `SoTransform*`
+casts occur in GUI manipulation/menu code (for example `ShowMenu`). Their
+semantics are not audited by Batch F; avoid broad blind substitutions.
+Review them as a separate, independently tested follow-up if appropriate.
+
+**Next handoff update:** After maintainer-authorized commit and PR, verify
+all hosted Windows/Linux/macOS CI jobs and record the PR, merge SHA,
+platform-specific CTest and native GUI evidence. Do not claim Batch F
+merged until verified. Then consider the separate manipulator-cast audit
+(Batch G) with focused tests and no broad blind replacements.
+A future chat should first read the top of `PROJECT_STATUS.md`, `AGENT.md`
+and `docs/testing.md`, then inspect actual `git status -sb`, `git log -1`
+and the working diff. Do not assume a candidate script was applied.
+
+---
+
+## Historical records (superseded; kept for provenance)
+
+## Historical handoff — Batch D manual Undo crash; D2 repair candidate NOT validated
 
 **2026-11-21 Windows evidence:** Batch D built successfully and passed all **206/206** CTests (203 standard and 3 opt-in native GUI modes) plus Python tooling **34 passed / 3 skipped** (Windows directory-symlink privileges). However, a real GUI scene-editing check on `examples/facilities/Fresnel/Fresnel.tnhpps` **crashed on Undo after Cut, Insert/Rename, Paste, Copy/Paste, Translate and multiple Undo steps**. **Batch D is NOT accepted, committed or merged.** The existing GUI acceptance tests do not exercise this undo chain.
 
