@@ -1,6 +1,10 @@
 # Project status
 
-Last updated: 2026-11-21
+## Active milestone - native GUI Fresnel Undo/Redo regression (candidate)
+
+2026-11-22: Following the maintainer-reported merge and three-platform CI success of D+D2, add a fourth opt-in GUI acceptance CTest for the actual `examples/facilities/Fresnel/Fresnel.tnhpps` GUI editing sequence. Run the real Script Editor followed by nested Cut, Insert/Rename, Paste, Copy/Paste, translation and three complete Undo/Redo cycles with exact tree/value assertions. This is a TEST-ONLY local candidate and NOT YET Windows built, tested, committed, pushed, merged or CI validated. Preserve the frozen 500-million-ray reference and all scientific code. The previous active handoff sections below are historical.
+
+Last updated: 2026-11-22
 
 ## Active handoff — Batch D manual Undo crash; D2 repair candidate NOT validated
 

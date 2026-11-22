@@ -421,7 +421,7 @@ jobs:
 
       # Phase D native GUI acceptance: standard CTest inventory stays at
       # 179/180 for the ordinary build-tree regression above. Separately enable
-      # 3 actual GUI CTests on display-capable Linux/macOS CI runners. These
+      # 4 actual GUI CTests on display-capable runners (3 scientific + Undo). These
       # checks are now required after their verified 2026-11-12 pilot runs.
       - name: Install native Linux GUI display dependencies
         if: ${{ steps.changes.outputs.docs_only != 'true' && runner.os == 'Linux' }}
@@ -442,7 +442,7 @@ jobs:
           cmake -S source -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DTONATIUHPP_ENABLE_NATIVE_GUI_ACCEPTANCE=ON -DTONATIUHPP_GUI_ACCEPTANCE_USE_XVFB=ON
           cmake --build build --config Release --parallel
           ctest --test-dir build -C Release -N -R '^gui[.]native_' | tee build/gui-native-inventory.txt
-          grep -Fq 'Total Tests: 3' build/gui-native-inventory.txt
+          grep -Fq 'Total Tests: 4' build/gui-native-inventory.txt
           ctest --test-dir build -C Release --verbose -R '^gui[.]native_' --output-junit "${GITHUB_WORKSPACE}/build/gui-native-results.xml" 2>&1 | tee build/gui-native-pilot.log
 
       - name: Native macOS Cocoa GUI scientific acceptance
@@ -458,7 +458,7 @@ jobs:
           python scripts/scrub_macos_agl_generated_links.py --build-dir build
           cmake --build build --config Release --parallel
           ctest --test-dir build -C Release -N -R '^gui[.]native_' | tee build/gui-native-inventory.txt
-          grep -Fq 'Total Tests: 3' build/gui-native-inventory.txt
+          grep -Fq 'Total Tests: 4' build/gui-native-inventory.txt
           ctest --test-dir build -C Release --verbose -R '^gui[.]native_' --output-junit "${GITHUB_WORKSPACE}/build/gui-native-results.xml" 2>&1 | tee build/gui-native-pilot.log
 
       # Windows hosted Actions may lack an interactive WGL desktop even though
@@ -485,7 +485,7 @@ jobs:
           cmake -S source -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DTONATIUHPP_ENABLE_NATIVE_GUI_ACCEPTANCE=ON
           cmake --build build --config Release --parallel
           ctest --test-dir build -C Release -N -R '^gui[.]native_' | tee build/gui-native-inventory.txt
-          grep -Fq 'Total Tests: 3' build/gui-native-inventory.txt
+          grep -Fq 'Total Tests: 4' build/gui-native-inventory.txt
           ctest --test-dir build -C Release --verbose -R '^gui[.]native_' --output-junit "${GITHUB_WORKSPACE}/build/gui-native-results.xml" 2>&1 | tee build/gui-native-pilot.log
 
       - name: Remove CI-only Windows Mesa before artifact upload

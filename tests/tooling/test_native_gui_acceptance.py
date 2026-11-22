@@ -104,6 +104,34 @@ class NativeGuiAcceptanceToolTests(unittest.TestCase):
             with self.subTest(key=key), self.assertRaises(AcceptanceError):
                 validate_native_report(changed, "interactive-flux")
 
+    def test_native_gui_scene_undo_report_passes(self):
+        self.report["mode"] = "scene-undo-redo"
+        self.report["scene_undo"] = {
+            "fixture": "Fresnel.tnhpps", "edit_commands": 7,
+            "undo_steps_verified": 21, "redo_steps_verified": 21,
+            "scene_states_verified": 50, "final_root_children": 2,
+            "final_translation_x": 20, "nested_fresnel_clone": True,
+            "stable_coin_node_identity": True,
+        }
+        validate_native_report(self.report, "scene-undo-redo")
+
+    def test_native_gui_scene_undo_missing_evidence_rejected(self):
+        self.report["mode"] = "scene-undo-redo"
+        with self.assertRaisesRegex(AcceptanceError, "evidence missing"):
+            validate_native_report(self.report, "scene-undo-redo")
+
+    def test_native_gui_scene_undo_short_history_rejected(self):
+        self.report["mode"] = "scene-undo-redo"
+        self.report["scene_undo"] = {
+            "fixture": "Fresnel.tnhpps", "edit_commands": 7,
+            "undo_steps_verified": 21, "redo_steps_verified": 20,
+            "scene_states_verified": 50, "final_root_children": 2,
+            "final_translation_x": 20, "nested_fresnel_clone": True,
+            "stable_coin_node_identity": True,
+        }
+        with self.assertRaisesRegex(AcceptanceError, "redo_steps_verified mismatch"):
+            validate_native_report(self.report, "scene-undo-redo")
+
     def test_native_report_wrong_mode_rejected(self):
         with self.assertRaisesRegex(AcceptanceError, "mode mismatch"):
             validate_native_report(self.report, "interactive-file")

@@ -466,3 +466,7 @@ installer GUI/update lifecycle, signing, notarization or published
 distribution has actually passed. Those require separate execution
 and evidence; Phase E's production CMake and IFW-payload runtime
 checks establish only the scopes described above.
+
+## Post-D2 native GUI scene-edit Undo/Redo regression (candidate)
+
+The opt-in fourth GUI CTest, `gui.native_scene_undo_redo`, uses the actual `Fresnel.tnhpps` example through the GUI Script Editor. It performs Cut, Insert/Rename, nested Paste, Copy/Paste, and translation, then three complete 7-command Undo/Redo cycles. It verifies scene-tree node counts, retained Coin3D identities and restored/translated values at every step, including selection invalidation. Failures and evidence are retained alongside existing native GUI reports. This does not change the standard build-tree CTest inventory (203 Windows / 202 Linux and macOS), scientific inputs, RNG, or the frozen 500M reference. The extra mode is test-build-only, not production behavior. Validate it on Windows Release and the native Windows/Linux/macOS GUI CI matrix before acceptance.
