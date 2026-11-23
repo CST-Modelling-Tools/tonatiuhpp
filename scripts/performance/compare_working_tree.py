@@ -147,19 +147,44 @@ def run_once(label: str, index: int, args: argparse.Namespace, root: Path, *, wa
     return entry
 
 
-def compare_science(entries: list[dict], strict: bool) -> list[str]:
-    # Use deterministic exact comparisons for this same-machine, same-build-toolchain use case.
-    # No claim of cross-platform bitwise reproducibility.
-    anchor = entries[0]['scientific']
-    mismatches = []
-    for e in entries[1:]:
+def compare_science(entries: list[dict], allow_cross_version_differences: bool = False) -> dict:
+    """Require exact within-version reproducibility, independently of physics mode.
+
+    Cross-version differences are permitted only for explicitly documented
+    model changes. They never establish scientific release acceptance.
+    """
+    anchors = {}
+    within_mismatches = []
+    for entry in entries:
+        version = entry['version']
+        if version not in ('baseline', 'candidate'):
+            raise ValueError(f'Unknown benchmark version: {version}')
+        anchor = anchors.setdefault(version, entry['scientific'])
         for key in SCIENTIFIC_FIELDS:
-            value = e['scientific'][key]
-            if value != anchor[key]:
-                mismatches.append(f'{e["index"]:02d} {e["version"]} {key}: {value!r} != {anchor[key]!r}')
-    if strict and mismatches:
-        raise RuntimeError('Scientific mismatch; performance acceptance BLOCKED:\n' + '\n'.join(mismatches[:25]))
-    return mismatches
+            if entry['scientific'][key] != anchor[key]:
+                within_mismatches.append(
+                    f'{entry["index"]:02d} {version} {key}: '
+                    f'{entry["scientific"][key]!r} != {anchor[key]!r}')
+    if set(anchors) != {'baseline', 'candidate'}:
+        raise ValueError('Scientific comparison requires both baseline and candidate runs')
+    if within_mismatches:
+        raise RuntimeError('Within-version scientific reproducibility FAILED:\n' +
+                           '\n'.join(within_mismatches[:25]))
+    cross_mismatches = [
+        f'{key}: candidate {anchors["candidate"][key]!r} != baseline {anchors["baseline"][key]!r}'
+        for key in SCIENTIFIC_FIELDS
+        if anchors['candidate'][key] != anchors['baseline'][key]
+    ]
+    if cross_mismatches and not allow_cross_version_differences:
+        raise RuntimeError('Scientific mismatch; performance acceptance BLOCKED:\n' +
+                           '\n'.join(cross_mismatches[:25]))
+    return {
+        'within_version_matches': True,
+        'cross_version_matches': not cross_mismatches,
+        'cross_version_mismatches': cross_mismatches,
+        'baseline': anchors['baseline'],
+        'candidate': anchors['candidate'],
+    }
 
 
 def percent_change(after: float, before: float) -> float:
@@ -256,9 +281,18 @@ def analyze(entries: list[dict], threshold: float, stability_limit: float,
     }
 
 
-def write_reports(root: Path, meta: dict, entries: list[dict], summary: dict, mismatches: list[str]) -> None:
-    data = {'metadata': meta, 'summary': summary, 'scientific_matches': not mismatches,
-            'scientific_mismatches': mismatches, 'runs': entries}
+def write_reports(root: Path, meta: dict, entries: list[dict], summary: dict, science: dict) -> None:
+    data = {
+        'metadata': meta, 'summary': summary,
+        'scientific_matches': science['cross_version_matches'],
+        'scientific_mismatches': science['cross_version_mismatches'],
+        'within_version_scientific_matches': science['within_version_matches'],
+        'cross_version_scientific_matches': science['cross_version_matches'],
+        'scientific_baseline': science['baseline'],
+        'scientific_candidate': science['candidate'],
+        'science_release_acceptance': 'NOT ASSESSED - independent scientific review required',
+        'runs': entries,
+    }
     (root / 'report.json').write_text(json.dumps(data, indent=2) + '\n', encoding='utf-8')
     with (root / 'runs.csv').open('w', newline='', encoding='utf-8') as f:
         w = csv.DictWriter(f, fieldnames=['index','version','warmup','block','elapsed_seconds','wall_seconds','rays_per_second','worker_count','chunk_count','chunk_size'])
@@ -271,7 +305,11 @@ def write_reports(root: Path, meta: dict, entries: list[dict], summary: dict, mi
         f'- Scene SHA-256: `{meta["scene_sha256"]}`',
         f'- Baseline binary SHA-256: `{meta["baseline_exe_sha256"]}`',
         f'- Candidate binary SHA-256: `{meta["candidate_exe_sha256"]}`',
-        f'- Scientific results: {"MATCH" if not mismatches else "MISMATCH - BLOCK"}', '',
+        f'- Scientific comparison mode: {meta["scientific_comparison_mode"]}',
+        f'- Scientific change rationale: {meta["scientific_change_rationale"] or "not applicable"}',
+        '- Within-version scientific reproducibility: EXACT MATCH',
+        f'- Cross-version scientific results: {"MATCH" if science["cross_version_matches"] else "DIFFER - independent review required"}',
+        '- Scientific release acceptance: NOT ASSESSED by this performance harness', '',
         '| Metric | Value |', '|---|---:|',
         f'| Baseline median (s) | {summary["baseline_median_seconds"]:.3f} |',
         f'| Candidate median (s) | {summary["candidate_median_seconds"]:.3f} |',
@@ -301,8 +339,16 @@ def write_reports(root: Path, meta: dict, entries: list[dict], summary: dict, mi
         lines += [f'- {reason}' for reason in summary['stability_reasons']]
     else:
         lines += ['- All configured drift and block-consistency checks passed.']
+    lines += ['', '## Scientific comparison (not a release acceptance verdict)', '',
+              '| Field | Baseline | Candidate |', '|---|---|---|']
+    for key in SCIENTIFIC_FIELDS:
+        lines.append(f'| {key} | `{science["baseline"][key]}` | `{science["candidate"][key]}` |')
+    if science['cross_version_mismatches']:
+        lines += ['', 'Cross-version differences were recorded, not accepted as scientifically correct.']
     lines += ['', '## Interpretation', '',
-              'Scientific equality is required. Warm-up results are validated but excluded from timing analysis.',
+              'Exact scientific repeatability within each version is mandatory, including warm-ups.',
+              'Cross-version equality is mandatory by default. Explicitly documented physics-change mode permits differences for timing analysis only.',
+              'Scientific release acceptance is independent and remains unassessed by this harness.',
               'The paired median ABBA-block effect is the decision metric. Overall independent medians are reported for continuity only.',
               'Stability thresholds are heuristics, not statistical confidence intervals or proof of causation.',
               'The elapsed metric includes benchmark preparation and worker execution; it excludes later flux-grid serialization.',
@@ -326,6 +372,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument('--stability-limit-percent', type=float, default=3.0, help='max absolute drift and block mean spread')
     p.add_argument('--agreement-limit-percentage-points', type=float, default=2.0, help='max ABBA effect spread')
     p.add_argument('--threshold-percent', type=float, default=2.0)
+    p.add_argument('--allow-scientific-differences', action='store_true',
+                   help='Allow documented cross-version physics differences; keep within-version exact checks')
+    p.add_argument('--scientific-change-rationale', default='',
+                   help='Required explanation when permitting cross-version scientific differences')
     p.add_argument('--output-dir', type=Path, required=True)
     p.add_argument('--repo', type=Path, default=Path.cwd())
     return p.parse_args(argv)
@@ -337,6 +387,11 @@ def main(argv: list[str] | None = None) -> int:
         raise ValueError('--threshold-percent must be finite and >0')
     if args.warmup_pairs < 0:
         raise ValueError('--warmup-pairs must be >= 0')
+    args.scientific_change_rationale = args.scientific_change_rationale.strip()
+    if args.allow_scientific_differences and not args.scientific_change_rationale:
+        raise ValueError('--scientific-change-rationale is required with --allow-scientific-differences')
+    if args.scientific_change_rationale and not args.allow_scientific_differences:
+        raise ValueError('--scientific-change-rationale requires --allow-scientific-differences')
     if args.warmup:
         args.warmup_pairs = max(1, args.warmup_pairs)
     for name in ('stability_limit_percent', 'agreement_limit_percentage_points'):
@@ -361,6 +416,9 @@ def main(argv: list[str] | None = None) -> int:
         'timestamp_utc': datetime.now(timezone.utc).isoformat(),
         'rays': args.rays, 'seed': SEED, 'scene_sha256': scene_hash,
         'warmup_pairs': args.warmup_pairs, 'abba_blocks': args.abba_blocks,
+        'scientific_comparison_mode': ('documented-physics-change' if args.allow_scientific_differences
+                                       else 'strict-cross-version-equality'),
+        'scientific_change_rationale': args.scientific_change_rationale,
         'stability_limit_percent': args.stability_limit_percent,
         'agreement_limit_percentage_points': args.agreement_limit_percentage_points,
         'baseline_exe': str(args.baseline_exe), 'candidate_exe': str(args.candidate_exe),
@@ -382,15 +440,18 @@ def main(argv: list[str] | None = None) -> int:
             for label in ('baseline', 'candidate', 'candidate', 'baseline'):
                 idx += 1
                 entries.append(run_once(label, idx, args, out, block=block))
-        mismatches = compare_science(entries, strict=True)
+        science = compare_science(entries, allow_cross_version_differences=args.allow_scientific_differences)
         measured = [e for e in entries if not e.get('warmup')]
         worker_counts = {e['worker_count'] for e in measured}
         if len(worker_counts) != 1:
             raise RuntimeError(f'Worker counts differ across measured runs: {worker_counts}')
         summary = analyze(entries, args.threshold_percent, args.stability_limit_percent,
                           args.agreement_limit_percentage_points)
-        write_reports(out, meta, entries, summary, mismatches)
+        write_reports(out, meta, entries, summary, science)
         print('\n' + summary['verdict'], flush=True)
+        print('Scientific repeatability: EXACT within both versions; cross-version: ' +
+              ('MATCH' if science['cross_version_matches'] else 'DIFFER - independent review required'))
+        print('Scientific release acceptance: NOT ASSESSED by timing harness')
         print(f'Candidate time change (overall medians): {summary["elapsed_change_percent"]:+.3f}%')
         print(f'Candidate time change (paired blocks): {summary["paired_effect_median_percent"]:+.3f}%')
         if summary['stability_reasons']:
