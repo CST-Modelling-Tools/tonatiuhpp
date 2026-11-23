@@ -15,7 +15,7 @@
 
 - Before switching development focus, complete validation and **publish a new accepted release**. A failed or pending release leaves the current cycle open; never ship just to advance the cadence.
 - Compare every release candidate against the **previous published stable version** with controlled reduced-ray same-machine paired runs, scientific-output checks and a documented stability assessment. Inconclusive results remain unresolved rather than passing; investigate confirmed regressions.
-- Follow `docs/release-cycle-checklist.md` for release evidence. Publication and documented performance exceptions require explicit maintainer authorization. Never rerun/regenerate the frozen 500-million-ray reference for routine release validation.
+- Follow `docs/release-cycle-checklist.md` for release evidence. Publication and documented performance exceptions require explicit maintainer authorization. For each release, explicitly run a new 500-million-ray candidate simulation as a manual scientific release gate, without regenerating or changing the immutable historical 500M reference. Preserve exact-grid equivalence for unchanged physics; for reviewed intentional physics changes, independently audit outputs, compare power/peak tolerances, document cellwise distribution differences and obtain scientific approval. This full-scale run is separate from routine tests and reduced-ray performance comparisons.
 
 ## Engineering discipline
 
