@@ -1,6 +1,6 @@
 # Release-cycle acceptance and performance policy
 
-This is the reusable checklist for **every future Tonatiuh++ release**. The already-published v0.1.8.27 is the previous-release baseline for the next proposed release; historical version-specific checklists remain historical. This file does not authorize publication, tagging or running the frozen benchmark.
+This is the reusable checklist for **every future Tonatiuh++ release**. The already-published v0.1.8.27 is the previous-release baseline for the next proposed release; historical version-specific checklists remain historical. This file does not authorize publication or tagging. The maintainer has approved a fresh, manual **500-million-ray candidate simulation** as a mandatory release gate; it does **not** authorize regenerating or altering the frozen historical 500M reference.
 
 ## Development cadence and release gate
 
@@ -14,7 +14,16 @@ This is the reusable checklist for **every future Tonatiuh++ release**. The alre
 
 - [ ] Validate the exact release candidate with Windows, Linux and macOS CI and appropriate native tests, Python automation/tooling, GUI/CLI acceptance and bounded scientific studies; record any platform-specific limitations.
 - [ ] Verify installed GUI, CLI, official plugins and runtime dependencies from actual candidate installers; test required installer/update flows and SHA-256 checksums before publication.
-- [ ] Preserve scientific reference inputs and expected outputs. Do **not** execute, regenerate, replace or reinterpret the frozen 500-million-ray benchmark as a routine release gate.
+- [ ] Preserve the historical frozen 500-million-ray scene, reference JSON and binary/CSV grids unchanged; run `tests/scientific/verify_reference_v2.py` before and after the candidate run. Never regenerate, replace, or silently redefine the historical reference.
+
+## Mandatory full-scale 500-million-ray scientific release gate
+
+- [ ] For each proposed release, **explicitly run a fresh 500,000,000-ray simulation** of the canonical frozen heliostat scene with seed `123456789`, 50,000 chunks of 10,000 rays, receiver side 1, 100 x 100 grid and original bounds. Run only as a deliberate manual release-acceptance task (not in routine CTest/CI). Use a complete Release build including the official material plugins, and write all new outputs into a unique external evidence directory.
+- [ ] Record the source Git SHA, clean/dirty checkout, executable SHA-256, scene/input SHA-256, toolchain/runtime, machine and worker count, run command/configuration, native stdout/stderr, output JSON, binary and CSV grid, time and throughput. For the exact-historical mode, the existing `tests/cmake/run_heliostat_benchmark.cmake` and `tests/scientific/audit_500m_benchmark.py` require a matching historical grid hash.
+- [ ] If physics is **unchanged**, retain the exact historical grid-hash agreement as a release requirement. If physics **intentionally changes**, obtain independent scientific justification for the changed model and run an explicitly documented candidate configuration without the old `reference_file` exact-hash gate. Independently validate benchmark metadata, exact ray count, generated binary SHA-256, binary/CSV cell equality, all finite nonnegative grid values, integrated power and reported flux statistics. Preserve the historical reference itself unchanged; do not relabel the existing exact-hash auditor as passing.
+- [ ] Check total collected power against the existing 0.1% tolerance and maximum flux against the existing 5% tolerance where those physical comparisons are applicable. Calculate and archive full 100 x 100 signed/absolute difference matrices, mean absolute error, RMSE, percentile errors, meaningful-flux relative errors, Pearson correlation and integrated absolute error. These spatial metrics are **descriptive until prospective acceptance thresholds are scientifically approved**; do not introduce thresholds after inspecting a release's results.
+- [ ] Record separate, unambiguous verdicts for (a) full-scale execution, (b) output integrity, (c) power/peak numerical tolerances, (d) historical exact-grid identity, (e) cellwise distribution review and (f) independent changed-physics acceptance. A 500M numerical pass alone does not establish universal material-model correctness or automatically authorize publication.
+
 
 ## Required previous-release performance comparison
 
