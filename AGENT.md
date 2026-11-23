@@ -13,6 +13,10 @@
 - Alternate meaningful user-facing functionality milestones with focused architecture and engineering-quality milestones. Do not start a succession of micro-refactors or defensive checks without an identified risk, defect, or measurable benefit.
 - Every architecture milestone should have a concrete rationale, bounded scope, and behavior-preserving validation; then return to product functionality work.
 
+- Before switching development focus, complete validation and **publish a new accepted release**. A failed or pending release leaves the current cycle open; never ship just to advance the cadence.
+- Compare every release candidate against the **previous published stable version** with controlled reduced-ray same-machine paired runs, scientific-output checks and a documented stability assessment. Inconclusive results remain unresolved rather than passing; investigate confirmed regressions.
+- Follow `docs/release-cycle-checklist.md` for release evidence. Publication and documented performance exceptions require explicit maintainer authorization. Never rerun/regenerate the frozen 500-million-ray reference for routine release validation.
+
 ## Engineering discipline
 
 - Avoid cosmetic refactors, renames, or wording changes unless they improve:

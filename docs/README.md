@@ -12,6 +12,7 @@ This folder documents **the current codebase**, not the sequence of changes used
 - [Testing architecture and commands](testing.md)
 - [Test-name migration](test-naming-migration.md)
 - [Continuous integration](change-aware-ci.md): which checks run for documentation-only and code changes.
+- [Release-cycle acceptance and performance](release-cycle-checklist.md): release-before-cycle-switch and previous-release speed comparison gates.
 - [Benchmark configuration schema](benchmark_config_schema_v1.json): current machine-readable benchmark configuration contract.
 
 ## Other maintained files
