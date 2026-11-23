@@ -10,7 +10,7 @@ endif()
 
 # Component build files already require 3.28; declare the real minimum here.
 cmake_minimum_required(VERSION 3.28)
-project(TonatiuhPP VERSION 0.1.8.27 LANGUAGES CXX)
+project(TonatiuhPP VERSION 0.1.8.28 LANGUAGES CXX)
 
 # Name of the main GUI target (used for install-time deployment; logical target name)
 set(MAIN_APP_TARGET "tonatiuhpp-gui")
