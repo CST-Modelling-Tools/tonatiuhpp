@@ -1,4 +1,17 @@
-# Test-name migration (G0 Windows validated; CI pending)
+# Test-name migration — PR #60 merged (2026-11-23)
+
+## Final merged acceptance (2026-11-23)
+
+The complete G0 + G1 + G1.1 + G2 + G2.1 behavior-based test-naming migration
+was merged via [PR #60](https://github.com/CST-Modelling-Tools/tonatiuhpp/pull/60) into `master` at `b8934c0dc604ed7e4a27246ba61b94cf064af1d5`.
+The three hosted Windows, Ubuntu and macOS jobs all passed in
+[CI run #287](https://github.com/CST-Modelling-Tools/tonatiuhpp/actions/runs/45129823592). Final maintainer-reported Windows Release acceptance:
+**207/207 native CTests passed**, including four real native-GUI tests;
+**44 Python tooling tests, 41 passed, three expected Windows symlink-permission
+skips**; all four naming safeguards passed. The frozen 500-million-ray
+benchmark was not rerun, and its historical `m5_full_<10 hex>` format remains
+supported. The G0-only and intermediate candidate/CI-pending records below
+are retained strictly as chronological history, not as current work.
 
 This document records an explicit, behavior-based replacement for the remaining
 tracked m3/m4/m5 **test source filenames** after merged PR #59 (`81b21b30c2f8`).

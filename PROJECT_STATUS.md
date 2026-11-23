@@ -1,6 +1,17 @@
 # Project status
 
-## Current continuation checkpoint — completed naming migration: Windows accepted (2026-11-23)
+## Current continuation checkpoint — PR #60 merged (2026-11-23)
+
+- **Authoritative baseline:** `master` contains merged PR #60, `test(naming): replace milestone identifiers with behavioral names` (https://github.com/CST-Modelling-Tools/tonatiuhpp/pull/60). The verified merge commit is `b8934c0dc604ed7e4a27246ba61b94cf064af1d5`; GitHub records the merge at **2026-11-23 07:50:07 UTC**. The G0 + G1 + G1.1 + G2 + G2.1 migration is **complete and merged**, not local/uncommitted.
+- **Hosted CI:** GitHub Actions CI run #287 (https://github.com/CST-Modelling-Tools/tonatiuhpp/actions/runs/45129823592), run ID `45129823592`, **completed successfully**. Its Windows (`windows-latest`), Linux (`ubuntu-24.04`) and macOS (`macos-latest`) build jobs each concluded `success`. This confirms the checks in that run; it is not a new release qualification.
+- **Maintainer's final local Windows Release verification:** **207/207 CTests passed**, zero failed, **226.68 seconds** elapsed, including **4 native GUI tests**. Separate Python tooling: **44 run, 41 passed, 3 expected Windows directory-symlink privilege skips**, zero failures; **4/4 behavior-based naming safeguards passed**.
+- **Scope and scientific invariants:** Test paths, fixtures, produced artifacts, scene IDs, CMake-private interfaces, test-only environment keys and test evidence schemas now use behavioral names. Scientific algorithms, RNG/photon behavior and immutable 500-million-ray reference data were not changed. **Do not rerun/regenerate the frozen 500-million-ray benchmark.** The historic full-run `m5_full_<10 hex>` directory name remains accepted by its unchanged auditor.
+- **Next engineering checkpoint:** First perform a **read-only audit of remaining production C++ lambda expressions** under `source/`, as directed by `AGENT.md`. Prioritize one small, independently validated and behavior-preserving milestone; do not launch another blanket naming refactor. New modifications require a separate branch, complete testing and maintainer authorization before commit/push/PR/merge.
+- **Reading this handoff:** Earlier G0/G1/G2 and candidate-status checkpoints below are chronological **pre-merge history**. Their statements that CI, commits or merge were pending are superseded by this checkpoint; do not resume those completed steps.
+
+---
+
+## Historical checkpoint — completed naming migration: Windows accepted (2026-11-23)
 
 - **Branch and base:** `chore/test-name-cleanup` at the exact PR #59 merge
   `81b21b30c2f8a51639cef686155c0b21f845d93a`. The combined G0 + G1
@@ -31,7 +42,7 @@
 
 ---
 
-## Current continuation checkpoint - G2.1 frozen benchmark naming-guard fix
+## Historical checkpoint - G2.1 frozen benchmark naming-guard fix
 
 - **Branch/baseline:** Unstaged `chore/test-name-cleanup` on PR #59 merge
   `81b21b30c2f8a51639cef686155c0b21f845d93a`; G0 + G1 + G1.1 + G2
@@ -59,7 +70,7 @@
 
 ---
 
-## Current continuation checkpoint — G2 active testing interface cleanup (validation pending)
+## Historical checkpoint — G2 active testing interface cleanup (validation pending)
 
 - **Verified maintainer evidence:** After G1.1, the separate Windows Python
   tooling suite passed: **43 executed, 40 passed, 3 skipped** due to missing
@@ -87,7 +98,7 @@
 
 ---
 
-## Current continuation checkpoint — G1.1 naming-guard correction (revalidation pending)
+## Historical checkpoint — G1.1 naming-guard correction (revalidation pending)
 
 - **Branch/baseline:** Uncommitted `chore/test-name-cleanup` at PR #59 merge
   `81b21b30c2f8a51639cef686155c0b21f845d93a`, carrying G0 + G1.
@@ -116,7 +127,7 @@
 
 ---
 
-## Current continuation checkpoint — G1 in-content test naming (NOT YET VALIDATED)
+## Historical checkpoint — G1 in-content test naming (NOT YET VALIDATED)
 
 - **Baseline:** G0 is Windows Release validated by the maintainer on
   2026-11-22: 207/207 CTests (212.58 seconds), Python tooling 39 passed /
@@ -143,7 +154,7 @@
 
 ---
 
-## Current continuation checkpoint — Test-name cleanup G0 (WINDOWS VALIDATED; CI PENDING)
+## Historical checkpoint — Test-name cleanup G0 (WINDOWS VALIDATED; CI PENDING)
 
 - **Verified baseline:** PR #59, `fix(gui): avoid invalid transform downcast in SetValue`,
   merged to `master` on 2026-11-22 at `81b21b30c2f8a51639cef686155c0b21f845d93a`.
