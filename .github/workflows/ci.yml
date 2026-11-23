@@ -83,6 +83,12 @@ jobs:
         shell: bash
         run: python -m unittest discover -s tests/tooling -p 'test_*.py' -v
 
+      # Enforce the production lambda policy on every PR/push, including
+      # documentation-only diffs. This is read-only and requires no build.
+      - name: Audit production C++ lambda expressions
+        shell: bash
+        run: python scripts/audit_production_lambdas.py --root .
+
       - name: Verify documentation-only changes
         if: ${{ steps.changes.outputs.docs_only == 'true' }}
         shell: bash
