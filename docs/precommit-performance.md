@@ -2,6 +2,24 @@
 
 This is a **developer-invoked, no-commit** benchmark harness. It does not modify frozen scientific benchmark reference files. Its scientific-equality check compares the baseline build to the candidate build at a **reduced ray count**. That check is useful, but does not replace the authoritative 500-million-ray scientific reference.
 
+## Documented scientific-model changes
+
+By default the harness requires **exact scientific equality across both builds and every run**. Do not weaken this default for ordinary optimizations or refactors.
+
+When the new release deliberately changes physical semantics, use `-AllowScientificDifferences` **together with** `-ScientificChangeRationale` in the PowerShell wrapper (or `--allow-scientific-differences --scientific-change-rationale` in the Python runner). For example:
+
+```powershell
+.\scripts\performance\Compare-TonatiuhPP-Performance.ps1 `
+  -Repo 'C:\OpenSource\tonatiuhpp' `
+  -BaselineExe $baselineExe -CandidateExe $candidateExe `
+  -BaselineScene $baselineScene -CandidateScene $candidateScene `
+  -Rays 5000000 -WarmupPairs 2 -AbbaBlocks 2 `
+  -AllowScientificDifferences `
+  -ScientificChangeRationale 'v0.1.8.28 corrects material roulette and ray-termination semantics'
+```
+
+This mode **still fails closed** if any execution differs scientifically from another execution of the **same version**, including warm-ups. It also preserves the existing workload, worker-count, and ABBA stability checks. Cross-version differences are recorded field-by-field in `report.json` and `report.md`, alongside the rationale and a conspicuous warning that **scientific release acceptance remains unassessed**. A successful timing result is *not* scientific validation, and the benchmark must be followed by separate independent numerical/physical acceptance. A timing verdict of `INCONCLUSIVE` remains unresolved even when the process exits 0; a potential regression still needs confirmation. Never reinterpret a physics-driven difference as an automatic improvement or failure.
+
 ## Updating an installed v1 harness (Windows)
 
 Use the `TonatiuhPP-Precommit-Performance-v2.zip` release directly from Downloads; do **not** manually extract or move its contents. A PowerShell bootstrap command can extract it temporarily and invoke the included guarded `Update-TonatiuhPP-Performance.ps1` installer. The updater:
@@ -52,7 +70,7 @@ For older `tonatiuhpp.exe` builds (such as v0.1.8.26), add `-BaselineLegacy` to 
 
 Each unique output directory contains `metadata.json`, `report.json`, `report.md`, `runs.csv`, and a folder for each run containing `config.json`, `result.json`, `console.log`.
 
-- Scientific fields must match **exactly**, including the `flux_grid_sha256`, for this same-machine same-toolchain baseline/candidate test. Exact same-machine comparison is deliberately stricter than general cross-platform tolerances.
+- By default scientific fields must match **exactly**, including `flux_grid_sha256`, across both versions. In explicit documented-physics-change mode exact equality is still mandatory **within each version** while cross-version differences are preserved as evidence for **separate scientific acceptance**. No cross-platform bitwise equivalence is implied.
 - Each execution must have exit code 0, expected rays and seed, `rays_traced == rays`, and 10,000-ray chunks.
 - All measured executions must use the same worker count.
 - **Primary decision metric:** median of the per-ABBA-block time changes. A block's effect is `(mean(candidate_pair) / mean(baseline_endpoints) - 1) * 100`.

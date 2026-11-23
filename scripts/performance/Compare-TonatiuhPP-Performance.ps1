@@ -15,6 +15,8 @@ param(
     [double]$AgreementLimitPercentagePoints = 2.0,
     [switch]$BaselineLegacy,
     [switch]$CandidateLegacy,
+    [switch]$AllowScientificDifferences,
+    [string]$ScientificChangeRationale = "",
     [string]$OutputDir = ""
 )
 $ErrorActionPreference = 'Stop'
@@ -62,6 +64,10 @@ $arguments = @(
 if ($Warmup) { $arguments += '--warmup' }
 if ($BaselineLegacy) { $arguments += '--baseline-legacy' }
 if ($CandidateLegacy) { $arguments += '--candidate-legacy' }
+if ($AllowScientificDifferences) { $arguments += '--allow-scientific-differences' }
+if (-not [string]::IsNullOrWhiteSpace($ScientificChangeRationale)) {
+    $arguments += @('--scientific-change-rationale', $ScientificChangeRationale)
+}
 Write-Host "Performance results directory: $OutputDir"
 & $pythonExe @arguments
 if ($LASTEXITCODE -ne 0) {
