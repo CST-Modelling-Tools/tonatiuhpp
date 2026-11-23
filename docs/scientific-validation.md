@@ -57,8 +57,7 @@ material's independent draws and material-sampling-before-nearest-hit
 are corrected. Do not force new physical
 results to reproduce those mistakes. Independent deterministic and statistical
 tests (including 90% reflectivity and Fresnel normal incidence) take priority.
-Measure runtime and numerical consistency with bounded fixtures, never by
-rerunning or modifying the frozen 500-million-ray benchmark.
+Use bounded fixtures for routine scientific regression and runtime studies. For every proposed release, perform a separately authorized fresh 500-million-ray **candidate** simulation while preserving the immutable historical benchmark reference, as specified in `docs/release-cycle-checklist.md`.
 
 ## Historical material plugins removed from the current tree
 
@@ -95,9 +94,13 @@ The current M5 merge candidate was tested with an explicit Windows Release run o
 
 On 2026-11-10, the Windows M5 Release executable with SHA-256 `8482dad2cfea7623850c6a269a81a1539be14e8548273c72c2fe9f9dee16e278` produced the **exact frozen grid**, accepted power and peak flux, and passed `tests/scientific/audit_500m_benchmark.py`. The M5 code was merged into `master` in [PR #39](https://github.com/CST-Modelling-Tools/tonatiuhpp/pull/39), merge commit `8c6fa58f8038e9b44e5592cf4ab7658a721251d7`. This accepted evidence is sufficient for the documented M5 scientific scope; it is not a claim of release/installer readiness or of universal physical correctness.
 
-## Optional full 500-million-ray manual verification
+## Mandatory 500-million-ray candidate release verification
 
-**Historical opt-in procedure only: do not execute it as part of this refactoring. Use only by a separate deliberate scientific acceptance decision, never as a routine CI step.** The test is computationally expensive. From the Windows repository root, first build the Release executable, ensure a clean source revision, and check that the frozen reference is intact.
+A fresh full-scale **candidate** simulation is a required manual gate for each proposed release; it is not part of routine CTest/CI and must not regenerate or edit the immutable historical reference. Preserve provenance and independently validate all 10,000 cells of generated binary/CSV grids. For unchanged physics, require exact historical grid equality and use the existing full-mode runner and auditor below. For intentional physics changes, that historical exact-hash requirement is not by itself appropriate: run the canonical 500M inputs with the obsolete `reference_file` key omitted from a copy of the run configuration, save outputs externally, audit the files independently, compare power (historical 0.1% tolerance), peak flux (historical 5% tolerance), and all 100 x 100 cellwise differences; separately review the changed material physics. The existing `tests/scientific/audit_500m_benchmark.py` is an **exact-reference** auditor and cannot certify a changed-physics run. The v0.1.8.28 candidate evidence and cellwise findings are recorded in `docs/release-acceptance-v0.1.8.28.md`. Do not invent spatial acceptance thresholds post hoc.
+
+## Historical exact-reference 500-million-ray manual verification
+
+**Exact-grid unchanged-physics procedure only: run deliberately as a manual release gate when historical byte-for-byte equivalence applies, never as a routine CI step.** The test is computationally expensive. From the Windows repository root, first build the Release executable, ensure a clean source revision, and check that the frozen reference is intact.
 
 ```powershell
 $root = (Get-Location).Path
