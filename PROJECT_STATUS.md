@@ -1,5 +1,14 @@
 # Project status
 
+## Pending engineering milestone — permanent production lambda guard (2026-11-23)
+
+- **Baseline:** `master` includes merged PR #62 at `d5d9cca1f173a7657ef0a48dc1b1bae3482cfde7`; the prior 445-file read-only lambda audit passed with zero candidates.
+- **Proposed scope:** Track the corrected read-only scanner in `scripts/`, add regression coverage in `tests/tooling/`, and run the production audit in each existing CI platform job even for Markdown-only changes. Update the durable engineering cadence in `AGENT.md`.
+- **Validation state:** Candidate not yet applied or tested in the maintainer's Windows checkout; no hosted CI result, commit, PR or merge is claimed. Do not run/regenerate the frozen 500-million-ray reference.
+- **Next phase after validation and merge:** Return to a substantive user-facing functionality milestone rather than additional micro-cleanups.
+
+---
+
 ## Current continuation checkpoint — production C++ lambda audit passed (2026-11-23)
 
 - **Audited revision:** Local Windows checkout Git HEAD `6eb15c7a4099b27f70d3aef7f30243bb84e35055`; the read-only scanner's `--expected-head` check matched this exact commit.

@@ -8,6 +8,11 @@
 - Prefer the fewest meaningful commits that preserve clarity.
 - Batch related changes together instead of splitting into many tiny steps.
 
+## Development cadence
+
+- Alternate meaningful user-facing functionality milestones with focused architecture and engineering-quality milestones. Do not start a succession of micro-refactors or defensive checks without an identified risk, defect, or measurable benefit.
+- Every architecture milestone should have a concrete rationale, bounded scope, and behavior-preserving validation; then return to product functionality work.
+
 ## Engineering discipline
 
 - Avoid cosmetic refactors, renames, or wording changes unless they improve:
