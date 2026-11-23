@@ -1,6 +1,6 @@
-# Tonatiuh++ v0.1.8.28 — Candidate release notes (DRAFT)
+# Tonatiuh++ v0.1.8.28 — Release notes
 
-**Status: UNRELEASED CANDIDATE.** These notes summarize changes on `master` since the published `v0.1.8.27` tag. The release-to-release timing comparison remains formally inconclusive under preset stability criteria (with a consistent observed improvement), and installer validation, tagging and publication approval are pending. The current documented candidate source checkpoint is `7c2ccfff751d9e84eb86b45d8d5ca0e5e45db02e`; the eventual final release SHA must be recorded after stabilization.
+These notes summarize changes since the published `v0.1.8.27` tag. The v0.1.8.28 release was authorized by the maintainer on 2026-11-23 after full-scale scientific numerical acceptance, three-platform packaging rehearsal, and Windows installed GUI/CLI/plugin tests. The release-to-release timing comparison remains formally **INCONCLUSIVE / UNSTABLE ENVIRONMENT** despite a consistent observed runtime improvement. Linux/macOS installed-runtime and updater compatibility checks were not completed before the maintainer's explicit decision to publish.
 
 ## Scientific behavior and material models
 
@@ -25,14 +25,14 @@ The maintainer ran the canonical 500-million-ray heliostat scene on the Windows 
 
 The candidate grid SHA-256 is `c92f5e2bd4ef664707dd7b135e20e283db7fcd0067b01c63a8ec65b57989adab`, **not** the historical exact-grid hash. The user-requested cellwise comparison found correlation 0.99996308 and integrated absolute grid difference 0.768261% of reference power, with no preapproved spatial-error PASS threshold. This is a **full-scale numerical/output-integrity PASS**, not a PASS of the unchanged historical exact-grid auditor or universal physical correctness. See `docs/release-acceptance-v0.1.8.28.md` for complete evidence.
 
-## Release acceptance — STILL OPEN
+## Release acceptance and documented limitations
 
-- [ ] Confirm exact candidate SHA and matching `0.1.8.28` metadata, citation version, and Qt Installer Framework package versions.
-- [x] Complete Windows, Linux and macOS development CI for the documented checkpoint (`7c2ccfff751d9e84eb86b45d8d5ca0e5e45db02e`); rerun/verify for any subsequent final release SHA.
-- [x] Complete Windows 207/207 CTests and full 500M numerical/output-integrity and cellwise reference comparison; independent changed-material-physics release signoff remains pending.
+- [x] Version `0.1.8.28` confirmed in CMake and `CITATION.cff`; metadata compatibility was checked by the successful rehearsal's `sync_ifw_metadata.py --check-tag` steps. The precise release commit is the Git commit associated with tag `v0.1.8.28`. The existing Zenodo DOI `10.5281/zenodo.20395329` was carried forward; its concept-versus-version meaning is not established by these checks.
+- [x] Development CI succeeded on Windows, Linux and macOS for source checkpoint `7c2ccfff751d9e84eb86b45d8d5ca0e5e45db02e`, PR #67 head, and its merged `master` commit `1bbef1ee6924b38106f4d16132303c2529db387a`.
+- [x] Windows Release CTest passed 207/207; full-scale 500M numerical/output-integrity checks passed and all 10,000 cells were compared. Historical exact-grid equality differs as expected under changed-physics sampling. This does not establish universal physical correctness; the maintainer authorized publication with the documented validation evidence.
 - [x] Perform 5M, 50M and 75M same-machine ABBA comparisons with v0.1.8.27. All verdicts are **INCONCLUSIVE / UNSTABLE ENVIRONMENT**; observed paired runtime changes are approximately -18%, -20.52% and -20.04%. The maintainer explicitly chose to close additional timing investigation while acknowledging the unresolved stability risk; do not call this a formal performance PASS.
-- [ ] Rehearse release builds with `fake_tag=v0.1.8.28` (nonpublishing workflow), verify all installers and checksums, and exercise installed GUI/CLI/plugin behavior and updater compatibility.
-- [ ] Obtain explicit maintainer authorization before creating/pushing the `v0.1.8.28` tag, which triggers publication.
+- [x] Nonpublishing `fake_tag=v0.1.8.28` release rehearsal [#45238381151](https://github.com/CST-Modelling-Tools/tonatiuhpp/actions/runs/45238381151) passed Windows x64, Linux x64, macOS ARM64 packaging and uploaded installer/IFW-repository artifacts; the publish job was skipped. The maintainer confirmed successful Windows installation and installed GUI, CLI and official `MaterialSpecular` plugin behavior. Independent checksum verification of downloaded assets, installed-runtime tests on Linux/macOS, and updater compatibility remain unverified; publication was explicitly authorized with those limitations.
+- [x] The maintainer explicitly authorized official publication on 2026-11-23. The `v0.1.8.28` tag triggers GitHub Actions release packaging and publication; the tag-run must still be checked for successful publication, installer checksums and deployed update repositories.
 
 **Safety:** A fresh 500M **candidate** run is now an explicit manual release gate. Never regenerate or overwrite the immutable historical 500M scene or reference outputs.
 
