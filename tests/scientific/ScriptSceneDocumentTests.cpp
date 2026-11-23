@@ -60,7 +60,7 @@ TEST(ScientificScriptSceneDocument, CreatesInsertsAndClearsInMemoryScene)
     ASSERT_EQ(fixture.childCount(), 0);
     const QJSValue run = fixture.host.evaluate(R"JS(
 var root = new NodeObject;
-root.setName('M3_2_Insert');
+root.setName('ScriptInsertedNode');
 root.createNode('nested');
 if (tn.InsertScene(root) !== undefined) throw new Error('Unexpected insert result');
 if (!tn.getScene().getPart('world.sun.position')) throw new Error('Missing sun');
@@ -187,7 +187,7 @@ TEST(ScientificScriptSceneDocument, SaveLoadIsRelativeAndPreservesSceneOnFailure
     const QString scriptFile = QDir(temporary.path()).filePath("scene roundtrip.tnhpps");
     const QJSValue success = fixture.host.evaluate(R"JS(
 var root = new NodeObject;
-root.setName('M3_3_Saved');
+root.setName('ScriptSavedNode');
 root.createNode('Child');
 tn.Clear();
 tn.InsertScene(root);

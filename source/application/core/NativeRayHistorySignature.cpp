@@ -65,7 +65,7 @@ struct RayHistoryIndexLess {
 
 QString NativeRayHistorySignature::outputPathFromEnvironment()
 {
-    return qEnvironmentVariable("TONATIUHPP_A0_RAY_HISTORY_FILE");
+    return qEnvironmentVariable("TONATIUHPP_TEST_RAY_HISTORY_FILE");
 }
 
 void NativeRayHistorySignature::add(const RayTracerHistory& history)

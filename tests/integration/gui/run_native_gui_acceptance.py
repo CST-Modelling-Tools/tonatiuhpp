@@ -56,7 +56,7 @@ def close_to_analytic_power(value: float, name: str) -> None:
 
 def validate_native_report(report: dict, mode: str) -> None:
     require(isinstance(report, dict), "Native GUI report must be a JSON object")
-    require(report.get("schema") == "tonatiuhpp.m5.native-gui-presenter.v1",
+    require(report.get("schema") == "tonatiuhpp.native-gui-acceptance.v1",
             "Unexpected native Qt report schema")
     require(report.get("mode") == mode, "Native GUI report mode mismatch")
     require(report.get("status") == "PASS", "Native GUI helper did not report PASS")
@@ -89,8 +89,8 @@ def validate_native_report(report: dict, mode: str) -> None:
 def validate_interception(artifact: Path) -> dict:
     rows = artifact.read_text(encoding="utf-8-sig").splitlines()
     expected = [
-        "schema,m3.3-script-parity-v1",
-        "surface,//Node/M3_3_Parity/Receiver/Shape",
+        "schema,script-interception-v1",
+        "surface,//Node/ScriptInterception/Receiver/Shape",
         "rays,2048",
         "sun_azimuth_deg,180",
         "sun_elevation_deg,90",
@@ -165,8 +165,8 @@ def validate_interactive_flux(report: dict, script_dir: Path, report_dir: Path) 
             "Qt plot PNG path escaped the report directory")
     require(png.read_bytes().startswith(b"\x89PNG\r\n\x1a\n"),
             "Real GUI plot PNG is absent or has an invalid signature")
-    front = read_flux_grid(script_dir / "m3_flux_front.txt", require_signal=True)
-    read_flux_grid(script_dir / "m3_flux_back.txt", require_signal=False)
+    front = read_flux_grid(script_dir / "script_flux_front.txt", require_signal=True)
+    read_flux_grid(script_dir / "script_flux_back.txt", require_signal=False)
     script_power = sum(sum(row) for row in front)  # Same 1 m^2 cell areas.
     close_to_analytic_power(script_power, "GUI Script Editor front-flux integral")
     require(abs(script_power - total_flux) <= 0.20 * IDEAL_PLANAR_POWER_W,
@@ -225,7 +225,7 @@ def run_acceptance(args: argparse.Namespace) -> Path:
     output_parent.mkdir(parents=True, exist_ok=True)
     root = Path(tempfile.mkdtemp(prefix=f"native_{args.mode.replace('-', '_')}_",
                                  dir=output_parent))
-    summary = {"schema": "tonatiuhpp.phase-d.native-gui.v1", "mode": args.mode,
+    summary = {"schema": "tonatiuhpp.native-gui-summary.v1", "mode": args.mode,
                "status": "RUNNING", "started_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
                "evidence_dir": str(root)}
     summary_path = root / "acceptance.json"
@@ -261,9 +261,9 @@ def run_acceptance(args: argparse.Namespace) -> Path:
         script_dir = root / "script"
         script_dir.mkdir()
         script_name = ("Fresnel.tnhpps" if args.mode == "scene-undo-redo" else
-                       "m3_3_gui_headless_parity.tnhpps" if
+                       "script_gui_headless_interception.tnhpps" if
                        args.mode == "seeded-interception" else
-                       "m3_flux_shared_parity.tnhpps")
+                       "script_flux_shared_backend.tnhpps")
         script_path = script_dir / script_name
         if args.mode != "interactive-file":
             fixture = (source / "examples/facilities/Fresnel/Fresnel.tnhpps"
@@ -289,15 +289,15 @@ def run_acceptance(args: argparse.Namespace) -> Path:
                     str(cli.parent), str(gui.parent),
                     str(system_root / "System32"), str(system_root),
                     str(system_root / "System32" / "Wbem")))
-        for name in ("TONATIUHPP_A0_TRACE_SIGNATURE_FILE", "TONATIUHPP_A0_RAY_HISTORY_FILE",
-                     "TONATIUHPP_M3_TEST_FILE_DATA_FAULT"):
+        for name in ("TONATIUHPP_TEST_TRACE_SIGNATURE_FILE", "TONATIUHPP_TEST_RAY_HISTORY_FILE",
+                     "TONATIUHPP_TEST_PHOTON_FILE_DATA_FAULT"):
             env.pop(name, None)
         env.update({
-            "TONATIUHPP_M5_GUI_NATIVE_REPORT": str(root / "native_report.json"),
-            "TONATIUHPP_M5_GUI_NATIVE_MODE": args.mode,
-            "TONATIUHPP_M5_GUI_NATIVE_EXPORT_DIR": str(export_dir),
-            "TONATIUHPP_M5_GUI_NATIVE_SCRIPT": str(script_path) if args.mode != "interactive-file" else "",
-            "TONATIUHPP_M5_GUI_NATIVE_SETTINGS_DIR": str(settings_dir),
+            "TONATIUHPP_NATIVE_GUI_REPORT": str(root / "native_report.json"),
+            "TONATIUHPP_NATIVE_GUI_MODE": args.mode,
+            "TONATIUHPP_NATIVE_GUI_EXPORT_DIR": str(export_dir),
+            "TONATIUHPP_NATIVE_GUI_SCRIPT": str(script_path) if args.mode != "interactive-file" else "",
+            "TONATIUHPP_NATIVE_GUI_SETTINGS_DIR": str(settings_dir),
             "XDG_CONFIG_HOME": str(settings_dir),
         })
         if os.name == "nt":
@@ -316,7 +316,7 @@ def run_acceptance(args: argparse.Namespace) -> Path:
             cli_dir.mkdir()
             cli_env = dict(env)
             for name in tuple(cli_env):
-                if name.startswith("TONATIUHPP_M5_GUI_NATIVE_"):
+                if name.startswith("TONATIUHPP_NATIVE_GUI_"):
                     cli_env.pop(name, None)
             run_process([str(cli), "trace-scene", str(scene), "--rays", "2048",
                          "--seed", "0", "--photon-export-dir", str(cli_dir)],
@@ -326,7 +326,7 @@ def run_acceptance(args: argparse.Namespace) -> Path:
             require(report.get("photon_records") == summary["numerical"]["gui_photon_records"],
                     "Real GUI helper photon count disagrees with canonical 48-byte record decoder")
         elif args.mode == "seeded-interception":
-            summary["numerical"] = validate_interception(script_dir / "m3_3_parity_result.csv")
+            summary["numerical"] = validate_interception(script_dir / "script_interception_result.csv")
         elif args.mode == "scene-undo-redo":
             summary["scene_undo"] = report["scene_undo"]
         else:

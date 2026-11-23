@@ -60,7 +60,7 @@ bool NativeTraceSignature::Event::operator<(const Event& other) const
 
 QString NativeTraceSignature::outputPathFromEnvironment()
 {
-    return qEnvironmentVariable("TONATIUHPP_A0_TRACE_SIGNATURE_FILE");
+    return qEnvironmentVariable("TONATIUHPP_TEST_TRACE_SIGNATURE_FILE");
 }
 
 bool NativeTraceSignature::validateRayCount(ulong rays, QString* errorMessage)
@@ -68,7 +68,7 @@ bool NativeTraceSignature::validateRayCount(ulong rays, QString* errorMessage)
     if (rays == 0 || rays > kMaxDiagnosticRays)
         return fail(errorMessage, QStringLiteral(
             "A0 signature diagnostics require between 1 and %1 rays; "
-            "unset TONATIUHPP_A0_TRACE_SIGNATURE_FILE for normal large traces.")
+            "unset TONATIUHPP_TEST_TRACE_SIGNATURE_FILE for normal large traces.")
             .arg(kMaxDiagnosticRays));
     return true;
 }

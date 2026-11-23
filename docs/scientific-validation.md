@@ -110,8 +110,8 @@ try {
     python tests/scientific/verify_reference_v2.py
     if ($LASTEXITCODE -ne 0) { throw 'Frozen reference integrity failed.' }
 
-    Remove-Item Env:TONATIUHPP_A0_TRACE_SIGNATURE_FILE -ErrorAction SilentlyContinue
-    Remove-Item Env:TONATIUHPP_A0_RAY_HISTORY_FILE -ErrorAction SilentlyContinue
+    Remove-Item Env:TONATIUHPP_TEST_TRACE_SIGNATURE_FILE -ErrorAction SilentlyContinue
+    Remove-Item Env:TONATIUHPP_TEST_RAY_HISTORY_FILE -ErrorAction SilentlyContinue
 
     $cmakeArgs = @(
         "-DTEST_EXECUTABLE=$exe",
@@ -119,7 +119,7 @@ try {
         "-DSOURCE_CONFIG=$root/examples/benchmarks/benchmark_config_v2.example.json",
         "-DSCENE_FILE=$root/examples/benchmarks/benchmark_heliostat_field_v1.tnhpp",
         "-DOUTPUT_DIR=$evidence",
-        '-DMODE=full', '-P', 'tests/cmake/run_heliostat_benchmark_m5.cmake'
+        '-DMODE=full', '-P', 'tests/cmake/run_heliostat_benchmark.cmake'
     )
     & cmake @cmakeArgs
     if ($LASTEXITCODE -ne 0) { throw 'Full benchmark failed.' }

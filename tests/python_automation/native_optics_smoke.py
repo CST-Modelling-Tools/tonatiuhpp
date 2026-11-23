@@ -12,7 +12,7 @@ from tonatiuhpp_automation import OpticalRequest, StudyCase, TonatiuhClient, run
 
 FIXTURE = r"""
 var root = new NodeObject;
-root.setName('M3_Flux_Parity');
+root.setName('ScriptFlux');
 var receiver = root.createNode('Receiver');
 var shape = receiver.createShape();
 shape.setName('Shape');
@@ -23,7 +23,7 @@ profile.setParameter('vSize', '8');
 shape.insertMaterial('Absorber');
 tn.Clear();
 tn.InsertScene(root);
-tn.SetValue('//Node/M3_Flux_Parity/Receiver', 'translation', '0 0 1');
+tn.SetValue('//Node/ScriptFlux/Receiver', 'translation', '0 0 1');
 tn.ChangeSunPosition(180, 90);
 if (!tn.saveScene(SCENE_PATH)) throw new Error('fixture save failed');
 """
@@ -43,7 +43,7 @@ def main():
         script.write_text(FIXTURE.replace("SCENE_PATH", json.dumps(str(scene))), encoding="utf-8")
         client.run_script(script)
         client.validate_scene(scene)
-        optical = OpticalRequest("//Node/M3_Flux_Parity/Receiver/Shape",
+        optical = OpticalRequest("//Node/ScriptFlux/Receiver/Shape",
                                  interception_rays=512, flux_rays=512,
                                  height_bins=4, width_bins=4)
         cases = (

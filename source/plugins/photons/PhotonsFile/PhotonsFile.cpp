@@ -24,7 +24,7 @@ namespace {
 #ifdef TONATIUHPP_PHOTONSFILE_TEST_FAULTS
 bool scientificFileFaultForTest(const QString& filePath, const char* mode)
 {
-    if (qgetenv("TONATIUHPP_M3_TEST_FILE_DATA_FAULT") != QByteArray(mode))
+    if (qgetenv("TONATIUHPP_TEST_PHOTON_FILE_DATA_FAULT") != QByteArray(mode))
         return false;
     if (QFileInfo(QCoreApplication::applicationFilePath()).completeBaseName().compare(
             QStringLiteral("tonatiuhpp_scientific_equivalence_tests"),

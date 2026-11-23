@@ -1,7 +1,6 @@
-// Phase 3B2B1: bounded real photon File output on shared scene and run APIs.
-// Paths are substituted ONLY under build/tests by the CMake acceptance runner.
-// Never execute this unexpanded template directly.
-
+// M4.1: independent true-headless SCRIPT export, compared with the direct CLI.
+// Both paths use the same seed/grid/tracker preparation/selected surface.
+// This script writes only to a fresh, precreated build-tree test directory.
 tn.loadScene('@SCENE_FILE@');
 tn.SetRaysNumber(2048);
 tn.SetRaysGrid(200, 200);
@@ -16,5 +15,5 @@ tn.SetExportTypeParameterValue('ExportDirectory', '@EXPORT_DIRECTORY@');
 tn.SetExportTypeParameterValue('ExportFile', 'PhotonMap');
 tn.SetExportTypeParameterValue('FileSize', '-1');
 tn.AddExportSurfaceURL('//Node/Shape');
-tn.Run();
-print('M3 Phase 3B2B1 bounded File Run passed.');
+tn.Run(0);
+print('CLI/script File photon equivalence fixture completed.');

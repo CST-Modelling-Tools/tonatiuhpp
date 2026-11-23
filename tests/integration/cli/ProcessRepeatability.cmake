@@ -11,7 +11,7 @@ if(BUILD_TESTING AND TARGET tonatiuhpp-cli)
             --gui "$<TARGET_FILE:tonatiuhpp-gui>"
             --cli "$<TARGET_FILE:tonatiuhpp-cli>"
             --source-root "${TONATIUHPP_TESTS_ROOT}/.."
-            --output-root "${CMAKE_CURRENT_BINARY_DIR}/m5_2_evidence"
+            --output-root "${CMAKE_CURRENT_BINARY_DIR}/cli_process_evidence"
             --mode build)
     tonatiuhpp_set_headless_test_properties(headless.cli_process_repeatability)
     set_tests_properties(headless.cli_process_repeatability PROPERTIES

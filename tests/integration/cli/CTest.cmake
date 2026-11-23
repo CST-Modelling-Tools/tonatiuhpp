@@ -5,12 +5,12 @@
     NAME headless.scripted_run_process_repeatability
     COMMAND "${CMAKE_COMMAND}"
       "-DTEST_EXECUTABLE=${TONATIUHPP_TEST_EXE}"
-      "-DTEST_SCRIPT=${TONATIUHPP_TESTS_ROOT}/scripts/m3_shared_run_parity.tnhpps.in"
+      "-DTEST_SCRIPT=${TONATIUHPP_TESTS_ROOT}/scripts/scripted_run_repeatability.tnhpps.in"
       "-DTEST_SCENE=${TONATIUHPP_TESTS_ROOT}/../examples/benchmarks/cylinder.tnhpp"
       "-DCOMPARATOR=${TONATIUHPP_TESTS_ROOT}/scientific/compare_photon_exports.py"
-      "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/m3_shared_run_parity"
+      "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/scripted_run_repeatability"
       "-DTEST_BUILD_ROOT=${CMAKE_CURRENT_BINARY_DIR}"
-      -P "${TONATIUHPP_TESTS_ROOT}/cmake/run_m3_shared_run_parity.cmake"
+      -P "${TONATIUHPP_TESTS_ROOT}/cmake/run_scripted_run_repeatability.cmake"
   )
   tonatiuhpp_set_headless_test_properties(headless.scripted_run_process_repeatability)
   set_tests_properties(headless.scripted_run_process_repeatability PROPERTIES
@@ -86,9 +86,9 @@
     NAME headless.script_relative_file_io
     COMMAND "${CMAKE_COMMAND}"
       "-DTEST_EXECUTABLE=${TONATIUHPP_TEST_EXE}"
-      "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/m3_script_relative_io"
+      "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/script_relative_file_io"
       "-DTEST_BUILD_ROOT=${CMAKE_CURRENT_BINARY_DIR}"
-      -P "${TONATIUHPP_TESTS_ROOT}/cmake/run_m3_script_relative_io.cmake"
+      -P "${TONATIUHPP_TESTS_ROOT}/cmake/run_script_relative_file_io.cmake"
   )
   tonatiuhpp_set_headless_test_properties(headless.script_relative_file_io)
   set_tests_properties(headless.script_relative_file_io PROPERTIES TIMEOUT 45)
@@ -115,7 +115,7 @@
   add_test(
     NAME headless.script_sun_position
     COMMAND "${TONATIUHPP_TEST_EXE}"  run-script
-      "${TONATIUHPP_TESTS_ROOT}/scripts/m3_exit_phase2_sun_smoke.tnhpps"
+      "${TONATIUHPP_TESTS_ROOT}/scripts/script_sun_position.tnhpps"
   )
   tonatiuhpp_set_headless_test_properties(headless.script_sun_position)
   set_tests_properties(headless.script_sun_position PROPERTIES TIMEOUT 30)
@@ -127,10 +127,10 @@
     NAME headless.script_field_grid_csv
     COMMAND "${CMAKE_COMMAND}"
       "-DTEST_EXECUTABLE=${TONATIUHPP_TEST_EXE}"
-      "-DTEST_SCRIPT=${TONATIUHPP_TESTS_ROOT}/scripts/m3_exit_phase3a_field_grid_smoke.tnhpps"
-      "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/m3_exit_phase3a_field_grid"
+      "-DTEST_SCRIPT=${TONATIUHPP_TESTS_ROOT}/scripts/script_field_grid_csv.tnhpps"
+      "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/script_field_grid_csv"
       "-DTEST_BUILD_ROOT=${CMAKE_CURRENT_BINARY_DIR}"
-      -P "${TONATIUHPP_TESTS_ROOT}/cmake/run_m3_exit_phase3a_field_grid.cmake"
+      -P "${TONATIUHPP_TESTS_ROOT}/cmake/run_script_field_grid_csv.cmake"
   )
   tonatiuhpp_set_headless_test_properties(headless.script_field_grid_csv)
   set_tests_properties(headless.script_field_grid_csv PROPERTIES
@@ -142,13 +142,13 @@
     NAME headless.script_file_export_append_integrity
     COMMAND "${CMAKE_COMMAND}"
       "-DTEST_EXECUTABLE=${TONATIUHPP_TEST_EXE}"
-      "-DTEST_SCRIPT=${TONATIUHPP_TESTS_ROOT}/scripts/m3_exit_phase3b2b2_append.tnhpps.in"
+      "-DTEST_SCRIPT=${TONATIUHPP_TESTS_ROOT}/scripts/script_file_export_append.tnhpps.in"
       "-DTEST_SCENE=${TONATIUHPP_TESTS_ROOT}/../examples/benchmarks/cylinder.tnhpp"
-      "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/m3_exit_phase3b2b2a_append"
+      "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/script_file_export_append_append"
       "-DTEST_BUILD_ROOT=${CMAKE_CURRENT_BINARY_DIR}"
-      "-DAPPEND_VERIFIER=${TONATIUHPP_TESTS_ROOT}/scientific/verify_m3_exit_phase3b2b2_append.py"
+      "-DAPPEND_VERIFIER=${TONATIUHPP_TESTS_ROOT}/scientific/verify_file_export_append.py"
       "-DCOMPARATOR=${TONATIUHPP_TESTS_ROOT}/scientific/compare_photon_exports.py"
-      -P "${TONATIUHPP_TESTS_ROOT}/cmake/run_m3_exit_phase3b2b2a_append.cmake"
+      -P "${TONATIUHPP_TESTS_ROOT}/cmake/run_script_file_export_append_integrity.cmake"
   )
   tonatiuhpp_set_headless_test_properties(headless.script_file_export_append_integrity)
   set_tests_properties(headless.script_file_export_append_integrity PROPERTIES
@@ -160,12 +160,12 @@
     NAME headless.script_file_export_safety
     COMMAND "${CMAKE_COMMAND}"
       "-DTEST_EXECUTABLE=${TONATIUHPP_TEST_EXE}"
-      "-DTEST_SCRIPT=${TONATIUHPP_TESTS_ROOT}/scripts/m3_exit_phase3b2b1_run_file.tnhpps.in"
+      "-DTEST_SCRIPT=${TONATIUHPP_TESTS_ROOT}/scripts/script_file_export_safety.tnhpps.in"
       "-DTEST_SCENE=${TONATIUHPP_TESTS_ROOT}/../examples/benchmarks/cylinder.tnhpp"
-      "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/m3_exit_phase3b2b1_run_file"
+      "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/script_file_export_safety"
       "-DTEST_BUILD_ROOT=${CMAKE_CURRENT_BINARY_DIR}"
       "-DCOMPARATOR=${TONATIUHPP_TESTS_ROOT}/scientific/compare_photon_exports.py"
-      -P "${TONATIUHPP_TESTS_ROOT}/cmake/run_m3_exit_phase3b2b1_file.cmake"
+      -P "${TONATIUHPP_TESTS_ROOT}/cmake/run_script_file_export_safety.cmake"
   )
   tonatiuhpp_set_headless_test_properties(headless.script_file_export_safety)
   set_tests_properties(headless.script_file_export_safety PROPERTIES
@@ -177,8 +177,8 @@
     COMMAND "${CMAKE_COMMAND}"
       "-DTEST_EXECUTABLE=${TONATIUHPP_TEST_EXE}"
       "-DTEST_WORKING_DIRECTORY=${TONATIUHPP_TEST_WORKING_DIR}"
-      "-DTEST_SCRIPT=${TONATIUHPP_TESTS_ROOT}/scripts/m3_2_interception_bounded.tnhpps"
-      "-DERROR_SCRIPT=${TONATIUHPP_TESTS_ROOT}/scripts/m3_2_interception_error.tnhpps"
+      "-DTEST_SCRIPT=${TONATIUHPP_TESTS_ROOT}/scripts/script_interception_bounded.tnhpps"
+      "-DERROR_SCRIPT=${TONATIUHPP_TESTS_ROOT}/scripts/script_interception_invalid_surface.tnhpps"
       -P "${TONATIUHPP_TESTS_ROOT}/cmake/run_headless_interception_smoke.cmake"
   )
   tonatiuhpp_set_headless_test_properties(headless.run_script_interception_bounded)
@@ -195,9 +195,9 @@
         "-DTEST_WORKING_DIRECTORY=${TONATIUHPP_TEST_WORKING_DIR}"
         "-DSCENE_FILE=${_tonatiuhpp_cylinder_scene}"
         "-DSOURCE_DIR=${TONATIUHPP_TESTS_ROOT}"
-        "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/headless_m3_cancel_recover"
+        "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/headless_script_cancellation_recovery"
       "-DTEST_BUILD_ROOT=${CMAKE_CURRENT_BINARY_DIR}"
-        -P "${TONATIUHPP_TESTS_ROOT}/cmake/run_m3_script_cancel_smoke.cmake"
+        -P "${TONATIUHPP_TESTS_ROOT}/cmake/run_script_cancellation_recovery.cmake"
     )
     tonatiuhpp_set_headless_test_properties(headless.script_cancellation_recovery)
     set_tests_properties(headless.script_cancellation_recovery PROPERTIES TIMEOUT 120)

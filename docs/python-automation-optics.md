@@ -16,7 +16,7 @@ from tonatiuhpp_automation import OpticalRequest, StudyCase, TonatiuhClient, run
 
 client = TonatiuhClient(r"build\bin\Release\tonatiuhpp-cli.exe", timeout=120)
 request = OpticalRequest(
-    surface_url="//Node/M3_Flux_Parity/Receiver/Shape",  # URL must exist in YOUR scene
+    surface_url="//Node/ScriptFlux/Receiver/Shape",  # URL must exist in YOUR scene
     interception_rays=2048,
     flux_rays=2048,
     height_bins=8,

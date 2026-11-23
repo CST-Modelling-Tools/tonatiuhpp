@@ -17,4 +17,4 @@ tn.SetExportTypeParameterValue('FileSize', '-1');
 tn.AddExportSurfaceURL('//Node/Shape');
 tn.Run();
 @SECOND_RUN@
-print('M3 Phase 3B2B2A cumulative File append passed.');
+print('Script File append integrity passed.');

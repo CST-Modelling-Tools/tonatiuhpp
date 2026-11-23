@@ -3,7 +3,7 @@
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
 add_test(NAME architecture.gui_cli_runtime_boundary
   COMMAND "${Python3_EXECUTABLE}"
-    "${TONATIUHPP_TESTS_ROOT}/architecture/verify_p2_binaries.py"
+    "${TONATIUHPP_TESTS_ROOT}/architecture/verify_runtime_binaries.py"
     --gui "$<TARGET_FILE:tonatiuhpp-gui>"
     --cli "$<TARGET_FILE:tonatiuhpp-cli>"
     --kernel "$<TARGET_FILE:TonatiuhppKernel>"

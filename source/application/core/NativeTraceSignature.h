@@ -12,7 +12,7 @@ struct RayTracerHit;
 class PreparedTraceContext;
 
 // Opt-in A0 diagnostic only. Never attached to production ray tracing unless
-// TONATIUHPP_A0_TRACE_SIGNATURE_FILE is set. Comparisons are within-platform.
+// TONATIUHPP_TEST_TRACE_SIGNATURE_FILE is set. Comparisons are within-platform.
 class NativeTraceSignature final
 {
 public:
