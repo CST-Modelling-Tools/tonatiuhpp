@@ -72,12 +72,12 @@
         "-DTEST_EXECUTABLE=${TONATIUHPP_TEST_EXE}"
         "-DTEST_WORKING_DIRECTORY=${TONATIUHPP_TEST_WORKING_DIR}"
         "-DTEST_SCENE=${_tonatiuhpp_cylinder_scene}"
-        "-DTEST_SCRIPT=${TONATIUHPP_TESTS_ROOT}/scripts/m4_cli_file_export_parity.tnhpps.in"
+        "-DTEST_SCRIPT=${TONATIUHPP_TESTS_ROOT}/scripts/file_export_cli_script_equivalence.tnhpps.in"
         "-DCOMPARATOR=${TONATIUHPP_TESTS_ROOT}/scientific/compare_photon_exports.py"
         "-DPYTHON_EXECUTABLE=${Python3_EXECUTABLE}"
-        "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/m4_cli_file_export_parity"
+        "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/file_export_cli_script_equivalence"
         "-DTEST_BUILD_ROOT=${CMAKE_CURRENT_BINARY_DIR}"
-        -P "${TONATIUHPP_TESTS_ROOT}/cmake/run_m4_cli_file_export_parity.cmake"
+        -P "${TONATIUHPP_TESTS_ROOT}/cmake/run_file_export_cli_script_equivalence.cmake"
     )
     tonatiuhpp_set_headless_test_properties(headless.file_export_cli_script_equivalence)
     set_tests_properties(headless.file_export_cli_script_equivalence PROPERTIES
@@ -89,14 +89,14 @@
       NAME headless.segmented_file_export_equivalence
       COMMAND "${CMAKE_COMMAND}"
         "-DTEST_EXECUTABLE=${TONATIUHPP_TEST_EXE}"
-        "-DTEST_SCRIPT=${TONATIUHPP_TESTS_ROOT}/scripts/m4_extended_file_export.tnhpps.in"
+        "-DTEST_SCRIPT=${TONATIUHPP_TESTS_ROOT}/scripts/segmented_file_export_equivalence.tnhpps.in"
         "-DTEST_SCENE=${_tonatiuhpp_cylinder_scene}"
-        "-DCOMPARATOR=${TONATIUHPP_TESTS_ROOT}/scientific/compare_m4_extended_exports.py"
+        "-DCOMPARATOR=${TONATIUHPP_TESTS_ROOT}/scientific/compare_segmented_photon_exports.py"
         "-DPYTHON_EXECUTABLE=${Python3_EXECUTABLE}"
-        "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/m4_extended_file_export"
+        "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/segmented_file_export_equivalence"
         "-DTEST_BUILD_ROOT=${CMAKE_CURRENT_BINARY_DIR}"
         "-DTEST_WORKING_DIRECTORY=${TONATIUHPP_TEST_WORKING_DIR}"
-        -P "${TONATIUHPP_TESTS_ROOT}/cmake/run_m4_extended_file_export.cmake"
+        -P "${TONATIUHPP_TESTS_ROOT}/cmake/run_segmented_file_export_equivalence.cmake"
     )
     tonatiuhpp_set_headless_test_properties(headless.segmented_file_export_equivalence)
     set_tests_properties(headless.segmented_file_export_equivalence PROPERTIES
@@ -191,7 +191,7 @@
         "-DSCENE_FILE=${_heliostat_scene}"
         "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/headless_benchmark_heliostat"
         "-DMODE=smoke"
-        -P "${TONATIUHPP_TESTS_ROOT}/cmake/run_heliostat_benchmark_m5.cmake"
+        -P "${TONATIUHPP_TESTS_ROOT}/cmake/run_heliostat_benchmark.cmake"
     )
     tonatiuhpp_set_headless_test_properties(headless.benchmark_heliostat_10k)
     set_tests_properties(headless.benchmark_heliostat_10k PROPERTIES TIMEOUT 360)
@@ -207,7 +207,7 @@
         "-DSCENE_FILE=${_heliostat_scene}"
         "-DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/headless_benchmark_heliostat"
         "-DMODE=repeatability"
-        -P "${TONATIUHPP_TESTS_ROOT}/cmake/run_heliostat_benchmark_m5.cmake"
+        -P "${TONATIUHPP_TESTS_ROOT}/cmake/run_heliostat_benchmark.cmake"
     )
     tonatiuhpp_set_headless_test_properties(headless.benchmark_heliostat_1m_repeatability)
     set_tests_properties(headless.benchmark_heliostat_1m_repeatability PROPERTIES TIMEOUT 1200)

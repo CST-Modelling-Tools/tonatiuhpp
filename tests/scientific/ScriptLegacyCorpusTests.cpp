@@ -481,11 +481,11 @@ TEST(ScientificScriptFieldEdit, ResolvesLayoutInstanceAndEditsTransform)
     LegacySceneFixture fixture;
     const QJSValue result = fixture.host.evaluate(R"JS(
         var root = new NodeObject;
-        root.setName('M3_Edit');
+        root.setName('ScriptEditedNode');
         var receiver = root.createNode('Receiver');
         tn.Clear();
         tn.InsertScene(root);
-        tn.SetValue('//Node/M3_Edit/Receiver', 'translation', '0 0 1');
+        tn.SetValue('//Node/ScriptEditedNode/Receiver', 'translation', '0 0 1');
         receiver.getParameter('translation').trim() === '0 0 1';
     )JS", "field-edit.tnhpps");
     ASSERT_FALSE(result.isError()) << result.toString().toStdString();
@@ -497,12 +497,12 @@ TEST(ScientificScriptFieldEdit, BadUrlsAndFieldsFailAtUserLine)
     TonatiuhCore::initializeCoin();
     LegacySceneFixture fixture;
     ASSERT_FALSE(fixture.host.evaluate(
-        "var root = new NodeObject; root.setName('M3_Edit');"
+        "var root = new NodeObject; root.setName('ScriptEditedNode');"
         "var receiver = root.createNode('Receiver');"
         "tn.Clear(); tn.InsertScene(root);", "field-setup.tnhpps").isError());
     for (const QString& expr : {
              QStringLiteral("tn.SetValue('//Node/missing', 'translation', '0 0 9');"),
-             QStringLiteral("tn.SetValue('//Node/M3_Edit/Receiver', 'bad-field', '1');"),
+             QStringLiteral("tn.SetValue('//Node/ScriptEditedNode/Receiver', 'bad-field', '1');"),
              QStringLiteral("tn.SetValue('', 'translation', '0 0 9');")
          }) {
         const QJSValue result = fixture.host.evaluate(expr, "field-negative.tnhpps");
@@ -522,7 +522,7 @@ TEST(ScientificScriptFieldEdit, HostWriterCanRejectWithoutMutation)
     TonatiuhCore::initializeCoin();
     LegacySceneFixture fixture;
     ASSERT_FALSE(fixture.host.evaluate(
-        "var root = new NodeObject; root.setName('M3_Edit');"
+        "var root = new NodeObject; root.setName('ScriptEditedNode');"
         "var receiver = root.createNode('Receiver');"
         "tn.Clear(); tn.InsertScene(root);", "field-setup.tnhpps").isError());
     auto* services = qobject_cast<ScriptSceneServices*>(fixture.host.engine()
@@ -539,7 +539,7 @@ TEST(ScientificScriptFieldEdit, HostWriterCanRejectWithoutMutation)
         return false;
     });
     const QJSValue error = fixture.host.evaluate(
-        "tn.SetValue('//Node/M3_Edit/Receiver', 'translation', '0 0 1');",
+        "tn.SetValue('//Node/ScriptEditedNode/Receiver', 'translation', '0 0 1');",
         "field-callback-rejected.tnhpps");
     ASSERT_TRUE(error.isError());
     EXPECT_EQ(error.property("lineNumber").toInt(), 1);
@@ -1427,7 +1427,7 @@ TEST(ScientificScriptAppendDispatch, RejectedSecondCallReportsUserLineAndHostRec
 // No filesystem or ray-tracing side effects are needed to exercise the latch.
 namespace
 {
-class M3FailingPhotonExporter final : public PhotonsAbstract
+class FailingPhotonExporterFixture final : public PhotonsAbstract
 {
 public:
     bool allowStart = true;
@@ -1447,7 +1447,7 @@ public:
 TEST(ScientificPhotonBufferFailureLatch, FailedFinalizationLatchesFailure)
 {
     PhotonsBuffer buffer(16);
-    M3FailingPhotonExporter exporter;
+    FailingPhotonExporterFixture exporter;
     exporter.allowFinish = false;
     ASSERT_TRUE(buffer.setExporter(&exporter));
     EXPECT_FALSE(buffer.endExport(0.125));
@@ -1461,7 +1461,7 @@ TEST(ScientificPhotonBufferFailureLatch, FailedFinalizationLatchesFailure)
 TEST(ScientificPhotonBufferFailureLatch, ExporterErrorAfterFinalizationLatchesFailure)
 {
     PhotonsBuffer buffer(16);
-    M3FailingPhotonExporter exporter;
+    FailingPhotonExporterFixture exporter;
     ASSERT_TRUE(buffer.setExporter(&exporter));
     exporter.reportError = true;
     EXPECT_FALSE(buffer.endExport(0.25));
@@ -1472,7 +1472,7 @@ TEST(ScientificPhotonBufferFailureLatch, ExporterErrorAfterFinalizationLatchesFa
 TEST(ScientificPhotonBufferFailureLatch, SuccessfulFinalizationKeepsHealthyState)
 {
     PhotonsBuffer buffer(16);
-    M3FailingPhotonExporter exporter;
+    FailingPhotonExporterFixture exporter;
     ASSERT_TRUE(buffer.setExporter(&exporter));
     EXPECT_TRUE(buffer.endExport(0.5));
     EXPECT_FALSE(buffer.hasExportFailed());
@@ -1517,7 +1517,7 @@ TEST(ScientificGuiTraceRunInputs, PreservesExplicitSurfaceSelectionAndDefaultInp
 // M3 Step 3A: regression-lock the nonvisual GUI completion policy.
 TEST(ScientificGuiTraceCompletion, SuccessAccumulatesRaysAndNormalizesPower)
 {
-    M3FailingPhotonExporter exporter;
+    FailingPhotonExporterFixture exporter;
     PhotonsBuffer buffer(16);
     ASSERT_TRUE(buffer.setExporter(&exporter));
     const auto result = GuiTraceCompletion::finalize(buffer, true, false,
@@ -1531,7 +1531,7 @@ TEST(ScientificGuiTraceCompletion, SuccessAccumulatesRaysAndNormalizesPower)
 
 TEST(ScientificGuiTraceCompletion, IncompleteTraceNeverNormalizesPartialPhotons)
 {
-    M3FailingPhotonExporter exporter;
+    FailingPhotonExporterFixture exporter;
     PhotonsBuffer buffer(16);
     ASSERT_TRUE(buffer.setExporter(&exporter));
     const auto result = GuiTraceCompletion::finalize(buffer, false, false,
@@ -1545,7 +1545,7 @@ TEST(ScientificGuiTraceCompletion, IncompleteTraceNeverNormalizesPartialPhotons)
 
 TEST(ScientificGuiTraceCompletion, ExportFailureNeverAcceptsCompletedTrace)
 {
-    M3FailingPhotonExporter exporter;
+    FailingPhotonExporterFixture exporter;
     PhotonsBuffer buffer(16);
     ASSERT_TRUE(buffer.setExporter(&exporter));
     exporter.allowFinish = false;
@@ -1561,7 +1561,7 @@ TEST(ScientificGuiTraceCompletion, ExportFailureNeverAcceptsCompletedTrace)
 
 TEST(ScientificGuiTraceCompletion, WorkerExportFailureRejectsEvenIfFinalizationSucceeds)
 {
-    M3FailingPhotonExporter exporter;
+    FailingPhotonExporterFixture exporter;
     PhotonsBuffer buffer(16);
     ASSERT_TRUE(buffer.setExporter(&exporter));
     const auto result = GuiTraceCompletion::finalize(buffer, true, true,
@@ -1577,12 +1577,12 @@ TEST(ScientificGuiTraceCompletion, WorkerExportFailureRejectsEvenIfFinalizationS
 // the metadata filename. Only QTemporaryDir contents are touched.
 namespace
 {
-struct M3LoadedFileExporter
+struct LoadedPhotonFileExporterFixture
 {
     QPluginLoader loader;
     std::unique_ptr<PhotonsAbstract> exporter;
 
-    M3LoadedFileExporter()
+    LoadedPhotonFileExporterFixture()
     {
         loader.setFileName(
             QString::fromUtf8(TONATIUHPP_SCIENTIFIC_FILE_PLUGIN));
@@ -1601,7 +1601,7 @@ TEST(ScientificPhotonsFileMetadataFailure, MetadataOpenFailureLatchesExporter)
 {
     QTemporaryDir temp;
     ASSERT_TRUE(temp.isValid());
-    M3LoadedFileExporter loaded;
+    LoadedPhotonFileExporterFixture loaded;
     ASSERT_NE(loaded.exporter, nullptr) << "Production PhotonsFile plugin is unavailable";
     loaded.exporter->setParameter("ExportDirectory", temp.path());
     loaded.exporter->setParameter("ExportFile", "PhotonMap");
@@ -1619,7 +1619,7 @@ TEST(ScientificPhotonsFileMetadataFailure, SuccessfulMetadataFinalizationStaysHe
 {
     QTemporaryDir temp;
     ASSERT_TRUE(temp.isValid());
-    M3LoadedFileExporter loaded;
+    LoadedPhotonFileExporterFixture loaded;
     ASSERT_NE(loaded.exporter, nullptr) << "Production PhotonsFile plugin is unavailable";
     loaded.exporter->setParameter("ExportDirectory", temp.path());
     loaded.exporter->setParameter("ExportFile", "PhotonMap");
@@ -1636,26 +1636,26 @@ TEST(ScientificPhotonsFileMetadataFailure, SuccessfulMetadataFinalizationStaysHe
 // Phase 3B2B2B Slice C: deterministic data-file failure injection, exercised
 // through the real production File plugin, not a replacement serializer.
 namespace {
-struct M3ScientificDataFaultScope
+struct PhotonFileDataFaultScope
 {
-    QByteArray old = qgetenv("TONATIUHPP_M3_TEST_FILE_DATA_FAULT");
-    bool existed = qEnvironmentVariableIsSet("TONATIUHPP_M3_TEST_FILE_DATA_FAULT");
-    explicit M3ScientificDataFaultScope(const char* mode)
+    QByteArray old = qgetenv("TONATIUHPP_TEST_PHOTON_FILE_DATA_FAULT");
+    bool existed = qEnvironmentVariableIsSet("TONATIUHPP_TEST_PHOTON_FILE_DATA_FAULT");
+    explicit PhotonFileDataFaultScope(const char* mode)
     {
-        qputenv("TONATIUHPP_M3_TEST_FILE_DATA_FAULT", QByteArray(mode));
+        qputenv("TONATIUHPP_TEST_PHOTON_FILE_DATA_FAULT", QByteArray(mode));
     }
-    ~M3ScientificDataFaultScope()
+    ~PhotonFileDataFaultScope()
     {
-        if (existed) qputenv("TONATIUHPP_M3_TEST_FILE_DATA_FAULT", old);
-        else qunsetenv("TONATIUHPP_M3_TEST_FILE_DATA_FAULT");
+        if (existed) qputenv("TONATIUHPP_TEST_PHOTON_FILE_DATA_FAULT", old);
+        else qunsetenv("TONATIUHPP_TEST_PHOTON_FILE_DATA_FAULT");
     }
 };
 
-void m3VerifyInjectedDataFailure(const char* mode)
+void verifyInjectedPhotonDataFailure(const char* mode)
 {
     QTemporaryDir temp;
     ASSERT_TRUE(temp.isValid());
-    M3LoadedFileExporter loaded;
+    LoadedPhotonFileExporterFixture loaded;
     ASSERT_NE(loaded.exporter, nullptr) << "Production PhotonsFile plugin is unavailable";
     loaded.exporter->setParameter("ExportDirectory", temp.path());
     loaded.exporter->setParameter("ExportFile", "PhotonMap");
@@ -1663,7 +1663,7 @@ void m3VerifyInjectedDataFailure(const char* mode)
     ASSERT_TRUE(loaded.exporter->startExport());
     const QString dataPath = QDir(temp.path()).filePath("PhotonMap.dat");
     {
-        M3ScientificDataFaultScope fault(mode);
+        PhotonFileDataFaultScope fault(mode);
         // Use the real constructor: Photon() leaves pointer members uninitialized.
         std::vector<Photon> photons;
         photons.emplace_back(1, vec3d{}, nullptr, true, false);
@@ -1680,12 +1680,12 @@ void m3VerifyInjectedDataFailure(const char* mode)
 
 TEST(ScientificPhotonsFileDataFailure, InjectedWriteFailureLatchesAndRejectsFinalization)
 {
-    m3VerifyInjectedDataFailure("write");
+    verifyInjectedPhotonDataFailure("write");
 }
 
 TEST(ScientificPhotonsFileDataFailure, InjectedFlushFailureLatchesAndRejectsFinalization)
 {
-    m3VerifyInjectedDataFailure("flush");
+    verifyInjectedPhotonDataFailure("flush");
 }
 
 
@@ -1693,11 +1693,11 @@ TEST(ScientificPhotonsFileDataFailure, InjectedFlushFailureLatchesAndRejectsFina
 // PhotonsBuffer / production PhotonsFile boundary. Host-level tn.Run
 // poisoning and scene ownership still require separate acceptance.
 namespace {
-void m3VerifyFailedFileAppendRetainsOwnership(const char* faultMode)
+void verifyFailedPhotonFileAppendRetainsOwnership(const char* faultMode)
 {
     QTemporaryDir temp;
     ASSERT_TRUE(temp.isValid());
-    M3LoadedFileExporter loaded;
+    LoadedPhotonFileExporterFixture loaded;
     ASSERT_NE(loaded.exporter, nullptr) << "Production PhotonsFile plugin is unavailable";
     loaded.exporter->setParameter("ExportDirectory", temp.path());
     loaded.exporter->setParameter("ExportFile", "PhotonMap");
@@ -1731,7 +1731,7 @@ void m3VerifyFailedFileAppendRetainsOwnership(const char* faultMode)
     ASSERT_TRUE(buffer.addPhotons(photons));
     ASSERT_TRUE(buffer.hasRetainedPhotons());
     {
-        M3ScientificDataFaultScope fault(faultMode);
+        PhotonFileDataFaultScope fault(faultMode);
         EXPECT_FALSE(buffer.endExport(0.125));
     }
     EXPECT_TRUE(buffer.hasExportFailed());
@@ -1753,20 +1753,20 @@ void m3VerifyFailedFileAppendRetainsOwnership(const char* faultMode)
 
 TEST(ScientificPhotonsFileAppendFailure, WriteFailurePreservesCheckpointAndRetainsBuffer)
 {
-    m3VerifyFailedFileAppendRetainsOwnership("write");
+    verifyFailedPhotonFileAppendRetainsOwnership("write");
 }
 
 TEST(ScientificPhotonsFileAppendFailure, FlushFailurePreservesCheckpointAndRetainsBuffer)
 {
-    m3VerifyFailedFileAppendRetainsOwnership("flush");
+    verifyFailedPhotonFileAppendRetainsOwnership("flush");
 }
 
 // M4 finishing: actual production File plugin with segmented output, the
 // existing scientific-executable-only write/flush faults, and partial-run
 // checkpoint invalidation. All tests use independent QTemporaryDir roots.
 namespace {
-QByteArray m3ReadExportFile(const QString& path);
-std::vector<Photon> m4Photons(std::size_t count)
+QByteArray readPhotonExportFixture(const QString& path);
+std::vector<Photon> photonRecordsFixture(std::size_t count)
 {
     std::vector<Photon> photons;
     photons.reserve(count);
@@ -1775,70 +1775,70 @@ std::vector<Photon> m4Photons(std::size_t count)
     return photons;
 }
 
-void m4VerifySegmentedAppendFault(const char* faultMode)
+void verifySegmentedPhotonAppendFault(const char* faultMode)
 {
     QTemporaryDir temp;
     ASSERT_TRUE(temp.isValid());
-    M3LoadedFileExporter loaded;
+    LoadedPhotonFileExporterFixture loaded;
     ASSERT_NE(loaded.exporter, nullptr);
     loaded.exporter->setParameter("ExportDirectory", temp.path());
     loaded.exporter->setParameter("ExportFile", "PhotonMap");
     loaded.exporter->setParameter("FileSize", "2");
     PhotonsBuffer buffer(2);
     ASSERT_TRUE(buffer.setExporter(loaded.exporter.get()));
-    ASSERT_TRUE(buffer.addPhotons(m4Photons(2)));
+    ASSERT_TRUE(buffer.addPhotons(photonRecordsFixture(2)));
     ASSERT_TRUE(buffer.endExport(0.125));
 
     const QDir dir(temp.path());
     const QString first = dir.filePath("PhotonMap_1.dat");
     const QString second = dir.filePath("PhotonMap_2.dat");
     const QString metadata = dir.filePath("PhotonMap_parameters.txt");
-    const QByteArray beforeFirst = m3ReadExportFile(first);
-    const QByteArray beforeMetadata = m3ReadExportFile(metadata);
+    const QByteArray beforeFirst = readPhotonExportFixture(first);
+    const QByteArray beforeMetadata = readPhotonExportFixture(metadata);
     ASSERT_FALSE(beforeFirst.isEmpty());
     ASSERT_FALSE(beforeMetadata.isEmpty());
     ASSERT_FALSE(QFileInfo::exists(second));
 
     ASSERT_TRUE(loaded.exporter->startExport());
-    ASSERT_TRUE(buffer.addPhotons(m4Photons(1)));
+    ASSERT_TRUE(buffer.addPhotons(photonRecordsFixture(1)));
     {
-        M3ScientificDataFaultScope failure(faultMode);
+        PhotonFileDataFaultScope failure(faultMode);
         EXPECT_FALSE(buffer.endExport(0.125));
     }
     EXPECT_TRUE(buffer.hasExportFailed());
     EXPECT_TRUE(buffer.hasRetainedPhotons());
     EXPECT_TRUE(loaded.exporter->hasExportError());
     EXPECT_EQ(buffer.getPhotons().size(), 1u);
-    EXPECT_EQ(m3ReadExportFile(first), beforeFirst);
-    EXPECT_EQ(m3ReadExportFile(metadata), beforeMetadata);
+    EXPECT_EQ(readPhotonExportFixture(first), beforeFirst);
+    EXPECT_EQ(readPhotonExportFixture(metadata), beforeMetadata);
     EXPECT_TRUE(QFileInfo::exists(second));
     EXPECT_EQ(QFileInfo(second).size(), 0);
     EXPECT_FALSE(loaded.exporter->startExport());
-    EXPECT_FALSE(buffer.addPhotons(m4Photons(1)));
+    EXPECT_FALSE(buffer.addPhotons(photonRecordsFixture(1)));
 }
 } // namespace
 
 TEST(ScientificSegmentedFileExport, InjectedAppendWriteFailurePreservesPriorFiles)
 {
-    m4VerifySegmentedAppendFault("write");
+    verifySegmentedPhotonAppendFault("write");
 }
 
 TEST(ScientificSegmentedFileExport, InjectedAppendFlushFailurePreservesPriorFiles)
 {
-    m4VerifySegmentedAppendFault("flush");
+    verifySegmentedPhotonAppendFault("flush");
 }
 
 TEST(ScientificSegmentedFileExport, InterruptedAppendInvalidatesOutputCheckpoint)
 {
     QTemporaryDir temp;
     ASSERT_TRUE(temp.isValid());
-    M3LoadedFileExporter loaded;
+    LoadedPhotonFileExporterFixture loaded;
     ASSERT_NE(loaded.exporter, nullptr);
     loaded.exporter->setParameter("ExportDirectory", temp.path());
     loaded.exporter->setParameter("ExportFile", "PhotonMap");
     loaded.exporter->setParameter("FileSize", "2");
     ASSERT_TRUE(loaded.exporter->startExport());
-    ASSERT_EQ(loaded.exporter->savePhotons(m4Photons(2)), 2ul);
+    ASSERT_EQ(loaded.exporter->savePhotons(photonRecordsFixture(2)), 2ul);
     loaded.exporter->setPhotonPower(0.125);
     ASSERT_TRUE(loaded.exporter->endExport());
     QMap<QString, QByteArray> accepted;
@@ -1848,10 +1848,10 @@ TEST(ScientificSegmentedFileExport, InterruptedAppendInvalidatesOutputCheckpoint
         temp.path(), "PhotonMap", &accepted, &hasData, &error)) << error.toStdString();
     ASSERT_TRUE(hasData);
     const QString metadata = QDir(temp.path()).filePath("PhotonMap_parameters.txt");
-    const QByteArray beforeMetadata = m3ReadExportFile(metadata);
+    const QByteArray beforeMetadata = readPhotonExportFixture(metadata);
     ASSERT_FALSE(beforeMetadata.isEmpty());
     ASSERT_TRUE(loaded.exporter->startExport());
-    ASSERT_EQ(loaded.exporter->savePhotons(m4Photons(1)), 1ul);
+    ASSERT_EQ(loaded.exporter->savePhotons(photonRecordsFixture(1)), 1ul);
     // Simulated interruption: destructor closes the data file but no
     // endExport/metadata finalization occurs. No live handles impede the
     // checkpoint reader on Windows.
@@ -1861,7 +1861,7 @@ TEST(ScientificSegmentedFileExport, InterruptedAppendInvalidatesOutputCheckpoint
         temp.path(), "PhotonMap", &interrupted, &hasData, &error)) << error.toStdString();
     EXPECT_TRUE(hasData);
     EXPECT_NE(interrupted, accepted);
-    EXPECT_EQ(m3ReadExportFile(metadata), beforeMetadata);
+    EXPECT_EQ(readPhotonExportFixture(metadata), beforeMetadata);
 }
 
 TEST(ScientificSegmentedFileExport, UnrelatedWildcardFilesAreNeverDeleted)
@@ -1877,14 +1877,14 @@ TEST(ScientificSegmentedFileExport, UnrelatedWildcardFilesAreNeverDeleted)
         ASSERT_TRUE(file.open(QIODevice::WriteOnly));
         ASSERT_EQ(file.write("sentinel"), 8);
     }
-    M3LoadedFileExporter loaded;
+    LoadedPhotonFileExporterFixture loaded;
     ASSERT_NE(loaded.exporter, nullptr);
     loaded.exporter->setParameter("ExportDirectory", temp.path());
     loaded.exporter->setParameter("ExportFile", "PhotonMap");
     loaded.exporter->setParameter("FileSize", "2");
     ASSERT_TRUE(loaded.exporter->startExport());
-    EXPECT_EQ(m3ReadExportFile(unrelated), QByteArray("sentinel"));
-    EXPECT_EQ(m3ReadExportFile(invalidSerial), QByteArray("sentinel"));
+    EXPECT_EQ(readPhotonExportFixture(unrelated), QByteArray("sentinel"));
+    EXPECT_EQ(readPhotonExportFixture(invalidSerial), QByteArray("sentinel"));
     EXPECT_FALSE(QFileInfo::exists(managed));
 }
 
@@ -1892,13 +1892,13 @@ TEST(ScientificSegmentedFileExport, CheckpointDetectsNewUnrelatedEntry)
 {
     QTemporaryDir temp;
     ASSERT_TRUE(temp.isValid());
-    M3LoadedFileExporter loaded;
+    LoadedPhotonFileExporterFixture loaded;
     ASSERT_NE(loaded.exporter, nullptr);
     loaded.exporter->setParameter("ExportDirectory", temp.path());
     loaded.exporter->setParameter("ExportFile", "PhotonMap");
     loaded.exporter->setParameter("FileSize", "2");
     ASSERT_TRUE(loaded.exporter->startExport());
-    ASSERT_EQ(loaded.exporter->savePhotons(m4Photons(2)), 2ul);
+    ASSERT_EQ(loaded.exporter->savePhotons(photonRecordsFixture(2)), 2ul);
     loaded.exporter->setPhotonPower(0.125);
     ASSERT_TRUE(loaded.exporter->endExport());
     QMap<QString, QByteArray> accepted;
@@ -1921,7 +1921,7 @@ TEST(ScientificSegmentedFileExport, CheckpointDetectsNewUnrelatedEntry)
 // M3 Phase 3B2B2B D2: exercise the genuine per-ScriptHost File backend through
 // the script-facing tn.Run() API; no substitute exporter or mock run executor.
 namespace {
-void m3ConfigureRealFileRun(LegacySceneFixture& fixture, const QString& directory)
+void configureRealPhotonFileRun(LegacySceneFixture& fixture, const QString& directory)
 {
     const QString script = QStringLiteral(R"JS(
         tn.SetRaysNumber(2048);
@@ -1942,14 +1942,14 @@ void m3ConfigureRealFileRun(LegacySceneFixture& fixture, const QString& director
     ASSERT_FALSE(result.isError()) << result.toString().toStdString();
 }
 
-QByteArray m3ReadExportFile(const QString& path)
+QByteArray readPhotonExportFixture(const QString& path)
 {
     QFile file(path);
     if (!file.open(QIODevice::ReadOnly)) return {};
     return file.readAll();
 }
 
-void m3VerifyRealHostPoisoning(const char* mode)
+void verifyPhotonFileHostPoisoning(const char* mode)
 {
     TonatiuhCore::initializeCoin();
     QTemporaryDir output;
@@ -1968,19 +1968,19 @@ void m3VerifyRealHostPoisoning(const char* mode)
         ++backendCalls;
         return backend->run(request, error);
     });
-    m3ConfigureRealFileRun(fixture, output.path());
+    configureRealPhotonFileRun(fixture, output.path());
     const QJSValue firstRun = fixture.host.evaluate("tn.Run();", "d2-first.tnhpps");
     ASSERT_FALSE(firstRun.isError()) << firstRun.toString().toStdString()
         << " [backendCalls=" << backendCalls << "]";
     const QString base = QDir(output.path()).filePath("PhotonMap");
-    const QByteArray previousData = m3ReadExportFile(base + ".dat");
-    const QByteArray previousParams = m3ReadExportFile(base + "_parameters.txt");
+    const QByteArray previousData = readPhotonExportFixture(base + ".dat");
+    const QByteArray previousParams = readPhotonExportFixture(base + "_parameters.txt");
     ASSERT_FALSE(previousData.isEmpty());
     ASSERT_FALSE(previousParams.isEmpty());
     ASSERT_EQ(backendCalls, 1);
 
     {
-        M3ScientificDataFaultScope fault(mode);
+        PhotonFileDataFaultScope fault(mode);
         const QJSValue failure = fixture.host.evaluate(
             "var d2Marker = 1;\ntn.Run();", "d2-append-failure.tnhpps");
         ASSERT_TRUE(failure.isError());
@@ -1989,8 +1989,8 @@ void m3VerifyRealHostPoisoning(const char* mode)
             << failure.toString().toStdString();
     }
     EXPECT_EQ(backendCalls, 2);
-    EXPECT_EQ(m3ReadExportFile(base + ".dat"), previousData);
-    EXPECT_EQ(m3ReadExportFile(base + "_parameters.txt"), previousParams);
+    EXPECT_EQ(readPhotonExportFixture(base + ".dat"), previousData);
+    EXPECT_EQ(readPhotonExportFixture(base + "_parameters.txt"), previousParams);
 
     const QJSValue blocked = fixture.host.evaluate(
         "tn.Run();", "d2-poisoned-append.tnhpps");
@@ -2036,12 +2036,12 @@ void m3VerifyRealHostPoisoning(const char* mode)
 
 TEST(ScientificScriptFileHostPoison, AppendWriteFailureBlocksResetAndPreservesOwnership)
 {
-    m3VerifyRealHostPoisoning("write");
+    verifyPhotonFileHostPoisoning("write");
 }
 
 TEST(ScientificScriptFileHostPoison, AppendFlushFailureBlocksResetAndPreservesOwnership)
 {
-    m3VerifyRealHostPoisoning("flush");
+    verifyPhotonFileHostPoisoning("flush");
 }
 
 // M3 final scripted Run migration: no GUI-dependent scientific implementation.
@@ -2061,19 +2061,19 @@ TEST(ScientificSharedScriptRun, OptionalExplicitSeedIsValidatedAtUserCallSite)
     });
     ASSERT_TRUE(fixture.document.clear());
     const QJSValue seeded = fixture.host.evaluate(
-        "tn.SetRaysNumber(128);\ntn.Run(0);", "m3-run-seed-zero.tnhpps");
+        "tn.SetRaysNumber(128);\ntn.Run(0);", "script-run-seed-zero.tnhpps");
     ASSERT_FALSE(seeded.isError()) << seeded.toString().toStdString();
     EXPECT_EQ(calls, 1);
     ASSERT_TRUE(lastSeed.has_value());
     EXPECT_EQ(*lastSeed, 0u);
     const QJSValue unseeded = fixture.host.evaluate(
-        "tn.Run();", "m3-run-legacy.tnhpps");
+        "tn.Run();", "script-run-default-seed.tnhpps");
     ASSERT_FALSE(unseeded.isError()) << unseeded.toString().toStdString();
     EXPECT_EQ(calls, 2);
     EXPECT_FALSE(lastSeed.has_value());
 
     const QJSValue invalid = fixture.host.evaluate(
-        "var a = 1;\ntn.Run(0.5);", "m3-run-bad-seed.tnhpps");
+        "var a = 1;\ntn.Run(0.5);", "script-run-invalid-seed.tnhpps");
     ASSERT_TRUE(invalid.isError());
     EXPECT_EQ(invalid.property("lineNumber").toInt(), 2);
     EXPECT_TRUE(invalid.toString().contains("uint32"));

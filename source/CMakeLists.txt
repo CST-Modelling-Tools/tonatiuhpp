@@ -495,20 +495,20 @@ add_subdirectory(kernel)
 add_subdirectory(application)
 add_subdirectory(plugins)
 
-file(GENERATE OUTPUT "${CMAKE_BINARY_DIR}/p2-artifacts-$<CONFIG>.txt"
+file(GENERATE OUTPUT "${CMAKE_BINARY_DIR}/runtime-artifacts-$<CONFIG>.txt"
   CONTENT "GUI=$<TARGET_FILE:tonatiuhpp-gui>\nCLI=$<TARGET_FILE:tonatiuhpp-cli>\nKERNEL=$<TARGET_FILE:TonatiuhppKernel>\nLIBRARIES=$<TARGET_FILE:TonatiuhppLibraries>\nPRESENTATION=$<TARGET_FILE:TonatiuhppGuiPresentation>\n")
 
 # M5.1 official scene + File exporter plugin links must be compatible with the
 # same QtWidgets/SoQt-free TonatiuhppKernel as the QCoreApplication CLI.
 # This runs AFTER add_subdirectory(plugins), when plugin targets exist.
-foreach(_m5_plugin IN ITEMS
+foreach(_checked_plugin IN ITEMS
     AirMirval MaterialSpecular PhotonsFile
     ShapeElliptic ShapeFunctionXYZ ShapeFunctionZ ShapeHyperbolic ShapeMapN ShapeMesh
     SunBuie SunGaussian)
-  if(NOT TARGET ${_m5_plugin})
-    message(FATAL_ERROR "M5 one-kernel: expected official plugin ${_m5_plugin} missing")
+  if(NOT TARGET ${_checked_plugin})
+    message(FATAL_ERROR "One-kernel dependency boundary: expected official plugin ${_checked_plugin} missing")
   endif()
-  tonatiuhpp_m5_assert_one_kernel_link_closure(${_m5_plugin})
+  tonatiuhpp_assert_one_kernel_link_closure(${_checked_plugin})
 endforeach()
 
 if(BUILD_TESTING)

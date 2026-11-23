@@ -63,7 +63,7 @@ target_compile_definitions(tonatiuhpp_scientific_equivalence_tests PRIVATE
   "TONATIUHPP_TRACKER_SCENE_FILE=\"${CMAKE_CURRENT_LIST_DIR}/fixtures/one-axis-tracker.tnhpp\""
   "TONATIUHPP_SCIENTIFIC_PLUGIN_DIRECTORY=\"${_tonatiuhpp_p1_scientific_plugin_root}\""
   "TONATIUHPP_LEGACY_SCRIPT_EXAMPLES_ROOT=\"${CMAKE_SOURCE_DIR}/../examples\""
-  "TONATIUHPP_SCRIPT_INTERCEPTION_FIXTURE_FILE=\"${CMAKE_CURRENT_LIST_DIR}/../scripts/m3_2_interception_bounded.tnhpps\""
+  "TONATIUHPP_SCRIPT_INTERCEPTION_FIXTURE_FILE=\"${CMAKE_CURRENT_LIST_DIR}/../scripts/script_interception_bounded.tnhpps\""
 )
 
 target_link_libraries(tonatiuhpp_scientific_equivalence_tests PRIVATE

@@ -48,7 +48,7 @@ public:
         : m_main(window), m_mode(std::move(mode)), m_report(std::move(report)),
           m_outputDir(std::move(outputDir)), m_scriptFile(std::move(scriptFile))
     {
-        m_data.insert("schema", "tonatiuhpp.m5.native-gui-presenter.v1");
+        m_data.insert("schema", "tonatiuhpp.native-gui-acceptance.v1");
         m_data.insert("mode", m_mode);
         m_data.insert("status", "RUNNING");
         m_data.insert("gui_backend", "QApplication/MainWindow/actual Qt dialogs");
@@ -99,7 +99,7 @@ private:
         if (!output.open(QIODevice::WriteOnly)) return;
         const QByteArray json = QJsonDocument(m_data).toJson(QJsonDocument::Indented);
         if (output.write(json) != json.size() || !output.commit()) {
-            qWarning("M5 GUI acceptance could not write its report");
+            qWarning("Native GUI acceptance could not write its report");
         }
     }
 
@@ -110,7 +110,7 @@ private:
         m_data.insert("status", state);
         m_data.insert("message", message);
         writeReport();
-        fprintf(exitCode == 0 ? stdout : stderr, "M5 native GUI %s: %s\n",
+        fprintf(exitCode == 0 ? stdout : stderr, "Native GUI %s: %s\n",
                 state.toUtf8().constData(), message.toUtf8().constData());
         fflush(exitCode == 0 ? stdout : stderr);
         QTimer::singleShot(0, [exitCode] { QCoreApplication::exit(exitCode); });
@@ -271,15 +271,15 @@ private:
         }
         const QString scriptDir = QFileInfo(m_scriptFile).absolutePath();
         if (m_mode == "seeded-interception") {
-            if (!QFileInfo::exists(scriptDir + "/m3_3_parity_result.csv")) {
+            if (!QFileInfo::exists(scriptDir + "/script_interception_result.csv")) {
                 fail("Seed-zero GUI editor did not generate M3.3 interception CSV");
                 return;
             }
             editor->close();
             pass("Actual GUI Script Editor ran original M3.3 interception with fixed master seed 0");
         } else {
-            if (!QFileInfo::exists(scriptDir + "/m3_flux_front.txt") ||
-                !QFileInfo::exists(scriptDir + "/m3_flux_back.txt")) {
+            if (!QFileInfo::exists(scriptDir + "/script_flux_front.txt") ||
+                !QFileInfo::exists(scriptDir + "/script_flux_back.txt")) {
                 fail("GUI Editor failed fixed-seed front/back Flux script setup");
                 return;
             }
@@ -313,7 +313,7 @@ private:
         auto* cellsY = required<QSpinBox>(dialog, "surfaceYSpin");
         auto* run = required<QPushButton>(dialog, "raysButton");
         if (m_finished) return;
-        target->setText("//Node/M3_Flux_Parity/Receiver/Shape");
+        target->setText("//Node/ScriptFlux/Receiver/Shape");
         if (!QMetaObject::invokeMethod(dialog, "SurfaceChanged", Qt::DirectConnection)) {
             fail("Actual Qt Flux Analysis surface selection slot failed");
             return;
@@ -403,11 +403,11 @@ private:
 
 void installNativeGuiAcceptance(MainWindow* mainWindow)
 {
-    const QString report = qEnvironmentVariable("TONATIUHPP_M5_GUI_NATIVE_REPORT");
+    const QString report = qEnvironmentVariable("TONATIUHPP_NATIVE_GUI_REPORT");
     if (report.isEmpty()) return; // No effect during normal operation.
-    const QString mode = qEnvironmentVariable("TONATIUHPP_M5_GUI_NATIVE_MODE");
-    const QString outputDir = qEnvironmentVariable("TONATIUHPP_M5_GUI_NATIVE_EXPORT_DIR");
-    const QString script = qEnvironmentVariable("TONATIUHPP_M5_GUI_NATIVE_SCRIPT");
+    const QString mode = qEnvironmentVariable("TONATIUHPP_NATIVE_GUI_MODE");
+    const QString outputDir = qEnvironmentVariable("TONATIUHPP_NATIVE_GUI_EXPORT_DIR");
+    const QString script = qEnvironmentVariable("TONATIUHPP_NATIVE_GUI_SCRIPT");
     auto* test = new InteractiveAcceptance(mainWindow, mode, report, outputDir, script);
     QTimer::singleShot(200, [test] { test->start(); });
 }

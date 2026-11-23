@@ -12,7 +12,7 @@ execute_process(
 if(NOT "${ok_exit}" STREQUAL "0")
   message(FATAL_ERROR "Bounded interception failed (${ok_exit}): ${ok_error} ${ok_output}")
 endif()
-if(NOT ok_output MATCHES [=[M3\.2 bounded interception smoke passed]=])
+if(NOT ok_output MATCHES [=[Bounded interception passed]=])
   message(FATAL_ERROR "Bounded interception success marker missing: ${ok_output}")
 endif()
 execute_process(
@@ -24,7 +24,7 @@ execute_process(
 if(NOT "${bad_exit}" STREQUAL "1")
   message(FATAL_ERROR "Bad target should exit 1 (got ${bad_exit}): ${bad_error} ${bad_output}")
 endif()
-if(NOT bad_error MATCHES [=[m3_2_interception_error\.tnhpps:4]=])
+if(NOT bad_error MATCHES [=[script_interception_invalid_surface\.tnhpps:4]=])
   message(FATAL_ERROR "Bad target should report user script line 4: ${bad_error}")
 endif()
 message(STATUS "Bounded no-export interception and source-line errors passed")

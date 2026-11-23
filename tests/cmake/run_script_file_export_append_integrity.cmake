@@ -10,17 +10,17 @@ if(NOT DEFINED OUTPUT_DIR OR OUTPUT_DIR STREQUAL "" OR
   message(FATAL_ERROR "Phase 3B2B2A requires its registered build/test output root")
 endif()
 get_filename_component(expected_output
-  "${TEST_BUILD_ROOT}/m3_exit_phase3b2b2a_append" ABSOLUTE)
+  "${TEST_BUILD_ROOT}/script_file_export_append_append" ABSOLUTE)
 get_filename_component(actual_output "${OUTPUT_DIR}" ABSOLUTE)
 file(TO_CMAKE_PATH "${expected_output}" expected_output)
 file(TO_CMAKE_PATH "${actual_output}" actual_output)
 if(NOT "${expected_output}" STREQUAL "${actual_output}")
   message(FATAL_ERROR "Phase 3B2B2A refuses non-fixture output path: ${OUTPUT_DIR}")
 endif()
-find_program(PHASE3B2B2A_PYTHON NAMES python3 python REQUIRED)
+find_program(FILE_APPEND_PYTHON NAMES python3 python REQUIRED)
 
 include("${CMAKE_CURRENT_LIST_DIR}/PrepareTestOutput.cmake")
-tonatiuhpp_prepare_test_output("${OUTPUT_DIR}" "${TEST_BUILD_ROOT}" "m3_exit_phase3b2b2a_append")
+tonatiuhpp_prepare_test_output("${OUTPUT_DIR}" "${TEST_BUILD_ROOT}" "script_file_export_append_append")
 file(MAKE_DIRECTORY "${OUTPUT_DIR}/script")
 file(TO_CMAKE_PATH "${TEST_SCENE}" scene_path)
 file(READ "${TEST_SCRIPT}" template)
@@ -39,18 +39,18 @@ foreach(side single append drift tamper gui)
     set(second_run "tn.Run();")
   endif()
   string(REPLACE "@SECOND_RUN@" "${second_run}" content "${content}")
-  file(WRITE "${OUTPUT_DIR}/script/m3_exit_phase3b2b2a_${side}.tnhpps" "${content}")
+  file(WRITE "${OUTPUT_DIR}/script/script_file_export_append_${side}.tnhpps" "${content}")
 endforeach()
 
 foreach(side single append)
   execute_process(
     COMMAND "${TEST_EXECUTABLE}"  run-script
-      "${OUTPUT_DIR}/script/m3_exit_phase3b2b2a_${side}.tnhpps"
+      "${OUTPUT_DIR}/script/script_file_export_append_${side}.tnhpps"
     WORKING_DIRECTORY "${OUTPUT_DIR}/script"
     RESULT_VARIABLE code OUTPUT_VARIABLE stdout ERROR_VARIABLE stderr
     TIMEOUT 90)
   if(NOT "${code}" STREQUAL "0" OR
-     NOT stdout MATCHES "M3 Phase 3B2B2A cumulative File append passed")
+     NOT stdout MATCHES "Script File append integrity passed")
     message(FATAL_ERROR "Phase 3B2B2A ${side} run failed (${code}):\n${stdout}\n${stderr}")
   endif()
   if(NOT EXISTS "${OUTPUT_DIR}/${side}/PhotonMap.dat" OR
@@ -60,7 +60,7 @@ foreach(side single append)
 endforeach()
 
 execute_process(
-  COMMAND "${PHASE3B2B2A_PYTHON}" "${APPEND_VERIFIER}"
+  COMMAND "${FILE_APPEND_PYTHON}" "${APPEND_VERIFIER}"
     "${OUTPUT_DIR}/single" "${OUTPUT_DIR}/append"
   RESULT_VARIABLE compare_code OUTPUT_VARIABLE compare_out ERROR_VARIABLE compare_err
     TIMEOUT 30
@@ -72,7 +72,7 @@ endif()
 # Settings changes must not silently reuse a File exporter or corrupt output.
 execute_process(
   COMMAND "${TEST_EXECUTABLE}"  run-script
-    "${OUTPUT_DIR}/script/m3_exit_phase3b2b2a_drift.tnhpps"
+    "${OUTPUT_DIR}/script/script_file_export_append_drift.tnhpps"
   WORKING_DIRECTORY "${OUTPUT_DIR}/script"
   RESULT_VARIABLE drift_code OUTPUT_VARIABLE drift_out ERROR_VARIABLE drift_err
   TIMEOUT 60)
@@ -81,7 +81,7 @@ if("${drift_code}" STREQUAL "0" OR
   message(FATAL_ERROR "Phase 3B2B2A settings drift was not rejected:\n${drift_out}\n${drift_err}")
 endif()
 execute_process(
-  COMMAND "${PHASE3B2B2A_PYTHON}" "${COMPARATOR}"
+  COMMAND "${FILE_APPEND_PYTHON}" "${COMPARATOR}"
     "${OUTPUT_DIR}/single" "${OUTPUT_DIR}/drift"
   RESULT_VARIABLE drift_compare OUTPUT_VARIABLE drift_compare_out ERROR_VARIABLE drift_compare_err
     TIMEOUT 30
@@ -95,7 +95,7 @@ endif()
 file(SHA256 "${OUTPUT_DIR}/single/PhotonMap.dat" single_hash)
 execute_process(
   COMMAND "${TEST_EXECUTABLE}"  run-script
-    "${OUTPUT_DIR}/script/m3_exit_phase3b2b2a_tamper.tnhpps"
+    "${OUTPUT_DIR}/script/script_file_export_append_tamper.tnhpps"
   WORKING_DIRECTORY "${OUTPUT_DIR}/script"
   RESULT_VARIABLE tamper_code OUTPUT_VARIABLE tamper_out ERROR_VARIABLE tamper_err
   TIMEOUT 60)
@@ -109,4 +109,4 @@ if(NOT "${single_hash}" STREQUAL "${tamper_data_hash}")
 endif()
 message(STATUS "${compare_out}")
 message(STATUS "Phase 3B2B2A settings-drift and external-tamper rejection passed")
-message(STATUS "Phase 3B2B2A GUI fixture: ${OUTPUT_DIR}/script/m3_exit_phase3b2b2a_gui.tnhpps")
+message(STATUS "Phase 3B2B2A GUI fixture: ${OUTPUT_DIR}/script/script_file_export_append_gui.tnhpps")

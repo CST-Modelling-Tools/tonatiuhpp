@@ -13,16 +13,16 @@ if(NOT DEFINED TEST_BUILD_ROOT OR TEST_BUILD_ROOT STREQUAL "")
   message(FATAL_ERROR "Phase 3B2B1 requires its registered build/test root")
 endif()
 get_filename_component(expected_output
-  "${TEST_BUILD_ROOT}/m3_exit_phase3b2b1_run_file" ABSOLUTE)
+  "${TEST_BUILD_ROOT}/script_file_export_safety" ABSOLUTE)
 get_filename_component(actual_output "${OUTPUT_DIR}" ABSOLUTE)
 file(TO_CMAKE_PATH "${expected_output}" expected_output)
 file(TO_CMAKE_PATH "${actual_output}" actual_output)
 if(NOT "${actual_output}" STREQUAL "${expected_output}")
   message(FATAL_ERROR "Phase 3B2B1 refuses non-fixture output path: ${OUTPUT_DIR}")
 endif()
-find_program(PHASE3B2B1_PYTHON NAMES python3 python REQUIRED)
+find_program(FILE_EXPORT_SAFETY_PYTHON NAMES python3 python REQUIRED)
 include("${CMAKE_CURRENT_LIST_DIR}/PrepareTestOutput.cmake")
-tonatiuhpp_prepare_test_output("${OUTPUT_DIR}" "${TEST_BUILD_ROOT}" "m3_exit_phase3b2b1_run_file")
+tonatiuhpp_prepare_test_output("${OUTPUT_DIR}" "${TEST_BUILD_ROOT}" "script_file_export_safety")
 file(MAKE_DIRECTORY "${OUTPUT_DIR}/headless_a" "${OUTPUT_DIR}/headless_b"
                     "${OUTPUT_DIR}/gui" "${OUTPUT_DIR}/script")
 file(TO_CMAKE_PATH "${TEST_SCENE}" scene_path)
@@ -31,18 +31,18 @@ foreach(side headless_a headless_b gui)
   file(TO_CMAKE_PATH "${OUTPUT_DIR}/${side}" export_path)
   string(REPLACE "@SCENE_FILE@" "${scene_path}" content "${template}")
   string(REPLACE "@EXPORT_DIRECTORY@" "${export_path}" content "${content}")
-  file(WRITE "${OUTPUT_DIR}/script/m3_exit_phase3b2b1_${side}.tnhpps" "${content}")
+  file(WRITE "${OUTPUT_DIR}/script/script_file_export_safety_${side}.tnhpps" "${content}")
 endforeach()
 
 foreach(side headless_a headless_b)
   execute_process(
     COMMAND "${TEST_EXECUTABLE}"  run-script
-      "${OUTPUT_DIR}/script/m3_exit_phase3b2b1_${side}.tnhpps"
+      "${OUTPUT_DIR}/script/script_file_export_safety_${side}.tnhpps"
     WORKING_DIRECTORY "${OUTPUT_DIR}/script"
     RESULT_VARIABLE code OUTPUT_VARIABLE stdout ERROR_VARIABLE stderr
     TIMEOUT 90)
   if(NOT "${code}" STREQUAL "0" OR
-     NOT stdout MATCHES "M3 Phase 3B2B1 bounded File Run passed")
+     NOT stdout MATCHES "Script File export safety passed")
     message(FATAL_ERROR "Phase 3B2B1 ${side} File run failed (${code}):\n${stdout}\n${stderr}")
   endif()
   if(NOT EXISTS "${OUTPUT_DIR}/${side}/PhotonMap.dat" OR
@@ -56,7 +56,7 @@ foreach(side headless_a headless_b)
 endforeach()
 
 execute_process(
-  COMMAND "${PHASE3B2B1_PYTHON}" "${COMPARATOR}"
+  COMMAND "${FILE_EXPORT_SAFETY_PYTHON}" "${COMPARATOR}"
     "${OUTPUT_DIR}/headless_a" "${OUTPUT_DIR}/headless_b"
   RESULT_VARIABLE parity_code OUTPUT_VARIABLE parity_out ERROR_VARIABLE parity_err
     TIMEOUT 30
@@ -70,7 +70,7 @@ endif()
 file(SHA256 "${OUTPUT_DIR}/headless_a/PhotonMap.dat" initial_hash)
 execute_process(
   COMMAND "${TEST_EXECUTABLE}"  run-script
-    "${OUTPUT_DIR}/script/m3_exit_phase3b2b1_headless_a.tnhpps"
+    "${OUTPUT_DIR}/script/script_file_export_safety_headless_a.tnhpps"
   WORKING_DIRECTORY "${OUTPUT_DIR}/script"
   RESULT_VARIABLE rejected OUTPUT_VARIABLE stdout ERROR_VARIABLE stderr
   TIMEOUT 30)
@@ -84,4 +84,4 @@ if(NOT "${initial_hash}" STREQUAL "${after_hash}")
 endif()
 message(STATUS "Phase 3B2B1 production File exporter repeatability passed: ${parity_out}")
 message(STATUS "Phase 3B2B1 no-overwrite preflight passed; GUI script is copied to:")
-message(STATUS "${OUTPUT_DIR}/script/m3_exit_phase3b2b1_gui.tnhpps")
+message(STATUS "${OUTPUT_DIR}/script/script_file_export_safety_gui.tnhpps")

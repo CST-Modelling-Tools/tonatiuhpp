@@ -190,7 +190,7 @@ set(RESOURCES resources.qrc)
 # This is a *direct source/target* boundary, not yet a Widgets/SoQt-free
 # transitive link closure. The existing kernel, libraries and plugin ABI
 # still require GUI dependencies; M5.1B must remove those before M5 exit.
-set(TONATIUHPP_M5_SIMULATION_SOURCES
+set(TONATIUHPP_SIMULATION_SOURCES
     core/NativeTraceSignature.cpp
     core/NativeRayHistorySignature.cpp
     core/RayTraceExecutor.cpp
@@ -200,7 +200,7 @@ set(TONATIUHPP_M5_SIMULATION_SOURCES
     core/SimulationSession.cpp
     core/TracePreparation.cpp
 )
-set(TONATIUHPP_M5_SIMULATION_HEADERS
+set(TONATIUHPP_SIMULATION_HEADERS
     core/NativeTraceSignature.h
     core/NativeRayHistorySignature.h
     core/RayTraceExecutor.h
@@ -211,8 +211,8 @@ set(TONATIUHPP_M5_SIMULATION_HEADERS
     core/TracePreparation.h
 )
 add_library(TonatiuhSimulation STATIC
-    ${TONATIUHPP_M5_SIMULATION_SOURCES}
-    ${TONATIUHPP_M5_SIMULATION_HEADERS}
+    ${TONATIUHPP_SIMULATION_SOURCES}
+    ${TONATIUHPP_SIMULATION_HEADERS}
 )
 target_include_directories(TonatiuhSimulation PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
@@ -227,7 +227,7 @@ target_link_libraries(TonatiuhSimulation PUBLIC
     TonatiuhppKernel TonatiuhppLibraries
 )
 
-set(TONATIUHPP_M5_SCRIPTING_SOURCES
+set(TONATIUHPP_SCRIPTING_SOURCES
     script/DataObject.cpp
     script/NodeObject.cpp
     script/ScriptHost.cpp
@@ -235,7 +235,7 @@ set(TONATIUHPP_M5_SCRIPTING_SOURCES
     script/ScriptSceneDocument.cpp
     script/ScriptInterceptionService.cpp
 )
-set(TONATIUHPP_M5_SCRIPTING_HEADERS
+set(TONATIUHPP_SCRIPTING_HEADERS
     script/DataObject.h
     script/NodeObject.h
     script/ScriptHost.h
@@ -260,16 +260,16 @@ target_link_libraries(TonatiuhScriptRuntime PUBLIC Qt6::Core Qt6::Qml)
 
 # The scene-oriented facade continues to link the existing kernel and its
 # legacy GUI dependencies. Only the minimal JS/file runtime is isolated here.
-list(REMOVE_ITEM TONATIUHPP_M5_SCRIPTING_SOURCES
+list(REMOVE_ITEM TONATIUHPP_SCRIPTING_SOURCES
     script/ScriptHost.cpp script/DataObject.cpp)
-list(REMOVE_ITEM TONATIUHPP_M5_SCRIPTING_HEADERS
+list(REMOVE_ITEM TONATIUHPP_SCRIPTING_HEADERS
     script/ScriptHost.h script/DataObject.h)
 
 # QObject headers belong to this target alone: AUTOMOC must not
 # generate a second copy in the executable after relocation.
 add_library(TonatiuhScripting STATIC
-    ${TONATIUHPP_M5_SCRIPTING_SOURCES}
-    ${TONATIUHPP_M5_SCRIPTING_HEADERS}
+    ${TONATIUHPP_SCRIPTING_SOURCES}
+    ${TONATIUHPP_SCRIPTING_HEADERS}
 )
 # Shared GUI-script and CLI-script plumbing; only one compiled implementation.
 # These sources contain no QtWidgets/SoQt includes or second physics kernel.
@@ -290,34 +290,34 @@ target_link_libraries(TonatiuhScripting PUBLIC
 # Enforce the first boundary at configure time: these targets may not
 # directly link QtWidgets/SoQt or directly include widget headers.
 # This guard intentionally does NOT certify the transitive dependency graph.
-function(tonatiuhpp_m5_assert_direct_service_boundary service)
+function(tonatiuhpp_assert_direct_service_boundary service)
     get_target_property(_service_links ${service} LINK_LIBRARIES)
     foreach(_forbidden IN ITEMS Qt6::Widgets SoQt::SoQt)
         if(_forbidden IN_LIST _service_links)
-            message(FATAL_ERROR "M5 direct boundary violated: ${service} links ${_forbidden}")
+            message(FATAL_ERROR "Direct service dependency boundary violated: ${service} links ${_forbidden}")
         endif()
     endforeach()
     foreach(_source IN LISTS ARGN)
         file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/${_source}" _ui_includes
             REGEX "^[ \t]*#[ \t]*include[ \t]*[<\"](QApplication|QWidget|QDialog|QMessageBox|QFileDialog|Inventor/Qt/)")
         if(_ui_includes)
-            message(FATAL_ERROR "M5 direct boundary violated in ${_source}: ${_ui_includes}")
+            message(FATAL_ERROR "Direct service dependency boundary violated in ${_source}: ${_ui_includes}")
         endif()
     endforeach()
 endfunction()
-tonatiuhpp_m5_assert_direct_service_boundary(TonatiuhSimulation
-    ${TONATIUHPP_M5_SIMULATION_SOURCES} ${TONATIUHPP_M5_SIMULATION_HEADERS})
-tonatiuhpp_m5_assert_direct_service_boundary(TonatiuhScripting
-    ${TONATIUHPP_M5_SCRIPTING_SOURCES} ${TONATIUHPP_M5_SCRIPTING_HEADERS})
+tonatiuhpp_assert_direct_service_boundary(TonatiuhSimulation
+    ${TONATIUHPP_SIMULATION_SOURCES} ${TONATIUHPP_SIMULATION_HEADERS})
+tonatiuhpp_assert_direct_service_boundary(TonatiuhScripting
+    ${TONATIUHPP_SCRIPTING_SOURCES} ${TONATIUHPP_SCRIPTING_HEADERS})
 
 # M5.1B1: verify full CMake link-target closure for this independent runtime.
 # In addition to scanning direct links, traverse imported transitive targets.
 # Fail closed if any project kernel/GUI target, QtWidgets or SoQt reappears.
-function(tonatiuhpp_m5_assert_runtime_closure)
+function(tonatiuhpp_assert_script_runtime_closure)
     get_target_property(_runtime_direct TonatiuhScriptRuntime LINK_LIBRARIES)
     foreach(_direct IN LISTS _runtime_direct)
         if(NOT _direct STREQUAL "Qt6::Core" AND NOT _direct STREQUAL "Qt6::Qml")
-            message(FATAL_ERROR "M5 runtime boundary: forbidden direct link: ${_direct}")
+            message(FATAL_ERROR "Script runtime dependency boundary: forbidden direct link: ${_direct}")
         endif()
     endforeach()
     set(_pending TonatiuhScriptRuntime)
@@ -339,7 +339,7 @@ function(tonatiuhpp_m5_assert_runtime_closure)
                 string(FIND "${_links}" "${_forbidden}" _found)
                 if(NOT _found EQUAL -1)
                     message(FATAL_ERROR
-                        "M5 runtime boundary: ${_target} transitively links ${_forbidden}")
+                        "Script runtime dependency boundary: ${_target} transitively links ${_forbidden}")
                 endif()
             endforeach()
             foreach(_linked IN LISTS _links)
@@ -349,12 +349,12 @@ function(tonatiuhpp_m5_assert_runtime_closure)
             endforeach()
         endforeach()
     endwhile()
-    tonatiuhpp_m5_assert_direct_service_boundary(TonatiuhScriptRuntime
+    tonatiuhpp_assert_direct_service_boundary(TonatiuhScriptRuntime
         script/ScriptHost.cpp script/ScriptHost.h
         script/DataObject.cpp script/DataObject.h)
-    message(STATUS "M5.1B1: QtCore/Qml script runtime has no Tonatiuh kernel/GUI, Widgets or SoQt dependency")
+    message(STATUS "QtCore/Qml script runtime has no Tonatiuh kernel/GUI, Widgets or SoQt dependency")
 endfunction()
-tonatiuhpp_m5_assert_runtime_closure()
+tonatiuhpp_assert_script_runtime_closure()
 
 # M5.1 one physical simulation library and one kernel for BOTH adapters.
 # The GUI presentation adapter is a separate QtWidgets/SoQt consumer.
@@ -395,7 +395,7 @@ install(TARGETS tonatiuhpp-cli
 
 # Full transitive CMake target graph protection for the *only* physics kernel,
 # libraries and services. The separate GUI adapter may link Widgets/SoQt.
-function(tonatiuhpp_m5_assert_one_kernel_link_closure root)
+function(tonatiuhpp_assert_one_kernel_link_closure root)
     set(_pending "${root}")
     set(_seen)
     while(_pending)
@@ -419,7 +419,7 @@ function(tonatiuhpp_m5_assert_one_kernel_link_closure root)
                 TonatiuhHeadlessScripting tonatiuhpp-gui)
                 string(FIND "${_links}" "${_forbidden}" _found)
                 if(NOT _found EQUAL -1)
-                    message(FATAL_ERROR "M5 one-kernel boundary: ${root} -> ${_current} -> ${_forbidden}")
+                    message(FATAL_ERROR "One-kernel dependency boundary: ${root} -> ${_current} -> ${_forbidden}")
                 endif()
             endforeach()
             foreach(_linked IN LISTS _links)
@@ -429,13 +429,13 @@ function(tonatiuhpp_m5_assert_one_kernel_link_closure root)
             endforeach()
         endforeach()
     endwhile()
-    message(STATUS "M5 one-kernel dependency closure PASS: ${root}")
+    message(STATUS "One-kernel dependency closure PASS: ${root}")
 endfunction()
 
-foreach(_m5_target IN ITEMS
+foreach(_checked_target IN ITEMS
     TonatiuhppLibraries TonatiuhppKernel TonatiuhScriptRuntime
     TonatiuhSimulation TonatiuhScripting tonatiuhpp-cli)
-    tonatiuhpp_m5_assert_one_kernel_link_closure(${_m5_target})
+    tonatiuhpp_assert_one_kernel_link_closure(${_checked_target})
 endforeach()
 
 
@@ -538,5 +538,5 @@ if(BUILD_TESTING)
         "${CMAKE_SOURCE_DIR}/../tests/integration/gui/NativeSceneUndoRegression.cpp"
         "${CMAKE_SOURCE_DIR}/../tests/integration/gui/NativeSceneUndoRegression.h")
     target_include_directories(tonatiuhpp-gui PRIVATE "${CMAKE_SOURCE_DIR}/../tests/integration/gui")
-    target_compile_definitions(tonatiuhpp-gui PRIVATE TONATIUHPP_M5_NATIVE_GUI_TEST)
+    target_compile_definitions(tonatiuhpp-gui PRIVATE TONATIUHPP_NATIVE_GUI_TEST)
 endif()

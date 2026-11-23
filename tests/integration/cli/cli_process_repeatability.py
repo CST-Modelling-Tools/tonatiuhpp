@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""M5.2 bounded, cross-platform, cli-process scientific acceptance.
+"""Bounded, cross-platform, cli-process scientific acceptance.
 
 Never runs a benchmark, alters frozen references, edits source-tree fixtures,
 commits, pushes or contacts GitHub. All output is in a fresh unique test root.
@@ -22,18 +22,18 @@ import time
 import traceback
 
 TIMEOUT = 90
-EXPECTED_M3 = {
-    "m3_3_gui_headless_parity": {
-        "marker": "M3.3 parity fixture passed:",
-        "files": ("m3_3_parity_result.csv",),
+EXPECTED_SCRIPT_FIXTURES = {
+    "script_gui_headless_interception": {
+        "marker": "GUI/headless interception fixture passed:",
+        "files": ("script_interception_result.csv",),
     },
-    "m3_3_tracker_parity": {
-        "marker": "M3.3 tracker parity fixture passed:",
-        "files": ("m3_3_tracker_result.csv",),
+    "script_tracker_preparation_repeatability": {
+        "marker": "Tracker preparation fixture passed:",
+        "files": ("script_tracker_result.csv",),
     },
-    "m3_flux_shared_parity": {
-        "marker": "M3 integrated fixed-seed flux parity script passed",
-        "files": ("m3_flux_front.txt", "m3_flux_back.txt"),
+    "script_flux_shared_backend": {
+        "marker": "Shared flux analysis fixture passed",
+        "files": ("script_flux_front.txt", "script_flux_back.txt"),
     },
 }
 
@@ -64,8 +64,8 @@ class Suite:
         self.cli = Path(args.cli).resolve()
         self.output_parent = Path(args.output_root).resolve()
         self.output_parent.mkdir(parents=True, exist_ok=True)
-        self.runroot = Path(tempfile.mkdtemp(prefix=f"m5_2_{args.mode}_", dir=self.output_parent))
-        self.journal: dict = {"schema": "tonatiuhpp.m5.2.cli-process.v1",
+        self.runroot = Path(tempfile.mkdtemp(prefix=f"cli_process_{args.mode}_", dir=self.output_parent))
+        self.journal: dict = {"schema": "tonatiuhpp.cli-process-acceptance.v1",
                               "mode": args.mode, "source_root": str(self.root),
                               "gui_artifact": str(self.gui),
                               "process_a": str(self.cli), "process_b": str(self.cli),
@@ -85,9 +85,9 @@ class Suite:
         }
         self.env = os.environ.copy()
         # Diagnostics must be opt-in for each one short explicit trace only.
-        self.env.pop("TONATIUHPP_A0_TRACE_SIGNATURE_FILE", None)
-        self.env.pop("TONATIUHPP_A0_RAY_HISTORY_FILE", None)
-        self.env.pop("TONATIUHPP_M3_TEST_FILE_DATA_FAULT", None)
+        self.env.pop("TONATIUHPP_TEST_TRACE_SIGNATURE_FILE", None)
+        self.env.pop("TONATIUHPP_TEST_RAY_HISTORY_FILE", None)
+        self.env.pop("TONATIUHPP_TEST_PHOTON_FILE_DATA_FAULT", None)
         self.prepare_installed_env()
 
     def prepare_installed_env(self) -> None:
@@ -112,7 +112,7 @@ class Suite:
 
     def load_comparator(self):
         path = nonempty_file(self.root / "tests/scientific/compare_photon_exports.py", "M4 canonical photon comparator missing")
-        spec = importlib.util.spec_from_file_location("m5_2_canonical_photons", path)
+        spec = importlib.util.spec_from_file_location("cli_process_canonical_photons", path)
         require(spec is not None and spec.loader is not None, "Cannot import canonical photon comparator")
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
@@ -120,7 +120,7 @@ class Suite:
         return module
 
     def log(self, name: str, detail: str = "") -> None:
-        print(f"M5.2 PASS {name}" + (f": {detail}" if detail else ""), flush=True)
+        print(f"CLI process PASS {name}" + (f": {detail}" if detail else ""), flush=True)
         self.journal["checks"].append({"name": name, "result": "PASS", "detail": detail})
         self.save()
 
@@ -163,8 +163,8 @@ class Suite:
         if trackers:
             args.append("--update-trackers")
         done = self.run(adapter, args,
-                        env_extra={"TONATIUHPP_A0_TRACE_SIGNATURE_FILE": str(sig),
-                                   "TONATIUHPP_A0_RAY_HISTORY_FILE": str(hist)},
+                        env_extra={"TONATIUHPP_TEST_TRACE_SIGNATURE_FILE": str(sig),
+                                   "TONATIUHPP_TEST_RAY_HISTORY_FILE": str(hist)},
                         contains="Trace completed.")
         values = {}
         for line in done.stdout.splitlines():
@@ -205,11 +205,11 @@ class Suite:
                      contains="Scene validation succeeded:")
             self.run(adapter, ["validate-scene", str(self.scenes["sphere_material_plugin"])],
                      contains="Scene validation succeeded:")
-            missing = self.runroot / "definitely_missing_m5_2.tnhpp"
+            missing = self.runroot / "definitely_missing_scene.tnhpp"
             require(not missing.exists(), "Invalid missing-scene fixture")
             self.run(adapter, ["validate-scene", str(missing)], expected=1,
                      contains="Scene validation failed:")
-            self.run(adapter, ["not-an-m5-command"], expected=2, contains="Unknown headless command")
+            self.run(adapter, ["not-a-supported-command"], expected=2, contains="Unknown headless command")
         self.log("entrypoints-and-real-material-plugin", "QCore help, positive/negative scene loading and usage")
 
     def script_fixture(self, adapter: str, stem: str) -> tuple[bytes, ...]:
@@ -221,14 +221,14 @@ class Suite:
         shutil.copyfile(fixture, path)
         elsewhere = dest / "foreign_cwd"
         result = self.run(adapter, ["run-script", str(path)], cwd=elsewhere,
-                          contains=EXPECTED_M3[stem]["marker"], timeout=180)
+                          contains=EXPECTED_SCRIPT_FIXTURES[stem]["marker"], timeout=180)
         require(result.returncode == 0, "Script did not complete")
         artifacts = []
-        for filename in EXPECTED_M3[stem]["files"]:
+        for filename in EXPECTED_SCRIPT_FIXTURES[stem]["files"]:
             artifact = nonempty_file(dest / filename, "Script-relative scientific output absent")
             require(not (elsewhere / filename).exists(), "Script output incorrectly relative to process CWD")
             artifacts.append(normalize_bytes(artifact))
-            if filename.startswith("m3_flux_"):
+            if filename.startswith("script_flux_"):
                 rows = artifact.read_text(encoding="utf-8").splitlines()
                 require(len(rows) == 8, "Flux grid must contain exactly eight rows")
                 data = []
@@ -240,20 +240,20 @@ class Suite:
                     data.extend(numbers)
                 if filename.endswith("front.txt"):
                     require(any(x > 0 for x in data), "Front flux grid has no signal")
-            if filename == "m3_3_parity_result.csv":
+            if filename == "script_interception_result.csv":
                 rows = artifact.read_text(encoding="utf-8").splitlines()
-                require(len(rows) == 6 and rows[0] == "schema,m3.3-script-parity-v1", "Interception CSV schema invalid")
+                require(len(rows) == 6 and rows[0] == "schema,script-interception-v1", "Interception CSV schema invalid")
                 require(float(rows[5].split(",", 1)[1]) > 0, "Interception CSV power is not positive")
-            if filename == "m3_3_tracker_result.csv":
+            if filename == "script_tracker_result.csv":
                 rows = artifact.read_text(encoding="utf-8").splitlines()
-                require(len(rows) == 12 and rows[0] == "schema,m3.3-tracker-parity-v1", "Tracker CSV schema invalid")
+                require(len(rows) == 12 and rows[0] == "schema,script-tracker-v1", "Tracker CSV schema invalid")
                 require(rows[8] != rows[9], "Tracker angles did not change with sun azimuth")
         return tuple(artifacts)
 
     def check_script_parity(self) -> None:
-        stems = list(EXPECTED_M3)
+        stems = list(EXPECTED_SCRIPT_FIXTURES)
         if self.args.mode == "installed":
-            stems = ["m3_3_gui_headless_parity", "m3_flux_shared_parity"]
+            stems = ["script_gui_headless_interception", "script_flux_shared_backend"]
         for stem in stems:
             x = self.script_fixture("process_a", stem)
             y = self.script_fixture("process_b", stem)
@@ -262,10 +262,10 @@ class Suite:
 
     def check_cancel_recovery(self) -> None:
         cases = [
-            ("m3_3_cancel_recover", 0, "M3.3 scripted cancellation/recovery PASSED:"),
-            ("m3_3_cancel_inactive", 1, "tn.cancelTrace failed: no active script trace"),
-            ("m3_3_cancel_invalid", 1, "options.noExport must be true"),
-            ("m3_3_cancel_unfinished", 1, "unfinished trace was cancelled and joined"),
+            ("script_cancellation_recovery", 0, "Scripted cancellation/recovery PASSED:"),
+            ("script_cancel_without_active_trace", 1, "tn.cancelTrace failed: no active script trace"),
+            ("script_trace_invalid_output_policy", 1, "options.noExport must be true"),
+            ("script_unfinished_trace_cleanup", 1, "unfinished trace was cancelled and joined"),
         ]
         if self.args.mode == "installed":
             cases = cases[:1]
@@ -282,13 +282,13 @@ class Suite:
                                cwd=dest / "foreign", expected=expected, contains=marker,
                                timeout=120)
                 if expected != 0:
-                    if name not in {"m3_3_cancel_unfinished"}:
+                    if name not in {"script_unfinished_trace_cleanup"}:
                         require(f"{name}.tnhpps:2" in run.stderr.replace("\\", "/"),
                                 f"{name}: script error did not report source line 2")
                 else:
-                    artifact = nonempty_file(dest / "m3_3_cancel_recovery.csv")
+                    artifact = nonempty_file(dest / "script_cancellation_result.csv")
                     rows = artifact.read_text(encoding="utf-8").splitlines()
-                    require(len(rows) == 7 and rows[0] == "schema,m3.3-script-cancel-v1",
+                    require(len(rows) == 7 and rows[0] == "schema,script-cancellation-v1",
                             "Cancellation/recovery scientific artifact invalid")
                     results[name][adapter] = normalize_bytes(artifact)
             if expected == 0:
@@ -310,10 +310,10 @@ class Suite:
                                "--photon-surface", "//Node/Shape", "--update-trackers"],
                      contains="Trace completed.", timeout=90)
         else:
-            template = nonempty_file(self.root / "tests/scripts/m4_cli_file_export_parity.tnhpps.in")
+            template = nonempty_file(self.root / "tests/scripts/file_export_cli_script_equivalence.tnhpps.in")
             script_dir = self.runroot / "file_scripts" / adapter
             script_dir.mkdir(parents=True, exist_ok=False)
-            script = script_dir / "m5_2_file_parity.tnhpps"
+            script = script_dir / "cli_file_export_comparison.tnhpps"
             src = template.read_text(encoding="utf-8")
             require(src.count("@SCENE_FILE@") == 1 and src.count("@EXPORT_DIRECTORY@") == 1,
                     "M4 canonical File script template unexpected")
@@ -322,7 +322,7 @@ class Suite:
             script.write_text(src.replace("@SCENE_FILE@", qpath(self.scenes["cylinder"]))
                                   .replace("@EXPORT_DIRECTORY@", qpath(dest)), encoding="utf-8")
             self.run(adapter, ["run-script", str(script)],
-                     contains="M4 CLI/script File photon parity fixture completed.", timeout=90)
+                     contains="CLI/script File photon equivalence fixture completed.", timeout=90)
         nonempty_file(dest / "PhotonMap.dat")
         nonempty_file(dest / "PhotonMap_parameters.txt")
         return dest
@@ -349,7 +349,7 @@ class Suite:
             occupied = self.runroot / "occupied" / adapter
             occupied.mkdir(parents=True, exist_ok=False)
             sentinel = occupied / "keep.txt"
-            sentinel.write_bytes(b"M5.2: source must be preserved\n")
+            sentinel.write_bytes(b"CLI process: source must be preserved\n")
             before = sha256(sentinel)
             self.run(adapter, ["trace-scene", str(self.scenes["cylinder"]),
                                "--rays", "2048", "--seed", "0",
@@ -370,13 +370,13 @@ class Suite:
             self.check_export_parity()
             self.journal["result"] = "PASS"
             self.save()
-            print(f"M5.2 {self.args.mode.upper()} CLI SCIENTIFIC REPEATABILITY GATES PASSED", flush=True)
-            print(f"M5.2 durable evidence: {self.runroot / 'evidence.json'}", flush=True)
+            print(f"CLI process {self.args.mode.upper()} CLI SCIENTIFIC REPEATABILITY GATES PASSED", flush=True)
+            print(f"CLI process durable evidence: {self.runroot / 'evidence.json'}", flush=True)
         except BaseException as e:
             self.journal["result"] = "FAIL"
             self.journal["failure"] = str(e)
             self.save()
-            print(f"M5.2 FAILURE: {e}", file=sys.stderr, flush=True)
+            print(f"CLI process FAILURE: {e}", file=sys.stderr, flush=True)
             print(f"Evidence retained at: {self.runroot / 'evidence.json'}", file=sys.stderr, flush=True)
             raise
 

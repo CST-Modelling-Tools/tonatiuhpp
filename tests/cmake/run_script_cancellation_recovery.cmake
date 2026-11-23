@@ -8,12 +8,12 @@ if(NOT EXISTS "${TEST_EXECUTABLE}" OR NOT EXISTS "${SCENE_FILE}")
   message(FATAL_ERROR "Executable or scene file missing")
 endif()
 include("${CMAKE_CURRENT_LIST_DIR}/PrepareTestOutput.cmake")
-tonatiuhpp_prepare_test_output("${OUTPUT_DIR}" "${TEST_BUILD_ROOT}" "headless_m3_cancel_recover")
+tonatiuhpp_prepare_test_output("${OUTPUT_DIR}" "${TEST_BUILD_ROOT}" "headless_script_cancellation_recovery")
 set(scripts "${OUTPUT_DIR}/scripts with spaces")
 set(foreign "${OUTPUT_DIR}/foreign cwd")
 file(MAKE_DIRECTORY "${scripts}" "${foreign}")
 file(COPY "${SCENE_FILE}" DESTINATION "${scripts}")
-foreach(name IN ITEMS m3_3_cancel_recover m3_3_cancel_inactive m3_3_cancel_invalid m3_3_cancel_unfinished)
+foreach(name IN ITEMS script_cancellation_recovery script_cancel_without_active_trace script_trace_invalid_output_policy script_unfinished_trace_cleanup)
   configure_file("${SOURCE_DIR}/scripts/${name}.tnhpps" "${scripts}/${name}.tnhpps" COPYONLY)
 endforeach()
 
@@ -42,11 +42,11 @@ function(run_case name expected_code expected_text)
   message(STATUS "PASS ${name} (exit ${rc})")
 endfunction()
 
-run_case(m3_3_cancel_recover 0 "M3.3 scripted cancellation/recovery PASSED:")
-run_case(m3_3_cancel_inactive 1 "tn.cancelTrace failed: no active script trace")
-run_case(m3_3_cancel_invalid 1 "options.noExport must be true")
+run_case(script_cancellation_recovery 0 "Scripted cancellation/recovery PASSED:")
+run_case(script_cancel_without_active_trace 1 "tn.cancelTrace failed: no active script trace")
+run_case(script_trace_invalid_output_policy 1 "options.noExport must be true")
 execute_process(
-  COMMAND "${TEST_EXECUTABLE}"  run-script "${scripts}/m3_3_cancel_unfinished.tnhpps"
+  COMMAND "${TEST_EXECUTABLE}"  run-script "${scripts}/script_unfinished_trace_cleanup.tnhpps"
   WORKING_DIRECTORY "${foreign}"
   RESULT_VARIABLE orphan_code OUTPUT_VARIABLE orphan_out ERROR_VARIABLE orphan_err
   TIMEOUT 60
@@ -58,8 +58,8 @@ string(FIND "${orphan_err}" "unfinished trace was cancelled and joined" orphan_m
 if(orphan_marker EQUAL -1)
   message(FATAL_ERROR "Unfinished session did not report cancellation and join: ${orphan_err}")
 endif()
-message(STATUS "PASS m3_3_cancel_unfinished (forced cleanup, exit 1)")
-set(artifact "${scripts}/m3_3_cancel_recovery.csv")
+message(STATUS "PASS script_unfinished_trace_cleanup (forced cleanup, exit 1)")
+set(artifact "${scripts}/script_cancellation_result.csv")
 if(NOT EXISTS "${artifact}")
   message(FATAL_ERROR "Missing accepted completion artifact after cancellation recovery")
 endif()
@@ -68,4 +68,4 @@ list(LENGTH rows length)
 if(NOT length EQUAL 7)
   message(FATAL_ERROR "Expected exactly 7 stable rows, got ${length}")
 endif()
-message(STATUS "M3.3 NATIVE SCRIPT CANCEL/RECOVER CTEST PASSED (4 cases, 7 rows)")
+message(STATUS "SCRIPT CANCEL/RECOVER CTEST PASSED (4 cases, 7 rows)")

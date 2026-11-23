@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Cross-platform P2 binary/entrypoint regression, no GUI event loop or rays."""
+"""Cross-platform GUI/CLI binary/entrypoint regression, no GUI event loop or rays."""
 import argparse
 from pathlib import Path
 import subprocess
@@ -7,7 +7,7 @@ import sys
 
 
 def fail(msg):
-    raise SystemExit('P2 architecture check failed: ' + msg)
+    raise SystemExit('GUI/CLI runtime boundary check failed: ' + msg)
 
 
 def main():
@@ -37,6 +37,6 @@ def main():
                           text=True,encoding='utf-8',errors='replace',timeout=15)
     if legacy.returncode!=2:
         fail('CLI still accepts legacy --headless option')
-    print('P2 architecture PASS: separate binaries/shared kernel, GUI rejects old mode, CLI direct commands')
+    print('GUI/CLI runtime boundary PASS: separate binaries/shared kernel, GUI rejects old mode, CLI direct commands')
 
 if __name__=='__main__':main()

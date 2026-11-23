@@ -22,7 +22,7 @@ class NativeGuiAcceptanceToolTests(unittest.TestCase):
         self.script = self.root / "script"
         self.script.mkdir()
         self.report = {
-            "schema": "tonatiuhpp.m5.native-gui-presenter.v1",
+            "schema": "tonatiuhpp.native-gui-acceptance.v1",
             "mode": "interactive-flux", "status": "PASS",
             "gui_backend": "QApplication/MainWindow/actual Qt dialogs",
             "ray_dialog_accepted": True, "fixed_seed": 123456789,
@@ -32,12 +32,12 @@ class NativeGuiAcceptanceToolTests(unittest.TestCase):
             "plot_png": str(self.root / "interactive_flux_plot.png"),
         }
         (self.root / "interactive_flux_plot.png").write_bytes(b"\x89PNG\r\n\x1a\n" + b"test")
-        (self.script / "m3_flux_front.txt").write_text(("1000\t" * 8 + "\n") * 8)
-        (self.script / "m3_flux_back.txt").write_text(("0\t" * 8 + "\n") * 8)
-        self.interception = self.script / "m3_3_parity_result.csv"
+        (self.script / "script_flux_front.txt").write_text(("1000\t" * 8 + "\n") * 8)
+        (self.script / "script_flux_back.txt").write_text(("0\t" * 8 + "\n") * 8)
+        self.interception = self.script / "script_interception_result.csv"
         self.interception.write_text(
-            "schema,m3.3-script-parity-v1\n"
-            "surface,//Node/M3_3_Parity/Receiver/Shape\n"
+            "schema,script-interception-v1\n"
+            "surface,//Node/ScriptInterception/Receiver/Shape\n"
             "rays,2048\nsun_azimuth_deg,180\nsun_elevation_deg,90\n"
             "power_w,64000\n")
 
@@ -76,7 +76,7 @@ class NativeGuiAcceptanceToolTests(unittest.TestCase):
             validate_interactive_flux(self.report, self.script, self.root)
 
     def test_gui_script_flux_disagrees_with_analytic_reference_rejected(self):
-        (self.script / "m3_flux_front.txt").write_text(("10\t" * 8 + "\n") * 8)
+        (self.script / "script_flux_front.txt").write_text(("10\t" * 8 + "\n") * 8)
         with self.assertRaisesRegex(AcceptanceError, "64,000 W"):
             validate_interactive_flux(self.report, self.script, self.root)
 

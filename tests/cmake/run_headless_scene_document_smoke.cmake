@@ -9,7 +9,7 @@ include("${CMAKE_CURRENT_LIST_DIR}/PrepareTestOutput.cmake")
 tonatiuhpp_prepare_test_output("${OUTPUT_DIR}" "${TEST_BUILD_ROOT}" "headless_scene_document")
 file(TO_CMAKE_PATH "${OUTPUT_DIR}/scene_document_ok.tnhpps" _ok)
 file(TO_CMAKE_PATH "${OUTPUT_DIR}/scene_document_bad.tnhpps" _bad)
-file(WRITE "${_ok}" "tn.Clear();\nvar node = new NodeObject;\nnode.setName('M3_2_Headless_Document');\nnode.createNode('child');\ntn.InsertScene(node);\nif (!tn.getScene().getPart('world.sun.position')) throw new Error('Missing sun');\nprint('M3.2 headless document passed');\n")
+file(WRITE "${_ok}" "tn.Clear();\nvar node = new NodeObject;\nnode.setName('ScriptSceneDocument');\nnode.createNode('child');\ntn.InsertScene(node);\nif (!tn.getScene().getPart('world.sun.position')) throw new Error('Missing sun');\nprint('Script scene document passed');\n")
 file(WRITE "${_bad}" "tn.Clear();\ntn.InsertScene({invalid: true});\n")
 
 set(_working_directory)
@@ -26,7 +26,7 @@ execute_process(
 
     TIMEOUT 30
 )
-if(NOT "${_ok_exit}" STREQUAL "0" OR NOT _ok_stdout MATCHES "M3.2 headless document passed")
+if(NOT "${_ok_exit}" STREQUAL "0" OR NOT _ok_stdout MATCHES "Script scene document passed")
   message(STATUS "stdout:\n${_ok_stdout}")
   message(STATUS "stderr:\n${_ok_stderr}")
   message(FATAL_ERROR "Headless document success case failed (${_ok_exit}).")

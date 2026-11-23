@@ -1,8 +1,183 @@
 # Project status
 
-Last updated: 2026-11-22. Batch F Windows Release accepted locally; commit, CI and merge pending.
+## Current continuation checkpoint — completed naming migration: Windows accepted (2026-11-23)
 
-## Authoritative continuation checkpoint — Batch F locally validated; CI pending
+- **Branch and base:** `chore/test-name-cleanup` at the exact PR #59 merge
+  `81b21b30c2f8a51639cef686155c0b21f845d93a`. The combined G0 + G1
+  + G1.1 + G2 + G2.1 changes remain a **local, uncommitted migration**.
+- **Final maintainer-reported Windows Release acceptance (2026-11-23):**
+  **207/207 CTests passed, zero failed, 226.68 seconds elapsed**, including
+  **four native GUI tests** (the `scientific` label includes 169 tests).
+  The separate Python tooling suite ran **44 tests: 41 passed, three expected
+  Windows directory-symlink privilege skips**, and zero failures. All **four
+  behavioral test-naming safeguards passed**.
+- **Completed naming scope:** G0 behavioral test-file/CTest names; G1 scene,
+  generated result and test artifact names; G1.1 output-directory naming
+  guards; G2 active GUI test, diagnostic, photon-file fault-injection,
+  CMake-private, evidence-schema and synthetic helper identifiers; G2.1
+  exact full-benchmark naming-contract allowance. The old architecture
+  verifier is renamed to `verify_runtime_binaries.py`.
+- **Scientific preservation:** No ray-tracing algorithm or frozen reference
+  changes are part of this migration. The original 500-million-ray auditor
+  continues to accept the historical `m5_full_<10 hex>` full-run directory
+  format; routine heliostat output directories use descriptive names. The
+  500-million-ray benchmark was **not rerun or regenerated**.
+- **Remaining gates:** Review and stage the combined change, then obtain
+  explicit authorization before committing, pushing, or opening a PR.
+  Require hosted **Windows, Linux and macOS CI** before merge. This local
+  validation is **not** evidence that hosted CI, PR review, or merge passed.
+  Keep this checkpoint and the accompanying testing/migration documentation
+  accurate after each subsequent action.
+
+---
+
+## Current continuation checkpoint - G2.1 frozen benchmark naming-guard fix
+
+- **Branch/baseline:** Unstaged `chore/test-name-cleanup` on PR #59 merge
+  `81b21b30c2f8a51639cef686155c0b21f845d93a`; G0 + G1 + G1.1 + G2
+  application completed, with no commit, push, PR or merge claimed.
+- **Latest maintainer-reported G2 Python check (2026-11-23):** 44 tests ran,
+  **40 passed, one failed and three skipped** for unavailable Windows
+  directory-symlink privileges. All three other naming guards passed.
+  The sole failure was a false positive in the test-owned content-name guard:
+  `tests/cmake/run_heliostat_benchmark.cmake` intentionally generates
+  `m5_full_<10 hex>` for MODE=full, as required by the unchanged frozen
+  500-million-ray auditor. The G1.1 allowlist covered the auditor and its
+  synthetic test but overlooked the corresponding active producer.
+- **G2.1 correction:** Limit this additional allowance to the exact CMake
+  runner, while checking that its MODE=full branch still generates the
+  historic audit name, its routine branch uses descriptive `heliostat_*`
+  names, and no additional `m5_full_` uses appear in the runner. The CMake
+  runner, original auditor, synthetic test, frozen benchmark and scientific
+  code are NOT changed by G2.1. No 500-million-ray trace is run.
+- **Acceptance pending:** Rerun all 44 Python tooling checks (expected 41
+  passing, three expected privilege skips), then Windows Release configure,
+  build and full 207 opt-in CTests including four GUI tests. The earlier
+  207/207 native Windows pass preceded G2 and does not certify these changes.
+  Require Windows/Linux/macOS hosted CI before merge. No commit, push or
+  merge is authorized or claimed.
+
+---
+
+## Current continuation checkpoint — G2 active testing interface cleanup (validation pending)
+
+- **Verified maintainer evidence:** After G1.1, the separate Windows Python
+  tooling suite passed: **43 executed, 40 passed, 3 skipped** due to missing
+  Windows directory-symlink privilege. All three test naming guards passed.
+  The latest full native Windows Release run reported **207/207 CTests**
+  (227.31 seconds, including four real GUI CTests) before G1.1's two scratch
+  directory renames. That result cannot certify the new G2 changes.
+- **G2 candidate:** Coordinate behavior-based names for native GUI test hooks,
+  CMake-private dependency boundary identifiers, test-only photon File failure
+  injection, native trace/ray-history capture environment variables, and
+  versioned *test-generated* acceptance evidence schemas. Retain the frozen
+  500-million-ray benchmark auditor and its historical `m5_full_<10 hex>`
+  directory format unchanged; do not run/regenerate that scientific reference.
+  Non-full heliostat test output folders use descriptive names, while the
+  full-run directory pattern stays byte-for-byte identical.
+- **Scope and validation:** This is a mechanical testing-infrastructure
+  interface rename, not a physics/refactor/release change. Documented former
+  hook keys/schemas are intentionally replaced rather than silently aliased;
+  update external diagnostic scripts that invoke these opt-in test hooks.
+  Rerun configure + Windows Release build, **207/207** native CTests with
+  four display-backed GUI tests, and **44** tooling tests (expect 41 passed,
+  3 known symlink skips). Then review full staged Git renames and require
+  hosted Windows/Linux/macOS CI before merge. No commit, push, PR or merge
+  is authorized or claimed by this updater.
+
+---
+
+## Current continuation checkpoint — G1.1 naming-guard correction (revalidation pending)
+
+- **Branch/baseline:** Uncommitted `chore/test-name-cleanup` at PR #59 merge
+  `81b21b30c2f8a51639cef686155c0b21f845d93a`, carrying G0 + G1.
+- **Maintainer-reported G0+G1 Windows Release run (2026-11-23):**
+  **207/207 CTests passed**, 0 failures, **228.64 seconds**, including
+  4/4 opt-in real native GUI tests. Separate Python tooling ran 43 tests:
+  **39 passed, 1 failed, 3 skipped** (Windows directory-symlink privileges).
+  The only failure was the new G1 test-owned naming guard; it found two
+  unrenamed CTest output leaves in their callers and cleanup guards,
+  plus the established `m5_full_*` frozen-benchmark auditor directory
+  contract in the auditor and its synthetic unit test. This run does NOT
+  establish G1 passing Python acceptance.
+- **G1.1 correction:** Rename the two CTest-owned disposable output leaves
+  together with their exact cleanup-path safety checks; preserve the
+  `m5_full_<10 hex>` audit contract and restrict the Python naming guard's
+  allowance to the precise two audit files and original accepted strings.
+  The auditor, synthetic benchmark test and frozen references are unchanged.
+  No production code, scene geometry, ray/RNG algorithm, benchmark or
+  scientific reference is edited or executed by the updater.
+- **Next gate:** After G1.1 application, rerun Windows Release configuration,
+  build, 207 full opt-in CTests, and all 43 tooling tests (expect 40 passed,
+  3 expected skips). Review rename-aware staged diff; require hosted Windows,
+  Ubuntu and macOS CI before merge. No commit, push, PR, merge or release
+  has been performed by this script. The historical sections below are
+  superseded; do not treat G0/G1 candidate text as current acceptance.
+
+---
+
+## Current continuation checkpoint — G1 in-content test naming (NOT YET VALIDATED)
+
+- **Baseline:** G0 is Windows Release validated by the maintainer on
+  2026-11-22: 207/207 CTests (212.58 seconds), Python tooling 39 passed /
+  3 expected Windows symlink-privilege skips out of 42. G0 is still
+  uncommitted and unmerged on `chore/test-name-cleanup` at PR #59 HEAD
+  `81b21b30c2f8a51639cef686155c0b21f845d93a`.
+- **G1 scope:** Rename test-owned result CSV/TSV filenames, scene-node
+  identifiers, and diagnostic labels together with all in-repository
+  producers/consumers. Add a Python regression guard against restoring
+  milestone-named result files and scene identifiers. Registered CTest names,
+  scene geometry, RNG, photon data, scientific algorithms, reference bytes,
+  and non-testing production C++ stay unchanged.
+- **Deliberate exceptions:** Versioned scientific test-evidence schemas
+  (`m3.3-script-parity-v1`, etc.) and test-only process environment keys
+  (`TONATIUHPP_M5_GUI_NATIVE_*`, `TONATIUHPP_M3_TEST_FILE_DATA_FAULT`, etc.)
+  are interface identifiers with older producers/consumers. They are not
+  renamed by a test-fixture cleanup without an explicit compatibility plan.
+  Historical records and frozen 500M reference artifacts are immutable.
+- **Status:** G1 application is a candidate and has NOT been built or tested
+  on Windows/Linux/macOS, committed, pushed, or merged. After applying G1,
+  rerun the full Windows Release suite (expect 207 opt-in CTests) and Python
+  tooling (expect 43 tests: 40 passes / 3 expected skips), then obtain hosted
+  three-OS CI before any merge. Record the actual results here.
+
+---
+
+## Current continuation checkpoint — Test-name cleanup G0 (WINDOWS VALIDATED; CI PENDING)
+
+- **Verified baseline:** PR #59, `fix(gui): avoid invalid transform downcast in SetValue`,
+  merged to `master` on 2026-11-22 at `81b21b30c2f8a51639cef686155c0b21f845d93a`.
+  Earlier architecture PRs #56–#58 are also merged. The old Batch F pending
+  section below is historical; do not follow old status as an active instruction.
+- **Why:** Registered CTests already use behavior-based names, but 27 tracked
+  test source/driver/template filenames still encode obsolete m3/m4/m5
+  milestones. See `docs/test-naming-migration.md` for every rename and scope.
+- **G0 scope:** Test paths, callers and test markers, local helper names,
+  two Python naming-guard tests, and these handoff/testing docs. Absolutely no
+  production C++/physics/RNG/photon/reference updates. Preserve JSON/CSV schemas,
+  environment variables, scientific fixture values and output safety guards.
+- **State:** Local Windows Release **VALIDATED by maintainer** on 2026-11-22:
+  207/207 CTests passed (0 failures, 212.58 seconds), including the four
+  opt-in native GUI CTests. Separately, 42 Python tooling tests ran:
+  **39 passed and 3 skipped** due to unavailable Windows directory-symlink
+  privileges. Both new naming-guard tests passed. These are local Windows
+  results, not hosted three-platform CI, a PR, a merge or release acceptance.
+  The frozen 500-million-ray reference MUST NOT run.
+- **Next steps:** G0's filename/registered-test migration is Windows
+  validated, but **not a complete in-content test-name normalization**.
+  Review residual test-owned scene names, result filenames, schema IDs,
+  test-only environment variables and diagnostic labels; change these
+  only with all producer/consumer assertions and compatibility needs
+  explicitly audited. Do not rewrite immutable references or historical
+  records. Keep changes on `chore/test-name-cleanup`, review the staged
+  diff and run hosted Windows/Linux/macOS CI before any merge. No C++
+  lambda expressions or frozen-reference execution.
+
+---
+
+Last updated: 2026-11-22. PR #59 merged; G0 naming migration Windows validated; CI/PR/merge pending.
+
+## Historical checkpoint — Batch F Windows validated (merged as PR #59)
 
 **Repository and instructions:** `CST-Modelling-Tools/tonatiuhpp` at
 <https://github.com/CST-Modelling-Tools/tonatiuhpp>; local Windows checkout

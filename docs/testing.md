@@ -1,6 +1,99 @@
 # Tonatiuh++ testing architecture
 
+## Windows acceptance: complete behavioral test-naming migration (2026-11-23)
+
+The maintainer ran the full **Windows Release** suite after the combined
+G0 + G1 + G1.1 + G2 + G2.1 migration: **207/207 CTests passed**, zero failures,
+**226.68 s** real elapsed time. This includes **four native GUI acceptance
+tests**; CTest reports 169 tests with the `scientific` label (labels overlap).
+The separate Python tooling suite reported **44 run, 41 passed, three skipped**
+for unavailable Windows directory-symlink privileges, and **zero failures**.
+All four behavioral naming safeguards passed.
+
+The earlier G1/G2 naming-guard failures documented below were corrected and
+superseded by these successful checks. The frozen 500-million-ray benchmark
+was **not** rerun. The independent audit's exact historical `m5_full_*`
+full-run directory format remains supported; routine benchmark paths are
+behavior-named. The migration changes neither scientific algorithms nor
+frozen reference data. The combined work remains uncommitted pending review,
+explicit authorization, and hosted **Windows/Linux/macOS CI** before merge.
+
+## G2.1 benchmark-runner naming guard correction
+
+The first G2 Windows Python tooling run executed 44 checks: 40 passed,
+three expected symlink-permission skips and one failure in the in-file naming
+guard. The new behavioral CMake benchmark runner intentionally continues to
+emit `m5_full_<10 hex>` for the optional *full* mode, because the unchanged
+frozen 500-million-ray auditor accepts that specific historical directory
+format. G1.1 had permitted the auditor and its synthetic unit test, but not
+its producer. G2.1 adds exactly that third file to the narrow exception and
+checks the old full-mode path plus the descriptive routine-mode path.
+
+No benchmark output, benchmark generator, reference, auditor or production
+source changes in G2.1. Rerun 44 Python tests (expect 41 passed and three
+Windows privilege skips) and the full 207 native Release CTests after the
+combined migration. Hosted cross-platform CI and merge remain pending.
+
+## G2 active test-interface naming (candidate; unvalidated)
+
+The G1.1 Python-only rerun passed all 43 tooling tests (40 passed and three
+Windows directory-symlink skips). G2 changes only the names of test-only
+native-GUI hooks, photon File failure injection, signature/ray-history opt-in
+capture keys, CMake-private dependency guards and test-generated evidence
+schemas; producers/consumers are changed together. Scientific calculations,
+input scenes, RNG, photon binary formats and frozen 500M references are not
+modified. The full historical benchmark output directory `m5_full_<10 hex>`
+remains accepted by its unchanged independent auditor. Routine heliostat
+smoke/repeatability output directories become behavior-named.
+
+New expected Python tooling inventory: 44 tests including four test-name
+checks. Windows Release native GUI-enabled inventory stays at 207 tests.
+G2 has not been built or run on Windows/Linux/macOS; cross-platform PR CI
+and merge are pending.
+
+## G1.1 naming guard correction — awaiting Windows revalidation
+
+The maintainer reported a complete Windows Release **207/207 CTest PASS**
+(228.64 seconds, four real GUI tests) for uncommitted G0+G1. Of 43 Python
+tooling tests, **39 passed, one naming guard failed, and three skipped** for
+unavailable Windows directory-symlink privileges. The guard detected two
+legacy names of disposable build-tree CTest output directories, plus the
+historic `m5_full_*` directory contract in the frozen 500-million-ray
+*auditor* and synthetic audit test. G1.1 corrects the disposable output
+paths and associated strict cleanup checks, and explicitly scopes the
+auditor exception to those two original test files and strings. The
+benchmark auditor and frozen evidence are unmodified. Full Windows
+revalidation after G1.1 and cross-platform CI remain pending.
+
 Baseline date: 2026-11-11. This policy applies to the two-executable, single-scientific-kernel architecture introduced before PR #41. It does not authorize release or changes to scientific references.
+
+## G1 test-owned evidence and scene naming (candidate; not yet validated)
+
+After locally validated G0, this additional test-only migration gives
+produced evidence files, scene-tree nodes and console diagnostics durable
+behavior-based names. The exact mapping is documented in
+`docs/test-naming-migration.md`. Fixture geometry, photon values, seed/RNG,
+export formats, versioned schemas and native-GUI test-hook environment keys
+are unchanged. The extra Python guard raises standalone tooling registration
+to 43 tests, while Windows CTest registrations remain 207 with native GUI
+acceptance enabled. G1 has not yet been built or run; obtain full Windows
+Release and hosted cross-platform evidence before any merge.
+
+## Test source naming cleanup G0 (Windows validated; CI pending)
+
+After merged PR #59, 27 retained m3/m4/m5-labeled test driver, fixture,
+verifier and benchmark-runner **filenames** still obscured what the test
+exercises. `docs/test-naming-migration.md` lists a one-to-one rename mapping
+and explains every preservation boundary. This is test-only work; registered CTest names and counts are unchanged
+(207 Windows with four opt-in GUI tests). Two Python naming-guard tests
+raise the separate tooling inventory from 40 to 42. **G0 local Windows
+Release validation (maintainer-reported, 2026-11-22): 207/207 CTests
+passed in 212.58 seconds; Python tooling 39 passed / 3 skipped out of 42.**
+Hosted Windows/Linux/macOS CI and merge are not yet claimed. Schema
+identifiers, result data names, scene names and test-only environment
+variables remain for a separate, audited compatibility decision; this
+is not a claim that all milestone strings have disappeared. The frozen
+500-million-ray reference remains immutable.
 
 ## Current test inventory and maintenance policy (2026-11-22)
 

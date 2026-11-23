@@ -47,12 +47,12 @@ if (Number(sceneAfter.getParameter('azimuth')) !== beforeAz ||
     throw Error('Script cancellation changed the active editable scene');
 
 var out = new DataObject;
-out.addRow('schema,m3.3-script-cancel-v1');
+out.addRow('schema,script-cancellation-v1');
 out.addRow('cancelled_status,cancelled');
 out.addRow('cancelled_accepted,false');
 out.addRow('recovered_status,completed');
 out.addRow('recovered_rays,2048');
 out.addRow('recovered_seed,0');
 out.addRow('recovered_power_per_ray,' + recovered.power_per_ray.toPrecision(17));
-if (!out.write('m3_3_cancel_recovery.csv')) throw Error('Cannot write recovery CSV');
-print('M3.3 scripted cancellation/recovery PASSED: ' + recovered.power_per_ray.toPrecision(17));
+if (!out.write('script_cancellation_result.csv')) throw Error('Cannot write recovery CSV');
+print('Scripted cancellation/recovery PASSED: ' + recovered.power_per_ray.toPrecision(17));
