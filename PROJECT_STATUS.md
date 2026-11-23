@@ -1,3 +1,14 @@
+## Current release continuation — v0.1.8.28 scientific evidence (2026-11-23)
+
+- **Candidate checkpoint:** `7c2ccfff751d9e84eb86b45d8d5ca0e5e45db02e`, previous published stable `v0.1.8.27`. Three-platform development CI passed on this checkpoint; maintainer reports Windows Release CTest 207/207.
+- **Manual 500-million-ray run:** completed with seed 123456789, 50,000 × 10,000-ray chunks, 16 workers, 1574.168 seconds. Independent binary/CSV/grid-statistics verification and reference power/peak tolerance checks passed. Candidate grid SHA-256 `c92f5e2bd4ef664707dd7b135e20e283db7fcd0067b01c63a8ec65b57989adab` differs from historical frozen hash because the material/ray physics changed. Never overwrite historical reference.
+- **Cellwise spatial comparison:** all 10,000 cells assessed; Pearson correlation 0.99996308, integrated absolute cell error 0.768261% of reference power, RMSE 0.030442402 MW/m2, median included-cell relative absolute error 0.94849322%. Descriptive only, not a prospectively established PASS threshold.
+- **Performance:** 5M/50M/75M candidate comparisons consistently observed approximately 18–21% faster runtime but all formal verdicts were **INCONCLUSIVE** due to predetermined timing stability limits. Maintainer elected to close timing investigation; risk remains documented.
+- **Permanent release policy:** manually run a fresh full 500M candidate trace **for every release** as a separate release gate, retain immutable historical reference, independent output check and cellwise spatial metrics. Retain exact historical hash check when physics is unchanged.
+- **Still pending:** final material-physics acceptance rationale, source and executable provenance confirmation, fake-tag installer rehearsal, installed GUI/CLI/plugins/updater tests, release metadata/DOI review, and explicit publication approval. No release tag or publication authorized. See `docs/release-acceptance-v0.1.8.28.md`.
+
+---
+
 # Project status
 
 ## Pending engineering milestone — permanent production lambda guard (2026-11-23)
