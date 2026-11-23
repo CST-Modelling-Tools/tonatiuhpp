@@ -1,6 +1,19 @@
 # Tonatiuh++ testing architecture
 
-## Windows acceptance: complete behavioral test-naming migration (2026-11-23)
+## Merged naming migration — verified post-merge status (2026-11-23)
+
+The combined G0 + G1 + G1.1 + G2 + G2.1 migration merged to `master` as
+[PR #60](https://github.com/CST-Modelling-Tools/tonatiuhpp/pull/60), merge commit `b8934c0dc604ed7e4a27246ba61b94cf064af1d5`. The
+[three-platform CI run #287](https://github.com/CST-Modelling-Tools/tonatiuhpp/actions/runs/45129823592) completed successfully, with
+Windows, Ubuntu and macOS jobs all passing. Maintainer-reported final Windows
+Release evidence: **207/207 CTests passed** (including four native GUI tests,
+226.68 seconds elapsed), plus **44 Python tooling tests: 41 passed, three
+expected Windows directory-symlink privilege skips**. All four test-naming
+safeguards passed. No frozen 500-million-ray benchmark execution or reference
+regeneration was part of this migration. The pre-merge pending/failed-stage
+accounts below are historical and superseded by this verified outcome.
+
+## Historical Windows acceptance: behavioral test-naming migration (2026-11-23)
 
 The maintainer ran the full **Windows Release** suite after the combined
 G0 + G1 + G1.1 + G2 + G2.1 migration: **207/207 CTests passed**, zero failures,
