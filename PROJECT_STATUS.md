@@ -1,5 +1,15 @@
 # Project status
 
+## Current continuation checkpoint — production C++ lambda audit passed (2026-11-23)
+
+- **Audited revision:** Local Windows checkout Git HEAD `6eb15c7a4099b27f70d3aef7f30243bb84e35055`; the read-only scanner's `--expected-head` check matched this exact commit.
+- **Maintainer-reported validation:** The corrected external Python scanner completed **4/4 self-tests** (`Ran 4 tests ... OK`) and scanned **445 production C/C++ files** under `source/`, reporting **0 lambda-shaped candidates** and `PASS: no lambda-shaped candidates`.
+- **False-positive correction:** The original scan flagged `char bytes[sizeof(double)] = {};` in `source/application/benchmark/BenchmarkRunner.cpp` as a lambda-shaped candidate. This is an array declaration, not a lambda; the scanner was corrected and a regression test was added. No production C++ source change was needed.
+- **Audit scope and limitations:** This is a conservative lexical screen, not a compiler AST proof. The corrected scanner is an external Downloads-folder tool, not a tracked repository file. These are maintainer-reported local results, not a new build, CTest run, hosted CI result or release qualification. No frozen 500-million-ray benchmark was run or regenerated.
+- **Next checkpoint:** Treat the read-only production lambda audit as completed for the audited revision. Preserve the existing separate-branch, validation and explicit maintainer-authorization gates before any future commit, push, PR or merge.
+
+---
+
 ## Current continuation checkpoint — PR #60 merged (2026-11-23)
 
 - **Authoritative baseline:** `master` contains merged PR #60, `test(naming): replace milestone identifiers with behavioral names` (https://github.com/CST-Modelling-Tools/tonatiuhpp/pull/60). The verified merge commit is `b8934c0dc604ed7e4a27246ba61b94cf064af1d5`; GitHub records the merge at **2026-11-23 07:50:07 UTC**. The G0 + G1 + G1.1 + G2 + G2.1 migration is **complete and merged**, not local/uncommitted.
