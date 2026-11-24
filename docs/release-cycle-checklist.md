@@ -1,6 +1,6 @@
 # Release-cycle acceptance and performance policy
 
-This is the reusable checklist for **every future Tonatiuh++ release**. The already-published v0.1.8.27 is the previous-release baseline for the next proposed release; historical version-specific checklists remain historical. This file does not authorize publication or tagging. The maintainer has approved a fresh, manual **500-million-ray candidate simulation** as a mandatory release gate; it does **not** authorize regenerating or altering the frozen historical 500M reference.
+This is the reusable checklist for **every future Tonatiuh++ release**. The already-published **v0.1.8.28** is the previous-release baseline for the next proposed release (tagged source `1bbef1ee6924b38106f4d16132303c2529db387a`); historical version-specific checklists remain historical. Re-evaluate this baseline after each new release rather than silently retaining old version numbers. This file does not authorize publication or tagging. The maintainer has approved a fresh, manual **500-million-ray candidate simulation** as a mandatory release gate; it does **not** authorize regenerating or altering the frozen historical 500M reference.
 
 ## Development cadence and release gate
 
