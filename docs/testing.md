@@ -1,22 +1,20 @@
 # Tonatiuh++ testing architecture
 
-## Current instance-tree construction regression and test inventory (2026-11-24)
+## Current build and scene-tree acceptance
 
-The `SceneInstanceBuilder` unification candidate in [PR #70](https://github.com/CST-Modelling-Tools/tonatiuhpp/pull/70) adds two CTest-discovered Google Tests: `SceneInstanceBuilderRegression.FullBuildMatchesInsertedNestedSubtree` and `SceneInstanceBuilderRegression.InsertSharedGroupKeepsSiblingAndSubtreeIdentities`. The existing `gui.native_scene_undo_redo` acceptance also compares the live GUI model against a fresh canonical builder tree at each editing/undo/redo state, including Coin node identity, child order, and Qt parent indexes.
+The merged [instance-tree unification (PR #70)](https://github.com/CST-Modelling-Tools/tonatiuhpp/pull/70) has two regression tests: `SceneInstanceBuilderRegression.FullBuildMatchesInsertedNestedSubtree` and `SceneInstanceBuilderRegression.InsertSharedGroupKeepsSiblingAndSubtreeIdentities`. The native GUI `gui.native_scene_undo_redo` test additionally checks Qt model consistency and canonical instance-tree structure across edits and undo/redo.
 
-For this candidate, the **standard CI inventory** is **204** CTests on Linux/macOS and **205** on Windows; enabling `TONATIUHPP_ENABLE_NATIVE_GUI_ACCEPTANCE=ON` adds four display-backed GUI CTests, for **208** and **209**, respectively. These are counts of registered tests, not claims that all platforms passed.
+The **standard CTest inventory** is **205 on Windows** and **204 on Linux/macOS**. Enabling `TONATIUHPP_ENABLE_NATIVE_GUI_ACCEPTANCE=ON` registers four additional real-display GUI tests, giving **209 on Windows** and **208 on Linux/macOS**.
 
-**Local evidence (2026-11-24, maintainer-reported):** Windows Release full suite **209/209 PASS**, zero failures, 230.06 seconds. The first three-platform [PR CI run #45424651184](https://github.com/CST-Modelling-Tools/tonatiuhpp/actions/runs/45424651184) successfully built each target but stopped **before** CTest execution because the workflow still expected the previous 202/203 counts. The accompanying CI workflow correction updates those counts to 204/205; its hosted result remains unverified until a subsequent run.
+**Validated baseline:** the maintainer's Windows Release suite passed **209/209 CTests** (including four native GUI tests; 230.06 seconds). [CI run #45439316050](https://github.com/CST-Modelling-Tools/tonatiuhpp/actions/runs/45439316050) passed on Windows, Ubuntu and macOS, including standard CTest and platform-specific native GUI acceptance. These results validate the merged tree-construction refactor, not future scene-BVH acceleration or release qualification.
 
-After locally checking out the PR branch and building in Release, validate the same configured inventory and tests:
+For a local Windows Release configuration with native GUI acceptance enabled:
 
 ```powershell
 python scripts/ctest_inventory.py --build-dir build --config Release --expect-count 209 --require-sentinels --json-out build/ctest-inventory.json
 ctest --test-dir build -C Release -R 'SceneInstanceBuilderRegression|gui[.]native_scene_undo_redo' --output-on-failure
 ctest --test-dir build -C Release --output-on-failure
 ```
-
-The 209 count assumes the four native GUI tests are enabled in the local build; on standard Windows CI without them, use 205 instead. A local Windows PASS is not a Linux/macOS scientific or display-backed GUI PASS.
 
 ## Merged naming migration — verified post-merge status (2026-11-23)
 
@@ -174,7 +172,7 @@ python -m unittest discover -s tests/tooling -p "test_*.py" -v
 ```
 
 If testing without native GUI acceptance, turn that CMake option OFF and
-expect the standard inventory (203 Windows, 202 Linux/macOS); GUI native
+expect the standard inventory (205 Windows, 204 Linux/macOS); GUI native
 validation must still occur separately on a display-capable runner.
 
 ## Purpose and evidence
