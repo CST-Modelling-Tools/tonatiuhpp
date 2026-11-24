@@ -38,6 +38,14 @@ GUI Run/Flux Analysis, headless scene tracing, benchmark execution, and scripts 
 
 For reproducible simulation, preserve the current seed, scene, tracker policy, aperture/energy normalization, worker/chunk semantics, scientific plugin identity, and photon format unless a change has a separately reviewed scientific justification.
 
+## Shared scene instance-tree construction
+
+`SceneInstanceBuilder` in `source/application/core/` is the single authoritative algorithm for constructing the runtime `InstanceNode` hierarchy. `build(TSceneKit*)` constructs the scene and layout occurrences and recursively visits child groups using `insertSubtree(parent, node, row)`. Separate occurrences of a shared Coin3D `SoNode` receive distinct `InstanceNode` objects, preserving per-occurrence parentage and child order.
+
+The headless `TracePreparation` path owns a builder-produced tree unless a caller explicitly borrows a pinned tree for synchronous scripted photon-export append. The GUI's `SceneTreeModel::setDocument()` also uses `SceneInstanceBuilder::build()`; `insertCoinNode()` and `Paste()` use `insertSubtree()` for nested groups. `SceneTreeModel` remains responsible for Qt indexes, the mapping from Coin nodes to their instances, interactive insert/delete/cut/paste and undo/redo. This unifies **tree construction**, not GUI/headless tree ownership or Qt editing responsibilities.
+
+This refactor does **not** create a scene-wide bounding-volume hierarchy or change ray propagation. The existing `InstanceNode` world-space bounding boxes already cull traversal according to the scene's authored hierarchy; a future automatic scene-level BVH is a separate acceleration milestone. Shape-specific mesh BVHs remain separate.
+
 ## Official scientific plugins
 
 The currently built and installed official plugin targets are declared in `source/plugins/CMakeLists.txt`: `AirMirval`, `MaterialSpecular`, `PhotonsFile`, `ShapeElliptic`, `ShapeFunctionXYZ`, `ShapeFunctionZ`, `ShapeHyperbolic`, `ShapeMapN`, `ShapeMesh`, `SunBuie`, and `SunGaussian`.
@@ -46,6 +54,6 @@ Other historical plugin source directories may still exist in the repository but
 
 ## Scientific acceptance boundaries
 
-The merged M5 scientific implementation previously passed native Windows and three-platform CI acceptance; the integrated P2 executable and packaging migration requires a new native and hosted validation run. The full 500-million-ray Windows heliostat benchmark also matched the unchanged frozen reference exactly on the M5 merge candidate. These are validations of the specified cases, not a claim that all possible optical systems have been exhaustively tested or that platform packages are ready for release.
+The published [v0.1.8.28 acceptance record](release-acceptance-v0.1.8.28.md) documents Windows Release and three-platform development checks plus a fresh 500-million-ray candidate. That run passed integrity and the predefined power/peak numerical tolerances, but its grid hash was **not identical** to the frozen historical reference because of intentional physics changes. Formal reduced-ray performance assessment was **INCONCLUSIVE / UNSTABLE ENVIRONMENT**, not a benchmark PASS. The frozen historical reference must not be regenerated or changed.
 
-See [Scientific validation](scientific-validation.md) for the exact reference and safe verification commands. Release packaging and installation validation are separate activities.
+The separate instance-tree unification candidate has maintainer-reported Windows Release **209/209 CTests PASS** (including four real GUI tests). This does not substitute for successful hosted CI, BVH performance evaluation or the future release gates. See [Scientific validation](scientific-validation.md), [Testing](testing.md) and the [release checklist](release-cycle-checklist.md).

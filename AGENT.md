@@ -53,6 +53,13 @@
 - When a feature is mostly complete, stop incremental tweaks and switch to a completion review.
 - Ask for confirmation only when there is a real tradeoff or product decision.
 
+## Local-first delivery and documentation currency
+
+- Perform implementation, debugging and relevant Windows Release builds/tests in the maintainer's local checkout before committing or pushing changes to GitHub. Review the diff and run focused regressions plus the applicable full local CTest suite; use hosted CI only as subsequent cross-platform integration verification, not as the first testing environment.
+- When direct access to the maintainer's machine is unavailable, provide a reviewable patch and local commands rather than committing untested edits remotely. Wait for the maintainer's local validation evidence and explicit authorization before committing, pushing or creating a PR. Never merge, tag or release without the maintainer's explicit approval.
+- Keep maintained documentation current as part of **every merged change**, not only releases or large features. Update the affected architecture, testing, user/developer documentation and `PROJECT_STATUS.md` in the same reviewed milestone; check for stale current-state claims, counts and instructions before merge. Do not postpone documentation until the next feature.
+- Distinguish local test evidence from hosted CI, proposed PRs from merged code, and current instructions from dated historical checkpoints. After each merge, verify that documentation reflects the merged revision and record the verified merge SHA and CI evidence in `PROJECT_STATUS.md` when available; complete any separately approved post-merge status update before declaring the handoff complete.
+
 ## Output requirements
 
 For each task:
