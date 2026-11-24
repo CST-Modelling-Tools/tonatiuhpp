@@ -13,6 +13,7 @@
 #include <Inventor/nodes/SoNode.h>
 #include "kernel/scene/TTransform.h"
 
+#include "core/SceneInstanceBuilder.h"
 #include "kernel/run/InstanceNode.h"
 #include "kernel/scene/TSeparatorKit.h"
 #include "main/MainWindow.h"
@@ -128,6 +129,7 @@ public:
             evidence->insert("undo_steps_verified", m_undoSteps);
             evidence->insert("redo_steps_verified", m_redoSteps);
             evidence->insert("scene_states_verified", m_statesVerified);
+            evidence->insert("canonical_tree_checks", m_canonicalChecks);
             evidence->insert("final_root_children", 2);
             evidence->insert("final_translation_x", 20);
             evidence->insert("nested_fresnel_clone", true);
@@ -191,6 +193,37 @@ private:
             .arg(double(value[0]), 0, 'g', 12)
             .arg(double(value[1]), 0, 'g', 12)
             .arg(double(value[2]), 0, 'g', 12);
+    }
+
+    // Reconstruct the same live Coin scene through the production headless
+    // builder and compare against the actual GUI model after each edit/undo.
+    bool matchesCanonical(const InstanceNode* expected, const QModelIndex& guiIndex)
+    {
+        const InstanceNode* actual = m_model->getInstance(guiIndex);
+        if (!expected || !actual || actual->getNode() != expected->getNode()
+            || actual->childCount() != expected->childCount())
+            return failure(QStringLiteral("GUI instance tree differs from canonical builder at ")
+                           + (expected ? expected->getURL() : QStringLiteral("<null>")));
+
+        for (int row = 0; row < expected->childCount(); ++row) {
+            const QModelIndex childIndex = m_model->index(row, 0, guiIndex);
+            if (!childIndex.isValid() || m_model->parent(childIndex) != guiIndex)
+                return failure(QStringLiteral("GUI instance model index mismatch at ")
+                               + expected->getURL() + QStringLiteral(" row ")
+                               + QString::number(row));
+            if (!matchesCanonical(expected->childAt(row), childIndex))
+                return false;
+        }
+        return true;
+    }
+
+    bool verifyCanonicalTree()
+    {
+        SceneInstanceTree canonical = SceneInstanceBuilder::build(m_model->getSceneKit());
+        if (!canonical.sceneRoot || !matchesCanonical(canonical.sceneRoot.get(), QModelIndex()))
+            return false;
+        ++m_canonicalChecks;
+        return true;
     }
 
     bool state(int stage)
@@ -262,6 +295,8 @@ private:
             else if (m_outerCopy != copied)
                 return failure("Copied parent was replaced across Redo");
         }
+        if (!verifyCanonicalTree())
+            return false;
         ++m_statesVerified;
         return true;
     }
@@ -284,6 +319,7 @@ private:
     int m_undoSteps = 0;
     int m_redoSteps = 0;
     int m_statesVerified = 0;
+    int m_canonicalChecks = 0;
 };
 
 } // namespace

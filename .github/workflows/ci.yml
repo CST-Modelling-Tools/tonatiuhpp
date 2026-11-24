@@ -414,8 +414,8 @@ jobs:
         if: ${{ steps.changes.outputs.docs_only != 'true' }}
         shell: bash
         run: |
-          expected=202
-          if [[ "$RUNNER_OS" == "Windows" ]]; then expected=203; fi
+          expected=204
+          if [[ "$RUNNER_OS" == "Windows" ]]; then expected=205; fi
           python scripts/ctest_inventory.py --build-dir build --config Release --expect-count "$expected" --require-sentinels --json-out build/ctest-inventory.json
           python -c "import json; from pathlib import Path; d=json.loads(Path('build/ctest-inventory.json').read_text(encoding='utf-8')); fast=[t for t in d['tests'] if 'fast' in t['labels']]; unit=[t for t in fast if 'unit' in t['labels']]; print('fast/unit:',len(fast),len(unit)); assert (len(fast),len(unit)) == (16,13)"
 
@@ -425,10 +425,9 @@ jobs:
         run: |
           ctest --test-dir build -C Release --output-on-failure --output-junit "${GITHUB_WORKSPACE}/build/ctest-results.xml"
 
-      # Phase D native GUI acceptance: standard CTest inventory stays at
-      # 179/180 for the ordinary build-tree regression above. Separately enable
-      # 4 actual GUI CTests on display-capable runners (3 scientific + Undo). These
-      # checks are now required after their verified 2026-11-12 pilot runs.
+      # The standard inventory is 204 Linux/macOS or 205 Windows. Separately
+      # enable four real display-backed GUI CTests (3 scientific + Undo) on
+      # capable runners; the main inventory intentionally excludes these four.
       - name: Install native Linux GUI display dependencies
         if: ${{ steps.changes.outputs.docs_only != 'true' && runner.os == 'Linux' }}
         shell: bash

@@ -62,8 +62,7 @@ public:
 
 private:
     void clearInstanceTree();
-    InstanceNode* addInstanceNode(InstanceNode* parent, SoNode* node);
-    void generateInstanceTree(InstanceNode* instance);
+    void registerInstanceSubtree(InstanceNode* instance);
     void deleteInstanceTree(InstanceNode* instance);
     bool containsInstance(InstanceNode* instance) const;
 

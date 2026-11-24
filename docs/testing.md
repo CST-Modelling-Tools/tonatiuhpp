@@ -1,5 +1,23 @@
 # Tonatiuh++ testing architecture
 
+## Current instance-tree construction regression and test inventory (2026-11-24)
+
+The `SceneInstanceBuilder` unification candidate in [PR #70](https://github.com/CST-Modelling-Tools/tonatiuhpp/pull/70) adds two CTest-discovered Google Tests: `SceneInstanceBuilderRegression.FullBuildMatchesInsertedNestedSubtree` and `SceneInstanceBuilderRegression.InsertSharedGroupKeepsSiblingAndSubtreeIdentities`. The existing `gui.native_scene_undo_redo` acceptance also compares the live GUI model against a fresh canonical builder tree at each editing/undo/redo state, including Coin node identity, child order, and Qt parent indexes.
+
+For this candidate, the **standard CI inventory** is **204** CTests on Linux/macOS and **205** on Windows; enabling `TONATIUHPP_ENABLE_NATIVE_GUI_ACCEPTANCE=ON` adds four display-backed GUI CTests, for **208** and **209**, respectively. These are counts of registered tests, not claims that all platforms passed.
+
+**Local evidence (2026-11-24, maintainer-reported):** Windows Release full suite **209/209 PASS**, zero failures, 230.06 seconds. The first three-platform [PR CI run #45424651184](https://github.com/CST-Modelling-Tools/tonatiuhpp/actions/runs/45424651184) successfully built each target but stopped **before** CTest execution because the workflow still expected the previous 202/203 counts. The accompanying CI workflow correction updates those counts to 204/205; its hosted result remains unverified until a subsequent run.
+
+After locally checking out the PR branch and building in Release, validate the same configured inventory and tests:
+
+```powershell
+python scripts/ctest_inventory.py --build-dir build --config Release --expect-count 209 --require-sentinels --json-out build/ctest-inventory.json
+ctest --test-dir build -C Release -R 'SceneInstanceBuilderRegression|gui[.]native_scene_undo_redo' --output-on-failure
+ctest --test-dir build -C Release --output-on-failure
+```
+
+The 209 count assumes the four native GUI tests are enabled in the local build; on standard Windows CI without them, use 205 instead. A local Windows PASS is not a Linux/macOS scientific or display-backed GUI PASS.
+
 ## Merged naming migration — verified post-merge status (2026-11-23)
 
 The combined G0 + G1 + G1.1 + G2 + G2.1 migration merged to `master` as
@@ -108,7 +126,7 @@ variables remain for a separate, audited compatibility decision; this
 is not a claim that all milestone strings have disappeared. The frozen
 500-million-ray reference remains immutable.
 
-## Current test inventory and maintenance policy (2026-11-22)
+## Historical test inventory and maintenance policy (2026-11-22)
 
 Following merged PR #58, the default Windows Release inventory is **203
 CTests**; the Linux/macOS default is **202**. When
