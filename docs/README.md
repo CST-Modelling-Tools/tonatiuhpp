@@ -17,7 +17,7 @@ This folder documents **the current codebase**, not the sequence of changes used
 
 ## Other maintained files
 
-- `release-notes-v0.1.8.26.md` is retained because the existing release workflow requires a notes file for the current project version. Its presence does **not** mean that a public release has been approved.
+- `release-notes-v0.1.8.28.md` documents the current published stable release; earlier release notes are retained as historical reference.
 - `../PROJECT_STATUS.md` holds a concise snapshot of the current project state and outstanding work.
 - `../AGENT.md` contains persistent engineering and review rules.
 - The application help sources in `../help/` are separate from this developer documentation.

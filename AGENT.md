@@ -47,7 +47,8 @@
 ## Workflow behavior
 
 - Before starting Tonatiuh++ tasks, read `PROJECT_STATUS.md` for current project and release context.
-- Keep durable working rules in this file; keep time-sensitive release context in `PROJECT_STATUS.md`.
+- Keep durable working rules in this file. Keep `PROJECT_STATUS.md` as a concise portrait of implemented architecture, validated capabilities, current limitations and the next planned/active milestone. Do not accumulate dated development diaries, transient tool failures or superseded action lists; Git and dedicated acceptance reports retain historical details.
+- Summarize changes in terms of implemented code and resulting behavior, followed by the work being planned or undertaken.
 - Keep progress updates brief.
 - Keep final summaries concise.
 - When a feature is mostly complete, stop incremental tweaks and switch to a completion review.
