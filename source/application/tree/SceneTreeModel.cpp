@@ -13,6 +13,7 @@
 #include <Inventor/nodes/SoMaterial.h>
 
 #include "application/view/GraphicRoot.h"
+#include "core/SceneInstanceBuilder.h"
 #include "kernel/profiles/ProfileRT.h"
 #include "kernel/material/MaterialRT.h"
 #include "kernel/run/InstanceNode.h"
@@ -95,65 +96,24 @@ void SceneTreeModel::setDocument(Document* document)
     m_nodeRoot = document->getSceneKit()->m_graphicRoot->getRoot();
     m_nodeScene = document->getSceneKit();
 
-    m_instanceScene = new InstanceNode(m_nodeScene);
-    m_mapCoinQt[m_nodeScene].append(m_instanceScene);
-    m_instances.insert(m_instanceScene);
-
-//    SoNode* worldKit = m_nodeScene->getPart("world", true);
-//    InstanceNode* instanceW = addInstanceNode(m_instanceScene, worldKit);
-
-//    SoNode* location = m_nodeScene->getPart("world.location", true);
-//    addInstanceNode(instanceW, location);
-
-//    SoNode* sunKitW = m_nodeScene->getPart("world.sun", true);
-//    addInstanceNode(instanceW, sunKitW);
-
-//    SoNode* airKit = m_nodeScene->getPart("world.air", true);
-//    addInstanceNode(instanceW, airKit);
-
-//    SoNode* terrainKit = m_nodeScene->getPart("world.terrain", true);
-//    addInstanceNode(instanceW, terrainKit);
-
-    TSeparatorKit* nodeLayout = m_nodeScene->getLayout();
-    if (nodeLayout)
-    {
-        m_instanceLayout = addInstanceNode(m_instanceScene, nodeLayout);
-        generateInstanceTree(m_instanceLayout);
-    }
+    // Both GUI and headless use the same canonical instance construction.
+    SceneInstanceTree tree = SceneInstanceBuilder::build(m_nodeScene);
+    m_instanceScene = tree.sceneRoot.release();
+    m_instanceLayout = tree.layoutRoot;
+    registerInstanceSubtree(m_instanceScene);
 
     endResetModel();
 }
 
-InstanceNode* SceneTreeModel::addInstanceNode(InstanceNode* parent, SoNode* node)
-{
-    if (!parent || !node) return 0;
-
-    std::unique_ptr<InstanceNode> instance = std::make_unique<InstanceNode>(node);
-    parent->addChild(instance.get());
-    InstanceNode* owned = instance.release();
-    m_mapCoinQt[node].append(owned);
-    m_instances.insert(owned);
-    return owned;
-}
-
-void SceneTreeModel::generateInstanceTree(InstanceNode* instance)
+void SceneTreeModel::registerInstanceSubtree(InstanceNode* instance)
 {
     if (!instance) return;
 
-    SoNode* node = instance->getNode();
-    if (!node) return;
-
-    if (TSeparatorKit* kit = dynamic_cast<TSeparatorKit*>(node))
-    {
-        SoGroup* group = (SoGroup*) kit->getPart("group", false);
-        if (!group) return;
-        for (int n = 0; n < group->getNumChildren(); ++n)
-        {
-            SoNode* childNode = (SoNode*) group->getChild(n);
-            InstanceNode* childInstance = addInstanceNode(instance, childNode);
-            generateInstanceTree(childInstance);
-        }
-    }
+    // GUI-only lookup/index bookkeeping; never construct scene instances here.
+    m_mapCoinQt[instance->getNode()].append(instance);
+    m_instances.insert(instance);
+    for (InstanceNode* child : instance->children())
+        registerInstanceSubtree(child);
 }
 
 void SceneTreeModel::deleteInstanceTree(InstanceNode* instance)
@@ -569,11 +529,8 @@ int SceneTreeModel::insertCoinNode(SoNode* node, SoBaseKit* parent)
 
     for (InstanceNode* instanceParent : m_mapCoinQt[parent])
     {
-        InstanceNode* instance = new InstanceNode(node);
-        instanceParent->insertChild(row, instance);
-        m_mapCoinQt[node].append(instance);
-        m_instances.insert(instance);
-        generateInstanceTree(instance);
+        InstanceNode* instance = SceneInstanceBuilder::insertSubtree(instanceParent, node, row);
+        registerInstanceSubtree(instance);
     }
 
     emit layoutChanged();
@@ -696,11 +653,8 @@ bool SceneTreeModel::Paste(SoBaseKit* parent, SoNode* node, int row,
 
     for (InstanceNode* instanceParent : m_mapCoinQt[parent])
     {
-        InstanceNode* instance = new InstanceNode(child);
-        instanceParent->insertChild(row, instance);
-        m_mapCoinQt[child].append(instance);
-        m_instances.insert(instance);
-        generateInstanceTree(instance);
+        InstanceNode* instance = SceneInstanceBuilder::insertSubtree(instanceParent, child, row);
+        registerInstanceSubtree(instance);
     }
 
     if (insertedNode) *insertedNode = child;

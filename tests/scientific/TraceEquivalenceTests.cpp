@@ -257,6 +257,27 @@ QString fixturePath(ScientificScene scene)
     return {};
 }
 
+// The canonical full build and incremental subtree insertion must create the
+// same occurrence hierarchy, with distinct owners and unchanged Coin identity.
+void expectSameInstanceTopology(const InstanceNode* expected, const InstanceNode* actual)
+{
+    ASSERT_NE(expected, nullptr);
+    ASSERT_NE(actual, nullptr);
+    EXPECT_EQ(expected->getNode(), actual->getNode());
+    EXPECT_EQ(expected->getURL(), actual->getURL());
+    ASSERT_EQ(expected->childCount(), actual->childCount());
+    for (int row = 0; row < expected->childCount(); ++row) {
+        SCOPED_TRACE(row);
+        const InstanceNode* expectedChild = expected->childAt(row);
+        const InstanceNode* actualChild = actual->childAt(row);
+        ASSERT_NE(expectedChild, nullptr);
+        ASSERT_NE(actualChild, nullptr);
+        EXPECT_EQ(expectedChild->getParent(), expected);
+        EXPECT_EQ(actualChild->getParent(), actual);
+        expectSameInstanceTopology(expectedChild, actualChild);
+    }
+}
+
 std::uint64_t hitsOnSurface(const ScientificSignature& signature, const std::string& path)
 {
     return static_cast<std::uint64_t>(std::count_if(
@@ -591,6 +612,72 @@ public:
     ulong savePhotons(const std::vector<Photon>&) override { return 0; }
     bool hasExportError() const override { return true; }
 };
+}
+
+// The GUI and headless trees must be structurally identical at construction;
+// insertion and paste use this same recursion instead of a GUI-only algorithm.
+TEST(SceneInstanceBuilderRegression, FullBuildMatchesInsertedNestedSubtree)
+{
+    LoadedScene loaded;
+    QString error;
+    ASSERT_TRUE(SceneLoader::readFile(
+        fixturePath(ScientificScene::SpecularTwoReflections), &loaded, &error))
+        << error.toStdString();
+
+    SceneInstanceTree canonical = SceneInstanceBuilder::build(loaded.get());
+    ASSERT_NE(canonical.sceneRoot, nullptr);
+    ASSERT_NE(canonical.layoutRoot, nullptr);
+    ASSERT_EQ(canonical.sceneRoot->childCount(), 1);
+    EXPECT_EQ(canonical.sceneRoot->childAt(0), canonical.layoutRoot);
+
+    InstanceNode independentRoot(loaded.get());
+    InstanceNode* inserted = SceneInstanceBuilder::insertSubtree(
+        &independentRoot, loaded.get()->getLayout(), 0);
+    ASSERT_NE(inserted, nullptr);
+    ASSERT_EQ(independentRoot.childCount(), 1);
+    EXPECT_EQ(independentRoot.childAt(0), inserted);
+    EXPECT_EQ(inserted->getParent(), &independentRoot);
+    expectSameInstanceTopology(canonical.layoutRoot, inserted);
+    EXPECT_EQ(countShapeInstances(inserted), 3U);
+}
+
+TEST(SceneInstanceBuilderRegression, InsertSharedGroupKeepsSiblingAndSubtreeIdentities)
+{
+    LoadedScene loaded;
+    QString error;
+    ASSERT_TRUE(SceneLoader::readFile(
+        fixturePath(ScientificScene::SpecularTwoReflections), &loaded, &error))
+        << error.toStdString();
+
+    SceneInstanceTree tree = SceneInstanceBuilder::build(loaded.get());
+    InstanceNode* layout = tree.layoutRoot;
+    ASSERT_NE(layout, nullptr);
+    ASSERT_EQ(layout->childCount(), 3);
+    InstanceNode* first = layout->childAt(0);
+    InstanceNode* second = layout->childAt(1);
+    InstanceNode* third = layout->childAt(2);
+    ASSERT_NE(first, nullptr);
+    ASSERT_NE(second, nullptr);
+    ASSERT_NE(third, nullptr);
+
+    // Model a GUI Paste of a shared Coin group at a nonfinal sibling row.
+    InstanceNode* shared = SceneInstanceBuilder::insertSubtree(
+        layout, first->getNode(), 1);
+    ASSERT_NE(shared, nullptr);
+    EXPECT_NE(shared, first);
+    EXPECT_EQ(shared->getNode(), first->getNode());
+    EXPECT_EQ(shared->getParent(), layout);
+    ASSERT_EQ(layout->childCount(), 4);
+    EXPECT_EQ(layout->childAt(0), first);
+    EXPECT_EQ(layout->childAt(1), shared);
+    EXPECT_EQ(layout->childAt(2), second);
+    EXPECT_EQ(layout->childAt(3), third);
+    expectSameInstanceTopology(first, shared);
+    EXPECT_EQ(countShapeInstances(layout), 4U);
+
+    EXPECT_EQ(SceneInstanceBuilder::insertSubtree(nullptr, first->getNode(), 0), nullptr);
+    EXPECT_EQ(SceneInstanceBuilder::insertSubtree(layout, nullptr, 0), nullptr);
+    EXPECT_EQ(layout->childCount(), 4);
 }
 
 // M3 Step 3C: orchestration around the existing shared session. These tests

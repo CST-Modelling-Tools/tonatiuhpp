@@ -13,36 +13,28 @@ SceneInstanceTree SceneInstanceBuilder::build(TSceneKit* scene)
         return tree;
 
     tree.sceneRoot = std::make_unique<InstanceNode>(scene);
-
     TSeparatorKit* layout = scene->getLayout();
-    if (!layout)
-        return tree;
-
-    auto layoutInstance = std::make_unique<InstanceNode>(layout);
-    tree.sceneRoot->addChild(layoutInstance.get());
-    tree.layoutRoot = layoutInstance.release();
-    generateInstanceTree(tree.layoutRoot);
+    if (layout)
+        tree.layoutRoot = insertSubtree(tree.sceneRoot.get(), layout, 0);
     return tree;
 }
 
-void SceneInstanceBuilder::generateInstanceTree(InstanceNode* instance)
+InstanceNode* SceneInstanceBuilder::insertSubtree(InstanceNode* parent, SoNode* node, int row)
 {
-    if (!instance || !instance->getNode())
-        return;
+    if (!parent || !node)
+        return nullptr;
 
-    TSeparatorKit* kit = dynamic_cast<TSeparatorKit*>(instance->getNode());
-    if (!kit)
-        return;
+    auto childOwner = std::make_unique<InstanceNode>(node);
+    InstanceNode* instance = childOwner.get();
+    parent->insertChild(row, instance);
+    childOwner.release(); // The parent now owns this instance.
 
-    SoGroup* group = static_cast<SoGroup*>(kit->getPart("group", false));
-    if (!group)
-        return;
-
-    for (int n = 0; n < group->getNumChildren(); ++n) {
-        SoNode* childNode = group->getChild(n);
-        auto childOwner = std::make_unique<InstanceNode>(childNode);
-        instance->addChild(childOwner.get());
-        InstanceNode* childInstance = childOwner.release();
-        generateInstanceTree(childInstance);
+    // This is the sole recursive instance-construction path for both adapters.
+    TSeparatorKit* kit = dynamic_cast<TSeparatorKit*>(node);
+    SoGroup* group = kit ? static_cast<SoGroup*>(kit->getPart("group", false)) : nullptr;
+    if (group) {
+        for (int n = 0; n < group->getNumChildren(); ++n)
+            insertSubtree(instance, group->getChild(n), n);
     }
+    return instance;
 }
