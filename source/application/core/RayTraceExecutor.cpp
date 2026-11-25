@@ -245,7 +245,7 @@ RayTraceExecution RayTraceExecutor::start(PreparedTraceContext&& context)
             RayEnergyBudget operator()(qulonglong chunkIndex, ulong raysThisChunk) const
             {
                 StandardRandom random(StandardRandom::deriveChunkSeed(workerContext->m_configuration.masterSeed, chunkIndex));
-                RayTracer tracer(workerContext->m_layoutRoot,
+                RayTracer tracer(*workerContext->m_sceneBvh,
                                  workerContext->m_sunInstance,
                                  workerContext->m_sunAperture,
                                  workerContext->m_sunShape,

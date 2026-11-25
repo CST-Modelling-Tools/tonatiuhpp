@@ -76,7 +76,8 @@ public:
         DifferentialGeometry geometry;
         double distance = std::numeric_limits<double>::infinity();
     };
-    bool findNearestHit(const Ray& rayIn, Intersection& hit) const;
+    // Shape-leaf primitive only; the scene BVH is the sole nearest-hit traversal.
+    bool intersectShape(const Ray& rayIn, Intersection& hit) const;
     static MaterialInteraction sampleMaterial(const Ray& rayIn, const Intersection& hit,
                                               Random& random, Ray& outgoing);
     // Compatibility convenience for callers inside this codebase.

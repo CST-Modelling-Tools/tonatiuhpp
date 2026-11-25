@@ -3,8 +3,8 @@
 ## Published release and development focus
 
 - **Published stable release:** [v0.1.8.28](https://github.com/CST-Modelling-Tools/tonatiuhpp/releases/tag/v0.1.8.28). It is the reference release for subsequent scientific and performance comparisons.
-- **Development baseline:** `master` contains the unified instance-tree construction merged in [PR #70](https://github.com/CST-Modelling-Tools/tonatiuhpp/pull/70), merge commit `6b8cfc15bfc716bdcfb93fd23f72f7825933b983`.
-- **Current development objective:** accelerate scene-level ray intersection using an automatic bounding-volume hierarchy (BVH). This work is **planned, not yet implemented**. It builds on the completed instance-tree unification.
+- **Development baseline:** `master` at `272df55d72dbcb4e572da945261d374785181e7e` (merged documentation PR #71) includes canonical instance-tree construction from [PR #70](https://github.com/CST-Modelling-Tools/tonatiuhpp/pull/70), merge commit `6b8cfc15bfc716bdcfb93fd23f72f7825933b983`.
+- **Current development objective:** complete cross-platform CI verification of the locally validated **BVH-only scene-level acceleration** on `feat/scene-level-bvh`. The legacy recursive nearest-hit traversal is removed; this feature is not yet merged or released.
 
 ## Current application and architecture
 
@@ -12,25 +12,26 @@ Tonatiuh++ is an optical ray tracer for concentrated-solar-thermal systems. It o
 
 **Unified instance-tree construction is implemented and merged.** `SceneInstanceBuilder::build(TSceneKit*)` constructs the `InstanceNode` scene/layout hierarchy, and `SceneInstanceBuilder::insertSubtree()` constructs inserted nested occurrences. The GUI's `SceneTreeModel` uses the shared builder while retaining Qt indexing, Coin-node occurrence lookup, editing, and undo/redo. Headless and GUI callers retain independent tree ownership where their lifetimes differ. Shared Coin3D nodes are represented by distinct instance occurrences with their own parentage and order.
 
-The existing `InstanceNode` traversal tests bounding boxes in the authored scene hierarchy; shape-specific acceleration remains separate. **There is not yet an automatic scene-level BVH.** The unification changes tree construction, not optical physics or the ray-propagation algorithm, and is not itself a demonstrated performance improvement.
+The verified `master` baseline uses `InstanceNode` bounding-box traversal following the authored hierarchy; shape-specific acceleration remains separate. The unmerged **BVH-only candidate** indexes canonical shape occurrences after updating world transforms, shares the immutable index among tracing workers, and retains the original per-shape intersection physics and first-occurrence tie precedence. Its Windows Release tests and reduced-ray scientific equality checks pass; cross-platform CI has not yet run on this branch.
 
 ## Verified baseline
 
 - **Local Windows Release:** maintainer-reported **209/209 CTests passed**, including four native display-backed GUI tests; 230.06 seconds elapsed. The regression suite covers nested/shared instances and GUI scene-edit/undo/redo behavior.
-- **Cross-platform development CI:** [run #45439316050](https://github.com/CST-Modelling-Tools/tonatiuhpp/actions/runs/45439316050) succeeded on Windows, Ubuntu and macOS, including each platform's standard CTest suite and native GUI scientific acceptance. This verifies PR #70 before merge; it is not a new release qualification.
-- **Current CTest inventory:** standard configuration: **205 Windows**, **204 Linux/macOS**; enabling the four native GUI acceptance tests raises the totals to **209 Windows**, **208 Linux/macOS**.
+- **Cross-platform development CI:** [PR #70 run #45439316050](https://github.com/CST-Modelling-Tools/tonatiuhpp/actions/runs/45439316050) passed on Windows, Ubuntu and macOS, including standard CTest and native GUI acceptance. The documentation-only [post-merge run #45451446747](https://github.com/CST-Modelling-Tools/tonatiuhpp/actions/runs/45451446747) succeeded for current `master`; it is not a new scientific acceptance run or release qualification.
+- **BVH-only Windows Release:** maintainer-reported **213/213 CTests passed** (224.11 seconds), including four native GUI tests and four expanded BVH regressions. The production-lambda audit found zero violations across 447 files; CI classifier tests passed 15/15, and tooling tests passed 55 with three privilege-related skips. Expected standard candidate CTest inventory: **209 Windows / 208 Linux/macOS**, or **213 / 212** with native GUI acceptance. This does not establish Linux/macOS validation.
+- **BVH-versus-original comparison:** 5M and 70M-ray heliostat-field runs yielded exact same-seed scientific-output and full flux-grid hash equality. After removing the legacy traversal, the 70M-ray comparison again matched exactly, with a **93.323% paired elapsed-time reduction** (15.1x median speedup). The timing harness reported **INCONCLUSIVE / UNSTABLE ENVIRONMENT** for stability; this is recorded as a limitation, not a prerequisite for feature-branch CI. No new release-level scientific acceptance is claimed.
 - **Published v0.1.8.28 scientific acceptance:** the release candidate's independent 500-million-ray output integrity and predefined power/peak numerical tolerances passed. Historical exact-grid identity did **not** pass for the candidate with documented physics differences. The controlled performance comparison remained **INCONCLUSIVE / UNSTABLE ENVIRONMENT**, not a verified speedup. See [release acceptance](docs/release-acceptance-v0.1.8.28.md).
 
-## Next implementation milestone — scene-level BVH
+## Current milestone — cross-platform BVH verification
 
 **Goal:** reduce intersection-search work in complex optical scenes while preserving scientific results and the existing GUI/headless behavior.
 
-1. **Establish the baseline.** Identify the authoritative intersection/traversal boundary and measure representative scenes against the published stable release under the existing performance protocol.
-2. **Build an acceleration index.** Introduce a scene-wide BVH over actual shape-instance occurrences using their correct world-space bounds and transforms, without altering the authored Coin3D scene or the canonical `InstanceNode` ownership hierarchy.
-3. **Integrate and maintain it.** Use the acceleration index in the shared tracing path; handle scene changes, tracking and transforms without stale geometry. Preserve material interactions, per-occurrence identity, nearest-hit semantics and reproducibility.
-4. **Validate and measure.** Add focused tree/geometry/nearest-hit and GUI-edit regressions; run the local Windows Release and scientific equivalence suites before commits, then three-platform CI. Report performance only after stable, same-machine comparisons with scientific-output checks.
+1. **Preserve an independent baseline.** The separate clean `master` worktree at `272df55d` retains the authored-tree traversal for cross-version comparisons without reintroducing it into production.
+2. **Build and integrate the acceleration index.** The candidate constructs a median-split, world-space BVH over actual shape occurrences, preserving canonical `InstanceNode` ownership and Coin3D structure. The shared GUI/headless ray tracer uses the same index per prepared trace; it is rebuilt on each preparation after tracker/transform updates.
+3. **Preserve scientific behavior.** The authored recursive nearest-hit path has been removed. Shape intersection, deterministic first-occurrence ties, materials, RNG, photon export and instance identity are preserved; invalid BVH bounds fail preparation explicitly.
+4. **Complete cross-platform integration.** Run the existing Windows, Ubuntu and macOS CI matrix, including scientific regressions and native GUI acceptance, before a merge decision. Release qualification is a separate approval process.
 
-BVH design and implementation are the **next work**, not completed functionality. Keep them in a separate feature branch and milestone from PR #70.
+The BVH-only cleanup has passed **213/213 Windows Release CTests** and an exact same-seed 70M-ray scientific-output comparison with the preserved baseline. The measured performance improvement is substantial; the formal timing-stability verdict remains inconclusive. Cross-platform CI and review are the remaining feature-integration steps.
 
 ## Scientific, delivery and documentation boundaries
 

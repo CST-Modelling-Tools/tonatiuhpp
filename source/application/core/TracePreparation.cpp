@@ -1,5 +1,6 @@
 #include "TracePreparation.h"
 
+#include <stdexcept>
 #include <type_traits>
 
 #include "core/RayTraceExecutor.h"
@@ -7,6 +8,7 @@
 #include "kernel/air/AirVacuum.h"
 #include "kernel/photons/PhotonsBuffer.h"
 #include "kernel/run/InstanceNode.h"
+#include "kernel/run/SceneBvh.h"
 #include "kernel/scene/TSceneKit.h"
 #include "kernel/sun/SunAperture.h"
 #include "kernel/sun/SunKit.h"
@@ -136,6 +138,17 @@ bool TracePreparation::prepareResolvedTrace(PreparedTraceContext&& prepared,
         prepared.m_sunInstance->setNode(sunKit);
         prepared.m_sunInstance->setTransform(tgf::makeTransform(sunKit->m_transform));
     }
+
+    // Build once after final world transforms and tracker synchronization.
+    // Invalid/nonconservative boxes are a preparation error, never a hidden
+    // switch back to recursive authored-tree traversal.
+    try {
+        prepared.m_sceneBvh = std::make_unique<SceneBvh>(prepared.m_layoutRoot);
+    } catch (const std::domain_error& error) {
+        return fail(errorMessage, QString::fromUtf8(error.what()));
+    }
+    if (!prepared.m_sceneBvh->isActive())
+        return fail(errorMessage, "Scene BVH contains no traceable shape occurrences.");
 
     // Store the entire validated effective configuration once: propagation,
     // result normalization and diagnostics must agree on rays, seed and grid.

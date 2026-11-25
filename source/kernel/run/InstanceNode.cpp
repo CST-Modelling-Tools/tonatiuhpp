@@ -123,64 +123,48 @@ void InstanceNode::Print(int level) const
         child->Print(level + 1); // was level++
 }
 
-// The nearest hit is resolved geometrically BEFORE calling material physics.
-// Previously, occluded farther surfaces could consume RNG draws and even
-// report invalid physical samples before the actual closest hit was known.
-bool InstanceNode::findNearestHit(const Ray& rayIn, Intersection& best) const
+// One shape-leaf intersection, with no recursive scene-tree traversal.
+// Preserve the established transform, distance, profile and normal math;
+// SceneBvh alone selects the nearest shape occurrence.
+bool InstanceNode::intersectShape(const Ray& rayIn, Intersection& best) const
 {
+    if (!m_node || m_node->getTypeId() != TShapeKit::getClassTypeId())
+        return false;
+
     Ray boundedRay = rayIn;
     boundedRay.tMax = best.distance;
     if (!m_box.intersect(boundedRay))
         return false;
 
-    const InstanceNode* instance1 = this;
-    while (instance1->m_children.size() == 1)
-        instance1 = instance1->m_children[0];
-    if (instance1 != this)
-        return instance1->findNearestHit(rayIn, best);
+    auto* kit = static_cast<TShapeKit*>(m_node);
+    auto* material = static_cast<MaterialRT*>(kit->materialRT.getValue());
+    if (!material || material->getTypeId() == MaterialTransparent::getClassTypeId())
+        return false;
+    auto* shape = static_cast<ShapeRT*>(kit->shapeRT.getValue());
+    if (!shape)
+        return false;
+    auto* profile = static_cast<ProfileRT*>(kit->profileRT.getValue());
 
-    if (m_node->getTypeId() == TShapeKit::getClassTypeId())
-    {
-        auto* kit = static_cast<TShapeKit*>(m_node);
-        auto* material = static_cast<MaterialRT*>(kit->materialRT.getValue());
-        if (!material || material->getTypeId() == MaterialTransparent::getClassTypeId())
-            return false;
-        auto* shape = static_cast<ShapeRT*>(kit->shapeRT.getValue());
-        if (!shape)
-            return false;
-        auto* profile = static_cast<ProfileRT*>(kit->profileRT.getValue());
+    Ray rayLocal = m_transform.transformInverse(boundedRay);
+    double distance = 0.;
+    DifferentialGeometry geometry;
+    if (!shape->intersect(rayLocal, &distance, &geometry, profile))
+        return false;
+    if (!std::isfinite(distance) || distance < rayIn.tMin)
+        throw std::domain_error("Scientific integrity failure: invalid surface-intersection distance.");
+    if (distance >= best.distance)
+        return false;
 
-        Ray rayLocal = m_transform.transformInverse(boundedRay);
-        double distance = 0.;
-        DifferentialGeometry geometry;
-        if (!shape->intersect(rayLocal, &distance, &geometry, profile))
-            return false;
-        if (!std::isfinite(distance) || distance < rayIn.tMin)
-            throw std::domain_error("Scientific integrity failure: invalid surface-intersection distance.");
-        if (distance >= best.distance)
-            return false;
+    geometry.point = m_transform.transformPoint(geometry.point);
+    geometry.dpdu = m_transform.transformVector(geometry.dpdu);
+    geometry.dpdv = m_transform.transformVector(geometry.dpdv);
+    geometry.normal = m_transform.transformNormal(geometry.normal);
 
-        geometry.point = m_transform.transformPoint(geometry.point);
-        geometry.dpdu = m_transform.transformVector(geometry.dpdu);
-        geometry.dpdv = m_transform.transformVector(geometry.dpdv);
-        geometry.normal = m_transform.transformNormal(geometry.normal);
-
-        best.instance = const_cast<InstanceNode*>(this);
-        best.material = material;
-        best.geometry = geometry;
-        best.distance = distance;
-        return true;
-    }
-
-    if (m_node->getTypeId() == TSeparatorKit::getClassTypeId())
-    {
-        bool found = false;
-        for (InstanceNode* child : m_children)
-            if (child->findNearestHit(rayIn, best))
-                found = true;
-        return found;
-    }
-    return false;
+    best.instance = const_cast<InstanceNode*>(this);
+    best.material = material;
+    best.geometry = geometry;
+    best.distance = distance;
+    return true;
 }
 
 MaterialInteraction InstanceNode::sampleMaterial(

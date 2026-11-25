@@ -46,6 +46,7 @@ set(HEADERS
     run/InstanceNode.h
     run/RayEnergyBudget.h
     run/RayTracer.h
+    run/SceneBvh.h
     scene/GridNode.h
     scene/LocationNode.h
     scene/MaterialGL.h
@@ -116,6 +117,7 @@ set(SOURCES
     random/StandardRandom.cpp
     run/InstanceNode.cpp
     run/RayTracer.cpp
+    run/SceneBvh.cpp
     scene/GridNode.cpp
     scene/LocationNode.cpp
     scene/MaterialGL.cpp
