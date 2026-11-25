@@ -44,7 +44,7 @@ For reproducible simulation, preserve the current seed, scene, tracker policy, a
 
 The headless `TracePreparation` path owns a builder-produced tree unless a caller explicitly borrows a pinned tree for synchronous scripted photon-export append. The GUI's `SceneTreeModel::setDocument()` also uses `SceneInstanceBuilder::build()`; `insertCoinNode()` and `Paste()` use `insertSubtree()` for nested groups. `SceneTreeModel` remains responsible for Qt indexes, the mapping from Coin nodes to their instances, interactive insert/delete/cut/paste and undo/redo. This unifies **tree construction**, not GUI/headless tree ownership or Qt editing responsibilities.
 
-The merged instance-tree refactor does not itself change ray propagation. The original `InstanceNode` nearest-hit traversal uses world-space bounding boxes in the authored hierarchy; shape-specific mesh BVHs remain separate.
+The merged instance-tree refactor did not itself change ray propagation. The subsequent scene-level BVH replaced the original recursive `InstanceNode` nearest-hit traversal; shape-specific mesh BVHs remain separate.
 
 ## Scene-level BVH acceleration (merged)
 
