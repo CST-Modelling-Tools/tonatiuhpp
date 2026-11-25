@@ -2,50 +2,32 @@
 
 ## Published release and development focus
 
-- **Published stable release:** [v0.1.8.28](https://github.com/CST-Modelling-Tools/tonatiuhpp/releases/tag/v0.1.8.28). It is the reference release for subsequent scientific and performance comparisons.
-- **Development baseline:** `master` at `272df55d72dbcb4e572da945261d374785181e7e` (merged documentation PR #71) includes canonical instance-tree construction from [PR #70](https://github.com/CST-Modelling-Tools/tonatiuhpp/pull/70), merge commit `6b8cfc15bfc716bdcfb93fd23f72f7825933b983`.
-- **Current development objective:** complete cross-platform CI verification of the locally validated **BVH-only scene-level acceleration** on `feat/scene-level-bvh`. The legacy recursive nearest-hit traversal is removed; this feature is not yet merged or released.
+- **Latest published stable release:** [v0.1.8.28](https://github.com/CST-Modelling-Tools/tonatiuhpp/releases/tag/v0.1.8.28), the baseline for the proposed v0.1.8.29.
+- **Current merged development baseline:** `master` at `34f01640ce638976137c87c74acfe6c7cdd03a36` includes the canonical instance-tree refactor ([PR #70](https://github.com/CST-Modelling-Tools/tonatiuhpp/pull/70)) and the BVH-only acceleration ([PR #72](https://github.com/CST-Modelling-Tools/tonatiuhpp/pull/72)).
+- **Current milestone:** prepare and qualify **v0.1.8.29**. Version metadata and release evidence are being prepared for review; no tag has been created and no release has been published.
 
 ## Current application and architecture
 
-Tonatiuh++ is an optical ray tracer for concentrated-solar-thermal systems. It offers the interactive Qt/SoQt application (`tonatiuhpp-gui`), a nonvisual command-line application (`tonatiuhpp-cli`), scripting and Python automation interfaces, scientific plugins, photon export, and flux analysis. GUI and headless paths reuse the same scientific ray-propagation services.
+Tonatiuh++ is an optical ray tracer for concentrated-solar-thermal systems with a Qt/SoQt GUI (`tonatiuhpp-gui`), headless CLI (`tonatiuhpp-cli`), shared scripting services, official scientific plugins, photon export and flux analysis. GUI and headless tracing use the same scientific engine.
 
-**Unified instance-tree construction is implemented and merged.** `SceneInstanceBuilder::build(TSceneKit*)` constructs the `InstanceNode` scene/layout hierarchy, and `SceneInstanceBuilder::insertSubtree()` constructs inserted nested occurrences. The GUI's `SceneTreeModel` uses the shared builder while retaining Qt indexing, Coin-node occurrence lookup, editing, and undo/redo. Headless and GUI callers retain independent tree ownership where their lifetimes differ. Shared Coin3D nodes are represented by distinct instance occurrences with their own parentage and order.
+`SceneInstanceBuilder` constructs canonical scene/layout `InstanceNode` occurrences. `SceneBvh` indexes shape occurrences after transforms and tracker updates, shares a read-only spatial index among workers and retains original shape-intersection physics, deterministic equal-distance precedence and occurrence identity. The old recursive production `InstanceNode::findNearestHit()` search has been removed; this is a kernel API breaking change for external callers.
 
-The verified `master` baseline uses `InstanceNode` bounding-box traversal following the authored hierarchy; shape-specific acceleration remains separate. The unmerged **BVH-only candidate** indexes canonical shape occurrences after updating world transforms, shares the immutable index among tracing workers, and retains the original per-shape intersection physics and first-occurrence tie precedence. Its Windows Release tests and reduced-ray scientific equality checks pass; cross-platform CI has not yet run on this branch.
+## Verification and scientific results
 
-## Verified baseline
+- **Local Windows Release:** maintainer-reported **213/213 CTests passed** (224.11 s), including four BVH regressions and native GUI acceptance; zero production-lambda findings across 447 files; Python CI-classifier 15/15 passed and tooling 55 passed with three Windows symlink-privilege skips.
+- **Cross-platform feature CI:** [PR #72 run #45521725484](https://github.com/CST-Modelling-Tools/tonatiuhpp/actions/runs/45521725484) succeeded on Windows, Ubuntu 24.04 and macOS. [Post-merge `master` CI #45524303701](https://github.com/CST-Modelling-Tools/tonatiuhpp/actions/runs/45524303701) requires its own final-status review.
+- **Scientific parity and performance:** controlled fixed-seed 5M/70M comparisons with pre-BVH `master` yielded identical outputs and complete flux-grid hashes. At 70M, observed median speedup was approximately **15.1×** with **93.323% paired elapsed-time reduction**. The formal timing-stability verdict remains **INCONCLUSIVE / UNSTABLE ENVIRONMENT**, not a performance PASS.
+- **Fresh 500M release candidate:** the maintainer ran the canonical scene on Windows Release at feature commit `46ddd5e92e679cefa7aa1046f0c06ed183e04916`, seed `123456789`, 16 workers and 50,000 chunks of 10,000 rays. It completed in **108.595 s**. An independent read-only audit checked every one of the 10,000 binary/CSV cells, their SHA-256 and recomputed power/flux statistics. The full grid hash `c92f5e2bd4ef664707dd7b135e20e283db7fcd0067b01c63a8ec65b57989adab`, collected power **42.20696058499865 MW** and peak flux **19.48813968933321 MW/m²** are identical to the published v0.1.8.28 candidate's 500M results.
+- **Immutable historical reference:** the older frozen 500M grid hash differs because of earlier, already released material/physics changes. Power and peak differences satisfy the existing 0.1% and 5% tolerances; the old exact-grid auditor is not a PASS for the changed-physics baseline and the historical files must not be modified.
 
-- **Local Windows Release:** maintainer-reported **209/209 CTests passed**, including four native display-backed GUI tests; 230.06 seconds elapsed. The regression suite covers nested/shared instances and GUI scene-edit/undo/redo behavior.
-- **Cross-platform development CI:** [PR #70 run #45439316050](https://github.com/CST-Modelling-Tools/tonatiuhpp/actions/runs/45439316050) passed on Windows, Ubuntu and macOS, including standard CTest and native GUI acceptance. The documentation-only [post-merge run #45451446747](https://github.com/CST-Modelling-Tools/tonatiuhpp/actions/runs/45451446747) succeeded for current `master`; it is not a new scientific acceptance run or release qualification.
-- **BVH-only Windows Release:** maintainer-reported **213/213 CTests passed** (224.11 seconds), including four native GUI tests and four expanded BVH regressions. The production-lambda audit found zero violations across 447 files; CI classifier tests passed 15/15, and tooling tests passed 55 with three privilege-related skips. Expected standard candidate CTest inventory: **209 Windows / 208 Linux/macOS**, or **213 / 212** with native GUI acceptance. This does not establish Linux/macOS validation.
-- **BVH-versus-original comparison:** 5M and 70M-ray heliostat-field runs yielded exact same-seed scientific-output and full flux-grid hash equality. After removing the legacy traversal, the 70M-ray comparison again matched exactly, with a **93.323% paired elapsed-time reduction** (15.1x median speedup). The timing harness reported **INCONCLUSIVE / UNSTABLE ENVIRONMENT** for stability; this is recorded as a limitation, not a prerequisite for feature-branch CI. No new release-level scientific acceptance is claimed.
-- **Published v0.1.8.28 scientific acceptance:** the release candidate's independent 500-million-ray output integrity and predefined power/peak numerical tolerances passed. Historical exact-grid identity did **not** pass for the candidate with documented physics differences. The controlled performance comparison remained **INCONCLUSIVE / UNSTABLE ENVIRONMENT**, not a verified speedup. See [release acceptance](docs/release-acceptance-v0.1.8.28.md).
+## Current release gates and limitations
 
-## Current milestone — cross-platform BVH verification
+Complete the post-merge CI review, validate the proposed release version and its installer metadata, conduct a **nonpublishing** three-platform packaging rehearsal, verify real installer contents and installed GUI/CLI/plugins, check candidate checksums and update behavior, and obtain separate explicit approval before tagging or publishing. The 500M elapsed-time ratio versus the previously recorded v0.1.8.28 run (approximately 14.50×) is descriptive across different sessions, not a controlled performance acceptance. The fresh 500M execution was on the feature source revision; the final versioned release executable and installers have not been separately qualified.
 
-**Goal:** reduce intersection-search work in complex optical scenes while preserving scientific results and the existing GUI/headless behavior.
-
-1. **Preserve an independent baseline.** The separate clean `master` worktree at `272df55d` retains the authored-tree traversal for cross-version comparisons without reintroducing it into production.
-2. **Build and integrate the acceleration index.** The candidate constructs a median-split, world-space BVH over actual shape occurrences, preserving canonical `InstanceNode` ownership and Coin3D structure. The shared GUI/headless ray tracer uses the same index per prepared trace; it is rebuilt on each preparation after tracker/transform updates.
-3. **Preserve scientific behavior.** The authored recursive nearest-hit path has been removed. Shape intersection, deterministic first-occurrence ties, materials, RNG, photon export and instance identity are preserved; invalid BVH bounds fail preparation explicitly.
-4. **Complete cross-platform integration.** Run the existing Windows, Ubuntu and macOS CI matrix, including scientific regressions and native GUI acceptance, before a merge decision. Release qualification is a separate approval process.
-
-The BVH-only cleanup has passed **213/213 Windows Release CTests** and an exact same-seed 70M-ray scientific-output comparison with the preserved baseline. The measured performance improvement is substantial; the formal timing-stability verdict remains inconclusive. Cross-platform CI and review are the remaining feature-integration steps.
-
-## Scientific, delivery and documentation boundaries
-
-- Preserve the frozen historical 500-million-ray reference data. A fresh independent 500-million-ray candidate run is required only for an explicitly authorized **future release**, not routine development or CI.
-- Preserve optical and RNG semantics, input/output compatibility, plugin behavior, and GUI/headless consistency unless a change is deliberately reviewed and scientifically justified.
-- Follow the local-first build/test/commit workflow, and keep implementation, tests and maintained documentation synchronized within each merged change. See [AGENT.md](AGENT.md).
-- A merge does not authorize tagging or publication. Follow the [release acceptance policy](docs/release-cycle-checklist.md) and obtain separate maintainer approval for any release.
+Preserve all original frozen 500M reference files and all fresh candidate evidence outside immutable reference locations. The merge does not authorize a release.
 
 ## Maintained references
 
-- [Architecture](docs/architecture.md) — current components and responsibilities.
-- [Testing](docs/testing.md) — test inventory, commands and acceptance boundaries.
-- [Release acceptance](docs/release-acceptance-v0.1.8.28.md) — published baseline evidence and limitations.
-- [Release-cycle policy](docs/release-cycle-checklist.md) — mandatory future-release gates.
-- [AGENT.md](AGENT.md) — permanent development and review rules.
-
-This file describes the **current project state and next work**, not the history of changes. Completed discussions and past checkpoints remain available in Git and merged pull requests.
+- [Architecture](docs/architecture.md), [Testing](docs/testing.md), and [Scientific validation](docs/scientific-validation.md).
+- [Proposed v0.1.8.29 release notes](docs/release-notes-v0.1.8.29.md) and [acceptance record](docs/release-acceptance-v0.1.8.29.md).
+- [Published v0.1.8.28 acceptance](docs/release-acceptance-v0.1.8.28.md), [release policy](docs/release-cycle-checklist.md), and [AGENT.md](AGENT.md).
