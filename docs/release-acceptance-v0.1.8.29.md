@@ -1,6 +1,6 @@
-# Tonatiuh++ v0.1.8.29 — release acceptance record (OPEN; NOT PUBLISHED)
+# Tonatiuh++ v0.1.8.29 — release acceptance record (PREPUBLICATION)
 
-**Proposed version:** `v0.1.8.29`. **Previous published stable:** [`v0.1.8.28`](https://github.com/CST-Modelling-Tools/tonatiuhpp/releases/tag/v0.1.8.28). **Scientific candidate source:** `46ddd5e92e679cefa7aa1046f0c06ed183e04916`. **Merged `master` BVH source:** `34f01640ce638976137c87c74acfe6c7cdd03a36` ([PR #72](https://github.com/CST-Modelling-Tools/tonatiuhpp/pull/72)). This is an open release assessment, not permission to tag or publish.
+**Proposed version:** `v0.1.8.29`. **Previous published stable:** [`v0.1.8.28`](https://github.com/CST-Modelling-Tools/tonatiuhpp/releases/tag/v0.1.8.28). **Scientific candidate source:** `46ddd5e92e679cefa7aa1046f0c06ed183e04916`. **Merged BVH source:** `34f01640ce638976137c87c74acfe6c7cdd03a36` ([PR #72](https://github.com/CST-Modelling-Tools/tonatiuhpp/pull/72)). **Versioned rehearsal source:** `a3f4406cf2d71e5006ef6100aea5aaaaa37fe16e` ([PR #73](https://github.com/CST-Modelling-Tools/tonatiuhpp/pull/73)). This record documents completed qualification and remaining publication gates; it does not itself authorize a tag or publication.
 
 ## Acceptance checklist
 
@@ -8,16 +8,19 @@
 | --- | --- | --- |
 | BVH Windows Release CTests | PASS, maintainer-reported | 213/213 passed (224.11 s), including native GUI and BVH regressions |
 | Three-platform feature CI | PASS | [PR #72 CI #45521725484](https://github.com/CST-Modelling-Tools/tonatiuhpp/actions/runs/45521725484): Windows, Ubuntu, macOS success |
-| Post-merge `master` CI | TO VERIFY | Review [run #45524303701](https://github.com/CST-Modelling-Tools/tonatiuhpp/actions/runs/45524303701) final result separately |
+| Post-merge `master` CI | PASS | [BVH merge #45524303701](https://github.com/CST-Modelling-Tools/tonatiuhpp/actions/runs/45524303701) and [versioned merge #45565454963](https://github.com/CST-Modelling-Tools/tonatiuhpp/actions/runs/45565454963) passed on all three platforms |
 | Fresh 500M candidate execution | PASS for execution corroboration | Local Windows Release source commit `46ddd5e`, 500M ray count and native stdout completion verified |
 | Independent scientific output integrity | PASS | All 10,000 flux cells finite and nonnegative; CSV values bitwise match binary; SHA, flux and power independently recomputed |
 | Exact 500M grid identity vs previous published candidate | PASS | Full binary SHA-256 and reported power/peak agree exactly with v0.1.8.28 candidate |
 | Historical frozen reference integrity | REPORTED PASS | Original immutable files verified before and after the candidate run by the maintainer; original grid hash differs for earlier physics reasons |
 | Historical numerical power/peak tolerances | PASS | −0.023904041% power (limit 0.1%), −0.189796252% peak (limit 5%) |
-| Previous-release controlled timing stability | INCONCLUSIVE | 70M pre-BVH `master` paired comparison exceeded stability limits; 500M cross-session speed ratio is descriptive |
-| Versioned release rehearsal and installer checks | PENDING | Execute nonpublishing `fake_tag=v0.1.8.29` rehearsal, verify Windows/Linux/macOS artifacts and checksums |
-| Installed GUI/CLI/plugins and update compatibility | PENDING | Check real candidate installers; record platform-specific limitations and approved exceptions |
-| Final tag and publication | NOT AUTHORIZED | Requires separate explicit maintainer release decision |
+| Controlled timing stability | INCONCLUSIVE; limitation accepted | 70M pre-BVH `master` paired comparison exceeded stability limits; maintainer accepted Option B (no repeat experiment); 500M cross-session ratio is descriptive |
+| Versioned release rehearsal | PASS | [Run #45571795316](https://github.com/CST-Modelling-Tools/tonatiuhpp/actions/runs/45571795316): three platform builds succeeded; publish skipped |
+| Distribution and IFW repository integrity | PASS | Six ZIP digests and CRCs, five distribution SHA-256 checksums, ten IFW payload SHA-1 checksums and three repository versions verified |
+| Native Windows installer acceptance | PASS, maintainer-reported | Maintainer installed the candidate and reported successful operation; individual GUI/CLI/plugin/Maintenance Tool checks were not separately reported |
+| Native Linux/macOS installer acceptance | NOT EXECUTED; limitation accepted | Cross-platform CI runtime/payload checks and rehearsal packaging checks passed; native end-user installation not independently exercised |
+| Public update behavior | DEFERRED | Cannot test an update to the unpublished version against the live repository; verify after publication |
+| Final tag and publication | PENDING | Complete documentation review and obtain separate explicit maintainer authorization |
 
 ## Fresh 500-million-ray scientific evidence
 
@@ -35,6 +38,22 @@ An independent read-only audit used `stdout.log`, `result.json`, `grid.bin`, `gr
 
 The historical frozen 500M grid hash remains `36c7dc17cee8e7fdef820f08d4482e7c3dcdee3b5eed4748ea3949a6cf4af472`. It differs from the v0.1.8.28 candidate because of intentional material/physics changes shipped previously; do not regenerate it or report the old exact-hash auditor as passing. The candidate satisfies the historical **0.1% power** and **5% peak** numerical comparison thresholds. The 70M ABBA measurement against pre-BVH `master` observed 93.323% paired elapsed-time improvement but was formally **INCONCLUSIVE / UNSTABLE ENVIRONMENT**. Comparison of the separate release-session 500M elapsed times (**1,574.168 s** previously, **108.595 s** now) yields an approximately **14.496× descriptive ratio**, not a formal controlled performance PASS.
 
-## Pending release qualification
+## Versioned packaging and installer acceptance
 
-The complete evidence is retained externally; this summary does not import or alter the 500M reference. The locally tested BVH feature SHA preceded the release-version metadata change. Validate final candidate CI, perform the nonpublishing release workflow rehearsal, review built installers and runtime checks on each platform and obtain **explicit separate authorization** before creating a v0.1.8.29 tag or publishing. Follow [release-cycle checklist](release-cycle-checklist.md) and preserve the [v0.1.8.28 acceptance record](release-acceptance-v0.1.8.28.md).
+The [manual Release rehearsal #45571795316](https://github.com/CST-Modelling-Tools/tonatiuhpp/actions/runs/45571795316) ran on 2026-11-25 from 07:54:24 to 08:17:57 UTC, at `a3f4406cf2d71e5006ef6100aea5aaaaa37fe16e`. Windows x64, Linux x64 and macOS arm64 build/package jobs succeeded and the publication job was skipped. The project version and all three IFW `Updates.xml` component versions (`com.tonatiuhpp.app`) were `0.1.8.29`. Independent read-only inspection of the downloaded artifacts recomputed all six GitHub ZIP SHA-256 digests, verified all ZIP CRCs, recomputed all five distribution SHA-256 checksums and all ten supplied IFW payload SHA-1 checksums. Linux and macOS portable tar archives and the macOS installer tar archive were readable; the release workflow's Linux bundled-runtime and macOS bundle checks passed.
+
+| Rehearsal distribution asset | Independently recomputed SHA-256 |
+| --- | --- |
+| `TonatiuhPP-0.1.8.29-windows-x64.exe` | `5ba516e576abd6e4582f3d19d091ac6390c0a2cfe35dcec1626d443993faa061` |
+| `TonatiuhPP-0.1.8.29-linux-x64.run` | `4cad6672df1953c82db460874a104ff1fb5f5e5db657074d19321dc67a9a9042` |
+| `tonatiuhpp-Linux.tar.gz` | `d6aa0a2a9c8b11369318f5df0bb5d7d59338d2fb09e30f62fa68f38843b35d73` |
+| `TonatiuhPP-0.1.8.29-macos-arm64-installer.tar.gz` | `09b5fd2b1df217790623617dc0c4421ec41243c23b256e117df4514ba004e0a4` |
+| `tonatiuhpp-macos-arm64.tar.gz` | `d97726ad4f624e71d43659623a0a3c2bc80130cc19d5d873144201de744c296f` |
+
+The maintainer reported successful installation and operation on Windows. Native Linux and macOS end-user installer execution was not independently performed; this limitation is documented and accepted for publication preparation. Successful CI includes native GUI scientific acceptance, relocated installed-runtime acceptance and IFW production-payload validation on all three platforms, but does not replace actual installer execution or update testing. The live v0.1.8.28-to-v0.1.8.29 update remains to be verified after deployment.
+
+## Maintainer performance decision and remaining publication gates
+
+On 2026-11-25 the maintainer explicitly selected Option B: accept the unresolved timing-stability limitation, preserve the **INCONCLUSIVE / UNSTABLE ENVIRONMENT** verdict and do not repeat the timing experiment for this release. The observed approximately 15.1-fold median acceleration and 93.323% paired time reduction are reported as observations, not as a formal timing PASS. The controlled experiment used pre-BVH `master`, rather than an independently built v0.1.8.28 tag; comparison with the previous published candidate is exact for scientific grid output, while its 500M elapsed-time comparison is cross-session and descriptive. This limitation must not be represented as a completed controlled previous-tag performance comparison.
+
+The complete scientific evidence remains external and the frozen reference remains unchanged. The fresh full-scale execution preceded the version metadata change; the rehearsal installer was not itself subjected to another 500M simulation. Review and merge the acceptance documentation, obtain **separate explicit maintainer authorization** to tag and publish, and verify the exact tagged revision, actual published asset checksums and IFW repositories and update behavior. The tag-triggered workflow rebuilds the distributions, so rehearsal checksums are evidence for the rehearsal artifacts only. Follow [release-cycle checklist](release-cycle-checklist.md) and preserve the [v0.1.8.28 acceptance record](release-acceptance-v0.1.8.28.md).
