@@ -8,6 +8,7 @@
 #include "libraries/math/3D/Ray.h"
 #include "RayTracer.h"
 #include "kernel/run/InstanceNode.h"
+#include "kernel/run/SceneBvh.h"
 #include "kernel/photons/PhotonsBuffer.h"
 #include "sun/SunAperture.h"
 #include "sun/SunShape.h"
@@ -67,7 +68,7 @@ void endHistory(RayTracerHistory& history, const Ray& ray,
 }
 } // namespace
 
-RayTracer::RayTracer(InstanceNode* instanceRoot,
+RayTracer::RayTracer(const SceneBvh& sceneBvh,
     InstanceNode* instanceSun,
     SunAperture* sunAperture,
     SunShape* sunShape,
@@ -81,7 +82,7 @@ RayTracer::RayTracer(InstanceNode* instanceRoot,
     HistoryCallback historyCallback,
     std::uint64_t firstRayIndex
 ):
-    m_instanceLayout(instanceRoot),
+    m_sceneBvh(sceneBvh),
     m_instanceSun(instanceSun),
     m_sunAperture(sunAperture),
     m_sunShape(sunShape),
@@ -163,7 +164,7 @@ void RayTracer::traceRays(ulong nRays)
             isFront = false;
             intersectedSurface = nullptr;
             InstanceNode::Intersection hit;
-            const bool hasHit = m_instanceLayout->findNearestHit(ray, hit);
+            const bool hasHit = m_sceneBvh.findNearestHit(ray, hit);
             if (hasHit) {
                 ray.tMax = hit.distance;
                 isFront = hit.geometry.isFront;

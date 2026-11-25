@@ -4,15 +4,17 @@
 
 The merged [instance-tree unification (PR #70)](https://github.com/CST-Modelling-Tools/tonatiuhpp/pull/70) has two regression tests: `SceneInstanceBuilderRegression.FullBuildMatchesInsertedNestedSubtree` and `SceneInstanceBuilderRegression.InsertSharedGroupKeepsSiblingAndSubtreeIdentities`. The native GUI `gui.native_scene_undo_redo` test additionally checks Qt model consistency and canonical instance-tree structure across edits and undo/redo.
 
-The **standard CTest inventory** is **205 on Windows** and **204 on Linux/macOS**. Enabling `TONATIUHPP_ENABLE_NATIVE_GUI_ACCEPTANCE=ON` registers four additional real-display GUI tests, giving **209 on Windows** and **208 on Linux/macOS**.
+The merged `master` baseline has **205 standard CTests on Windows** and **204 on Linux/macOS** (or **209 / 208** with four opt-in native GUI tests). The local BVH-only branch adds four scientific regression registrations, as detailed below.
 
-**Validated baseline:** the maintainer's Windows Release suite passed **209/209 CTests** (including four native GUI tests; 230.06 seconds). [CI run #45439316050](https://github.com/CST-Modelling-Tools/tonatiuhpp/actions/runs/45439316050) passed on Windows, Ubuntu and macOS, including standard CTest and platform-specific native GUI acceptance. These results validate the merged tree-construction refactor, not future scene-BVH acceleration or release qualification.
+**Validated baseline:** the maintainer's Windows Release suite passed **209/209 CTests** (including four native GUI tests; 230.06 seconds). [CI run #45439316050](https://github.com/CST-Modelling-Tools/tonatiuhpp/actions/runs/45439316050) passed on Windows, Ubuntu and macOS, including standard CTest and platform-specific native GUI acceptance. These results validate the merged tree-construction refactor, not the BVH candidate or release qualification.
+
+The BVH-only candidate adds **four** `SceneBvhRegression` Google Tests. The maintainer reports **213/213 Windows Release CTests passed** (224.11 seconds), including four native GUI acceptance tests. Production recursive traversal is removed, and a **test-only O(N) linear scan** independently verifies nearest-hit surface and geometry. Fixed-seed regressions compare complete per-ray launch/termination, reflection paths, occurrence pointers, differential geometry, photon records and energy budgets across Fresnel (vacuum and air), multiple reflections, tracker updates and shared coincident instances, using two deterministic chunk seeds per scene. Standard candidate CTest inventory is **209 Windows / 208 Linux/macOS**, or **213 / 212** with native GUI. Linux/macOS BVH validation is pending CI.
 
 For a local Windows Release configuration with native GUI acceptance enabled:
 
 ```powershell
-python scripts/ctest_inventory.py --build-dir build --config Release --expect-count 209 --require-sentinels --json-out build/ctest-inventory.json
-ctest --test-dir build -C Release -R 'SceneInstanceBuilderRegression|gui[.]native_scene_undo_redo' --output-on-failure
+python scripts/ctest_inventory.py --build-dir build --config Release --expect-count 213 --require-sentinels --json-out build/ctest-inventory.json
+ctest --test-dir build -C Release -R 'SceneInstanceBuilderRegression|SceneBvhRegression|gui[.]native_scene_undo_redo' --output-on-failure
 ctest --test-dir build -C Release --output-on-failure
 ```
 
@@ -171,9 +173,9 @@ ctest --test-dir build -C Release --output-on-failure
 python -m unittest discover -s tests/tooling -p "test_*.py" -v
 ```
 
-If testing without native GUI acceptance, turn that CMake option OFF and
-expect the standard inventory (205 Windows, 204 Linux/macOS); GUI native
-validation must still occur separately on a display-capable runner.
+For current builds without native GUI acceptance, turn that CMake option
+OFF and use the BVH candidate's standard inventory above (209 Windows,
+208 Linux/macOS). Run native GUI acceptance separately on a display-capable runner.
 
 ## Purpose and evidence
 

@@ -13,6 +13,7 @@
 
 class AirTransmission;
 class InstanceNode;
+class SceneBvh;
 class PhotonsBuffer;
 class SunAperture;
 class SunKit;
@@ -85,6 +86,7 @@ public:
 private:
     TSceneKit* m_scene = nullptr;
     SceneInstanceTree m_ownedInstanceTree;
+    std::unique_ptr<SceneBvh> m_sceneBvh;
     std::unique_ptr<InstanceNode> m_ownedSunInstance;
 
     InstanceNode* m_layoutRoot = nullptr;

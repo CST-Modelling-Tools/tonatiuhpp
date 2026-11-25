@@ -18,6 +18,7 @@
 #include "libraries/math/3D/vec3d.h"
 
 class InstanceNode;
+class SceneBvh;
 struct Photon;
 class Random;
 struct RayTracerPhoton;
@@ -71,7 +72,7 @@ public:
     using HitCallback = std::function<void(const RayTracerHit&)>;
     using HistoryCallback = std::function<void(const RayTracerHistory&)>;
 
-    RayTracer(InstanceNode* instanceRoot,
+    RayTracer(const SceneBvh& sceneBvh,
               InstanceNode* instanceSun,
               SunAperture* sunAperture,
               SunShape* sunShape,
@@ -96,7 +97,7 @@ private:
 
     bool NewPrimitiveRay(Ray* ray, Random& rand);
 
-    InstanceNode* m_instanceLayout;
+    const SceneBvh& m_sceneBvh;
     InstanceNode* m_instanceSun;
     SunAperture* m_sunAperture;
     SunShape* m_sunShape;

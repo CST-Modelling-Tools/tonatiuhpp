@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <QCoreApplication>
+#include <QMutex>
 #include <QDir>
 #include <QFile>
 #include <QJsonDocument>
@@ -47,12 +48,14 @@
 #include "kernel/photons/PhotonsBuffer.h"
 #include "kernel/run/InstanceNode.h"
 #include "kernel/run/RayTracer.h"
+#include "kernel/run/SceneBvh.h"
 #include "kernel/scene/TSceneKit.h"
 #include "kernel/scene/TSeparatorKit.h"
 #include "kernel/scene/TShapeKit.h"
 #include "kernel/sun/SunAperture.h"
 #include "kernel/sun/SunKit.h"
 #include "kernel/sun/SunPosition.h"
+#include "kernel/sun/SunShape.h"
 #include "kernel/trackers/TrackerKit.h"
 #include "kernel/trackers/TrackerTarget.h"
 #include "libraries/math/3D/Transform.h"
@@ -678,6 +681,488 @@ TEST(SceneInstanceBuilderRegression, InsertSharedGroupKeepsSiblingAndSubtreeIden
     EXPECT_EQ(SceneInstanceBuilder::insertSubtree(nullptr, first->getNode(), 0), nullptr);
     EXPECT_EQ(SceneInstanceBuilder::insertSubtree(layout, nullptr, 0), nullptr);
     EXPECT_EQ(layout->childCount(), 4);
+}
+
+// Reference algorithm used only by scientific tests: linear, authored-order
+// scanning of shape occurrences. It deliberately performs no BVH traversal;
+// shape-level intersection is the same optical primitive used by production.
+void collectLinearReferenceShapes(const InstanceNode* instance,
+                                  std::vector<const InstanceNode*>& shapes)
+{
+    if (!instance || !instance->getNode())
+        return;
+    if (instance->childCount() == 1) {
+        collectLinearReferenceShapes(instance->childAt(0), shapes);
+        return;
+    }
+    const SoType type = instance->getNode()->getTypeId();
+    if (type == TShapeKit::getClassTypeId()) {
+        shapes.push_back(instance);
+    } else if (type == TSeparatorKit::getClassTypeId()) {
+        for (const InstanceNode* child : instance->children())
+            collectLinearReferenceShapes(child, shapes);
+    }
+}
+
+bool findLinearReferenceHit(const InstanceNode* root,
+                            const std::vector<const InstanceNode*>& shapes,
+                            const Ray& ray, InstanceNode::Intersection& hit)
+{
+    Ray rootRay = ray;
+    rootRay.tMax = hit.distance;
+    if (!root->getBox().intersect(rootRay))
+        return false;
+    bool found = false;
+    for (const InstanceNode* shape : shapes) {
+        // Equal-distance hits preserve the first occurrence. This is a
+        // test-only O(N) oracle, never called by tracing workers.
+        if (shape->intersectShape(ray, hit))
+            found = true;
+    }
+    return found;
+}
+
+// Compare the BVH against the independent linear reference, including
+// instance identity, geometry, misses and axis-parallel rays.
+std::size_t compareBvhRaySweep(const InstanceNode* root, const SceneBvh& bvh,
+                               const Box3D& bounds)
+{
+    const vec3d center = bounds.center();
+    const vec3d extent = bounds.size();
+    const double span = std::max({extent.x, extent.y, extent.z, 1.0});
+    std::vector<const InstanceNode*> shapes;
+    collectLinearReferenceShapes(root, shapes);
+    std::size_t hits = 0;
+    for (int axis = 0; axis < 3; ++axis) {
+        const int u = (axis + 1) % 3;
+        const int v = (axis + 2) % 3;
+        for (int sign : {-1, 1}) {
+            for (double offsetU : {-0.3, 0.0, 0.3}) {
+                for (double offsetV : {-0.3, 0.0, 0.3}) {
+                    vec3d origin = center;
+                    origin[axis] += sign * 4. * span;
+                    origin[u] += offsetU * extent[u];
+                    origin[v] += offsetV * extent[v];
+                    vec3d direction;
+                    direction[axis] = -sign;
+                    const Ray ray(origin, direction);
+                    InstanceNode::Intersection original;
+                    InstanceNode::Intersection accelerated;
+                    const bool originalHit = findLinearReferenceHit(root, shapes, ray, original);
+                    const bool acceleratedHit = bvh.findNearestHit(ray, accelerated);
+                    EXPECT_EQ(originalHit, acceleratedHit);
+                    if (!originalHit || !acceleratedHit)
+                        continue;
+                    ++hits;
+                    EXPECT_EQ(original.instance, accelerated.instance);
+                    EXPECT_EQ(original.material, accelerated.material);
+                    EXPECT_EQ(std::bit_cast<std::uint64_t>(original.distance),
+                              std::bit_cast<std::uint64_t>(accelerated.distance));
+                    EXPECT_EQ(vectorBits(original.geometry.point),
+                              vectorBits(accelerated.geometry.point));
+                    EXPECT_EQ(vectorBits(original.geometry.normal),
+                              vectorBits(accelerated.geometry.normal));
+                    EXPECT_EQ(original.geometry.isFront, accelerated.geometry.isFront);
+                }
+            }
+        }
+    }
+    return hits;
+}
+
+TEST(SceneBvhRegression, MatchesAuthoredNearestHitsAcrossScientificFixtures)
+{
+    const std::array scenes{
+        ScientificScene::CylinderVacuum,
+        ScientificScene::FresnelTwoSurfaceVacuum,
+        ScientificScene::SpecularTwoReflections,
+        ScientificScene::TrackerOneAxis
+    };
+    std::size_t totalHits = 0;
+    for (ScientificScene scene : scenes) {
+        SCOPED_TRACE(static_cast<int>(scene));
+        LoadedScene loaded;
+        QString error;
+        ASSERT_TRUE(SceneLoader::readFile(fixturePath(scene), &loaded, &error))
+            << error.toStdString();
+        if (scene == ScientificScene::TrackerOneAxis) {
+            loaded.get()->updateParents();
+            loaded.get()->updateTrackers();
+        }
+        SceneInstanceTree tree = SceneInstanceBuilder::build(loaded.get());
+        ASSERT_NE(tree.layoutRoot, nullptr);
+        tree.layoutRoot->updateTree(Transform::Identity);
+        const SceneBvh bvh(tree.layoutRoot);
+        EXPECT_EQ(bvh.shapeCount(), countShapeInstances(tree.layoutRoot));
+        // A single-shape scene must also be BVH-only, never a fallback.
+        EXPECT_TRUE(bvh.isActive());
+        totalHits += compareBvhRaySweep(tree.layoutRoot, bvh, tree.layoutRoot->getBox());
+        if (scene == ScientificScene::SpecularTwoReflections) {
+            // Do not silently disable acceleration for a nonconservative
+            // ancestor bound. The trace preparation must reject this scene.
+            const Box3D saved = tree.layoutRoot->getBox();
+            const vec3d far = saved.max() + vec3d(1e6, 1e6, 1e6);
+            tree.layoutRoot->setBox(Box3D(far, far));
+            EXPECT_THROW({
+                const SceneBvh rejected(tree.layoutRoot);
+                (void)rejected;
+            }, std::domain_error);
+            tree.layoutRoot->setBox(saved);
+        }
+    }
+    EXPECT_GT(totalHits, 0U);
+}
+
+TEST(SceneBvhRegression, CoincidentSharedOccurrencesKeepFirstInstanceIdentity)
+{
+    LoadedScene loaded;
+    QString error;
+    ASSERT_TRUE(SceneLoader::readFile(
+        fixturePath(ScientificScene::SpecularTwoReflections), &loaded, &error))
+        << error.toStdString();
+    SceneInstanceTree canonical = SceneInstanceBuilder::build(loaded.get());
+    ASSERT_NE(canonical.layoutRoot, nullptr);
+    ASSERT_GT(canonical.layoutRoot->childCount(), 0);
+    SoNode* sharedShape = canonical.layoutRoot->childAt(0)->getNode();
+    ASSERT_NE(sharedShape, nullptr);
+
+    InstanceNode root(loaded.get()->getLayout());
+    for (int i = 0; i < 8; ++i)
+        ASSERT_NE(SceneInstanceBuilder::insertSubtree(&root, sharedShape, i), nullptr);
+    root.updateTree(Transform::Identity);
+    const SceneBvh bvh(&root);
+    ASSERT_TRUE(bvh.isActive());
+    EXPECT_EQ(bvh.shapeCount(), 8U);
+    EXPECT_NE(root.childAt(0), root.childAt(1));
+    EXPECT_EQ(root.childAt(0)->getNode(), root.childAt(1)->getNode());
+
+    const std::size_t hits = compareBvhRaySweep(&root, bvh, root.getBox());
+    EXPECT_GT(hits, 0U);
+    const vec3d center = root.getBox().center();
+    const double distance = std::max({root.getBox().size().x,
+                                      root.getBox().size().y,
+                                      root.getBox().size().z, 1.0}) * 4.;
+    std::size_t firstHits = 0;
+    for (int axis = 0; axis < 3; ++axis) {
+        for (int sign : {-1, 1}) {
+            vec3d origin = center;
+            vec3d direction;
+            origin[axis] += sign * distance;
+            direction[axis] = -sign;
+            const Ray ray(origin, direction);
+            InstanceNode::Intersection accelerated;
+            if (bvh.findNearestHit(ray, accelerated)) {
+                EXPECT_EQ(accelerated.instance, root.childAt(0)->childAt(0));
+                ++firstHits;
+            }
+        }
+    }
+    EXPECT_GT(firstHits, 0U);
+}
+
+TEST(SceneBvhRegression, RebuildingAfterSceneTranslationUsesCurrentWorldBounds)
+{
+    LoadedScene loaded;
+    QString error;
+    ASSERT_TRUE(SceneLoader::readFile(
+        fixturePath(ScientificScene::SpecularTwoReflections), &loaded, &error))
+        << error.toStdString();
+    SceneInstanceTree tree = SceneInstanceBuilder::build(loaded.get());
+    ASSERT_NE(tree.layoutRoot, nullptr);
+    tree.layoutRoot->updateTree(Transform::Identity);
+    const Box3D originalBounds = tree.layoutRoot->getBox();
+    const SceneBvh originalBvh(tree.layoutRoot);
+    ASSERT_TRUE(originalBvh.isActive());
+
+    TTransform* layoutTransform = static_cast<TTransform*>(
+        loaded.get()->getLayout()->getPart("transform", true));
+    ASSERT_NE(layoutTransform, nullptr);
+    const SbVec3f originalTranslation = layoutTransform->translation.getValue();
+    layoutTransform->translation.setValue(originalTranslation[0] + 100.0f,
+                                          originalTranslation[1],
+                                          originalTranslation[2]);
+    tree.layoutRoot->updateTree(Transform::Identity);
+    const SceneBvh updatedBvh(tree.layoutRoot);
+    EXPECT_TRUE(updatedBvh.isActive());
+    EXPECT_EQ(updatedBvh.shapeCount(), originalBvh.shapeCount());
+    EXPECT_GT(tree.layoutRoot->getBox().center().x - originalBounds.center().x, 90.0);
+    EXPECT_GT(compareBvhRaySweep(tree.layoutRoot, updatedBvh,
+                                 tree.layoutRoot->getBox()), 0U);
+}
+
+// Replay every actual traced ray leg against a test-only linear oracle and
+// the production BVH, without sampling material or advancing either RNG.
+// Both read the same canonical instances, so pointer identity is comparable.
+void expectBvhHistoryGeometryParity(const InstanceNode* root,
+                                    const SceneBvh& bvh,
+                                    const PropagationObservation& observation,
+                                    std::size_t* comparedHits,
+                                    std::size_t* comparedMisses)
+{
+    ASSERT_NE(root, nullptr);
+    ASSERT_NE(comparedHits, nullptr);
+    ASSERT_NE(comparedMisses, nullptr);
+    std::vector<const InstanceNode*> shapes;
+    collectLinearReferenceShapes(root, shapes);
+
+    for (const auto& captured : observation.histories) {
+        const RayTracerHistory& history = captured.history;
+        SCOPED_TRACE(history.rayIndex);
+        auto compareLeg = [&](const vec3d& origin, const vec3d& direction,
+                              InstanceNode* recordedSurface, bool expectHit) {
+            // MaterialRT::interact creates outgoing Rays with the default
+            // tMin/tMax; reconstruct that ray without advancing either RNG.
+            const Ray incoming(origin, direction);
+            InstanceNode::Intersection reference;
+            InstanceNode::Intersection accelerated;
+            const bool originalHit = findLinearReferenceHit(root, shapes, incoming, reference);
+            const bool bvhHit = bvh.findNearestHit(incoming, accelerated);
+            ASSERT_EQ(originalHit, bvhHit);
+            EXPECT_EQ(originalHit, expectHit);
+            if (!originalHit) {
+                ++*comparedMisses;
+                return;
+            }
+            ++*comparedHits;
+            if (recordedSurface)
+                EXPECT_EQ(reference.instance, recordedSurface);
+            EXPECT_EQ(reference.instance, accelerated.instance);
+            EXPECT_EQ(reference.material, accelerated.material);
+            EXPECT_EQ(std::bit_cast<std::uint64_t>(reference.distance),
+                      std::bit_cast<std::uint64_t>(accelerated.distance));
+            EXPECT_EQ(vectorBits(reference.geometry.point),
+                      vectorBits(accelerated.geometry.point));
+            EXPECT_EQ(vectorBits(reference.geometry.normal),
+                      vectorBits(accelerated.geometry.normal));
+            EXPECT_EQ(vectorBits(reference.geometry.dpdu),
+                      vectorBits(accelerated.geometry.dpdu));
+            EXPECT_EQ(vectorBits(reference.geometry.dpdv),
+                      vectorBits(accelerated.geometry.dpdv));
+            EXPECT_EQ(std::bit_cast<std::uint64_t>(reference.geometry.uv.x),
+                      std::bit_cast<std::uint64_t>(accelerated.geometry.uv.x));
+            EXPECT_EQ(std::bit_cast<std::uint64_t>(reference.geometry.uv.y),
+                      std::bit_cast<std::uint64_t>(accelerated.geometry.uv.y));
+            EXPECT_EQ(reference.geometry.shape, accelerated.geometry.shape);
+            EXPECT_EQ(reference.geometry.isFront, accelerated.geometry.isFront);
+        };
+
+        for (const RayTracerHistoryStep& step : history.steps) {
+            ASSERT_NE(step.surface, nullptr);
+            compareLeg(step.incomingOrigin, step.incomingDirection, step.surface, true);
+        }
+        // A terminal surface is already represented by its final step.
+        // Escapes and air terminations have an unrecorded last ray segment.
+        if (history.termination != RayTracerHistoryTermination::Surface) {
+            compareLeg(history.terminalOrigin, history.terminalDirection, nullptr,
+                       history.termination == RayTracerHistoryTermination::Air);
+        }
+    }
+}
+
+// Repeating the exact seed must preserve every recorded photon, including
+// surface occurrence identities, path IDs, positions and absorption flags.
+void expectRepeatPhotonParity(const PhotonsBuffer& firstRun,
+                              const PhotonsBuffer& secondRun)
+{
+    const auto& first = firstRun.getPhotons();
+    const auto& second = secondRun.getPhotons();
+    ASSERT_EQ(first.size(), second.size());
+    for (std::size_t i = 0; i < first.size(); ++i) {
+        SCOPED_TRACE(i);
+        EXPECT_EQ(first[i].id, second[i].id);
+        EXPECT_EQ(vectorBits(first[i].pos), vectorBits(second[i].pos));
+        EXPECT_EQ(first[i].surface, second[i].surface);
+        EXPECT_EQ(first[i].isFront, second[i].isFront);
+        EXPECT_EQ(first[i].isAbsorbed, second[i].isAbsorbed);
+    }
+}
+
+TEST(SceneBvhRegression, FixedSeedPropagationIsRepeatableAndMatchesLinearOracle)
+{
+    struct Scenario
+    {
+        const char* name;
+        ScientificScene scene;
+        bool updatedTracker = false;
+        bool exponentialAir = false;
+        bool sharedOccurrence = false;
+    };
+    const std::array scenarios{
+        Scenario{"Fresnel / vacuum", ScientificScene::FresnelTwoSurfaceVacuum},
+        Scenario{"Fresnel / exponential air", ScientificScene::FresnelTwoSurfaceExponentialAir,
+                 false, true},
+        Scenario{"Two specular reflections", ScientificScene::SpecularTwoReflections},
+        Scenario{"Tracker / authored state", ScientificScene::TrackerOneAxis},
+        Scenario{"Tracker / updated orientation", ScientificScene::TrackerOneAxis, true},
+        Scenario{"Shared coincident mirror occurrence", ScientificScene::SpecularTwoReflections,
+                 false, false, true}
+    };
+    constexpr ulong raysPerChunk = 4096UL;
+    constexpr std::array<std::uint64_t, 2> chunkIndices{0, 7};
+    std::size_t totalReplayedHits = 0;
+    std::size_t totalReplayedMisses = 0;
+    std::size_t totalAirTerminations = 0;
+    std::size_t totalMultibounceRays = 0;
+
+    for (const Scenario& scenario : scenarios) {
+        SCOPED_TRACE(scenario.name);
+        LoadedScene loaded;
+        QString error;
+        ASSERT_TRUE(SceneLoader::readFile(fixturePath(scenario.scene), &loaded, &error))
+            << error.toStdString();
+
+        if (scenario.updatedTracker) {
+            loaded.get()->updateParents();
+            loaded.get()->updateTrackers();
+        }
+        if (scenario.exponentialAir) {
+            auto* air = new AirExponential;
+            air->constant.setValue(0.35);
+            ASSERT_TRUE(loaded.get()->setPart("world.air.transmission", air));
+        }
+        if (scenario.sharedOccurrence) {
+            // Insert the same Coin node twice in the *actual* authored group.
+            // Their identical URL/geometry must not hide an identity swap.
+            auto* group = static_cast<SoGroup*>(
+                loaded.get()->getLayout()->getPart("group", false));
+            ASSERT_NE(group, nullptr);
+            ASSERT_GT(group->getNumChildren(), 0);
+            group->insertChild(group->getChild(0), 1);
+        }
+
+        SceneInstanceTree tree = SceneInstanceBuilder::build(loaded.get());
+        ASSERT_NE(tree.layoutRoot, nullptr);
+        InstanceNode sunInstance(nullptr);
+        auto* air = static_cast<AirTransmission*>(
+            loaded.get()->getPart("world.air.transmission", false));
+        GuiTracePreparationInput input;
+        input.scene = loaded.get();
+        input.layoutRoot = tree.layoutRoot;
+        input.sunInstance = &sunInstance;
+        input.tracingAir = TracePreparation::effectiveTracingAir(air);
+        input.configuration.rays = raysPerChunk;
+        input.configuration.masterSeed = kMasterSeed;
+        input.configuration.sunWidthDivisions = kSunGridDivisions;
+        input.configuration.sunHeightDivisions = kSunGridDivisions;
+        PreparedTraceContext prepared;
+        ASSERT_TRUE(TracePreparation::prepareGuiTrace(input, &prepared, &error))
+            << error.toStdString();
+
+        const SceneBvh bvh(tree.layoutRoot);
+        ASSERT_TRUE(bvh.isActive()) << "The expanded comparison must exercise the BVH.";
+        auto* sun = static_cast<SunKit*>(loaded.get()->getPart("world.sun", false));
+        ASSERT_NE(sun, nullptr);
+        auto* sunShape = static_cast<SunShape*>(sun->getPart("shape", false));
+        auto* aperture = static_cast<SunAperture*>(sun->getPart("aperture", false));
+        ASSERT_NE(sunShape, nullptr);
+        ASSERT_NE(aperture, nullptr);
+
+        InstanceNode* firstSharedShape = nullptr;
+        InstanceNode* duplicatedSharedShape = nullptr;
+        if (scenario.sharedOccurrence) {
+            ASSERT_GE(tree.layoutRoot->childCount(), 2);
+            InstanceNode* first = tree.layoutRoot->childAt(0);
+            InstanceNode* duplicate = tree.layoutRoot->childAt(1);
+            ASSERT_NE(first, nullptr);
+            ASSERT_NE(duplicate, nullptr);
+            ASSERT_NE(first, duplicate);
+            EXPECT_EQ(first->getNode(), duplicate->getNode());
+            ASSERT_EQ(first->childCount(), 1);
+            ASSERT_EQ(duplicate->childCount(), 1);
+            firstSharedShape = first->childAt(0);
+            duplicatedSharedShape = duplicate->childAt(0);
+            ASSERT_NE(firstSharedShape, duplicatedSharedShape);
+        }
+        std::size_t firstSharedHits = 0;
+        std::size_t duplicatedSharedHits = 0;
+
+        for (std::uint64_t chunkIndex : chunkIndices) {
+            SCOPED_TRACE(chunkIndex);
+            const std::uint64_t firstRayIndex = chunkIndex * 10'000ULL;
+            const std::uint64_t seed = StandardRandom::deriveChunkSeed(kMasterSeed, chunkIndex);
+            StandardRandom firstRandom(seed);
+            StandardRandom secondRandom(seed);
+            QMutex firstMutex;
+            QMutex secondMutex;
+            PhotonsBuffer firstPhotons(0, 0);
+            PhotonsBuffer secondPhotons(0, 0);
+            HitAccumulator firstHits;
+            HitAccumulator secondHits;
+            PropagationObservation firstObservation;
+            PropagationObservation secondObservation;
+
+            RayTracer firstTracer(bvh, &sunInstance, aperture, sunShape,
+                                   input.tracingAir, &firstRandom,
+                                   &firstPhotons, &firstMutex, {}, nullptr,
+                                   [&firstHits](const RayTracerHit& hit) { firstHits.add(hit); },
+                                   [&firstObservation](const RayTracerHistory& history) {
+                                       firstObservation.history(history);
+                                   }, firstRayIndex);
+            RayTracer secondTracer(bvh, &sunInstance, aperture, sunShape,
+                                input.tracingAir, &secondRandom,
+                                &secondPhotons, &secondMutex, {}, nullptr,
+                                [&secondHits](const RayTracerHit& hit) { secondHits.add(hit); },
+                                [&secondObservation](const RayTracerHistory& history) {
+                                    secondObservation.history(history);
+                                }, firstRayIndex);
+            firstTracer(raysPerChunk);
+            secondTracer(raysPerChunk);
+
+            const RayEnergyBudget firstBudget = firstTracer.energyBudget();
+            const RayEnergyBudget secondBudget = secondTracer.energyBudget();
+            EXPECT_EQ(firstBudget.launched, secondBudget.launched);
+            EXPECT_EQ(firstBudget.surfaceAbsorbed, secondBudget.surfaceAbsorbed);
+            EXPECT_EQ(firstBudget.airAbsorbed, secondBudget.airAbsorbed);
+            EXPECT_EQ(firstBudget.escaped, secondBudget.escaped);
+            EXPECT_TRUE(firstBudget.matches(raysPerChunk));
+            EXPECT_TRUE(secondBudget.matches(raysPerChunk));
+
+            ScientificSignature firstSignature;
+            ScientificSignature secondSignature;
+            firstHits.copyTo(&firstSignature);
+            secondHits.copyTo(&secondSignature);
+            EXPECT_EQ(firstSignature.hitEvents, secondSignature.hitEvents);
+            EXPECT_EQ(firstSignature.hitCount, secondSignature.hitCount);
+            EXPECT_GT(firstSignature.hitCount, 0U);
+            expectSamePropagation(firstObservation, secondObservation);
+            expectRepeatPhotonParity(firstPhotons, secondPhotons);
+
+            ASSERT_EQ(firstObservation.histories.size(), raysPerChunk);
+            ASSERT_EQ(secondObservation.histories.size(), raysPerChunk);
+            for (std::size_t i = 0; i < firstObservation.histories.size(); ++i) {
+                SCOPED_TRACE(i);
+                const RayTracerHistory& reference = firstObservation.histories[i].history;
+                const RayTracerHistory& actual = secondObservation.histories[i].history;
+                EXPECT_EQ(reference.rayIndex, firstRayIndex + i);
+                ASSERT_EQ(reference.steps.size(), actual.steps.size());
+                if (reference.steps.size() > 1)
+                    ++totalMultibounceRays;
+                if (reference.termination == RayTracerHistoryTermination::Air)
+                    ++totalAirTerminations;
+                for (std::size_t j = 0; j < reference.steps.size(); ++j) {
+                    EXPECT_EQ(reference.steps[j].surface, actual.steps[j].surface);
+                    if (reference.steps[j].surface == firstSharedShape)
+                        ++firstSharedHits;
+                    if (reference.steps[j].surface == duplicatedSharedShape)
+                        ++duplicatedSharedHits;
+                }
+            }
+
+            // Replay real BVH paths against an O(N), test-only oracle,
+            // including misses and segments stopped by atmospheric absorption.
+            expectBvhHistoryGeometryParity(tree.layoutRoot, bvh, firstObservation,
+                                          &totalReplayedHits, &totalReplayedMisses);
+        }
+        if (scenario.sharedOccurrence) {
+            EXPECT_GT(firstSharedHits, 0U);
+            EXPECT_EQ(duplicatedSharedHits, 0U);
+        }
+    }
+
+    EXPECT_GT(totalReplayedHits, 0U);
+    EXPECT_GT(totalReplayedMisses, 0U);
+    EXPECT_GT(totalMultibounceRays, 0U);
+    EXPECT_GT(totalAirTerminations, 0U);
 }
 
 // M3 Step 3C: orchestration around the existing shared session. These tests
