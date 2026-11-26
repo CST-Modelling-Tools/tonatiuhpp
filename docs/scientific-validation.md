@@ -82,9 +82,9 @@ These checks validate the frozen reference integrity, the audit tool's error han
 
 The source contains more targeted tests for canonical photon exports, fixed-seed scene hits, ordered per-ray histories, script data, flux analysis, tracker behavior, and independent CLI-process repeatability and GUI-style scientific checks. The active test definitions are in `tests/CMakeLists.txt` and `tests/scientific/CMakeLists.txt`.
 
-## Accepted full-scale flux reference
+## Immutable historical full-scale flux reference
 
-The current M5 merge candidate was tested with an explicit Windows Release run of **500,000,000 rays**, seed **123456789**, **50,000 chunks of 10,000 rays**, and a **100 x 100** front-side receiver flux grid bounded by `[-2, 2] x [-2, 2]`.
+The historical M5 merge candidate was tested with an explicit Windows Release run of **500,000,000 rays**, seed **123456789**, **50,000 chunks of 10,000 rays**, and a **100 x 100** front-side receiver flux grid bounded by `[-2, 2] x [-2, 2]`.
 
 | Measure | Expected result |
 | --- | --- |
@@ -93,6 +93,10 @@ The current M5 merge candidate was tested with an explicit Windows Release run o
 | Exact binary grid SHA-256 | `36c7dc17cee8e7fdef820f08d4482e7c3dcdee3b5eed4748ea3949a6cf4af472` |
 
 On 2026-11-10, the Windows M5 Release executable with SHA-256 `8482dad2cfea7623850c6a269a81a1539be14e8548273c72c2fe9f9dee16e278` produced the **exact frozen grid**, accepted power and peak flux, and passed `tests/scientific/audit_500m_benchmark.py`. The M5 code was merged into `master` in [PR #39](https://github.com/CST-Modelling-Tools/tonatiuhpp/pull/39), merge commit `8c6fa58f8038e9b44e5592cf4ab7658a721251d7`. This accepted evidence is sufficient for the documented M5 scientific scope; it is not a claim of release/installer readiness or of universal physical correctness.
+
+## Latest published release's scientific evidence
+
+The [v0.1.8.29 acceptance record](release-acceptance-v0.1.8.29.md) documents a fresh 500-million-ray Windows Release candidate run at feature source `46ddd5e92e679cefa7aa1046f0c06ed183e04916` (seed 123456789, 16 workers, 50,000 chunks of 10,000 rays). It completed in 108.595 s. All 10,000 binary/CSV cells were independently checked, with collected power of 42.20696058499865 MW, peak flux of 19.48813968933321 MW/m² and binary-grid SHA-256 `c92f5e2bd4ef664707dd7b135e20e283db7fcd0067b01c63a8ec65b57989adab`. This grid is identical to the v0.1.8.28 candidate grid but differs from the immutable historical reference because of previously released material/physics changes. Historical power and peak tolerances are satisfied; historical exact-grid equality is not claimed. The formal timing-stability verdict remains **INCONCLUSIVE / UNSTABLE ENVIRONMENT**. The observed speedup is not a controlled performance PASS. The fresh 500M run was on the feature source, not the published installer.
 
 ## Mandatory 500-million-ray candidate release verification
 
